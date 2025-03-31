@@ -1,0 +1,90 @@
+Absolutely. Here's a **God-like Master Prompt** tailored specifically for the development of the **“Benton GIS Workflow Assistant”**, aligning with your overall system structure, modularity goals, and Replit AI Agent usage:
+
+---
+
+### 🧠 **God-Like Master Prompt: Benton GIS Workflow Assistant (Replit AI Agent Edition)**
+
+> Use this prompt to bootstrap the full-stack development of the “Benton GIS Workflow Assistant” application. This is a production-grade workflow and geospatial automation tool designed for use by the Benton County Assessor’s Office. You are the lead AI Agent responsible for building, testing, documenting, and iterating across frontend, backend, and GIS systems.
+
+---
+
+#### 🛠️ **Build a Full-Stack AI LLM-powered GIS Workflow Application with:**
+
+##### ✅ **Dynamic Roadmap & Progress Tracking**
+- Track each module as an isolated vertical slice.
+- Sync with a Kanban-style board for development phases (Planning → In Progress → Review → Complete).
+- Prioritize authentication, GIS integration, workflow guidance, parcel number automation, BLA/Merge processing, reporting, and chatbot modules.
+
+##### 🗂️ **Modular File and Folder Structure**
+- Frontend (React): `src/modules/{auth,gis,workflows,reporting,chatbot}`
+- Backend (Node.js/Express): `server/routes/{auth,gis,workflows,reporting,chatbot}`
+- Database (PostgreSQL/PostGIS): `db/schema.sql`, `db/migrations/`
+- Shared Utilities: `lib/validation`, `lib/api-client`, `lib/gis-tools`
+- Prompts: `prompts/agent_prompts.json`
+- Docs: `docs/module_docs/`, `docs/api_docs/`
+
+##### 💻 **Development Environment**
+- Dev container (Replit-ready) with hot-reloading, VS Code integration, and environment-specific config.
+- Docker + Docker Compose to spin up PostgreSQL with PostGIS, Node backend, and React frontend.
+- `.env` file structure with fallback/defaults for dev/test/prod.
+
+##### 🔁 **Intelligent Troubleshooting and Continuous Testing**
+- Each module includes test coverage using Jest (backend) and React Testing Library (frontend).
+- Continuous validation against Benton County procedural checklists.
+- Auto-rollback logic if parcel generation or GIS export fails validation.
+
+##### 📚 **Comprehensive Documentation**
+- Inline comments across all routes and components.
+- Markdown-based procedural documentation for each workflow.
+- API docs with Swagger/OpenAPI.
+- User-facing Quick Start Guide + FAQ.
+
+##### 🔌 **Plug-and-Play Architecture**
+- Each module is self-contained and dynamically registered.
+- GIS module uses service adapters for ArcGIS Pro and QGIS.
+- Workflows are defined via dynamic JSON schemas to allow expansion.
+
+##### 🧪 **LLM & AI Agent Playground**
+- Chatbot powered by an NLP model capable of contextual FAQ answers, procedural lookups, and document retrieval.
+- Integrated prompt debugger for testing Replit Agent interactions against workflows.
+- Replay agent queries against historical session logs for refinement.
+
+##### 📦 **Packaged Deployment**
+- Deployment options for Replit, Docker Compose, and Kubernetes (for county IT).
+- Scripts for initial database seed, role management, and permission gating.
+- Supports cloud (e.g., AWS RDS/PostGIS), on-prem PostgreSQL, or hybrid models.
+
+##### 🔄 **AI-driven Testing, Feedback & Self-Learning**
+- Capture user interaction logs for QA feedback loop.
+- Auto-flag incomplete workflows or errors for review.
+- Export SM00 monthly reports and GIS actions to a central audit trail.
+
+---
+
+### 🎯 Initial Bootstrap Modules (Phase 1):
+1. [x] App Setup + JWT Authentication
+2. [ ] Interactive Workflow Checklist System
+3. [ ] GIS Map Overlay Viewer + Feature Exporter
+4. [ ] Parcel Number Generator + Ab/Sub Tracker
+5. [ ] BLA/Merge/Split Processing Engine
+6. [ ] SM00 Report Generator (PDF + Email)
+7. [ ] Chatbot Agent (LLM-Powered FAQ Navigator)
+
+---
+
+### 🧪 bootstrap-dev-checkoff
+Run this script after completing each module:
+- [ ] Check for any known bugs or unhandled flows
+- [ ] Disable login requirement for dev testing
+- [ ] Propose the next phase of development
+- [ ] Review and critique the previous module
+- [ ] Write test suite before any new code
+
+---
+
+Would you like this exported as:
+- `.md` file for project docs?
+- `.json` config to drop into Replit?
+- Pre-generated folder + starter files scaffold?
+
+Also happy to roll out the **first module (JWT Auth + Landing Page)** using this format if you want to kickstart the agent.

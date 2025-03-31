@@ -1,0 +1,107 @@
+Briefing Document: Benton County Assessor's Office GIS and Workflow Modernization
+Date: October 26, 2023 Subject: Review of Cartography/GIS Functions and Proposed "Benton GIS Workflow Assistant" Application Prepared For: [Intended Audience - e.g., Benton County Management, IT Department]
+
+This briefing document summarizes the key themes, important ideas, and facts presented in the provided sources. The first source offers insights into the existing cartography and GIS functions within the Benton County Assessor's Office, while the second details a comprehensive set of prompts for developing a "Benton GIS Workflow Assistant" application aimed at modernizing these processes.
+
+Part 1: Current Cartography and GIS Functions
+This section outlines the current state of GIS and cartography workflows in the Benton County Assessor's Office, as described in the first source. The office manages approximately 77,295 parcel records.
+
+1. Key Workflow Components:
+
+The document highlights three critical workflow components for managing plat maps:
+
+Document Digitization: This involves scanning historical documents at resolutions of "300+ DPI for maps requiring georeferencing," establishing consistent file naming conventions and storage, and creating metadata indexes for searchability. This foundational step is crucial for transitioning from paper-based to digital records.
+Boundary Creation and Maintenance: This component focuses on the accurate representation of property boundaries using "COGO (Coordinate Geometry) tools for precise recreation of surveyed boundaries." It also includes georeferencing scanned maps to modern coordinate systems and establishing reference points using "USGS control points." This ensures the spatial accuracy and reliability of the parcel data.
+Legal Compliance: Adherence to Washington State requirements under "Chapter 58.18 RCW" is paramount. This includes maintaining proper filing in both the assessor's and auditor's offices and creating index systems that reference both prior and new legal descriptions. This ensures the legal defensibility and traceability of property records.
+2. Software Comparison:
+
+The source provides a high-level comparison of different GIS software options relevant to an assessor's office:
+
+Commercial Solutions (ArcGIS Platform, Geomedia): These offer strengths such as "Parcel fabric functionality," integration with online platforms, specialized extensions, workflow automation, and integration with tools like Survey123. However, they come with considerations like "Higher cost, Steeper learning curve, Requires ongoing licensing" (ArcGIS) and "Less market share than ArcGIS, Fewer specialized assessment tools" (Geomedia).
+Open Source Solutions (QGIS): QGIS offers strengths such as being "Free and open-source," having "Comprehensive mapping tools," enabling "Professional map composition," and supporting "Data-defined labeling." The considerations include being "Less specialized for assessor workflows, Community support vs. vendor support, May require custom development."
+3. Recommended Implementation Approach:
+
+The document suggests a structured approach for implementing an effective GIS workflow:
+
+Assessment of Current Systems: Evaluating existing data, workflows, and integration points, and documenting pain points.
+Software Selection: Considering budget, infrastructure, staff expertise, specialized needs, and integration requirements.
+Document Management System Implementation: Establishing standards for naming, storage, quality control, and backups.
+Training and Transition Planning: Developing specific training materials, planning a phased rollout, and establishing ongoing support.
+4. Key Recommendations:
+
+The source concludes with actionable recommendations to improve GIS operations:
+
+Standardize Document Management: Implementing consistent naming, a centralized repository, and clear update procedures.
+Optimize GIS Data Structure: Designing feature classes with subtypes, implementing relationship classes, and using domain values for data consistency.
+Enhance Public Access: Developing a web portal for non-sensitive information, tools for generating reports and maps, and user-friendly search interfaces.
+Establish Quality Control Procedures: Implementing automated validation rules, review workflows, and regular data auditing.
+The overarching theme of this source is the need for a well-structured and legally compliant GIS workflow within the Benton County Assessor's Office. It highlights the importance of accurate data management, efficient processes, and informed software selection to effectively manage the county's parcel records.
+
+Part 2: Proposed "Benton GIS Workflow Assistant" Application
+This section reviews the detailed prompts provided for developing the "Benton GIS Workflow Assistant" application. The proposed application aims to significantly modernize and streamline the workflows identified in Part 1.
+
+1. General Application Setup and User Authentication:
+
+The application will be a web-based project using React for the frontend and Node.js for the backend. It will feature a secure login system for county staff utilizing JSON Web Tokens (JWT) for authentication. The landing page will offer users a selection of workflows such as "'Process Long Plat', 'Execute BLA', 'Merge/Split Parcels'." Key features include clear error messages, session management, and inline documentation for authentication components. This establishes a secure and user-friendly foundation for the application.
+
+2. Interactive Workflow Guidance Module:
+
+This module aims to provide step-by-step guidance through assessor office workflows. For long plats, it will include an "interactive checklist that mimics our LONG PLATS CHECKLIST" and digital form fields to capture relevant data (Parent Parcel IDs, Lot numbers, acreage, legal descriptions, event notes). Data will be validated and saved to a PostgreSQL database with the PostGIS extension. Users will be able to save progress, review steps, and generate "Before/After Maps" (linking to the GIS module). This module focuses on standardizing data entry and guiding users through complex procedures.
+
+3. GIS Integration and Mapping Module:
+
+This crucial module will integrate with ArcGIS Pro and QGIS via RESTful APIs. Users will be able to:
+
+Import shapefiles (following "Adding SHAPEFILES from City of Kennewick to ArcGIS Pro").
+Display maps with overlay options for "before" and "after" boundaries.
+Select features (e.g., "a 'Temp Line'") and export them as feature classes (see "How to Export a Feature").
+Edit legal descriptions on the map (refer to "ArcPro - Draw by Legal").
+Ensure that map edits update the underlying database parcel data.
+This module directly addresses the core GIS functionalities discussed in Part 1, enabling seamless integration between spatial data and the workflow application.
+
+4. Code and Parcel Number Generation Module:
+
+This module will automate the generation and validation of new Ab/Sub codes and parcel numbers based on "Benton County Tax/Parcel Number guidelines." It will:
+
+Read the latest used code from an "Abstract Codes' table."
+Suggest and verify the next available code.
+Allow assignment of new codes to multiple year layers.
+Validate that generated parcel numbers follow the 15-digit format rules.
+This automation will improve data accuracy and reduce manual errors associated with code and parcel number assignment.
+
+5. Merge, Split, and Boundary Line Adjustment (BLA) Processing Module:
+
+This module will streamline the processing of parcel changes. It will:
+
+Display forms to upload/select related deed documents and checklists (e.g., "BLA CHECKLIST, MERGE Procedures").
+Guide users through retrieving parent parcel data (including "roll history screenshots"), using a "digital version of the Merge Check-Off List," automating recalculation of parcel sizes, marking parent parcels as inactive, and processing splits with updated legal descriptions.
+Log all actions for audit purposes and update a central tracking sheet.
+This module aims to standardize and automate complex processes involving changes to parcel boundaries and ownership.
+
+6. Reporting and Audit Trail Module (SM00 Reporting):
+
+This module will focus on generating the monthly SM00 segregation reports. It will:
+
+Pull data from a dedicated SM00 tracking database table.
+Allow filtering by assessment year and supplement groups.
+Provide a report preview with status color-coding (e.g., "ORANGE for pending, GREY for sent").
+Export the report as a PDF following a predefined template.
+Automate email distribution of the report to a fixed list of recipients.
+This module will enhance reporting efficiency and provide better insights into segregation processing.
+
+7. User Assistance and FAQ Chatbot:
+
+The application will integrate an "NLP-powered chatbot" to assist users with common questions about workflows, technical steps, and troubleshooting. The chatbot should:
+
+Answer procedural questions (e.g., "'How do I create a new plat?' or 'What are the steps for processing a BLA?'").
+Provide links/pop-ups to procedural documents (e.g., "'Event Notes & Legal Descriptions Samples'").
+Offer context-sensitive help.
+Allow users to search the internal document repository.
+This feature aims to improve user support and reduce reliance on direct assistance for common inquiries.
+
+Final Steps:
+
+The prompts emphasize the importance of data validation, responsive design, comprehensive inline documentation, and the creation of a test plan to ensure the application aligns with existing county procedures.
+
+Conclusion
+The provided sources paint a picture of an Assessor's Office with established, yet potentially manual-intensive, GIS and cartography workflows. The detailed prompts for the "Benton GIS Workflow Assistant" application offer a comprehensive strategy for modernization. By developing the modules as described, Benton County can expect to see significant improvements in efficiency, data accuracy, legal compliance, and user support. The application's focus on integrating GIS functionalities, automating key processes, and providing guided workflows directly addresses the needs and recommendations outlined in the initial overview of the office's cartography and GIS functions. The successful development and implementation of this application have the potential to significantly enhance the Benton County Assessor's Office's ability to manage its critical parcel data.

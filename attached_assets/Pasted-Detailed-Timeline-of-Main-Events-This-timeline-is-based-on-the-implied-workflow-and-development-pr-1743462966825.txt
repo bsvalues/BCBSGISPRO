@@ -1,0 +1,46 @@
+Detailed Timeline of Main Events:
+This timeline is based on the implied workflow and development process described in the provided sources. It's not a chronological history of actual events but rather a logical sequence of steps involved in modernizing the Benton County Assessor's Office GIS capabilities.
+
+Phase 1: Understanding Current State and Planning (Source 1)
+
+(Implied) Assessment of Current Systems: Evaluation of existing data structures, workflows, integration points with other county systems, and identification of current pain points and inefficiencies within the Benton County Assessor's Office.
+(Implied) Document Management Analysis: Review of current practices for handling historical and new plat maps, including filing and indexing systems.
+(Implied) Software Evaluation: Consideration of various GIS software options, both commercial (ArcGIS, Geomedia) and open source (QGIS), weighing their strengths and weaknesses in the context of assessor workflows.
+(Implied) Development of Recommended Implementation Approach: Structuring a plan encompassing assessment, software selection, document management, and training.
+(Implied) Workflow Diagram Creation: Visual representation of the ideal future workflow for processing new plat documents and historical records.
+(Implied) Formulation of Key Recommendations: Outlining strategies for standardizing document management, optimizing GIS data structure, enhancing public access, and establishing quality control procedures.
+Phase 2: Application Development - Module by Module (Source 2)
+
+(Planned) General Application Setup and User Authentication: Creation of the "Benton GIS Workflow Assistant" web application with React frontend and Node.js backend, including a secure login system using JWT for county staff. Implementation of a landing page with workflow selection.
+(Planned) Interactive Workflow Guidance Module Development: Building an interactive module with checklists (mimicking the LONG PLATS CHECKLIST), digital forms for data capture (Parent Parcel IDs, Lot numbers, etc.), data validation, saving progress, and a button to generate before/after maps. Integration with a PostgreSQL database with PostGIS.
+(Planned) GIS Integration and Mapping Module Implementation: Developing a module to connect with ArcGIS Pro and QGIS via RESTful APIs. Functionality to import shapefiles, display map views with overlay options, select and export features as feature classes, and edit legal descriptions on the map with updates to the underlying database.
+(Planned) Code and Parcel Number Generation Module Construction: Building a module to automate the generation and validation of new Ab/Sub codes and parcel numbers based on Benton County guidelines, including reading existing codes, suggesting new ones, assigning codes to multiple year layers, and validating the 15-digit parcel number format.
+(Planned) Merge, Split, and BLA Processing Module Development: Creating a module to process parcel mergers, splits, and boundary line adjustments. Features include uploading/selecting deeds and checklists, retrieving parent parcel data, a digital Merge Check-Off List, automated recalculation of parcel sizes, processing splits with new child parcels, action logging, and updates to a central tracking sheet.
+(Planned) Reporting and Audit Trail Module (SM00 Reporting) Creation: Developing a module to generate monthly SM00 segregation reports. Capabilities include pulling data from an SM00 tracking database, filtering by assessment year and supplement groups, report preview, PDF export with a template, and automated email sending.
+(Planned) User Assistance and FAQ Chatbot Integration: Implementing an NLP-powered chatbot to answer user questions about workflows, technical steps, and troubleshooting. Features include providing procedural documents, context-sensitive help, and searching the internal document repository.
+Phase 3: Implementation and Ongoing Management (Implied)
+
+(Implied) Software Selection and Procurement: Based on the assessment, a final decision is made on the GIS software (ArcGIS, QGIS, or a combination) and necessary licenses are acquired.
+(Implied) Document Management System Implementation: Establishing standardized naming conventions, a centralized repository, quality control procedures, and backup protocols for digitized documents.
+(Implied) Data Migration and Integration: Populating the new database and GIS system with existing parcel data and integrating it with other relevant county systems.
+(Implied) Training and Transition: Providing training materials and support to Benton County Assessor's Office staff on the new GIS workflows and the "Benton GIS Workflow Assistant" application. Implementing a phased rollout to minimize disruption.
+(Implied) Public Access Enhancement: Developing and deploying a web-based portal for public access to non-sensitive property information, including search tools and report/map generation.
+(Implied) Ongoing Quality Control and Maintenance: Implementing automated validation rules, review workflows, and regular data auditing processes to ensure data accuracy and system reliability. Continuous maintenance and updates to the "Benton GIS Workflow Assistant" application.
+Cast of Characters:
+This list identifies the principal people and entities implicitly or explicitly mentioned or relevant to the context of the sources.
+
+Benton County Assessor's Office Staff: The primary users of the new GIS workflows and the "Benton GIS Workflow Assistant" application. They are responsible for managing parcel records, processing plats, performing legal compliance tasks, and providing public access to information.
+Assessor (Implicit): The head of the Benton County Assessor's Office, responsible for overseeing the operations and potentially making key decisions regarding technology adoption and workflow changes.
+Auditor's Office (Mentioned): A separate Benton County office with whom the Assessor's Office needs to coordinate regarding the filing of legal documents (Chapter 58.18 RCW).
+Molly (Mentioned): An individual within the Benton County system who needs to be notified for annexation or exempt issues during the long plat processing workflow. Her specific role isn't defined but she likely handles these specific types of property changes.
+City of Kennewick (Mentioned): A neighboring municipality whose shapefiles are used as an example for importing data into ArcGIS Pro. This suggests potential data sharing or integration needs between the county and city.
+Public (Mentioned): The citizens who will benefit from enhanced public access to property information through a web-based portal.
+Software Developers (Implicit): The individuals or team responsible for creating the "Benton GIS Workflow Assistant" application based on the provided prompts.
+GIS Professionals (Implicit): Individuals with expertise in Geographic Information Systems who are involved in designing the workflows, selecting software, and potentially implementing the GIS integration aspects.
+Surveyors (Mentioned - via COGO): Professionals who conduct land surveys, the data from which is crucial for precise boundary creation using COGO tools in the GIS system.
+USGS (Mentioned): The United States Geological Survey, whose control points are used as reference points for georeferencing scanned maps.
+Hexagon (Mentioned - via Geomedia): The company that develops the Geomedia GIS software, a commercial alternative considered for the Assessor's Office.
+Esri (Implicit - via ArcGIS): The company that develops the ArcGIS platform, another commercial GIS solution with parcel fabric functionality.
+QGIS Community (Mentioned): The community of users and developers supporting the open-source QGIS software.
+These characters represent the key stakeholders and entities involved in the processes and the proposed application described in the sources.
+
