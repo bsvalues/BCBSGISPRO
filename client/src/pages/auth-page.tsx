@@ -1,16 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Loader2, MapPin, Shield, FileText, Users } from "lucide-react";
+import { MapPin, Shield, FileText, Users } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -30,8 +30,8 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
-  const { user, loginMutation, registerMutation } = useAuth();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -52,18 +52,22 @@ export default function AuthPage() {
     },
   });
 
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
-
   const onLoginSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
+    console.log("Login data:", data);
+    toast({
+      title: "Development Mode",
+      description: "Authentication is bypassed in development. Redirecting to homepage.",
+    });
+    navigate("/");
   };
 
   const onRegisterSubmit = (data: RegisterFormValues) => {
-    registerMutation.mutate(data);
+    console.log("Register data:", data);
+    toast({
+      title: "Development Mode",
+      description: "Account creation is bypassed in development. Redirecting to homepage.",
+    });
+    navigate("/");
   };
 
   return (
@@ -120,15 +124,8 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-                      {loginMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing in...
-                        </>
-                      ) : (
-                        "Sign In"
-                      )}
+                    <Button type="submit" className="w-full">
+                      Sign In
                     </Button>
                   </form>
                 </Form>
@@ -202,15 +199,8 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
-                      {registerMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating Account...
-                        </>
-                      ) : (
-                        "Create Account"
-                      )}
+                    <Button type="submit" className="w-full">
+                        Create Account
                     </Button>
                   </form>
                 </Form>

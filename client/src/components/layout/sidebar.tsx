@@ -50,48 +50,52 @@ export function Sidebar({ activeModule }: SidebarProps) {
         <div className="px-4 mb-4">
           <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Workflows</h2>
           {workflowNavItems.map((item) => (
-            <Link key={item.path} href={item.path}>
-              <a className={cn(
-                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full",
+            <div 
+              key={item.path} 
+              onClick={() => window.location.href = item.path} 
+              className={cn(
+                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full cursor-pointer",
                 isPathActive(item.path)
                   ? "text-primary-600 bg-primary-50"
                   : "text-neutral-700 hover:text-primary-600 hover:bg-primary-50"
+              )}
+            >
+              <span className={cn(
+                "mr-3",
+                isPathActive(item.path)
+                  ? "text-primary-500"
+                  : "text-neutral-400 group-hover:text-primary-500"
               )}>
-                <span className={cn(
-                  "mr-3",
-                  isPathActive(item.path)
-                    ? "text-primary-500"
-                    : "text-neutral-400 group-hover:text-primary-500"
-                )}>
-                  {getIcon(item.icon)}
-                </span>
-                <span>{item.label}</span>
-              </a>
-            </Link>
+                {getIcon(item.icon)}
+              </span>
+              <span>{item.label}</span>
+            </div>
           ))}
         </div>
         
         <div className="px-4 mb-4">
           <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Tools</h2>
           {toolNavItems.map((item) => (
-            <Link key={item.path} href={item.path}>
-              <a className={cn(
-                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full",
+            <div 
+              key={item.path} 
+              onClick={() => window.location.href = item.path} 
+              className={cn(
+                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full cursor-pointer",
                 isPathActive(item.path)
                   ? "text-primary-600 bg-primary-50"
                   : "text-neutral-700 hover:text-primary-600 hover:bg-primary-50"
+              )}
+            >
+              <span className={cn(
+                "mr-3",
+                isPathActive(item.path)
+                  ? "text-primary-500"
+                  : "text-neutral-400 group-hover:text-primary-500"
               )}>
-                <span className={cn(
-                  "mr-3",
-                  isPathActive(item.path)
-                    ? "text-primary-500"
-                    : "text-neutral-400 group-hover:text-primary-500"
-                )}>
-                  {getIcon(item.icon)}
-                </span>
-                <span>{item.label}</span>
-              </a>
-            </Link>
+                {getIcon(item.icon)}
+              </span>
+              <span>{item.label}</span>
+            </div>
           ))}
         </div>
       </nav>

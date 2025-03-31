@@ -6,31 +6,50 @@ import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { MapIcon, ActivityIcon, CheckSquareIcon, ClockIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { MapIcon, ActivityIcon, CheckSquareIcon, ClockIcon, AlertTriangleIcon } from "lucide-react";
 import { workflowTypeLabels, workflowTypeIcons, WorkflowType } from "@/lib/workflow-types";
 
 export default function HomePage() {
-  const { user } = useAuth();
   const [, navigate] = useLocation();
   const [notificationCount, setNotificationCount] = useState(0);
+  const user = { fullName: "Developer", username: "dev", isAdmin: true, email: "dev@example.com" };
   
-  // Fetch workflows for the current user
-  const { data: workflows, isLoading } = useQuery<Workflow[]>({
-    queryKey: ["/api/workflows"],
-    staleTime: 1000 * 60, // 1 minute
-  });
+  // In development mode, use mock workflows
+  const mockWorkflows: Workflow[] = [
+    {
+      id: 1,
+      title: "Sample Long Plat Workflow",
+      type: "long_plat",
+      status: "in_progress",
+      createdAt: new Date("2025-03-15"),
+      updatedAt: new Date("2025-03-30"),
+      userId: 1,
+      description: "Sample workflow for development",
+    },
+    {
+      id: 2,
+      title: "Example BLA Project",
+      type: "bla",
+      status: "review",
+      createdAt: new Date("2025-03-20"),
+      updatedAt: new Date("2025-03-31"),
+      userId: 1,
+      description: "Boundary line adjustment example",
+    }
+  ];
+  
+  // Using mock data instead of actual API request in dev mode
+  const { data: workflows, isLoading } = {
+    data: mockWorkflows,
+    isLoading: false
+  };
   
   useEffect(() => {
     // Set notification count based on number of workflows with recent updates
     // This would be replaced with actual notification logic in a real implementation
-    if (workflows) {
-      const recentWorkflows = workflows.filter(
-        workflow => new Date(workflow.updatedAt).getTime() > Date.now() - 24 * 60 * 60 * 1000
-      );
-      setNotificationCount(recentWorkflows.length);
-    }
-  }, [workflows]);
+    setNotificationCount(2); // Mock notification count
+  }, []);
   
   // Create new workflow
   const handleCreateWorkflow = (type: WorkflowType) => {
@@ -50,6 +69,15 @@ export default function HomePage() {
         <Sidebar />
         
         <main className="flex-1 overflow-auto bg-neutral-50 p-6">
+          {/* Development Mode Alert */}
+          <Alert className="mb-6 border-amber-500 bg-amber-50">
+            <AlertTriangleIcon className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Development Mode</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Authentication is bypassed for development. You are automatically logged in as a developer.
+            </AlertDescription>
+          </Alert>
+          
           {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-neutral-800 mb-2">
@@ -139,11 +167,13 @@ export default function HomePage() {
                           workflow.status === 'review' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-neutral-100 text-neutral-800'
                         }`}>
-                          {workflow.status.replace('_', ' ')}
+                          {workflow.status && workflow.status.includes('_') ? 
+                            workflow.status.replace('_', ' ') : 
+                            workflow.status || 'draft'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                        {new Date(workflow.updatedAt).toLocaleDateString()}
+                        {workflow.updatedAt ? new Date(workflow.updatedAt).toLocaleDateString() : 'Not updated'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                         <Button 

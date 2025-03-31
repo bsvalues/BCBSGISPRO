@@ -1,6 +1,5 @@
 import { Bell, HelpCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   DropdownMenu, 
@@ -16,16 +15,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 type HeaderProps = {
   notificationCount?: number;
 };
 
 export function Header({ notificationCount = 0 }: HeaderProps) {
-  const { user, logoutMutation } = useAuth();
+  // In dev mode, mock a user
+  const user = { fullName: "Developer", username: "dev", isAdmin: true, email: "dev@example.com" };
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
   
   const handleLogout = () => {
-    logoutMutation.mutate();
+    toast({
+      title: "Development Mode",
+      description: "Authentication is bypassed. Normally this would log you out."
+    });
   };
   
   // Create initials from full name
