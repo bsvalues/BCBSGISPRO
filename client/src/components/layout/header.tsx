@@ -48,7 +48,7 @@ export function Header({ className }: HeaderProps) {
       {/* Logo and title */}
       <div className="flex items-center">
         <Link href="/">
-          <a className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 cursor-pointer">
             <div className="w-10 h-10 flex items-center justify-center rounded-md bg-primary text-white font-bold text-lg">
               BC
             </div>
@@ -56,7 +56,7 @@ export function Header({ className }: HeaderProps) {
               <h1 className="text-xl font-bold">Benton County GIS</h1>
               <p className="text-xs text-gray-500">Assessor's Office</p>
             </div>
-          </a>
+          </div>
         </Link>
         
         {/* Main Navigation */}
@@ -167,15 +167,15 @@ function NavItem({ href, icon, label }: NavItemProps) {
   return (
     <li>
       <Link href={href}>
-        <a className={cn(
-          "px-3 py-2 flex items-center space-x-1 rounded-md text-sm font-medium",
+        <div className={cn(
+          "px-3 py-2 flex items-center space-x-1 rounded-md text-sm font-medium cursor-pointer",
           isActive 
             ? "bg-primary-50 text-primary-700" 
             : "text-gray-700 hover:bg-gray-100"
         )}>
           {icon}
           <span>{label}</span>
-        </a>
+        </div>
       </Link>
     </li>
   );

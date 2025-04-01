@@ -13,6 +13,7 @@ import { ProtectedRoute } from "@/lib/protected-route";
 import { useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
+import { AuthProvider } from "@/hooks/use-auth";
 
 // Auto Login page for development
 function DevAutoLogin() {
@@ -77,7 +78,9 @@ function Router() {
 
 function App() {
   return (
-    <Router />
+    <AuthProvider>
+      <Router />
+    </AuthProvider>
   );
 }
 

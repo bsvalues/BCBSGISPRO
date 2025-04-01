@@ -171,20 +171,18 @@ function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) {
   const [location] = useLocation();
   const isActive = location === href || location.startsWith(`${href}/`);
   
-  const item = (
-    <Link href={href}>
-      <a
-        className={cn(
-          "flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-          isActive 
-            ? "bg-primary-50 text-primary-700" 
-            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-        )}
-      >
-        <span className="flex-shrink-0">{icon}</span>
-        {!collapsed && <span className="truncate">{label}</span>}
-      </a>
-    </Link>
+  const linkContent = (
+    <div
+      className={cn(
+        "flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+        isActive 
+          ? "bg-primary-50 text-primary-700" 
+          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+      )}
+    >
+      <span className="flex-shrink-0">{icon}</span>
+      {!collapsed && <span className="truncate">{label}</span>}
+    </div>
   );
   
   // If sidebar is collapsed, wrap with tooltip
@@ -194,7 +192,9 @@ function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              {item}
+              <Link href={href}>
+                {linkContent}
+              </Link>
             </TooltipTrigger>
             <TooltipContent side="right" align="center" className="z-50">
               {label}
@@ -205,5 +205,11 @@ function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) {
     );
   }
   
-  return <li>{item}</li>;
+  return (
+    <li>
+      <Link href={href}>
+        {linkContent}
+      </Link>
+    </li>
+  );
 }

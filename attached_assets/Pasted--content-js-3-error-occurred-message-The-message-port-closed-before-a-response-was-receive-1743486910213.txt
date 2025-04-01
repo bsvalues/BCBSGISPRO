@@ -1,0 +1,47 @@
+﻿
+content.js:3 
+ error occurred 
+{message: 'The message port closed before a response was received.'}
+ajaxRequestInterceptor.ps.js:1 Fetch finished loading: GET "https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/api/user".
+use-auth.tsx:127 
+ Uncaught Error: useAuth must be used within an AuthProvider
+    at useAuth (use-auth.tsx:127:11)
+    at Header (header.tsx:34:36)
+hook.js:608 
+ Warning: validateDOMNesting(...): <a> cannot appear as a descendant of <a>. Error Component Stack
+    at a (<anonymous>)
+    at a (<anonymous>)
+    at SidebarItem (sidebar.tsx:170:24)
+    at ul (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at Sidebar (sidebar.tsx:24:27)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at HomePage (home-page.tsx:14:24)
+    at ProtectedRoute (protected-route.tsx:11:34)
+use-auth.tsx:127 
+ Uncaught Error: useAuth must be used within an AuthProvider
+    at useAuth (use-auth.tsx:127:11)
+    at Header (header.tsx:34:36)
+hook.js:608 
+ The above error occurred in the <Header> component:
+
+    at Header (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/layout/header.tsx:43:26)
+    at div
+    at HomePage (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/pages/home-page.tsx:29:24)
+    at Route (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=bbd4f471:323:16)
+    at ProtectedRoute (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/lib/protected-route.tsx:22:34)
+    at Switch (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=bbd4f471:379:17)
+    at Router
+    at App
+    at QueryClientProvider (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=5f71242c:2805:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+react-dom.development.js:12056 
+ Uncaught Error: useAuth must be used within an AuthProvider
+    at useAuth (use-auth.tsx:127:11)
+    at Header (header.tsx:34:36)
