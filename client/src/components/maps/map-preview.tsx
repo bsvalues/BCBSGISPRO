@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ZoomIn, ZoomOut, Move, Maximize } from "lucide-react";
+import { Search } from "lucide-react";
 import { DEFAULT_MAP_LAYERS, MapLayer } from "@/lib/map-utils";
+import { BasicMapViewer } from "./basic-map-viewer";
 
 type MapPreviewProps = {
   workflowId?: number;
@@ -45,31 +46,12 @@ export function MapPreview({ workflowId, parcelId, enableFullMap = false, onOpen
       
       <CardContent className="space-y-3">
         <div className="h-64 bg-neutral-100 rounded-md border border-neutral-300 overflow-hidden relative">
-          {/* Map content - In a real implementation, this would be a Leaflet or MapLibre map */}
-          <div 
-            className="relative h-full w-full bg-cover bg-center" 
-            style={{ 
-              backgroundImage: "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&auto=format&fit=crop&q=60')"
-            }}
-          >
-            <div className="absolute inset-0 bg-neutral-900 bg-opacity-20"></div>
-            
-            {/* Map Controls Overlay */}
-            <div className="absolute top-2 right-2 flex flex-col bg-white rounded-md shadow-sm overflow-hidden">
-              <Button variant="ghost" size="icon" className="p-1.5 h-8 w-8 rounded-none border-b border-neutral-200">
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="p-1.5 h-8 w-8 rounded-none border-b border-neutral-200">
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="p-1.5 h-8 w-8 rounded-none border-b border-neutral-200">
-                <Move className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="p-1.5 h-8 w-8 rounded-none">
-                <Maximize className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          {/* Using our simplified map viewer first */}
+          <BasicMapViewer
+            mapLayers={mapLayers}
+            parcelId={parcelId}
+            enableLayerControl={false}
+          />
         </div>
         
         <div className="flex justify-between items-center">

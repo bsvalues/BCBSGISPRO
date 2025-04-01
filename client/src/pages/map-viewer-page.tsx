@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MapLayer } from "@/lib/map-utils";
+import { BasicMapViewer } from "@/components/maps/basic-map-viewer";
 import {
   Search,
   Layers,
@@ -342,15 +343,11 @@ export default function MapViewerPage() {
             {/* Map Container */}
             <div className="flex-1 relative">
               <div ref={mapContainerRef} className="absolute inset-0 bg-neutral-100">
-                {/* This would be replaced with a mapping library like Leaflet or MapLibre */}
-                <div 
-                  className="w-full h-full bg-cover bg-center" 
-                  style={{ 
-                    backgroundImage: "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1200&auto=format&fit=crop&q=60')" 
-                  }}
-                >
-                  <div className="absolute inset-0 bg-neutral-800 bg-opacity-10"></div>
-                </div>
+                {/* Using our basic map viewer component */}
+                <BasicMapViewer 
+                  mapLayers={mapLayers || []}
+                  enableLayerControl={true}
+                />
                 
                 {/* Map Controls */}
                 <div className="absolute top-4 right-4 bg-white rounded-md shadow-sm">

@@ -14,7 +14,8 @@ import { Loader2, KeySquare, AlertTriangle, CheckCircle, Copy, Info } from "luci
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { AssistantPanel } from "@/components/chatbot/assistant-panel";
-import { isValidParcelNumber } from "@/lib/map-utils";
+import { isValidParcelNumber, DEFAULT_MAP_LAYERS } from "@/lib/map-utils";
+import { ParcelPreview } from "@/components/maps/parcel-preview";
 
 export default function ParcelGeneratorPage() {
   // Bypass auth during development
@@ -416,6 +417,7 @@ export default function ParcelGeneratorPage() {
               </Card>
               
               {/* Help Panel */}
+              <ParcelPreview parcelIds={generatedParcels} mapLayers={DEFAULT_MAP_LAYERS} />
               <AssistantPanel title="Parcel ID Generator Help" />
             </div>
           </div>
