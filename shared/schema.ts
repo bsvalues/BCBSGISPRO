@@ -125,6 +125,10 @@ export const parcels = pgTable("parcels", {
   parentParcelId: text("parent_parcel_id"),
   legalDescription: text("legal_description"),
   acreage: text("acreage"),
+  address: text("address"),
+  city: text("city"),
+  zip: text("zip"),
+  propertyType: text("property_type"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -135,6 +139,10 @@ export const insertParcelSchema = createInsertSchema(parcels).pick({
   parentParcelId: true,
   legalDescription: true,
   acreage: true,
+  address: true,
+  city: true,
+  zip: true,
+  propertyType: true,
   isActive: true,
 });
 
