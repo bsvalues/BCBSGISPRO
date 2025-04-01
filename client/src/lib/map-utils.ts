@@ -1,9 +1,105 @@
 import * as turf from '@turf/turf';
-import { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson';
+import { Feature, FeatureCollection, Geometry, GeoJsonProperties, Position, Polygon, MultiPolygon } from 'geojson';
 import { MapLayer as DBMapLayer } from '@shared/schema';
 
 export type GeoJSONFeature = Feature<Geometry, GeoJsonProperties>;
 export type GeoJSONFeatureCollection = FeatureCollection<Geometry, GeoJsonProperties>;
+
+/**
+ * Units for measurements
+ */
+export enum MeasurementUnit {
+  METERS = 'meters',
+  KILOMETERS = 'kilometers',
+  FEET = 'feet',
+  MILES = 'miles',
+  ACRES = 'acres',
+  HECTARES = 'hectares',
+  SQUARE_FEET = 'square_feet',
+  SQUARE_METERS = 'square_meters'
+}
+
+/**
+ * Type of measurement
+ */
+export enum MeasurementType {
+  DISTANCE = 'distance',
+  AREA = 'area',
+  PERIMETER = 'perimeter'
+}
+
+/**
+ * Calculate distance between two points in meters
+ * @param point1 First point as [latitude, longitude]
+ * @param point2 Second point as [latitude, longitude]
+ * @param unit Optional unit for result (default: meters)
+ * @returns Distance in specified unit
+ */
+export function calculateDistance(
+  point1: [number, number], 
+  point2: [number, number],
+  unit: MeasurementUnit = MeasurementUnit.METERS
+): number {
+  const from = turf.point(point1);
+  const to = turf.point(point2);
+  return turf.distance(from, to, { units: convertToTurfUnits(unit) });
+}
+
+/**
+ * Calculate area of a polygon in square meters
+ * @param polygon Polygon feature
+ * @param unit Optional unit for result (default: square meters)
+ * @returns Area in specified unit
+ */
+export function calculateArea(
+  polygon: Feature<Polygon | MultiPolygon, GeoJsonProperties>,
+  unit: MeasurementUnit = MeasurementUnit.SQUARE_METERS
+): number {
+  let area = turf.area(polygon);
+  
+  // Convert from square meters to requested unit
+  switch (unit) {
+    case MeasurementUnit.HECTARES:
+      return area / 10000;
+    case MeasurementUnit.ACRES:
+      return area / 4046.86;
+    case MeasurementUnit.SQUARE_FEET:
+      return area * 10.7639;
+    default:
+      return area;
+  }
+}
+
+/**
+ * Calculate perimeter of a polygon in meters
+ * @param polygon Polygon feature
+ * @param unit Optional unit for result (default: meters)
+ * @returns Perimeter in specified unit
+ */
+export function calculatePerimeter(
+  polygon: Feature<Polygon | MultiPolygon, GeoJsonProperties>,
+  unit: MeasurementUnit = MeasurementUnit.METERS
+): number {
+  const line = turf.polygonToLine(polygon);
+  return turf.length(line, { units: convertToTurfUnits(unit) });
+}
+
+/**
+ * Convert an array of points to a polygon feature
+ * @param points Array of [lat, lon] points
+ * @returns GeoJSON Polygon Feature
+ */
+export function pointsToPolygon(points: Position[]): Feature<Polygon, GeoJsonProperties> {
+  // Ensure the polygon is closed (first point = last point)
+  const closedPoints = [...points];
+  if (
+    closedPoints[0][0] !== closedPoints[closedPoints.length - 1][0] || 
+    closedPoints[0][1] !== closedPoints[closedPoints.length - 1][1]
+  ) {
+    closedPoints.push(closedPoints[0]);
+  }
+  return turf.polygon([closedPoints]);
+}
 
 /**
  * Convert database opacity value (0-100) to UI opacity value (0-1)
@@ -245,13 +341,6 @@ export function isValidParcelNumber(parcelNumber: string): boolean {
 }
 
 /**
- * Calculates the area of a GeoJSON geometry in square meters
- */
-export function calculateArea(geojson: GeoJSONFeature | GeoJSONFeatureCollection): number {
-  return turf.area(geojson);
-}
-
-/**
  * Converts square meters to acres
  */
 export function squareMetersToAcres(squareMeters: number): number {
@@ -276,7 +365,8 @@ export function formatCoordinates(coordinates: [number, number]): string {
  * Creates a buffer around a GeoJSON feature
  */
 export function createBuffer(feature: GeoJSONFeature, radiusInMeters: number): GeoJSONFeature {
-  return turf.buffer(feature, radiusInMeters, { units: 'meters' });
+  const result = turf.buffer(feature, radiusInMeters, { units: 'meters' });
+  return result as GeoJSONFeature;
 }
 
 /**
@@ -301,7 +391,17 @@ export function mergeFeatures(features: GeoJSONFeature[]): GeoJSONFeature {
   if (features.length === 1) return features[0];
   
   const collection = turf.featureCollection(features);
-  return turf.union(...features);
+  if (features.length === 2) {
+    return turf.union(features[0], features[1]);
+  }
+  
+  // For more than 2 features, perform sequential unions
+  let result = turf.union(features[0], features[1]);
+  for (let i = 2; i < features.length; i++) {
+    result = turf.union(result, features[i]);
+  }
+  
+  return result as GeoJSONFeature;
 }
 
 /**
@@ -406,16 +506,21 @@ export function areGeoJSONFeaturesEqual(feature1: GeoJSONFeature, feature2: GeoJ
 }
 
 /**
- * Calculates the distance between two points
+ * Helper function to convert between MeasurementUnit and Turf.js units
  */
-export function calculateDistance(
-  point1: [number, number], 
-  point2: [number, number], 
-  units: 'meters' | 'kilometers' | 'miles' | 'feet' = 'kilometers'
-): number {
-  const from = turf.point(point1);
-  const to = turf.point(point2);
-  return turf.distance(from, to, { units });
+function convertToTurfUnits(unit: MeasurementUnit): string {
+  switch (unit) {
+    case MeasurementUnit.KILOMETERS:
+      return 'kilometers';
+    case MeasurementUnit.METERS:
+      return 'meters';
+    case MeasurementUnit.MILES:
+      return 'miles';
+    case MeasurementUnit.FEET:
+      return 'feet';
+    default:
+      return 'meters';
+  }
 }
 
 /**
@@ -428,7 +533,11 @@ export function calculateBoundingBox(features: GeoJSONFeature[]): [number, numbe
   }
   
   const collection = turf.featureCollection(features);
-  return turf.bbox(collection);
+  const bbox = turf.bbox(collection);
+  
+  // Handle different bbox formats - turf can return either [minX, minY, maxX, maxY] or [minX, minY, minZ, maxX, maxY, maxZ]
+  // We only need the first 4 values for a 2D bounding box
+  return [bbox[0], bbox[1], bbox[2], bbox[3]];
 }
 
 /**
