@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import * as fs from 'fs';
+import * as path from 'path';
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { 
@@ -17,10 +19,30 @@ import {
   runGeospatialAnalysis, 
   GeospatialOperationType, 
   MeasurementUnit, 
-  type OperationParams 
+  type OperationParams,
+  type GeospatialAnalysisResult
 } from "./services/geospatial-analysis";
+import {
+  generateReport,
+  ReportFormat,
+  getSupportedFormats
+} from "./services/report-generator";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+
+// Map of operation types to human-readable titles
+const operationTitles: Record<GeospatialOperationType, string> = {
+  [GeospatialOperationType.BUFFER]: 'Buffer Analysis',
+  [GeospatialOperationType.INTERSECTION]: 'Intersection Analysis',
+  [GeospatialOperationType.UNION]: 'Union Analysis',
+  [GeospatialOperationType.DIFFERENCE]: 'Difference Analysis',
+  [GeospatialOperationType.AREA]: 'Area Calculation',
+  [GeospatialOperationType.CENTROID]: 'Centroid Analysis',
+  [GeospatialOperationType.DISTANCE]: 'Distance Measurement',
+  [GeospatialOperationType.MERGE]: 'Parcel Merge Analysis',
+  [GeospatialOperationType.SPLIT]: 'Parcel Split Analysis',
+  [GeospatialOperationType.SIMPLIFY]: 'Geometry Simplification'
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
@@ -412,6 +434,199 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in parcel splitting:", error);
       res.status(500).json({ 
         message: "Failed to split parcel",
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get supported report formats
+  app.get("/api/geospatial/report-formats", async (req, res) => {
+    try {
+      const formats = getSupportedFormats();
+      res.json(formats);
+    } catch (error) {
+      console.error("Error getting report formats:", error);
+      res.status(500).json({ 
+        message: "Failed to get report formats",
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Generate a report from geospatial analysis results
+  app.post("/api/geospatial/generate-report", async (req, res) => {
+    try {
+      const { result, options } = req.body;
+      
+      if (!result) {
+        return res.status(400).json({ 
+          message: "Analysis result is required for report generation" 
+        });
+      }
+      
+      if (!options || !options.format) {
+        return res.status(400).json({ 
+          message: "Report format is required" 
+        });
+      }
+      
+      // Validate the format
+      if (!Object.values(ReportFormat).includes(options.format)) {
+        return res.status(400).json({ 
+          message: "Invalid report format",
+          validFormats: Object.values(ReportFormat)
+        });
+      }
+      
+      // Generate the report
+      const reportPath = await generateReport(
+        result as GeospatialAnalysisResult,
+        {
+          format: options.format as ReportFormat,
+          title: options.title,
+          fileName: options.fileName,
+          includeMetadata: options.includeMetadata !== false,
+          includeTimestamp: options.includeTimestamp !== false
+        }
+      );
+      
+      // Read the file content
+      const fileContent = fs.readFileSync(reportPath);
+      
+      // Set appropriate headers based on format
+      let contentType = 'application/octet-stream';
+      let disposition = 'attachment';
+      let filename = path.basename(reportPath);
+      
+      switch (options.format) {
+        case ReportFormat.PDF:
+          contentType = 'application/pdf';
+          break;
+        case ReportFormat.GEOJSON:
+          contentType = 'application/geo+json';
+          break;
+        case ReportFormat.CSV:
+          contentType = 'text/csv';
+          break;
+      }
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+      res.setHeader('Content-Length', fileContent.length);
+      
+      // Send the file
+      res.end(fileContent);
+      
+      // Clean up the temporary file after sending
+      setTimeout(() => {
+        try {
+          fs.unlinkSync(reportPath);
+        } catch (err) {
+          console.error('Error deleting temporary report file:', err);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error("Error generating report:", error);
+      res.status(500).json({ 
+        message: "Failed to generate report",
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Export analysis result directly
+  app.post("/api/geospatial/export", async (req, res) => {
+    try {
+      const { operation, features, params, format } = req.body;
+      
+      // Input validation
+      if (!operation || !Object.values(GeospatialOperationType).includes(operation)) {
+        return res.status(400).json({ 
+          message: "Valid operation type is required",
+          validOperations: Object.values(GeospatialOperationType)
+        });
+      }
+      
+      if (!features || (Array.isArray(features) && features.length === 0)) {
+        return res.status(400).json({ 
+          message: "At least one feature is required for analysis" 
+        });
+      }
+      
+      if (!format || !Object.values(ReportFormat).includes(format)) {
+        return res.status(400).json({ 
+          message: "Valid report format is required",
+          validFormats: Object.values(ReportFormat)
+        });
+      }
+      
+      // Run the geospatial analysis
+      const result = runGeospatialAnalysis(
+        operation as GeospatialOperationType, 
+        features, 
+        params as OperationParams
+      );
+      
+      // If there was an error in the analysis
+      if (result.error) {
+        return res.status(400).json({ 
+          message: result.error,
+          operation 
+        });
+      }
+      
+      // Generate the report directly
+      const reportPath = await generateReport(
+        result,
+        {
+          format: format as ReportFormat,
+          title: `${operationTitles[operation]} Export`,
+          includeMetadata: true,
+          includeTimestamp: true
+        }
+      );
+      
+      // Read the file content
+      const fileContent = fs.readFileSync(reportPath);
+      
+      // Set appropriate headers based on format
+      let contentType = 'application/octet-stream';
+      let disposition = 'attachment';
+      let filename = path.basename(reportPath);
+      
+      switch (format) {
+        case ReportFormat.PDF:
+          contentType = 'application/pdf';
+          break;
+        case ReportFormat.GEOJSON:
+          contentType = 'application/geo+json';
+          break;
+        case ReportFormat.CSV:
+          contentType = 'text/csv';
+          break;
+      }
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+      res.setHeader('Content-Length', fileContent.length);
+      
+      // Send the file
+      res.end(fileContent);
+      
+      // Clean up the temporary file after sending
+      setTimeout(() => {
+        try {
+          fs.unlinkSync(reportPath);
+        } catch (err) {
+          console.error('Error deleting temporary report file:', err);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error("Error in export operation:", error);
+      res.status(500).json({ 
+        message: "Failed to export analysis",
         error: error instanceof Error ? error.message : String(error) 
       });
     }

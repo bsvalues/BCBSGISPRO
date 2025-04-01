@@ -38,6 +38,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { DrawControl } from '@/components/maps/draw-control';
+import ExportResultsDialog from '@/components/analysis/export-results-dialog';
 import { 
   Calculator,
   Scissors, 
@@ -198,6 +199,7 @@ export default function GeospatialAnalysisPage() {
   const [resultFeatures, setResultFeatures] = useState<any | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<any[]>([]);
   const [drawnItems, setDrawnItems] = useState<any | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   
   // Setup form
   const form = useForm<GeospatialFormValues>({
@@ -320,11 +322,13 @@ export default function GeospatialAnalysisPage() {
   const handleDownloadReport = () => {
     if (!analysisResult) return;
     
-    // In a real implementation, this would generate a PDF or similar
-    toast({
-      title: 'Report Generated',
-      description: 'Analysis report has been downloaded',
-    });
+    // Open the export dialog
+    setShowExportDialog(true);
+  };
+  
+  // Close the export dialog
+  const handleCloseExportDialog = () => {
+    setShowExportDialog(false);
   };
 
   return (
@@ -721,6 +725,14 @@ export default function GeospatialAnalysisPage() {
           )}
         </div>
       </div>
+      
+      {/* Export Results Dialog */}
+      <ExportResultsDialog
+        open={showExportDialog}
+        onClose={handleCloseExportDialog}
+        analysisResult={analysisResult}
+        defaultTitle={analysisResult ? `${operationLabels[analysisResult.type]} Analysis` : ''}
+      />
     </div>
   );
 }
