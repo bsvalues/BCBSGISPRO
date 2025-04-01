@@ -101,6 +101,33 @@ export default function AuthPage() {
       });
     },
   });
+  
+  // Dev auto-login mutation
+  const devLoginMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/dev-login");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Auto-login failed");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Auto-login successful",
+        description: `Logged in as ${data.fullName || data.username}`,
+      });
+      queryClient.setQueryData(["/api/user"], data);
+      navigate("/");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Auto-login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -129,6 +156,10 @@ export default function AuthPage() {
 
   const onRegisterSubmit = (data: RegisterFormValues) => {
     registerMutation.mutate(data);
+  };
+  
+  const handleDevLogin = () => {
+    devLoginMutation.mutate();
   };
 
   // Show loading state while auth state is being checked
@@ -211,6 +242,25 @@ export default function AuthPage() {
                         "Sign In"
                       )}
                     </Button>
+                    
+                    <div className="pt-2 text-center">
+                      <Button 
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDevLogin}
+                        className="text-xs text-neutral-500 hover:text-primary-500"
+                      >
+                        {devLoginMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> 
+                            Auto Login
+                          </>
+                        ) : (
+                          "Auto Login (Dev Only)"
+                        )}
+                      </Button>
+                    </div>
                   </form>
                 </Form>
               </TabsContent>

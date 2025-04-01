@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
+import { hashPassword } from "./auth";
 import { 
   workflows, 
   WorkflowState, 
@@ -47,6 +48,40 @@ const operationTitles: Record<GeospatialOperationType, string> = {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
+
+  // Auto-login endpoint for development purposes
+  app.get("/api/dev-login", async (req, res) => {
+    try {
+      // Check if test user exists, if not, create it
+      let user = await storage.getUserByUsername("admin");
+      
+      if (!user) {
+        // Create a default admin user
+        user = await storage.createUser({
+          username: "admin",
+          password: await hashPassword("admin123"),
+          fullName: "Admin User",
+          email: "admin@bentoncounty.gov",
+          department: "Assessor's Office",
+          isAdmin: true
+        });
+      }
+
+      // Log the user in
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Failed to auto-login" });
+        }
+        
+        // Remove password from response
+        const { password, ...userWithoutPassword } = user;
+        return res.status(200).json(userWithoutPassword);
+      });
+    } catch (error) {
+      console.error("Auto-login error:", error);
+      res.status(500).json({ message: "Failed to auto-login" });
+    }
+  });
 
   // Get all workflows
   app.get("/api/workflows", async (req, res) => {

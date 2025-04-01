@@ -20,6 +20,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   fullName: true,
   email: true,
   department: true,
+  isAdmin: true,
 });
 
 // Workflow types enum
