@@ -6,12 +6,18 @@ import { useQuery } from '@tanstack/react-query';
 import { Tooltip } from 'react-leaflet';
 import { ParcelPopup } from './parcel-popup';
 import L from 'leaflet';
+import { Feature, Geometry, GeoJsonProperties } from 'geojson';
+
+// Interface to represent a parcel with geometry
+type ParcelWithGeoJson = Parcel & {
+  geometry?: any;
+}
 
 type ParcelOverlayProps = {
   workflowId?: number;
   parcelId?: number;
   filter?: (parcel: Parcel) => boolean;
-  style?: L.PathOptions | ((feature: GeoJSONFeature) => L.PathOptions);
+  style?: L.PathOptions | ((feature: Feature<Geometry, GeoJsonProperties>) => L.PathOptions);
   onParcelSelect?: (parcelId: number) => void;
   onParcelHover?: (parcel: Parcel | null) => void;
   showPopups?: boolean;
@@ -56,24 +62,27 @@ export function ParcelOverlay({
     
     // Map parcels to GeoJSON features
     const features = filteredParcels.map(parcel => {
-      // If the parcel already has a GeoJSON representation, use it
-      if (parcel.geoJson) {
+      // Access geometry from parcel.geometry
+      const geometry = (parcel as ParcelWithGeoJson).geometry;
+      
+      if (geometry) {
         // Ensure the properties contain the parcel information
         const feature = {
-          ...parcel.geoJson,
+          type: 'Feature',
           properties: {
-            ...parcel.geoJson.properties,
             id: parcel.id,
             parcelNumber: parcel.parcelNumber,
             owner: parcel.owner,
             address: parcel.address,
             acres: parcel.acres,
             zoning: parcel.zoning,
-          }
+          },
+          geometry: geometry
         };
         return feature as GeoJSONFeature;
       } else {
         // Create a placeholder if no geometry exists (would be populated from DB in real app)
+        // This will be filtered out later to avoid null geometry issues
         return {
           type: 'Feature',
           properties: {
@@ -85,20 +94,28 @@ export function ParcelOverlay({
             zoning: parcel.zoning,
           },
           geometry: null
-        } as GeoJSONFeature;
+        } as unknown as GeoJSONFeature;
       }
     });
     
     return {
       type: 'FeatureCollection',
+      // Filter out features with null geometries
       features: features.filter(f => f.geometry !== null)
     };
   };
   
   // Default style for parcels
-  const defaultStyle = (feature: GeoJSONFeature): L.PathOptions => {
-    const isHovered = hoveredParcel && hoveredParcel.id === feature.properties?.id;
-    const isSelected = selectedParcel && selectedParcel.id === feature.properties?.id;
+  const defaultStyle = (feature: Feature<Geometry, GeoJsonProperties> | undefined): L.PathOptions => {
+    if (!feature || !feature.properties) return {
+      color: '#6B7280',
+      weight: 1,
+      fillColor: '#E5E7EB',
+      fillOpacity: 0.2,
+    };
+    
+    const isHovered = hoveredParcel && hoveredParcel.id === feature.properties.id;
+    const isSelected = selectedParcel && selectedParcel.id === feature.properties.id;
     
     return {
       color: isSelected ? '#FF4500' : (isHovered ? '#2563EB' : '#6B7280'),
@@ -109,18 +126,22 @@ export function ParcelOverlay({
   };
   
   // Combine default style with provided style
-  const getStyle = (feature: GeoJSONFeature): L.PathOptions => {
+  const getStyle = (feature: Feature<Geometry, GeoJsonProperties> | undefined): L.PathOptions => {
     const baseStyle = defaultStyle(feature);
     
     if (!style) {
       return baseStyle;
     }
     
-    if (typeof style === 'function') {
+    if (typeof style === 'function' && feature) {
       return { ...baseStyle, ...style(feature) };
     }
     
-    return { ...baseStyle, ...style };
+    if (typeof style === 'object') {
+      return { ...baseStyle, ...style };
+    }
+    
+    return baseStyle;
   };
   
   // Set up event handlers for each feature
@@ -208,7 +229,11 @@ export function ParcelOverlay({
               f => f.properties?.id === selectedParcel.id
             ) as GeoJSONFeature}
             onClose={() => setSelectedParcel(null)}
-            onViewDetails={onParcelSelect}
+            onViewDetails={(parcelId) => {
+              if (onParcelSelect && typeof parcelId === 'number') {
+                onParcelSelect(parcelId);
+              }
+            }}
             isMapPopup={true}
           />
         </Tooltip>

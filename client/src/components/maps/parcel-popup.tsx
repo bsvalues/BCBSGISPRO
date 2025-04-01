@@ -38,7 +38,7 @@ export function ParcelPopup({
   // Calculate the area of the parcel from the feature if available
   const parcelArea = feature?.geometry?.type && ['Polygon', 'MultiPolygon'].includes(feature.geometry.type)
     ? turf.area(feature)
-    : parcel.acres ? parcel.acres * 4046.86 : 0; // Convert acres to square meters if needed
+    : parcel.acres ? parseFloat(parcel.acres) * 4046.86 : 0; // Convert acres to square meters if needed
   
   // Format area in appropriate units
   const formattedArea = parcelArea ? formatArea(parcelArea) : '';
