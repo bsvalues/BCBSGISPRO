@@ -11,8 +11,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { MapPin, Shield, FileText, Users, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient, getQueryFn } from "../lib/queryClient";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 
+// Validation schemas
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -35,10 +36,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   
   // Check if user is already logged in
-  const {
-    data: user,
-    isLoading
-  } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
@@ -49,19 +47,23 @@ export default function AuthPage() {
       navigate("/");
     }
   }, [user, navigate]);
-  
-  // Define login mutation
+
+  // Login mutation
   const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginFormValues) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+    mutationFn: async (data: LoginFormValues) => {
+      const response = await apiRequest("POST", "/api/login", data);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Login failed");
+      }
+      return response.json();
     },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: (data) => {
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.fullName}!`,
+        description: `Welcome back, ${data.fullName || data.username}!`,
       });
+      queryClient.setQueryData(["/api/user"], data);
       navigate("/");
     },
     onError: (error: Error) => {
@@ -73,18 +75,22 @@ export default function AuthPage() {
     },
   });
 
-  // Define register mutation
+  // Registration mutation
   const registerMutation = useMutation({
-    mutationFn: async (credentials: RegisterFormValues) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
+    mutationFn: async (data: RegisterFormValues) => {
+      const response = await apiRequest("POST", "/api/register", data);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Registration failed");
+      }
+      return response.json();
     },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: (data) => {
       toast({
         title: "Registration successful",
-        description: `Welcome to Benton GIS Workflow Assistant, ${user.fullName}!`,
+        description: `Welcome to Benton GIS Workflow Assistant, ${data.fullName || data.username}!`,
       });
+      queryClient.setQueryData(["/api/user"], data);
       navigate("/");
     },
     onError: (error: Error) => {
@@ -95,7 +101,8 @@ export default function AuthPage() {
       });
     },
   });
-  
+
+  // Login form
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -104,6 +111,7 @@ export default function AuthPage() {
     },
   });
 
+  // Registration form
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -122,7 +130,7 @@ export default function AuthPage() {
   const onRegisterSubmit = (data: RegisterFormValues) => {
     registerMutation.mutate(data);
   };
-  
+
   // Show loading state while auth state is being checked
   if (isLoading) {
     return (

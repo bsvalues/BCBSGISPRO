@@ -1,19 +1,15 @@
 import { Loader2 } from "lucide-react";
 import { Redirect, Route } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "../lib/queryClient";
+import { getQueryFn } from "./queryClient";
 
-export function ProtectedRoute({
-  path,
-  component: Component,
-}: {
+interface ProtectedRouteProps {
   path: string;
-  component: () => React.JSX.Element;
-}) {
-  const {
-    data: user,
-    isLoading
-  } = useQuery({
+  component: React.ComponentType;
+}
+
+export function ProtectedRoute({ path, component: Component }: ProtectedRouteProps) {
+  const { data: user, isLoading } = useQuery({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
