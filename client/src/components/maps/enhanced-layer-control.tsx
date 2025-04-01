@@ -1,6 +1,15 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, QueryClient, useQueryClient } from '@tanstack/react-query';
 import { MapLayer } from '@shared/schema';
+
+// Define interface for layer metadata
+interface LayerMetadata {
+  description?: string;
+  attribution?: string;
+  category?: string;
+  url?: string;
+  [key: string]: any; // Allow for other properties
+}
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
@@ -135,7 +144,7 @@ export function EnhancedLayerControl() {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(layer => 
         layer.name.toLowerCase().includes(term) || 
-        (layer.category && layer.category.toLowerCase().includes(term))
+        (layer.metadata && (layer.metadata as LayerMetadata).category && (layer.metadata as LayerMetadata).category.toLowerCase().includes(term))
       );
     }
     
@@ -306,9 +315,9 @@ export function EnhancedLayerControl() {
                           <Badge variant="secondary" className="text-xs capitalize">
                             {layer.source}
                           </Badge>
-                          {layer.category && (
+                          {layer.metadata && (layer.metadata as LayerMetadata).category && (
                             <Badge variant="outline" className="text-xs">
-                              {layer.category}
+                              {(layer.metadata as LayerMetadata).category}
                             </Badge>
                           )}
                         </div>
@@ -327,13 +336,13 @@ export function EnhancedLayerControl() {
                             <h4 className="font-medium">{layer.name}</h4>
                             <p className="text-sm text-muted-foreground">
                               {layer.metadata && typeof layer.metadata === 'object' && 'description' in layer.metadata
-                                ? (layer.metadata as any).description
+                                ? (layer.metadata as LayerMetadata).description
                                 : 'No description available'
                               }
                             </p>
-                            {layer.attribution && (
+                            {layer.metadata && (layer.metadata as LayerMetadata).attribution && (
                               <p className="text-xs text-muted-foreground mt-2">
-                                Attribution: {layer.attribution}
+                                Attribution: {(layer.metadata as LayerMetadata).attribution}
                               </p>
                             )}
                           </div>

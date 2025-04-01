@@ -277,9 +277,7 @@ export const mapLayers = pgTable("map_layers", {
   zindex: integer("zindex").default(0), // Layer z-index for ordering (note: lowercase in DB)
   order: integer("order").default(0), // Display order in layer control
   metadata: jsonb("metadata"), // Additional layer info including style properties
-  url: text("url"), // URL for external layers (WMS, tile)
-  attribution: text("attribution"), // Copyright/attribution text
-  category: text("category"), // Category for filtering (e.g., "basemap", "property", "environmental")
+  // Note: url, attribution, and category are stored in metadata JSON
 });
 
 export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
@@ -291,9 +289,6 @@ export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
   zindex: true, // lowercase to match the database column name
   order: true,
   metadata: true,
-  url: true,
-  attribution: true,
-  category: true,
 });
 
 // SM00 Reports
