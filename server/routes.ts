@@ -261,20 +261,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get map layers
+  // Get visible map layers, sorted by order
   app.get("/api/map-layers", async (req, res) => {
     try {
-      const layers = await storage.getMapLayers();
-      res.json(layers);
+      const visibleLayers = await storage.getVisibleMapLayers();
+      // Create a new copy before sorting
+      const sortedLayers = [...visibleLayers].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      res.json(sortedLayers);
     } catch (error) {
       console.error("Error fetching map layers:", error);
       res.status(500).json({ message: "Failed to fetch map layers" });
     }
   });
+  
+  // Get all map layers (including hidden ones)
+  app.get("/api/map-layers/all", async (req, res) => {
+    try {
+      const layers = await storage.getMapLayers();
+      // Create a new sorted array (don't modify the original)
+      const sortedLayers = [...layers].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      res.json(sortedLayers);
+    } catch (error) {
+      console.error("Error fetching all map layers:", error);
+      res.status(500).json({ message: "Failed to fetch map layers" });
+    }
+  });
+  
+  // Direct access to map layers for testing purposes
+  app.get("/api/map-layers-direct", async (req, res) => {
+    try {
+      const layers = await storage.getMapLayers();
+      res.json({
+        success: true,
+        count: layers.length,
+        layers: layers
+      });
+    } catch (error) {
+      console.error("Error fetching direct map layers:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to fetch map layers",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
 
-  // Get parcel information by parcel ID
+  // Get parcel information by parcel ID - Restricted endpoint for authenticated users
   app.get("/api/parcels/:parcelId", async (req, res) => {
     try {
+      // Check if user is authenticated
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const parcelId = req.params.parcelId;
       const parcelInfo = await storage.getParcelInfo(parcelId);
       
@@ -286,6 +325,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching parcel information:", error);
       res.status(500).json({ message: "Failed to fetch parcel information" });
+    }
+  });
+  
+  // Public endpoint for basic parcel information (limited data)
+  app.get("/api/public/parcels/:parcelId", async (req, res) => {
+    try {
+      const parcelId = req.params.parcelId;
+      const parcelInfo = await storage.getParcelInfo(parcelId);
+      
+      if (!parcelInfo) {
+        return res.status(404).json({ message: "Parcel not found" });
+      }
+      
+      // Return limited information for public access
+      const publicInfo = {
+        parcelId: parcelInfo.parcelId,
+        legalDescription: parcelInfo.legalDescription,
+        acres: parcelInfo.acres,
+        propertyType: parcelInfo.propertyType,
+        address: parcelInfo.address,
+        city: parcelInfo.city,
+        zip: parcelInfo.zip,
+        county: "Benton",
+        state: "WA",
+        // Omit sensitive information like ownerName, assessedValue, etc.
+      };
+      
+      res.json(publicInfo);
+    } catch (error) {
+      console.error("Error fetching public parcel information:", error);
+      res.status(500).json({ message: "Failed to fetch parcel information" });
+    }
+  });
+  
+  // Public search endpoint
+  app.get("/api/public/parcels/search/by-address", async (req, res) => {
+    try {
+      const { address, city, zip } = req.query;
+      
+      if (!address) {
+        return res.status(400).json({ message: "Address is required for search" });
+      }
+      
+      const results = await storage.searchParcelsByAddress(
+        address as string, 
+        city as string | undefined, 
+        zip as string | undefined
+      );
+      
+      // Return limited search results for public access
+      const publicResults = results.map(parcel => ({
+        parcelId: parcel.parcelId || parcel.parcelNumber,
+        address: parcel.address,
+        city: parcel.city,
+        zip: parcel.zip,
+        propertyType: parcel.propertyType,
+        acres: parcel.acres || parcel.acreage,
+      }));
+      
+      res.json(publicResults);
+    } catch (error) {
+      console.error("Error searching parcels by address:", error);
+      res.status(500).json({ message: "Failed to search parcels" });
     }
   });
 

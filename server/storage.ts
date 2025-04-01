@@ -47,9 +47,11 @@ export interface IStorage {
   // Parcel operations
   generateParcelNumbers(parentParcelId: string, count: number): Promise<string[]>;
   getParcelInfo(parcelId: string): Promise<any | undefined>;
+  searchParcelsByAddress(address: string, city?: string, zip?: string): Promise<any[]>;
   
   // Map operations
   getMapLayers(): Promise<MapLayer[]>;
+  getVisibleMapLayers(): Promise<MapLayer[]>;
   
   // Report operations
   generateSM00Report(startDate: string, endDate: string): Promise<any>;
@@ -292,10 +294,15 @@ export class MemStorage implements IStorage {
     const streets = ["Main St", "Washington Ave", "River Rd", "Park Ave", "County Line Rd"];
     const street = streets[Math.floor(suffix % streets.length)];
     const streetNumber = 100 + (suffix % 900);
+    const cities = ["Kennewick", "Richland", "West Richland", "Prosser", "Benton City"];
+    const city = cities[Math.floor(suffix % cities.length)];
+    const zip = `9930${(suffix % 10)}`;
     
     return {
       parcelId,
-      address: `${streetNumber} ${street}, Benton County, WA`,
+      address: `${streetNumber} ${street}`,
+      city: city,
+      zip: zip,
       ownerName: suffix % 2 === 0 ? "John & Jane Smith" : "Benton Properties LLC",
       acres: (0.25 + (suffix % 10) / 4).toFixed(2),
       propertyType,
@@ -310,9 +317,42 @@ export class MemStorage implements IStorage {
     };
   }
   
+  // Search parcels by address, city, and/or zip
+  async searchParcelsByAddress(address: string, city?: string, zip?: string): Promise<any[]> {
+    // In a real implementation, this would query the database
+    // For now, we'll generate some mock data based on the query
+    
+    // Generate 5 sample parcel IDs for our search results
+    const results = [];
+    for (let i = 1; i <= 5; i++) {
+      const baseId = "1122334455";
+      const suffix = (parseInt(address.replace(/\D/g, '') || '1') * i).toString().padStart(5, '0');
+      const parcelId = `${baseId}${suffix}`;
+      
+      // Get the parcel info
+      const parcelInfo = await this.getParcelInfo(parcelId);
+      
+      // Filter by address, city, and zip if provided
+      const addressMatch = parcelInfo.address.toLowerCase().includes(address.toLowerCase());
+      const cityMatch = !city || parcelInfo.city.toLowerCase().includes(city.toLowerCase());
+      const zipMatch = !zip || parcelInfo.zip.includes(zip);
+      
+      if (addressMatch && cityMatch && zipMatch) {
+        results.push(parcelInfo);
+      }
+    }
+    
+    return results;
+  }
+  
   // Map operations
   async getMapLayers(): Promise<MapLayer[]> {
     return Array.from(this.mapLayers.values());
+  }
+  
+  // Get only visible map layers
+  async getVisibleMapLayers(): Promise<MapLayer[]> {
+    return Array.from(this.mapLayers.values()).filter(layer => layer.visible);
   }
   
   // Report operations
@@ -672,6 +712,11 @@ export class DatabaseStorage implements IStorage {
 
   // Map operations
   async getMapLayers(): Promise<MapLayer[]> {
+    return db.select().from(mapLayers);
+  }
+  
+  // Get only visible map layers
+  async getVisibleMapLayers(): Promise<MapLayer[]> {
     return db.select().from(mapLayers).where(eq(mapLayers.visible, true));
   }
 

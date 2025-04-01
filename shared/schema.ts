@@ -145,7 +145,10 @@ export const mapLayers = pgTable("map_layers", {
   source: text("source").notNull(), // E.g., "county_gis", "arcgis", etc.
   type: text("type").notNull(), // E.g., "vector", "raster"
   visible: boolean("visible").default(true),
-  metadata: jsonb("metadata"), // Additional layer info
+  opacity: integer("opacity").default(100), // Opacity percentage (0-100)
+  zIndex: integer("zindex").default(0), // Layer z-index for ordering
+  order: integer("order").default(0), // Display order in layer control
+  metadata: jsonb("metadata"), // Additional layer info including style properties
 });
 
 export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
@@ -153,6 +156,9 @@ export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
   source: true,
   type: true,
   visible: true,
+  opacity: true,
+  zIndex: true,
+  order: true,
   metadata: true,
 });
 
