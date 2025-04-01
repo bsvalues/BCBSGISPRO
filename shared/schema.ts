@@ -227,10 +227,15 @@ export const parcels = pgTable("parcels", {
   parentParcelId: text("parent_parcel_id"),
   legalDescription: text("legal_description"),
   acreage: text("acreage"),
+  acres: text("acres"), // Additional field for acreage in decimal form
   address: text("address"),
   city: text("city"),
   zip: text("zip"),
   propertyType: text("property_type"),
+  owner: text("owner"), // Property owner's name
+  zoning: text("zoning"), // Zoning designation (e.g., "Residential")
+  assessedValue: text("assessed_value"), // Assessed value in dollars
+  geometry: jsonb("geometry"), // GeoJSON geometry 
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -241,10 +246,15 @@ export const insertParcelSchema = createInsertSchema(parcels).pick({
   parentParcelId: true,
   legalDescription: true,
   acreage: true,
+  acres: true,
   address: true,
   city: true,
   zip: true,
   propertyType: true,
+  owner: true,
+  zoning: true,
+  assessedValue: true,
+  geometry: true,
   isActive: true,
 });
 

@@ -64,6 +64,7 @@ interface EnhancedMapViewerProps {
   measurementType?: MeasurementType | null;
   measurementUnit?: MeasurementUnit;
   onMeasure?: (value: number, type: MeasurementType) => void;
+  children?: React.ReactNode; // Add support for child components
 }
 
 export interface EnhancedMapViewerRef {
@@ -124,7 +125,8 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
     disableInteraction = false,
     measurementType: propMeasurementType,
     measurementUnit: propMeasurementUnit = MeasurementUnit.METERS,
-    onMeasure
+    onMeasure,
+    children
   } = props;
 
   const [activeTool, setActiveTool] = useState<MapTool>(initialTool);
@@ -447,6 +449,9 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
           onParcelClick={handleParcelClick}
           disableInteraction={disableInteraction}
         />
+        
+        {/* Render child components */}
+        {children}
       </MapContainer>
     </div>
   );

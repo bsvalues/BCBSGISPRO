@@ -3,6 +3,10 @@ import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import EnhancedMapViewer from '@/components/maps/enhanced-map-viewer';
 import { EnhancedLayerControl } from '@/components/maps/enhanced-layer-control';
+import { ParcelOverlay } from '@/components/maps/parcel-overlay';
+import { ParcelPopup } from '@/components/maps/parcel-popup';
+import { WorkflowMapControls } from '@/components/maps/workflow-map-controls';
+import { WorkflowMapIntegration } from '@/lib/workflow-map-integration';
 import { GeoJSONFeature, MapLayerType, MapTool, MeasurementType, MeasurementUnit } from '@/lib/map-utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -149,7 +153,42 @@ export default function MapViewerPage() {
                       setMeasurementValue(value);
                       if (type) setMeasurementType(type);
                     }}
-                  />
+                  >
+                    {/* Add ParcelOverlay component for interactive parcel display */}
+                    <ParcelOverlay 
+                      showPopups={true}
+                      onParcelSelect={(parcelId) => handleParcelSelect(parcelId.toString())}
+                      style={{
+                        color: '#3B82F6',
+                        weight: 2,
+                        fillOpacity: 0.2,
+                        fillColor: '#93C5FD'
+                      }}
+                    />
+                    
+                    {/* Add WorkflowMapControls for workflow-specific map tools */}
+                    <WorkflowMapControls 
+                      workflow={{
+                        id: 1,
+                        title: "Sample Workflow",
+                        type: "long_plat",
+                        userId: 1,
+                        description: "A sample workflow for development",
+                        status: "in_progress",
+                        priority: "medium",
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                      }}
+                      activeTool={activeTool}
+                      onToolChange={(tool) => setActiveTool(tool)}
+                      onSaveGeometry={() => console.log('Saving geometry...')}
+                      onImportGeoJSON={(data) => console.log('Importing GeoJSON:', data)}
+                      onExportGeoJSON={() => {
+                        console.log('Exporting GeoJSON...');
+                        return { type: 'FeatureCollection', features: mapFeatures };
+                      }}
+                    />
+                  </EnhancedMapViewer>
                 </CardContent>
               </Card>
             </div>
