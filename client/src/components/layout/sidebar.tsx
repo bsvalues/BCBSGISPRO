@@ -1,132 +1,209 @@
 import { useState } from 'react';
-import { useLocation, Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
+import { 
+  ChevronRight, 
+  ChevronLeft, 
+  FileText, 
+  Folder, 
+  LayoutGrid, 
+  GanttChart, 
+  Map as MapIcon, 
+  FileInput, 
+  History, 
+  ListFilter, 
+  Settings,
+  BarChart
+} from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { workflowTypeLabels, WorkflowType, workflowTypeIcons } from '@/lib/workflow-types';
-import { HelpCircle } from 'lucide-react';
 
-type SidebarProps = {
-  activeModule?: string;
-};
+interface SidebarProps {
+  className?: string;
+}
 
-type NavItem = {
-  path: string;
-  label: string;
-  icon: string;
-};
-
-export function Sidebar({ activeModule }: SidebarProps) {
-  const [location] = useLocation();
-  const [showAssistant, setShowAssistant] = useState(false);
-  
-  // Define workflow navigation items
-  const workflowNavItems: NavItem[] = Object.entries(workflowTypeLabels).map(([type, label]) => ({
-    path: `/workflow/${type}`,
-    label,
-    icon: workflowTypeIcons[type as WorkflowType]
-  }));
-  
-  // Define tool navigation items
-  const toolNavItems: NavItem[] = [
-    { path: '/map-viewer', label: 'Map Viewer', icon: 'layer-group' },
-    { path: '/geospatial-analysis', label: 'Geospatial Analysis', icon: 'shapes' },
-    { path: '/parcel-generator', label: 'Parcel ID Generator', icon: 'hashtag' },
-    { path: '/property-search', label: 'Property Search', icon: 'search' },
-    { path: '/document-classification', label: 'Document Classifier', icon: 'brain' }
-  ];
-  
-  // Helper function to get Font Awesome icon
-  const getIcon = (iconName: string) => {
-    return <i className={`fas fa-${iconName} mr-3`} />;
-  };
-  
-  // Check if a path is active
-  const isPathActive = (path: string) => {
-    return location === path || location.startsWith(`${path}/`);
-  };
+export function Sidebar({ className }: SidebarProps) {
+  const [location, navigate] = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
   
   return (
-    <aside className="bg-white w-64 border-r border-neutral-200 flex flex-col h-full">
-      {/* Main Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
-        <div className="px-4 mb-4">
-          <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Workflows</h2>
-          {workflowNavItems.map((item) => (
-            <div 
-              key={item.path} 
-              onClick={() => window.location.href = item.path} 
-              className={cn(
-                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full cursor-pointer",
-                isPathActive(item.path)
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-neutral-700 hover:text-primary-600 hover:bg-primary-50"
-              )}
-            >
-              <span className={cn(
-                "mr-3",
-                isPathActive(item.path)
-                  ? "text-primary-500"
-                  : "text-neutral-400 group-hover:text-primary-500"
-              )}>
-                {getIcon(item.icon)}
-              </span>
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
-        
-        <div className="px-4 mb-4">
-          <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Tools</h2>
-          {toolNavItems.map((item) => (
-            <div 
-              key={item.path} 
-              onClick={() => window.location.href = item.path} 
-              className={cn(
-                "mt-1 group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full cursor-pointer",
-                isPathActive(item.path)
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-neutral-700 hover:text-primary-600 hover:bg-primary-50"
-              )}
-            >
-              <span className={cn(
-                "mr-3",
-                isPathActive(item.path)
-                  ? "text-primary-500"
-                  : "text-neutral-400 group-hover:text-primary-500"
-              )}>
-                {getIcon(item.icon)}
-              </span>
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </nav>
+    <div 
+      className={cn(
+        'bg-white border-r border-gray-200 transition-all duration-300 flex flex-col',
+        collapsed ? 'w-16' : 'w-64',
+        className
+      )}
+    >
+      {/* Toggle button */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="self-end p-2 text-gray-500 hover:text-gray-700 mt-2 mr-2"
+      >
+        {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+      </button>
       
-      {/* Help & Resources */}
-      <div className="p-4 border-t border-neutral-200">
-        <Button 
-          variant="ghost" 
-          className="flex w-full items-center justify-start space-x-2 text-sm text-primary-600 hover:text-primary-800"
-          onClick={() => setShowAssistant(!showAssistant)}
-        >
-          <HelpCircle className="h-4 w-4" />
-          <span>Help & Resources</span>
-        </Button>
-        
-        {showAssistant && (
-          <div className="mt-2 p-3 bg-secondary-50 rounded-md text-xs">
-            <p className="font-medium text-secondary-700">Need assistance?</p>
-            <p className="mt-1 text-neutral-600">Ask our assistant or check our documentation below.</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2 w-full bg-white text-secondary-600 border-secondary-200 hover:bg-secondary-100"
-            >
-              Open Assistant
-            </Button>
+      {/* Main sidebar content */}
+      <div className="flex flex-col space-y-6 px-3 py-4 flex-1">
+        {/* Workflows section */}
+        <div>
+          <div className={cn(
+            "flex items-center mb-2",
+            collapsed ? "justify-center" : "px-2"
+          )}>
+            {!collapsed && (
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Workflows
+              </h3>
+            )}
           </div>
-        )}
+          
+          <nav>
+            <ul className="space-y-1">
+              <SidebarItem 
+                href="/workflow/long_plat"
+                icon={<LayoutGrid size={20} />}
+                label="Long Plat"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/workflow/bla"
+                icon={<FileText size={20} />}
+                label="BLA"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/workflow/merge_split"
+                icon={<FileInput size={20} />}
+                label="Merge/Split"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/workflow/sm00_report"
+                icon={<BarChart size={20} />}
+                label="SM00 Report"
+                collapsed={collapsed}
+              />
+            </ul>
+          </nav>
+        </div>
+        
+        {/* Tools section */}
+        <div>
+          <div className={cn(
+            "flex items-center mb-2",
+            collapsed ? "justify-center" : "px-2"
+          )}>
+            {!collapsed && (
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Tools
+              </h3>
+            )}
+          </div>
+          
+          <nav>
+            <ul className="space-y-1">
+              <SidebarItem 
+                href="/map-viewer"
+                icon={<MapIcon size={20} />}
+                label="Map Viewer"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/property-search"
+                icon={<ListFilter size={20} />}
+                label="Property Search"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/parcel-generator"
+                icon={<Folder size={20} />}
+                label="Parcel Generator"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/geospatial-analysis"
+                icon={<GanttChart size={20} />}
+                label="Geospatial Analysis"
+                collapsed={collapsed}
+              />
+              <SidebarItem 
+                href="/document-classification"
+                icon={<FileText size={20} />}
+                label="Document Classification"
+                collapsed={collapsed}
+              />
+            </ul>
+          </nav>
+        </div>
       </div>
-    </aside>
+      
+      {/* Bottom section */}
+      <div className="p-4 border-t border-gray-200">
+        <nav>
+          <ul className="space-y-1">
+            <SidebarItem 
+              href="/history"
+              icon={<History size={20} />}
+              label="History"
+              collapsed={collapsed}
+            />
+            <SidebarItem 
+              href="/settings"
+              icon={<Settings size={20} />}
+              label="Settings"
+              collapsed={collapsed}
+            />
+          </ul>
+        </nav>
+      </div>
+    </div>
   );
+}
+
+// Sidebar item component
+interface SidebarItemProps {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  collapsed: boolean;
+}
+
+function SidebarItem({ href, icon, label, collapsed }: SidebarItemProps) {
+  const [location] = useLocation();
+  const isActive = location === href || location.startsWith(`${href}/`);
+  
+  const item = (
+    <Link href={href}>
+      <a
+        className={cn(
+          "flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          isActive 
+            ? "bg-primary-50 text-primary-700" 
+            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        )}
+      >
+        <span className="flex-shrink-0">{icon}</span>
+        {!collapsed && <span className="truncate">{label}</span>}
+      </a>
+    </Link>
+  );
+  
+  // If sidebar is collapsed, wrap with tooltip
+  if (collapsed) {
+    return (
+      <li>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {item}
+            </TooltipTrigger>
+            <TooltipContent side="right" align="center" className="z-50">
+              {label}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </li>
+    );
+  }
+  
+  return <li>{item}</li>;
 }

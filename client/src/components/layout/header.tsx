@@ -1,6 +1,19 @@
-import { Bell, HelpCircle, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useState } from 'react';
+import { Link, useLocation } from 'wouter';
+import { useAuth } from '@/hooks/use-auth';
+import { 
+  Bell, 
+  User, 
+  LogOut, 
+  Settings, 
+  ChevronDown, 
+  Inbox,
+  Home,
+  Map,
+  FileText,
+  Search,
+  Layers
+} from 'lucide-react';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -8,126 +21,181 @@ import {
   DropdownMenuLabel, 
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useLocation } from "wouter";
-import { useToast } from "@/hooks/use-toast";
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
-type HeaderProps = {
-  notificationCount?: number;
-};
+interface HeaderProps {
+  className?: string;
+}
 
-export function Header({ notificationCount = 0 }: HeaderProps) {
-  // In dev mode, mock a user
-  const user = { fullName: "Developer", username: "dev", isAdmin: true, email: "dev@example.com" };
-  const { toast } = useToast();
-  const [, navigate] = useLocation();
+export function Header({ className }: HeaderProps) {
+  const [location, setLocation] = useLocation();
+  const { user, logoutMutation } = useAuth();
   
-  const handleLogout = () => {
-    toast({
-      title: "Development Mode",
-      description: "Authentication is bypassed. Normally this would log you out."
-    });
-  };
-  
-  // Create initials from full name
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
+  // Handle logout click
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync();
+      setLocation('/auth');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
   
   return (
-    <header className="bg-white border-b border-neutral-200 shadow-sm">
-      <div className="container mx-auto px-4 flex justify-between items-center h-16">
-        <div className="flex items-center space-x-3">
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 40 40"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-10 w-auto"
-          >
-            <rect width="40" height="40" rx="4" fill="#19647E" />
-            <path
-              d="M10 8H30V12H10V8Z"
-              fill="white"
-            />
-            <path
-              d="M10 16H22V32H10V16Z"
-              fill="white"
-            />
-            <path
-              d="M26 16H30V20H26V16Z"
-              fill="#28AFB0"
-            />
-            <path
-              d="M26 24H30V32H26V24Z"
-              fill="#28AFB0"
-            />
-          </svg>
-          <div>
-            <h1 className="text-xl font-semibold text-primary-600">Benton GIS Workflow Assistant</h1>
-            <p className="text-xs text-neutral-500">Assessor's Office</p>
-          </div>
-        </div>
+    <header className={cn('bg-white border-b border-gray-200 py-3 px-4 flex items-center justify-between', className)}>
+      {/* Logo and title */}
+      <div className="flex items-center">
+        <Link href="/">
+          <a className="flex items-center space-x-2">
+            <div className="w-10 h-10 flex items-center justify-center rounded-md bg-primary text-white font-bold text-lg">
+              BC
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Benton County GIS</h1>
+              <p className="text-xs text-gray-500">Assessor's Office</p>
+            </div>
+          </a>
+        </Link>
         
-        <div className="flex items-center space-x-4">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative">
-                  <Bell className="h-5 w-5 text-neutral-600 hover:text-primary-500" />
-                  {notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-destructive text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                      {notificationCount}
-                    </span>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Notifications</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-neutral-700">{user?.fullName}</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-                  <Avatar>
-                    <AvatarFallback className="bg-primary-200 text-primary-700">
-                      {user?.fullName ? getInitials(user.fullName) : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <HelpCircle className="mr-2 h-4 w-4" />
-                  <span>Help</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+        {/* Main Navigation */}
+        <nav className="hidden md:flex ml-8">
+          <ul className="flex space-x-1">
+            <NavItem href="/" icon={<Home size={18} />} label="Dashboard" />
+            <NavItem href="/map-viewer" icon={<Map size={18} />} label="Map Viewer" />
+            <NavItem href="/property-search" icon={<Search size={18} />} label="Property Search" />
+            <NavItem href="/geospatial-analysis" icon={<Layers size={18} />} label="Analysis" />
+            <NavItem href="/report" icon={<FileText size={18} />} label="Reports" />
+          </ul>
+        </nav>
+      </div>
+      
+      {/* User actions */}
+      <div className="flex items-center space-x-3">
+        {/* Notifications */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell size={20} />
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <div className="max-h-[300px] overflow-y-auto p-1">
+              <NotificationItem 
+                title="New Workflow Assignment" 
+                message="You've been assigned to review a new Long Plat application"
+                time="10 minutes ago"
+              />
+              <NotificationItem 
+                title="Document Ready"
+                message="Parcel #1-1234-567-8901-001 review is completed"
+                time="2 hours ago"
+              />
+              <NotificationItem 
+                title="System Update"
+                message="GIS system will be undergoing maintenance tonight at 11 PM"
+                time="Yesterday"
+              />
+            </div>
+            <DropdownMenuSeparator />
+            <div className="py-2 px-3">
+              <Button variant="link" size="sm" className="w-full justify-center">
+                View all notifications
+              </Button>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        {/* User Profile */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="flex items-center space-x-1">
+              <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-800 font-semibold">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <span className="font-medium max-w-[100px] truncate hidden sm:block">
+                {user?.username || 'User'}
+              </span>
+              <ChevronDown size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="flex items-center gap-2">
+              <User size={16} />
+              <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-2">
+              <Inbox size={16} />
+              <span>Inbox</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-2">
+              <Settings size={16} />
+              <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              className="flex items-center gap-2 text-red-600" 
+              onClick={handleLogout}
+            >
+              <LogOut size={16} />
+              <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
+  );
+}
+
+// Navigation item component
+interface NavItemProps {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}
+
+function NavItem({ href, icon, label }: NavItemProps) {
+  const [location] = useLocation();
+  const isActive = location === href;
+  
+  return (
+    <li>
+      <Link href={href}>
+        <a className={cn(
+          "px-3 py-2 flex items-center space-x-1 rounded-md text-sm font-medium",
+          isActive 
+            ? "bg-primary-50 text-primary-700" 
+            : "text-gray-700 hover:bg-gray-100"
+        )}>
+          {icon}
+          <span>{label}</span>
+        </a>
+      </Link>
+    </li>
+  );
+}
+
+// Notification item component
+interface NotificationItemProps {
+  title: string;
+  message: string;
+  time: string;
+}
+
+function NotificationItem({ title, message, time }: NotificationItemProps) {
+  return (
+    <div className="py-2 px-3 hover:bg-gray-50 rounded-md cursor-pointer">
+      <div className="flex justify-between items-start">
+        <h4 className="text-sm font-medium">{title}</h4>
+        <span className="text-xs text-gray-500">{time}</span>
+      </div>
+      <p className="text-xs text-gray-600 mt-1">{message}</p>
+    </div>
   );
 }
