@@ -48,6 +48,54 @@ const operationTitles: Record<GeospatialOperationType, string> = {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
+  
+  // Database test endpoint
+  app.get("/api/db-test", async (req, res) => {
+    try {
+      // Import the db instance
+      const { db } = await import("./db");
+      
+      // Try to query the database
+      const result = await db.select().from(workflows).limit(5);
+      
+      res.json({
+        success: true,
+        message: "Database connection successful",
+        data: result
+      });
+    } catch (error) {
+      console.error("Database test error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Database connection failed",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Test endpoint to directly query map layers from the database
+  app.get("/api/map-layers-direct", async (req, res) => {
+    try {
+      // Import the db instance
+      const { db } = await import("./db");
+      
+      // Query all map layers
+      const layers = await db.select().from(mapLayers);
+      
+      res.json({
+        success: true,
+        count: layers.length,
+        layers
+      });
+    } catch (error) {
+      console.error("Map layers query error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch map layers",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
 
   // Auto-login endpoint for development purposes
   app.get("/api/dev-login", async (req, res) => {
