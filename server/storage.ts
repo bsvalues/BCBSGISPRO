@@ -22,7 +22,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   // Session management
-  sessionStore: session.SessionStore;
+  sessionStore: ReturnType<typeof createMemoryStore>;
   
   // Workflow operations
   getWorkflows(userId: number | undefined): Promise<Workflow[]>;
@@ -64,7 +64,7 @@ export class MemStorage implements IStorage {
   private mapLayers: Map<number, MapLayer>;
   private sm00Reports: Map<number, SM00Report>;
   
-  sessionStore: session.SessionStore;
+  sessionStore: ReturnType<typeof createMemoryStore>;
   
   userId: number;
   workflowId: number;
@@ -118,6 +118,7 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id,
+      department: insertUser.department || null,
       isAdmin: false,
       createdAt: new Date() 
     };

@@ -134,12 +134,16 @@ export default function WorkflowPage() {
     }
   });
   
-  // Create workflow if it doesn't exist yet
+  // Flag to track if we've already created a workflow
+  const [hasAttemptedWorkflowCreation, setHasAttemptedWorkflowCreation] = useState(false);
+  
+  // Create workflow if it doesn't exist yet (only once)
   useEffect(() => {
-    if (!workflowId && !isWorkflowLoading && !createWorkflowMutation.isPending) {
+    if (!workflowId && !isWorkflowLoading && !hasAttemptedWorkflowCreation && !createWorkflowMutation.isPending) {
+      setHasAttemptedWorkflowCreation(true);
       createWorkflowMutation.mutate();
     }
-  }, [workflowId, isWorkflowLoading, createWorkflowMutation]);
+  }, [workflowId, isWorkflowLoading, hasAttemptedWorkflowCreation, createWorkflowMutation.isPending]);
   
   // Load state data when available
   useEffect(() => {
@@ -152,7 +156,7 @@ export default function WorkflowPage() {
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev: Record<string, any>) => ({ ...prev, [name]: value }));
     setIsDirty(true);
   };
   
