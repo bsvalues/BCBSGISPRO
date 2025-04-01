@@ -12,7 +12,8 @@ import {
   Map,
   FileText,
   Search,
-  Layers
+  Layers,
+  CheckSquare
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -64,6 +65,7 @@ export function Header({ className, notificationCount = 0 }: HeaderProps) {
         <nav className="hidden md:flex ml-8">
           <ul className="flex space-x-1">
             <NavItem href="/" icon={<Home size={18} />} label="Dashboard" />
+            <NavItem href="/workflow-dashboard" icon={<CheckSquare size={18} />} label="Workflows" />
             <NavItem href="/map-viewer" icon={<Map size={18} />} label="Map Viewer" />
             <NavItem href="/property-search" icon={<Search size={18} />} label="Property Search" />
             <NavItem href="/geospatial-analysis" icon={<Layers size={18} />} label="Analysis" />
@@ -108,9 +110,11 @@ export function Header({ className, notificationCount = 0 }: HeaderProps) {
             </div>
             <DropdownMenuSeparator />
             <div className="py-2 px-3">
-              <Button variant="link" size="sm" className="w-full justify-center">
-                View all notifications
-              </Button>
+              <Link href="/workflow-dashboard">
+                <Button variant="link" size="sm" className="w-full justify-center">
+                  View all workflows
+                </Button>
+              </Link>
             </div>
           </DropdownMenuContent>
         </DropdownMenu>

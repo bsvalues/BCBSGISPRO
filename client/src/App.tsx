@@ -3,6 +3,7 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
 import WorkflowPage from "@/pages/workflow-page";
+import WorkflowDashboardPage from "@/pages/workflow-dashboard-page";
 import MapViewerPage from "@/pages/map-viewer-page";
 import ParcelGeneratorPage from "@/pages/parcel-generator-page";
 import PropertySearchPage from "@/pages/property-search-page";
@@ -114,6 +115,7 @@ function Router() {
       {/* Authenticated routes */}
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/workflow/:type" component={WorkflowPage} />
+      <ProtectedRoute path="/workflow-dashboard" component={WorkflowDashboardPage} />
       <ProtectedRoute path="/map-viewer" component={MapViewerPage} />
       <ProtectedRoute path="/parcel-generator" component={ParcelGeneratorPage} />
       <ProtectedRoute path="/property-search" component={PropertySearchPage} />

@@ -47,6 +47,13 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
   "archived",
 ]);
 
+// Workflow priority enum
+export const workflowPriorityEnum = pgEnum("workflow_priority", [
+  "low",
+  "medium",
+  "high",
+]);
+
 // Workflows table
 export const workflows = pgTable("workflows", {
   id: serial("id").primaryKey(),
@@ -55,6 +62,7 @@ export const workflows = pgTable("workflows", {
   title: text("title").notNull(),
   description: text("description"),
   status: workflowStatusEnum("status").default("draft"),
+  priority: workflowPriorityEnum("priority").default("medium"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -65,6 +73,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows).pick({
   title: true,
   description: true,
   status: true,
+  priority: true,
 });
 
 // Workflow state (for storing form data)
@@ -80,6 +89,31 @@ export const insertWorkflowStateSchema = createInsertSchema(workflowStates).pick
   workflowId: true,
   currentStep: true,
   formData: true,
+});
+
+// Workflow Events table for tracking timeline
+export const workflowEventTypeEnum = pgEnum("workflow_event_type", [
+  "created",
+  "updated",
+  "status_changed",
+  "priority_changed",
+  "document_added",
+  "parcel_added"
+]);
+
+export const workflowEvents = pgTable("workflow_events", {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  eventType: workflowEventTypeEnum("event_type").notNull(),
+  description: text("description").notNull(),
+  metadata: jsonb("metadata"), // Additional event data (e.g., old/new values)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+});
+
+export const insertWorkflowEventSchema = createInsertSchema(workflowEvents).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Checklist items
@@ -266,6 +300,9 @@ export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
 
 export type WorkflowState = typeof workflowStates.$inferSelect;
 export type InsertWorkflowState = z.infer<typeof insertWorkflowStateSchema>;
+
+export type WorkflowEvent = typeof workflowEvents.$inferSelect;
+export type InsertWorkflowEvent = z.infer<typeof insertWorkflowEventSchema>;
 
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type InsertChecklistItem = z.infer<typeof insertChecklistItemSchema>;

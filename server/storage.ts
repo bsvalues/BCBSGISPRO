@@ -2,6 +2,7 @@ import {
   users, type User, type InsertUser,
   workflows, type Workflow, type InsertWorkflow,
   workflowStates, type WorkflowState, type InsertWorkflowState,
+  workflowEvents, type WorkflowEvent, type InsertWorkflowEvent,
   checklistItems, type ChecklistItem, type InsertChecklistItem,
   documents, type Document, documentVersions, type DocumentVersion,
   documentParcelLinks, type DocumentParcelLink,
@@ -34,6 +35,10 @@ export interface IStorage {
   getWorkflows(userId: number | undefined): Promise<Workflow[]>;
   getWorkflow(id: number): Promise<Workflow | undefined>;
   createWorkflow(workflow: InsertWorkflow): Promise<Workflow>;
+  
+  // Workflow events operations
+  getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]>;
+  createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent>;
   
   // Workflow state operations
   getWorkflowState(workflowId: number): Promise<WorkflowState | undefined>;
@@ -121,6 +126,7 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private workflows: Map<number, Workflow>;
   private workflowStates: Map<number, WorkflowState>;
+  private workflowEvents: Map<number, WorkflowEvent>;
   private checklistItems: Map<number, ChecklistItem>;
   private documents: Map<number, Document>;
   private parcels: Map<number, Parcel>;
@@ -132,6 +138,7 @@ export class MemStorage implements IStorage {
   userId: number;
   workflowId: number;
   stateId: number;
+  workflowEventId: number;
   checklistId: number;
   documentId: number;
   parcelId: number;
@@ -142,6 +149,7 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.workflows = new Map();
     this.workflowStates = new Map();
+    this.workflowEvents = new Map();
     this.checklistItems = new Map();
     this.documents = new Map();
     this.parcels = new Map();
@@ -151,6 +159,7 @@ export class MemStorage implements IStorage {
     this.userId = 1;
     this.workflowId = 1;
     this.stateId = 1;
+    this.workflowEventId = 1;
     this.checklistId = 1;
     this.documentId = 1;
     this.parcelId = 1;
@@ -217,7 +226,41 @@ export class MemStorage implements IStorage {
     // Create default checklist items based on workflow type
     this.createDefaultChecklistItems(id, insertWorkflow.type);
     
+    // Create workflow creation event
+    await this.createWorkflowEvent({
+      workflowId: id,
+      eventType: "created",
+      description: `Workflow created: ${insertWorkflow.title}`,
+      metadata: {
+        workflowType: insertWorkflow.type,
+        userId: insertWorkflow.userId
+      }
+    });
+    
     return workflow;
+  }
+  
+  // Workflow events operations
+  async getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]> {
+    return Array.from(this.workflowEvents.values())
+      .filter(event => event.workflowId === workflowId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent> {
+    const id = this.workflowEventId++;
+    const workflowEvent: WorkflowEvent = {
+      id,
+      workflowId: event.workflowId,
+      eventType: event.eventType,
+      description: event.description,
+      metadata: event.metadata || {},
+      createdAt: new Date(),
+      createdBy: event.createdBy || null,
+    };
+    
+    this.workflowEvents.set(id, workflowEvent);
+    return workflowEvent;
   }
   
   // Workflow state operations
@@ -797,7 +840,42 @@ export class DatabaseStorage implements IStorage {
     // Create default checklist items
     await this.createDefaultChecklistItems(workflow.id, workflow.type);
     
+    // Create workflow creation event
+    await this.createWorkflowEvent({
+      workflowId: workflow.id,
+      eventType: "created",
+      description: `Workflow created: ${insertWorkflow.title}`,
+      metadata: {
+        workflowType: insertWorkflow.type,
+        userId: insertWorkflow.userId
+      }
+    });
+    
     return workflow;
+  }
+  
+  // Workflow events operations
+  async getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]> {
+    return db
+      .select()
+      .from(workflowEvents)
+      .where(eq(workflowEvents.workflowId, workflowId))
+      .orderBy(desc(workflowEvents.createdAt));
+  }
+  
+  async createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent> {
+    const [workflowEvent] = await db
+      .insert(workflowEvents)
+      .values({
+        workflowId: event.workflowId,
+        eventType: event.eventType,
+        description: event.description,
+        metadata: event.metadata || {},
+        createdBy: event.createdBy || null
+      })
+      .returning();
+    
+    return workflowEvent;
   }
 
   // Workflow state operations
