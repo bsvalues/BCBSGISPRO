@@ -248,17 +248,38 @@ export const insertParcelSchema = createInsertSchema(parcels).pick({
   isActive: true,
 });
 
+// Map layer type enum
+export const mapLayerTypeEnum = pgEnum("map_layer_type", [
+  "vector",
+  "raster",
+  "tile",
+  "wms",
+  "geojson"
+]);
+
+// Map layer source enum
+export const mapLayerSourceEnum = pgEnum("map_layer_source", [
+  "county",
+  "state",
+  "federal",
+  "custom",
+  "osm"
+]);
+
 // Map layers
 export const mapLayers = pgTable("map_layers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  source: text("source").notNull(), // E.g., "county_gis", "arcgis", etc.
-  type: text("type").notNull(), // E.g., "vector", "raster"
+  source: mapLayerSourceEnum("source").notNull(), // E.g., "county", "state", etc.
+  type: mapLayerTypeEnum("type").notNull(), // E.g., "vector", "raster"
   visible: boolean("visible").default(true),
   opacity: integer("opacity").default(100), // Opacity percentage (0-100)
   zindex: integer("zindex").default(0), // Layer z-index for ordering (note: lowercase in DB)
   order: integer("order").default(0), // Display order in layer control
   metadata: jsonb("metadata"), // Additional layer info including style properties
+  url: text("url"), // URL for external layers (WMS, tile)
+  attribution: text("attribution"), // Copyright/attribution text
+  category: text("category"), // Category for filtering (e.g., "basemap", "property", "environmental")
 });
 
 export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
@@ -270,6 +291,9 @@ export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
   zindex: true, // lowercase to match the database column name
   order: true,
   metadata: true,
+  url: true,
+  attribution: true,
+  category: true,
 });
 
 // SM00 Reports

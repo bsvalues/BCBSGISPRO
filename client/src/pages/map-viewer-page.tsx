@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { EnhancedMapViewer } from '@/components/maps/enhanced-map-viewer';
+import { EnhancedLayerControl } from '@/components/maps/enhanced-layer-control';
 import { GeoJSONFeature, MapLayerType } from '@/lib/map-utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -211,49 +212,7 @@ export default function MapViewerPage() {
                 
                 {/* Layers tab */}
                 <TabsContent value="layers" className="h-[calc(100%-40px)] overflow-y-auto">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Map Layers</CardTitle>
-                      <CardDescription>
-                        Toggle visibility of map layers
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {Object.values(MapLayerType).map((layerType) => (
-                          <div key={layerType} className="flex items-center justify-between">
-                            <Label htmlFor={`layer-${layerType}`} className="text-sm font-medium">
-                              {layerType.charAt(0).toUpperCase() + layerType.slice(1)}
-                            </Label>
-                            <Switch 
-                              id={`layer-${layerType}`} 
-                              defaultChecked={layerType === MapLayerType.PARCEL || layerType === MapLayerType.STREET}
-                            />
-                          </div>
-                        ))}
-                        
-                        <Separator />
-                        
-                        <div>
-                          <Label className="text-xs font-medium text-gray-500">Opacity</Label>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-xs">0%</span>
-                            <input type="range" min="0" max="100" defaultValue="100" className="w-3/4" />
-                            <span className="text-xs">100%</span>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 pt-2">
-                          <Button variant="outline" className="w-full gap-1" size="sm">
-                            Reset
-                          </Button>
-                          <Button className="w-full gap-1" size="sm">
-                            Apply
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <EnhancedLayerControl />
                 </TabsContent>
                 
                 {/* Info tab */}
