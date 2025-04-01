@@ -768,7 +768,11 @@ export default function WorkflowPage() {
               
               {/* Interactive Checklist */}
               {workflowId && checklistItems && (
-                <WorkflowChecklist workflowId={workflowId} items={checklistItems} />
+                <WorkflowChecklist 
+                  workflowId={workflowId} 
+                  items={checklistItems}
+                  editable={workflow?.status !== 'completed' && workflow?.status !== 'archived'} 
+                />
               )}
             </div>
             

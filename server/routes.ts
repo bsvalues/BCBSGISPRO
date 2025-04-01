@@ -208,6 +208,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create checklist item
+  app.post("/api/workflows/:id/checklist", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const { title, description, order } = req.body;
+      
+      if (!title) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+      
+      const newItem = await storage.createChecklistItem({
+        workflowId,
+        title,
+        description,
+        completed: false,
+        order: order || 0
+      });
+      
+      res.status(201).json(newItem);
+    } catch (error) {
+      console.error("Error creating checklist item:", error);
+      res.status(500).json({ message: "Failed to create checklist item" });
+    }
+  });
+
   // Update checklist item
   app.patch("/api/checklist-items/:id", async (req, res) => {
     try {
@@ -430,16 +455,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Basic chatbot endpoint
+  // Enhanced chatbot endpoint with context-awareness
   app.post("/api/chatbot/query", async (req, res) => {
     try {
-      const { query } = req.body;
-      // In a real implementation, this would integrate with a proper NLP service
-      const answer = await storage.queryAssistant(query);
+      const { query, workflowId, currentStep } = req.body;
+      
+      // If no workflow context is provided, fall back to basic assistant
+      if (!workflowId) {
+        const answer = await storage.queryAssistant(query);
+        return res.json({ answer });
+      }
+      
+      // Import enhanced assistant functionalities
+      const { getEnhancedResponse } = await import("./services/enhanced-assistant");
+      
+      // Gather context data for the workflow
+      const workflow = await storage.getWorkflow(workflowId);
+      const workflowState = await storage.getWorkflowState(workflowId);
+      const checklistItems = await storage.getChecklistItems(workflowId);
+      const documents = await storage.getDocuments(workflowId);
+      
+      // Get context-aware response
+      const context = {
+        workflow,
+        workflowState,
+        checklistItems,
+        documents,
+        currentStep: currentStep || workflowState?.currentStep || undefined
+      };
+      
+      const answer = getEnhancedResponse(query, context);
       res.json({ answer });
     } catch (error) {
       console.error("Error querying assistant:", error);
       res.status(500).json({ message: "Failed to query assistant" });
+    }
+  });
+
+  // Get workflow recommendations
+  app.get("/api/workflows/:id/recommendations", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      
+      // Import enhanced assistant functionalities
+      const { generateWorkflowRecommendations } = await import("./services/enhanced-assistant");
+      
+      // Gather context data for the workflow
+      const workflow = await storage.getWorkflow(workflowId);
+      const workflowState = await storage.getWorkflowState(workflowId);
+      const checklistItems = await storage.getChecklistItems(workflowId);
+      const documents = await storage.getDocuments(workflowId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      // Get context-aware recommendations
+      const context = {
+        workflow,
+        workflowState,
+        checklistItems,
+        documents,
+        currentStep: workflowState?.currentStep || undefined
+      };
+      
+      const recommendations = generateWorkflowRecommendations(context);
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error generating workflow recommendations:", error);
+      res.status(500).json({ message: "Failed to generate recommendations" });
+    }
+  });
+  
+  // Extract data from uploaded document
+  app.post("/api/workflows/:id/documents/extract-data", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const { documentId, documentContent, documentType } = req.body;
+      
+      // Import enhanced assistant functionalities
+      const { extractDocumentData } = await import("./services/enhanced-assistant");
+      
+      if (!documentContent) {
+        return res.status(400).json({ message: "Document content is required" });
+      }
+      
+      // Extract data from document
+      const extractedData = extractDocumentData(documentContent, documentType || "unknown");
+      
+      // Return the extracted data
+      res.json({
+        workflowId,
+        documentId,
+        extractedData
+      });
+    } catch (error) {
+      console.error("Error extracting document data:", error);
+      res.status(500).json({ message: "Failed to extract document data" });
+    }
+  });
+  
+  // Generate dynamic checklist for a workflow
+  app.post("/api/workflows/:id/generate-checklist", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const { specialConsiderations } = req.body;
+      
+      // Get the workflow
+      const workflow = await storage.getWorkflow(workflowId);
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      // Import enhanced assistant functionalities
+      const { generateDynamicChecklist } = await import("./services/enhanced-assistant");
+      
+      // Generate dynamic checklist based on workflow type
+      const checklistItems = generateDynamicChecklist(workflow.type as WorkflowType, specialConsiderations);
+      
+      // Store the generated checklist items in the database
+      const savedItems = [];
+      
+      for (let i = 0; i < checklistItems.length; i++) {
+        const item = checklistItems[i];
+        const savedItem = await storage.createChecklistItem({
+          workflowId,
+          title: item.title,
+          description: item.description,
+          completed: false,
+          order: i + 1
+        });
+        savedItems.push(savedItem);
+      }
+      
+      res.json(savedItems);
+    } catch (error) {
+      console.error("Error generating dynamic checklist:", error);
+      res.status(500).json({ message: "Failed to generate checklist" });
     }
   });
 

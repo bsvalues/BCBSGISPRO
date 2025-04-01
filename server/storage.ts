@@ -39,6 +39,13 @@ export interface IStorage {
   // Checklist operations
   getChecklistItems(workflowId: number): Promise<ChecklistItem[]>;
   updateChecklistItem(itemId: number, completed: boolean): Promise<ChecklistItem>;
+  createChecklistItem(item: Partial<{
+    workflowId: number;
+    title: string;
+    description: string;
+    completed: boolean;
+    order: number;
+  }>): Promise<ChecklistItem>;
   
   // Document operations
   getDocuments(workflowId: number): Promise<Document[]>;
@@ -221,6 +228,31 @@ export class MemStorage implements IStorage {
     };
     this.checklistItems.set(itemId, updatedItem);
     return updatedItem;
+  }
+  
+  async createChecklistItem(item: Partial<{
+    workflowId: number;
+    title: string;
+    description: string;
+    completed: boolean;
+    order: number;
+  }>): Promise<ChecklistItem> {
+    if (!item.workflowId || !item.title || item.order === undefined) {
+      throw new Error("Checklist item must have workflowId, title, and order");
+    }
+    
+    const id = this.checklistId++;
+    const checklistItem: ChecklistItem = {
+      id,
+      workflowId: item.workflowId,
+      title: item.title,
+      description: item.description || null,
+      completed: item.completed || false,
+      order: item.order,
+    };
+    
+    this.checklistItems.set(id, checklistItem);
+    return checklistItem;
   }
   
   // Document operations
@@ -630,6 +662,28 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedItem;
+  }
+  
+  async createChecklistItem(item: Partial<{
+    workflowId: number;
+    title: string;
+    description: string;
+    completed: boolean;
+    order: number;
+  }>): Promise<ChecklistItem> {
+    if (!item.workflowId || !item.title || item.order === undefined) {
+      throw new Error("Checklist item must have workflowId, title, and order");
+    }
+    
+    const [newItem] = await db.insert(checklistItems).values({
+      workflowId: item.workflowId,
+      title: item.title,
+      description: item.description || null,
+      completed: item.completed || false,
+      order: item.order
+    }).returning();
+    
+    return newItem;
   }
 
   // Document operations
