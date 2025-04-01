@@ -286,7 +286,7 @@ export function EnhancedMapViewer({
         zoom={zoom}
         style={{ height, width }}
         zoomControl={false}
-        whenCreated={(map) => { mapRef.current = map; }}
+        ref={mapRef}
       >
         {/* Base maps */}
         <TileLayer

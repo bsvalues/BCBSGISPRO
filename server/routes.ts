@@ -305,6 +305,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Update map layer settings
+  app.patch("/api/map-layers/:id", async (req, res) => {
+    try {
+      const layerId = parseInt(req.params.id, 10);
+      if (isNaN(layerId)) {
+        return res.status(400).json({ message: "Invalid layer ID" });
+      }
+      
+      const { visible, opacity, zindex, order } = req.body;
+      
+      // Convert UI opacity (0-1) to DB opacity (0-100) if provided
+      const dbOpacity = opacity !== undefined ? Math.round(opacity * 100) : undefined;
+      
+      const updatedLayer = await storage.updateMapLayer(layerId, {
+        visible,
+        opacity: dbOpacity,
+        zindex,
+        order
+      });
+      
+      res.json(updatedLayer);
+    } catch (error) {
+      console.error("Error updating map layer:", error);
+      res.status(500).json({ message: "Failed to update map layer" });
+    }
+  });
 
   // Get parcel information by parcel ID - Restricted endpoint for authenticated users
   app.get("/api/parcels/:parcelId", async (req, res) => {

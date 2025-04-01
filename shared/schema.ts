@@ -154,7 +154,7 @@ export const mapLayers = pgTable("map_layers", {
   type: text("type").notNull(), // E.g., "vector", "raster"
   visible: boolean("visible").default(true),
   opacity: integer("opacity").default(100), // Opacity percentage (0-100)
-  zIndex: integer("zindex").default(0), // Layer z-index for ordering
+  zindex: integer("zindex").default(0), // Layer z-index for ordering (note: lowercase in DB)
   order: integer("order").default(0), // Display order in layer control
   metadata: jsonb("metadata"), // Additional layer info including style properties
 });
@@ -165,7 +165,7 @@ export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
   type: true,
   visible: true,
   opacity: true,
-  zIndex: true,
+  zindex: true, // lowercase to match the database column name
   order: true,
   metadata: true,
 });

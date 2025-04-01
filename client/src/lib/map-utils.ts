@@ -1,8 +1,33 @@
 import * as turf from '@turf/turf';
 import { Feature, FeatureCollection, Geometry, GeoJsonProperties } from 'geojson';
+import { MapLayer as DBMapLayer } from '@shared/schema';
 
 export type GeoJSONFeature = Feature<Geometry, GeoJsonProperties>;
 export type GeoJSONFeatureCollection = FeatureCollection<Geometry, GeoJsonProperties>;
+
+/**
+ * Convert database opacity value (0-100) to UI opacity value (0-1)
+ */
+export function dbToUiOpacity(opacity: number | null | undefined): number {
+  if (opacity === null || opacity === undefined) {
+    return 1; // Default opacity if not specified
+  }
+  return opacity / 100;
+}
+
+/**
+ * Convert UI opacity value (0-1) to database opacity value (0-100) 
+ */
+export function uiToDbOpacity(opacity: number): number {
+  return Math.round(opacity * 100);
+}
+
+/**
+ * Helper to safely access map layer zIndex property
+ */
+export function getLayerZIndex(layer: DBMapLayer): number {
+  return layer.zindex ?? 0;
+}
 
 export enum MapLayerType {
   PARCEL = 'parcel',
@@ -21,13 +46,19 @@ export enum MapTool {
   EDIT = 'edit'
 }
 
+// Client-side MapLayer interface for UI use
 export interface MapLayer {
   id: number;
   name: string;
   type: MapLayerType;
   visible: boolean;
+  source?: string;
+  opacity?: number; // UI opacity value (0-1)
+  zindex?: number; // Layer stacking order (z-index)
+  order?: number; // Display order in layer control
   data: GeoJSONFeature[] | GeoJSONFeatureCollection;
   style?: any;
+  metadata?: any;
 }
 
 // Sample map layers for development and testing
@@ -37,6 +68,10 @@ export const DEFAULT_MAP_LAYERS: MapLayer[] = [
     name: 'Parcels',
     type: MapLayerType.PARCEL,
     visible: true,
+    source: 'benton_county_gis',
+    opacity: 1, // UI opacity (0-1)
+    zindex: 10,
+    order: 1,
     data: {
       type: 'FeatureCollection',
       features: [
@@ -92,6 +127,10 @@ export const DEFAULT_MAP_LAYERS: MapLayer[] = [
     name: 'Zoning',
     type: MapLayerType.ZONING,
     visible: false,
+    source: 'benton_county_gis',
+    opacity: 0.8, // UI opacity (0-1)
+    zindex: 5,
+    order: 2,
     data: {
       type: 'FeatureCollection',
       features: [
@@ -143,6 +182,10 @@ export const DEFAULT_MAP_LAYERS: MapLayer[] = [
     name: 'Hydrology',
     type: MapLayerType.HYDROLOGY,
     visible: false,
+    source: 'usgs_nhd',
+    opacity: 0.7, // UI opacity (0-1)
+    zindex: 3,
+    order: 3,
     data: {
       type: 'FeatureCollection',
       features: [

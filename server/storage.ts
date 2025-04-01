@@ -52,6 +52,12 @@ export interface IStorage {
   // Map operations
   getMapLayers(): Promise<MapLayer[]>;
   getVisibleMapLayers(): Promise<MapLayer[]>;
+  updateMapLayer(id: number, updates: Partial<{
+    visible: boolean;
+    opacity: number;
+    zindex: number;
+    order: number;
+  }>): Promise<MapLayer>;
   
   // Report operations
   generateSM00Report(startDate: string, endDate: string): Promise<any>;
@@ -353,6 +359,27 @@ export class MemStorage implements IStorage {
   // Get only visible map layers
   async getVisibleMapLayers(): Promise<MapLayer[]> {
     return Array.from(this.mapLayers.values()).filter(layer => layer.visible);
+  }
+  
+  // Update map layer settings
+  async updateMapLayer(id: number, updates: Partial<{
+    visible: boolean;
+    opacity: number;
+    zindex: number;
+    order: number;
+  }>): Promise<MapLayer> {
+    const layer = this.mapLayers.get(id);
+    if (!layer) {
+      throw new Error(`Map layer with ID ${id} not found`);
+    }
+    
+    const updatedLayer = {
+      ...layer,
+      ...updates
+    };
+    
+    this.mapLayers.set(id, updatedLayer);
+    return updatedLayer;
   }
   
   // Report operations
@@ -816,6 +843,33 @@ export class DatabaseStorage implements IStorage {
     if (items.length > 0) {
       await db.insert(checklistItems).values(items);
     }
+  }
+  
+  // Map operations
+  async getMapLayers(): Promise<MapLayer[]> {
+    return db.select().from(mapLayers);
+  }
+  
+  async getVisibleMapLayers(): Promise<MapLayer[]> {
+    return db.select().from(mapLayers).where(eq(mapLayers.visible, true));
+  }
+  
+  async updateMapLayer(id: number, updates: Partial<{
+    visible: boolean;
+    opacity: number;
+    zindex: number;
+    order: number;
+  }>): Promise<MapLayer> {
+    const [updatedLayer] = await db.update(mapLayers)
+      .set(updates)
+      .where(eq(mapLayers.id, id))
+      .returning();
+      
+    if (!updatedLayer) {
+      throw new Error(`Map layer with ID ${id} not found`);
+    }
+    
+    return updatedLayer;
   }
 }
 

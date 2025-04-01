@@ -85,7 +85,7 @@ export function MapPreview({ workflowId, parcelId, enableFullMap = false, onOpen
               <span className="text-xs text-neutral-400">
                 {layer.source === 'county_gis' ? 'From county GIS' : 
                  layer.source === 'arcgis' ? 'ArcGIS Pro' :
-                 layer.type === 'raster' ? `${layer.source} imagery` : 'External'}
+                 layer.source?.includes('imagery') ? `${layer.source} imagery` : 'External'}
               </span>
             </div>
           ))}
