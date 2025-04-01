@@ -43,6 +43,7 @@ export interface IStorage {
   
   // Parcel operations
   generateParcelNumbers(parentParcelId: string, count: number): Promise<string[]>;
+  getParcelInfo(parcelId: string): Promise<any | undefined>;
   
   // Map operations
   getMapLayers(): Promise<MapLayer[]>;
@@ -251,6 +252,59 @@ export class MemStorage implements IStorage {
     }
     
     return parcelNumbers;
+  }
+  
+  async getParcelInfo(parcelId: string): Promise<any | undefined> {
+    // In a real implementation, this would query the database for actual parcel information
+    
+    // Check if this is a valid parcel ID format
+    if (!parcelId || parcelId.length !== 15) {
+      return undefined;
+    }
+    
+    // Generate some dummy parcel information for testing purposes
+    // In production, this would come from the database
+    
+    // Extract some information from the parcel ID to make it look realistic
+    const section = parcelId.substring(0, 2);
+    const township = parcelId.substring(2, 4);
+    const range = parcelId.substring(4, 6);
+    const suffix = parseInt(parcelId.substring(10), 10);
+    
+    // Create realistic but random property values
+    const propertyTypes = ["Residential", "Commercial", "Agricultural", "Industrial", "Public"];
+    const propertyType = propertyTypes[Math.floor(suffix % propertyTypes.length)];
+    
+    // Calculate a realistic assessed value based on property type
+    let baseValue = 100000;
+    switch (propertyType) {
+      case "Residential": baseValue = 150000 + (suffix * 1000); break;
+      case "Commercial": baseValue = 250000 + (suffix * 5000); break;
+      case "Agricultural": baseValue = 50000 + (suffix * 200); break;
+      case "Industrial": baseValue = 350000 + (suffix * 7500); break;
+      case "Public": baseValue = 500000; break;
+    }
+    
+    // Generate a realistic address
+    const streets = ["Main St", "Washington Ave", "River Rd", "Park Ave", "County Line Rd"];
+    const street = streets[Math.floor(suffix % streets.length)];
+    const streetNumber = 100 + (suffix % 900);
+    
+    return {
+      parcelId,
+      address: `${streetNumber} ${street}, Benton County, WA`,
+      ownerName: suffix % 2 === 0 ? "John & Jane Smith" : "Benton Properties LLC",
+      acres: (0.25 + (suffix % 10) / 4).toFixed(2),
+      propertyType,
+      assessedValue: baseValue,
+      lastUpdated: "2023-12-15",
+      legalDescription: `Section ${section}, Township ${township}, Range ${range}E, W.M.`,
+      zones: ["R-1", "Residential"],
+      improvements: [
+        { type: "Building", value: baseValue * 0.7, yearBuilt: 1980 + (suffix % 40) },
+        { type: "Outbuilding", value: baseValue * 0.05, yearBuilt: 1990 + (suffix % 30) }
+      ]
+    };
   }
   
   // Map operations

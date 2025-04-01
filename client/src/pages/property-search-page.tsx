@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { isValidParcelNumber } from "@/lib/map-utils";
+import { isValidParcelNumber, DEFAULT_MAP_LAYERS } from "@/lib/map-utils";
 import { useToast } from "@/hooks/use-toast";
 import { MapPreview } from "@/components/maps/map-preview";
-import { Search, Map, FileText, InfoIcon, Send, Eye, Tag, Home, MapPin } from "lucide-react";
+import { ParcelQuickView } from "@/components/parcels/parcel-quick-view";
+import { Search, Map, FileText, InfoIcon, Send, Eye, Tag, Home, MapPin, Maximize2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -492,14 +493,31 @@ export default function PropertySearchPage() {
                         <TableCell>{result.ownerName}</TableCell>
                         <TableCell>{result.propertyType}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSelectProperty(result)}
-                          >
-                            <Eye className="h-4 w-4 mr-1.5" />
-                            View
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <ParcelQuickView
+                              parcelId={result.parcelNumber}
+                              triggerType="button"
+                              buttonVariant="ghost"
+                              buttonSize="sm"
+                              buttonText="Quick View"
+                              viewType="auto"
+                              mapLayers={DEFAULT_MAP_LAYERS}
+                            >
+                              <Button variant="ghost" size="sm">
+                                <Maximize2 className="h-4 w-4 mr-1.5" />
+                                Quick View
+                              </Button>
+                            </ParcelQuickView>
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSelectProperty(result)}
+                            >
+                              <Eye className="h-4 w-4 mr-1.5" />
+                              Full Details
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

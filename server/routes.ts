@@ -178,6 +178,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get parcel information by parcel ID
+  app.get("/api/parcels/:parcelId", async (req, res) => {
+    try {
+      const parcelId = req.params.parcelId;
+      const parcelInfo = await storage.getParcelInfo(parcelId);
+      
+      if (!parcelInfo) {
+        return res.status(404).json({ message: "Parcel not found" });
+      }
+      
+      res.json(parcelInfo);
+    } catch (error) {
+      console.error("Error fetching parcel information:", error);
+      res.status(500).json({ message: "Failed to fetch parcel information" });
+    }
+  });
+
   // Generate SM00 report
   app.post("/api/reports/sm00", async (req, res) => {
     try {
