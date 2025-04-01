@@ -105,22 +105,39 @@ export default function AuthPage() {
   // Dev auto-login mutation
   const devLoginMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/dev-login");
+      console.log("Starting dev login request");
+      const response = await apiRequest("GET", "/api/dev-login");
+      console.log("Dev login response:", response.status, response.statusText);
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Auto-login failed");
       }
-      return response.json();
+      
+      const data = await response.json();
+      console.log("Dev login data:", data);
+      return data;
     },
     onSuccess: (data) => {
+      console.log("Dev login success with data:", data);
+      
       toast({
         title: "Auto-login successful",
         description: `Logged in as ${data.fullName || data.username}`,
       });
+      
+      // Update the query client
       queryClient.setQueryData(["/api/user"], data);
-      navigate("/");
+      
+      // Force a small delay before navigating
+      setTimeout(() => {
+        console.log("Navigating to home page");
+        navigate("/");
+      }, 100);
     },
     onError: (error: Error) => {
+      console.error("Dev login error:", error);
+      
       toast({
         title: "Auto-login failed",
         description: error.message,
