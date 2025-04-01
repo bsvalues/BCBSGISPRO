@@ -16,12 +16,16 @@ import 'leaflet-defaulticon-compatibility';
 import { 
   GeoJSONFeature, 
   MapTool, 
-  getBaseMapUrl,
-  getBaseMapAttribution,
+  MapLayerType,
+  MeasurementType,
+  MeasurementUnit,
   getDefaultLayerStyle
 } from '@/lib/map-utils';
 import { DrawControl } from './draw-control';
 import { MapControls } from './map-controls';
+import MeasurementTool from './measurement-tool';
+import LayerFilter from './layer-filter';
+import BaseMapSelector from './basemap-selector';
 import { Button } from '@/components/ui/button';
 import { 
   Map as MapIcon, 
@@ -250,35 +254,7 @@ export function EnhancedMapViewer({
       )}
 
       {/* Base map selector */}
-      <div className="absolute bottom-6 left-2 z-[1000] bg-white rounded-md shadow-md p-1 flex gap-1">
-        <Button 
-          size="icon" 
-          variant={basemapType === 'street' ? 'default' : 'outline'} 
-          onClick={() => handleBaseMapChange('street')}
-          title="Street Map"
-          disabled={disableInteraction}
-        >
-          <MapIcon size={18} />
-        </Button>
-        <Button 
-          size="icon" 
-          variant={basemapType === 'satellite' ? 'default' : 'outline'} 
-          onClick={() => handleBaseMapChange('satellite')}
-          title="Satellite Imagery"
-          disabled={disableInteraction}
-        >
-          <Square size={18} />
-        </Button>
-        <Button 
-          size="icon" 
-          variant={basemapType === 'topo' ? 'default' : 'outline'} 
-          onClick={() => handleBaseMapChange('topo')}
-          title="Topographic Map"
-          disabled={disableInteraction}
-        >
-          <LineChart size={18} />
-        </Button>
-      </div>
+      {/* Base map selector custom control is implemented via a Leaflet control for better placement */}
 
       {/* The map */}
       <MapContainer
@@ -289,16 +265,31 @@ export function EnhancedMapViewer({
         ref={mapRef}
       >
         {/* Base maps */}
-        <TileLayer
-          attribution={getBaseMapAttribution(basemapType)}
-          url={getBaseMapUrl(basemapType)}
+        <BaseMapSelector 
+          map={mapRef.current!}
+          position="bottomleft"
+          initialBaseMap={basemapType}
+          onBaseMapChange={handleBaseMapChange}
         />
 
         {/* Map controls */}
         <ZoomControl position="bottomright" />
         <ScaleControl position="bottomright" imperial={true} metric={true} />
+        
+        {/* Base map selector */}
+        <BaseMapSelector 
+          map={mapRef.current!}
+          position="bottomleft"
+          initialBaseMap={basemapType}
+          onBaseMapChange={handleBaseMapChange}
+        />
         {activeTool === MapTool.MEASURE && showMeasureTools && (
-          <MapControls position="topright" />
+          <MeasurementTool 
+            position="topright"
+            measurementType={MeasurementType.DISTANCE}
+            unit={MeasurementUnit.METERS}
+            map={mapRef.current!}
+          />
         )}
 
         {/* Layer control */}
@@ -324,6 +315,19 @@ export function EnhancedMapViewer({
               </LayersControl.Overlay>
             ))}
           </LayersControl>
+        )}
+        
+        {/* Layer filter */}
+        {mapLayers.length > 0 && (
+          <LayerFilter
+            position="topright"
+            layers={mapLayers}
+            map={mapRef.current!}
+            onFilterChange={(filters) => {
+              setSelectedLayers(filters);
+              // The onFilterChange will return a string array of selected layer types
+            }}
+          />
         )}
 
         {/* User-drawn features */}
