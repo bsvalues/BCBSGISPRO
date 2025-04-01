@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="240" height="160" viewBox="0 0 240 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="160" rx="8" fill="#E9F5FF"/>
+  <circle cx="120" cy="80" r="40" fill="#A7D8FF" stroke="#3B82F6" stroke-width="2"/>
+  <path d="M120 50 L115 80 L120 85 L125 80 L120 50Z" fill="#EF4444" stroke="#991B1B" stroke-width="1"/>
+  <rect x="110" y="95" width="20" height="10" rx="2" fill="#22C55E" stroke="#166534" stroke-width="1"/>
+  <circle cx="140" cy="60" r="6" fill="#F59E0B" stroke="#B45309" stroke-width="1"/>
+  <path d="M90 70 C100 60, 110 90, 120 80" stroke="#6366F1" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M150 90 C160 100, 140 110, 130 100" stroke="#6366F1" stroke-width="2" stroke-linecap="round" fill="none"/>
+  
+  <!-- Scale bar -->
+  <rect x="80" y="120" width="80" height="4" fill="#6B7280"/>
+  <rect x="80" y="120" width="4" height="8" fill="#6B7280"/>
+  <rect x="120" y="120" width="4" height="8" fill="#6B7280"/>
+  <rect x="160" y="120" width="4" height="8" fill="#6B7280"/>
+  <text x="110" y="135" font-family="Arial" font-size="8" fill="#374151">1 km</text>
+</svg>

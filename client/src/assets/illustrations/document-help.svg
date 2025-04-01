@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="240" height="160" viewBox="0 0 240 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="160" rx="8" fill="#F0FDF4"/>
+  
+  <!-- Main document -->
+  <rect x="70" y="30" width="80" height="100" rx="4" fill="white" stroke="#16A34A" stroke-width="2"/>
+  <rect x="80" y="45" width="60" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="55" width="40" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="65" width="50" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="75" width="55" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="85" width="30" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="95" width="45" height="3" rx="1.5" fill="#D1FAE5"/>
+  <rect x="80" y="105" width="40" height="3" rx="1.5" fill="#D1FAE5"/>
+  
+  <!-- Corner fold -->
+  <path d="M150 30 L150 50 L130 30 Z" fill="#D1FAE5" stroke="#16A34A" stroke-width="2"/>
+  
+  <!-- Magnifying glass -->
+  <circle cx="155" cy="95" r="15" fill="white" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="165" y1="105" x2="175" y2="115" stroke="#3B82F6" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Tags -->
+  <rect x="70" y="140" width="25" height="10" rx="5" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+  <rect x="100" y="140" width="25" height="10" rx="5" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+  <rect x="130" y="140" width="25" height="10" rx="5" fill="#FCE7F3" stroke="#DB2777" stroke-width="1"/>
+</svg>

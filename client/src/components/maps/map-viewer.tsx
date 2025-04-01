@@ -16,6 +16,9 @@ import {
   GeoJSONFeature,
   GeoJSONCollection
 } from '@/lib/map-utils';
+import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { illustrations } from '@/lib/illustrations';
+import { HelpCircle } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // This will be used to focus map on a specific feature or location
@@ -81,7 +84,23 @@ export function MapViewer({
   };
   
   return (
-    <div className="w-full h-full min-h-[400px] rounded-md overflow-hidden border border-neutral-200">
+    <div className="w-full h-full min-h-[400px] rounded-md overflow-hidden border border-neutral-200 relative">
+      <div className="absolute top-2 right-2 z-[1000]">
+        <IllustratedTooltip
+          illustration={illustrations.map.general}
+          title="Map Navigation Help"
+          content={
+            <div>
+              <p className="mb-1">• Click and drag to pan around the map</p>
+              <p className="mb-1">• Use the zoom controls in the top right or scroll to zoom in/out</p>
+              <p className="mb-1">• Click on parcels to select them</p>
+              <p>• View different layers using the layer control if enabled</p>
+            </div>
+          }
+          position="left"
+          iconSize={18}
+        />
+      </div>
       <MapContainer 
         center={center} 
         zoom={zoom} 
