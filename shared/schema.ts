@@ -301,7 +301,91 @@ export const insertMapLayerSchema = createInsertSchema(mapLayers).pick({
   metadata: true,
 });
 
-// SM00 Reports
+// Report Status enum
+export const reportStatusEnum = pgEnum("report_status", [
+  "pending",
+  "processing",
+  "completed",
+  "failed",
+]);
+
+// Report Schedule Frequency enum
+export const reportScheduleFrequencyEnum = pgEnum("report_schedule_frequency", [
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+]);
+
+// Report Format enum
+export const reportFormatEnum = pgEnum("report_format", [
+  "pdf",
+  "excel",
+  "csv",
+  "html",
+]);
+
+// Report Templates
+export const reportTemplates = pgTable("report_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  templateType: text("template_type").notNull(), // SM00, ParcelChanges, etc.
+  parameterSchema: jsonb("parameter_schema").notNull(), // JSON schema describing required parameters
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  isActive: boolean("is_active").default(true),
+});
+
+// Reports
+export const reports = pgTable("reports", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  templateId: integer("template_id").notNull().references(() => reportTemplates.id),
+  parameters: jsonb("parameters").notNull(), // Stored parameters used to generate the report
+  status: reportStatusEnum("status").default("pending"),
+  error: text("error"), // Error message if status is 'failed'
+  resultData: jsonb("result_data"), // The actual report data (summary data in JSON)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  generatedBy: integer("generated_by").references(() => users.id),
+  totalRows: integer("total_rows"),
+});
+
+// Report Schedules
+export const reportSchedules = pgTable("report_schedules", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull().references(() => reportTemplates.id),
+  name: text("name").notNull(),
+  frequency: reportScheduleFrequencyEnum("frequency").notNull(),
+  dayOfWeek: integer("day_of_week"), // 0-6, where 0 is Sunday (for weekly)
+  dayOfMonth: integer("day_of_month"), // 1-31 (for monthly)
+  month: integer("month"), // 1-12 (for quarterly/yearly)
+  hour: integer("hour").notNull(), // 0-23
+  minute: integer("minute").notNull(), // 0-59
+  parameters: jsonb("parameters").notNull(), // Parameters to use when generating the report
+  recipients: text("recipients").notNull(), // Comma-separated list of email addresses
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  lastRun: timestamp("last_run"),
+  nextRun: timestamp("next_run"),
+});
+
+// Report Exports
+export const reportExports = pgTable("report_exports", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id").notNull().references(() => reports.id),
+  format: reportFormatEnum("format").notNull(),
+  storageKey: text("storage_key").notNull(), // Where the exported file is stored
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  fileSize: integer("file_size"), // Size in bytes
+});
+
+// Original SM00 Reports (keeping for backward compatibility)
 export const sm00Reports = pgTable("sm00_reports", {
   id: serial("id").primaryKey(),
   startDate: timestamp("start_date").notNull(),
@@ -318,6 +402,49 @@ export const insertSM00ReportSchema = createInsertSchema(sm00Reports).pick({
   generatedBy: true,
   status: true,
   reportData: true,
+});
+
+// Report Template Schema
+export const insertReportTemplateSchema = createInsertSchema(reportTemplates).pick({
+  name: true,
+  description: true,
+  templateType: true,
+  parameterSchema: true,
+  createdBy: true,
+  isActive: true,
+});
+
+// Report Schema
+export const insertReportSchema = createInsertSchema(reports).pick({
+  name: true,
+  templateId: true,
+  parameters: true,
+  generatedBy: true,
+});
+
+// Report Schedule Schema
+export const insertReportScheduleSchema = createInsertSchema(reportSchedules).pick({
+  templateId: true,
+  name: true,
+  frequency: true,
+  dayOfWeek: true,
+  dayOfMonth: true,
+  month: true,
+  hour: true,
+  minute: true,
+  parameters: true,
+  recipients: true,
+  active: true,
+  createdBy: true,
+});
+
+// Report Export Schema
+export const insertReportExportSchema = createInsertSchema(reportExports).pick({
+  reportId: true,
+  format: true,
+  storageKey: true,
+  createdBy: true,
+  fileSize: true,
 });
 
 // Type exports
@@ -353,3 +480,15 @@ export type InsertMapLayer = z.infer<typeof insertMapLayerSchema>;
 
 export type SM00Report = typeof sm00Reports.$inferSelect;
 export type InsertSM00Report = z.infer<typeof insertSM00ReportSchema>;
+
+export type ReportTemplate = typeof reportTemplates.$inferSelect;
+export type InsertReportTemplate = z.infer<typeof insertReportTemplateSchema>;
+
+export type Report = typeof reports.$inferSelect;
+export type InsertReport = z.infer<typeof insertReportSchema>;
+
+export type ReportSchedule = typeof reportSchedules.$inferSelect;
+export type InsertReportSchedule = z.infer<typeof insertReportScheduleSchema>;
+
+export type ReportExport = typeof reportExports.$inferSelect;
+export type InsertReportExport = z.infer<typeof insertReportExportSchema>;

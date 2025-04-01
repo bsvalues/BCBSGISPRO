@@ -1369,6 +1369,477 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---------- REPORT SYSTEM ENDPOINTS ----------
+  
+  // Get report templates
+  app.get("/api/reports/templates", async (req, res) => {
+    try {
+      const templates = await storage.getReportTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching report templates:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch report templates",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Get report template by ID
+  app.get("/api/reports/templates/:id", async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      const template = await storage.getReportTemplate(templateId);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Report template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching report template:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch report template",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Create report template
+  app.post("/api/reports/templates", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const template = await storage.createReportTemplate({
+        ...req.body,
+        createdBy: req.user.id
+      });
+      
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating report template:", error);
+      res.status(500).json({ 
+        message: "Failed to create report template",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Generate report
+  app.post("/api/reports", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { templateId, parameters } = req.body;
+      
+      if (!templateId) {
+        return res.status(400).json({ message: "Template ID is required" });
+      }
+      
+      // Get the template
+      const template = await storage.getReportTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Report template not found" });
+      }
+      
+      // Generate the report name
+      let reportName = template.name;
+      if (parameters.startDate && parameters.endDate) {
+        reportName += ` - ${parameters.startDate} to ${parameters.endDate}`;
+      }
+      
+      // Create the report
+      const report = await storage.createReport({
+        name: reportName,
+        templateId,
+        parameters,
+        generatedBy: req.user.id
+      });
+      
+      // Generate report data (this would be processed asynchronously in a real system)
+      // For now, we'll update the report status and add placeholder data
+      const resultData = await storage.generateReportData(report.id, parameters);
+      
+      // Update the report with the generated data
+      const updatedReport = await storage.updateReport(report.id, {
+        status: 'completed',
+        resultData,
+        completedAt: new Date().toISOString(),
+        totalRows: resultData.rows?.length || 0
+      });
+      
+      res.status(201).json(updatedReport);
+    } catch (error) {
+      console.error("Error generating report:", error);
+      res.status(500).json({ 
+        message: "Failed to generate report",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Get all reports
+  app.get("/api/reports", async (req, res) => {
+    try {
+      // Extract query parameters for filtering
+      const { startDate, endDate, status, templateId } = req.query;
+      
+      // Create filter object
+      const filter: Record<string, any> = {};
+      if (startDate) filter.startDate = startDate as string;
+      if (endDate) filter.endDate = endDate as string;
+      if (status) filter.status = status as string;
+      if (templateId) filter.templateId = parseInt(templateId as string);
+      
+      const reports = await storage.getReports(filter);
+      res.json(reports);
+    } catch (error) {
+      console.error("Error fetching reports:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch reports",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Get report by ID
+  app.get("/api/reports/:id", async (req, res) => {
+    try {
+      const reportId = parseInt(req.params.id);
+      const report = await storage.getReport(reportId);
+      
+      if (!report) {
+        return res.status(404).json({ message: "Report not found" });
+      }
+      
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching report:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch report",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Get report data
+  app.get("/api/reports/:id/data", async (req, res) => {
+    try {
+      const reportId = parseInt(req.params.id);
+      const report = await storage.getReport(reportId);
+      
+      if (!report) {
+        return res.status(404).json({ message: "Report not found" });
+      }
+      
+      if (report.status !== 'completed') {
+        return res.status(400).json({ 
+          message: "Report is not completed yet",
+          status: report.status 
+        });
+      }
+      
+      // Get sorting parameters
+      const { sortField, sortDirection } = req.query;
+      
+      // Get pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 10;
+      
+      // Get the report data (with sorting and pagination applied)
+      const reportData = await storage.getReportData(
+        reportId, 
+        sortField as string | undefined, 
+        sortDirection as 'asc' | 'desc' | undefined,
+        page,
+        pageSize
+      );
+      
+      res.json(reportData);
+    } catch (error) {
+      console.error("Error fetching report data:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch report data",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Export report
+  app.post("/api/reports/:id/export", async (req, res) => {
+    try {
+      const reportId = parseInt(req.params.id);
+      const { format } = req.body;
+      
+      if (!format || !['pdf', 'excel', 'csv', 'html'].includes(format)) {
+        return res.status(400).json({ message: "Valid format is required (pdf, excel, csv, html)" });
+      }
+      
+      const report = await storage.getReport(reportId);
+      if (!report) {
+        return res.status(404).json({ message: "Report not found" });
+      }
+      
+      if (report.status !== 'completed') {
+        return res.status(400).json({ message: "Report is not completed yet" });
+      }
+      
+      // Generate the export and get the file path
+      const exportResult = await storage.exportReport(reportId, format as 'pdf' | 'excel' | 'csv' | 'html');
+      
+      // Return the download URL
+      res.json({
+        downloadUrl: `/api/reports/${reportId}/export/${format}`,
+        filename: exportResult.filename
+      });
+    } catch (error) {
+      console.error("Error exporting report:", error);
+      res.status(500).json({ 
+        message: "Failed to export report",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Download exported report
+  app.get("/api/reports/:id/export/:format", async (req, res) => {
+    try {
+      const reportId = parseInt(req.params.id);
+      const format = req.params.format;
+      
+      if (!['pdf', 'excel', 'csv', 'html'].includes(format)) {
+        return res.status(400).json({ message: "Invalid format" });
+      }
+      
+      // Get the export file info
+      const exportInfo = await storage.getReportExport(reportId, format as 'pdf' | 'excel' | 'csv' | 'html');
+      if (!exportInfo) {
+        return res.status(404).json({ message: "Export not found" });
+      }
+      
+      // Set the content type based on format
+      let contentType = 'application/octet-stream';
+      switch (format) {
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+        case 'excel':
+          contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          break;
+        case 'csv':
+          contentType = 'text/csv';
+          break;
+        case 'html':
+          contentType = 'text/html';
+          break;
+      }
+      
+      // Set headers for download
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${exportInfo.filename}"`);
+      
+      // Send the file
+      res.sendFile(exportInfo.filePath);
+    } catch (error) {
+      console.error("Error downloading report export:", error);
+      res.status(500).json({ 
+        message: "Failed to download report export",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Preview report (similar to generate but returns limited preview data)
+  app.post("/api/reports/preview", async (req, res) => {
+    try {
+      const { templateId, parameters } = req.body;
+      
+      if (!templateId) {
+        return res.status(400).json({ message: "Template ID is required" });
+      }
+      
+      // Get the template
+      const template = await storage.getReportTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Report template not found" });
+      }
+      
+      // Generate preview data (limited subset of full report)
+      const previewData = await storage.generateReportPreview(templateId, parameters);
+      
+      res.json(previewData);
+    } catch (error) {
+      console.error("Error generating report preview:", error);
+      res.status(500).json({ 
+        message: "Failed to generate report preview",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Report Schedules
+  
+  // Get all report schedules
+  app.get("/api/reports/schedules", async (req, res) => {
+    try {
+      const schedules = await storage.getReportSchedules();
+      res.json(schedules);
+    } catch (error) {
+      console.error("Error fetching report schedules:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch report schedules",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Create report schedule
+  app.post("/api/reports/schedules", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const schedule = await storage.createReportSchedule({
+        ...req.body,
+        createdBy: req.user.id,
+        nextRun: calculateNextRun(req.body)
+      });
+      
+      res.status(201).json(schedule);
+    } catch (error) {
+      console.error("Error creating report schedule:", error);
+      res.status(500).json({ 
+        message: "Failed to create report schedule",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Update report schedule
+  app.patch("/api/reports/schedules/:id", async (req, res) => {
+    try {
+      const scheduleId = parseInt(req.params.id);
+      const schedule = await storage.getReportSchedule(scheduleId);
+      
+      if (!schedule) {
+        return res.status(404).json({ message: "Report schedule not found" });
+      }
+      
+      // If frequency or time parameters changed, recalculate next run
+      const updatedSchedule = { ...req.body };
+      if (
+        req.body.frequency !== undefined || 
+        req.body.dayOfWeek !== undefined ||
+        req.body.dayOfMonth !== undefined ||
+        req.body.month !== undefined ||
+        req.body.hour !== undefined ||
+        req.body.minute !== undefined
+      ) {
+        updatedSchedule.nextRun = calculateNextRun({
+          frequency: req.body.frequency || schedule.frequency,
+          dayOfWeek: req.body.dayOfWeek !== undefined ? req.body.dayOfWeek : schedule.dayOfWeek,
+          dayOfMonth: req.body.dayOfMonth !== undefined ? req.body.dayOfMonth : schedule.dayOfMonth,
+          month: req.body.month !== undefined ? req.body.month : schedule.month,
+          hour: req.body.hour !== undefined ? req.body.hour : schedule.hour,
+          minute: req.body.minute !== undefined ? req.body.minute : schedule.minute
+        });
+      }
+      
+      const result = await storage.updateReportSchedule(scheduleId, updatedSchedule);
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating report schedule:", error);
+      res.status(500).json({ 
+        message: "Failed to update report schedule",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Delete report schedule
+  app.delete("/api/reports/schedules/:id", async (req, res) => {
+    try {
+      const scheduleId = parseInt(req.params.id);
+      await storage.deleteReportSchedule(scheduleId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting report schedule:", error);
+      res.status(500).json({ 
+        message: "Failed to delete report schedule",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Helper function to calculate next run for schedules
+  function calculateNextRun(schedule: any): string {
+    const now = new Date();
+    let nextRun = new Date();
+    
+    // Set time
+    nextRun.setHours(schedule.hour);
+    nextRun.setMinutes(schedule.minute);
+    nextRun.setSeconds(0);
+    nextRun.setMilliseconds(0);
+    
+    // If the time is in the past for today, move to next occurrence
+    if (nextRun <= now) {
+      nextRun.setDate(nextRun.getDate() + 1); // Move to tomorrow
+    }
+    
+    // Adjust based on frequency
+    switch (schedule.frequency) {
+      case 'daily':
+        // Already set to next day if needed
+        break;
+      case 'weekly':
+        if (schedule.dayOfWeek !== undefined) {
+          const currentDay = nextRun.getDay();
+          const daysUntilTargetDay = (schedule.dayOfWeek - currentDay + 7) % 7;
+          nextRun.setDate(nextRun.getDate() + daysUntilTargetDay);
+        }
+        break;
+      case 'monthly':
+        if (schedule.dayOfMonth !== undefined) {
+          nextRun.setDate(1); // Start at beginning of month
+          // If dayOfMonth is too high for current month, limit to last day
+          const lastDayOfMonth = new Date(nextRun.getFullYear(), nextRun.getMonth() + 1, 0).getDate();
+          const targetDay = Math.min(schedule.dayOfMonth, lastDayOfMonth);
+          nextRun.setDate(targetDay);
+          
+          // If it's in the past, move to next month
+          if (nextRun <= now) {
+            nextRun.setMonth(nextRun.getMonth() + 1);
+            const newLastDay = new Date(nextRun.getFullYear(), nextRun.getMonth() + 1, 0).getDate();
+            nextRun.setDate(Math.min(schedule.dayOfMonth, newLastDay));
+          }
+        }
+        break;
+      case 'quarterly':
+        // Set to first day of the next quarter if current quarter has passed
+        const currentMonth = now.getMonth();
+        const currentQuarter = Math.floor(currentMonth / 3);
+        const nextQuarterStartMonth = (currentQuarter + 1) % 4 * 3;
+        
+        if (nextRun <= now || currentMonth !== nextQuarterStartMonth) {
+          if (currentMonth >= nextQuarterStartMonth) {
+            // Move to next year's quarter if we're already past this year's quarter
+            nextRun.setFullYear(nextRun.getFullYear() + 1);
+          }
+          nextRun.setMonth(nextQuarterStartMonth);
+          nextRun.setDate(1);
+        }
+        break;
+    }
+    
+    return nextRun.toISOString();
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }

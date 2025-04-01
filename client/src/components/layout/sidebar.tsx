@@ -131,6 +131,12 @@ export function Sidebar({ className }: SidebarProps) {
                 label="Document Classification"
                 collapsed={collapsed}
               />
+              <SidebarItem 
+                href="/report"
+                icon={<BarChart size={20} />}
+                label="Reports"
+                collapsed={collapsed}
+              />
             </ul>
           </nav>
         </div>
