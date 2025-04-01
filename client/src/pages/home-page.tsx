@@ -29,9 +29,15 @@ export default function HomePage() {
   
   useEffect(() => {
     // Set notification count based on number of workflows with recent updates
-    // This would be replaced with actual notification logic in a real implementation
-    setNotificationCount(2); // Mock notification count
-  }, []);
+    // For now, we'll use a simple counter based on the number of workflows
+    if (workflows && workflows.length > 0) {
+      // Count in-progress workflows as notifications
+      const inProgressCount = workflows.filter(w => w.status === 'in_progress').length;
+      setNotificationCount(inProgressCount > 0 ? inProgressCount : 0);
+    } else {
+      setNotificationCount(0);
+    }
+  }, [workflows]);
   
   // Create new workflow
   const handleCreateWorkflow = (type: WorkflowType) => {

@@ -15,16 +15,26 @@ import { useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 // Auto Login page for development
 function DevAutoLogin() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   
   useEffect(() => {
     const performAutoLogin = async () => {
       try {
         console.log("Performing auto-login from dedicated route");
-        const response = await apiRequest("GET", "/api/dev-login");
+        
+        // Use fetch directly for better control of credentials
+        const response = await fetch("/api/dev-login", {
+          method: "GET",
+          credentials: "include", // This ensures cookies are sent with the request
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
         
         if (!response.ok) {
           throw new Error("Auto login failed");
@@ -36,19 +46,50 @@ function DevAutoLogin() {
         // Update the cache
         queryClient.setQueryData(["/api/user"], userData);
         
+        // Show success message
+        toast({
+          title: "Auto-login successful",
+          description: `Logged in as ${userData.fullName || userData.username}`,
+        });
+        
+        // Verify the session by immediately checking user status
+        const verifySession = async () => {
+          try {
+            const verifyResponse = await fetch("/api/user", {
+              method: "GET",
+              credentials: "include",
+            });
+            
+            if (verifyResponse.ok) {
+              console.log("Session verified successfully");
+            } else {
+              console.error("Session verification failed");
+            }
+          } catch (err) {
+            console.error("Error verifying session:", err);
+          }
+        };
+        
+        await verifySession();
+        
         // Redirect to home with a small delay to ensure state is updated
         setTimeout(() => {
           console.log("Navigating to homepage after auto-login");
           setLocation("/");
-        }, 100);
+        }, 300); // Increase delay to allow for session establishment
       } catch (error) {
         console.error("Auto login error:", error);
+        toast({
+          title: "Auto-login failed",
+          description: error instanceof Error ? error.message : "Unknown error",
+          variant: "destructive",
+        });
         setLocation("/auth");
       }
     };
     
     performAutoLogin();
-  }, [setLocation]);
+  }, [setLocation, toast]);
   
   // Simple loading screen
   return (
