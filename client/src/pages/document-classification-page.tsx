@@ -6,16 +6,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDocumentClassifier, ClassificationResult } from '@/hooks/use-document-classifier';
 import { DocumentClassificationResult } from '@/components/documents/document-classification-result';
-import { BrainCircuit, FileText, Upload } from 'lucide-react';
+import { BrainCircuit, FileText, Upload, Workflow, Database } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useQuery } from '@tanstack/react-query';
+import { BatchDocumentProcessor } from '@/components/documents/batch-document-processor';
+import { EnhancedDocumentManagement } from '@/components/documents/enhanced-document-management';
 
 export default function DocumentClassificationPage() {
+  const [activeTab, setActiveTab] = useState<string>('single');
   const [documentText, setDocumentText] = useState('');
   const [documentTitle, setDocumentTitle] = useState('');
   const [classificationResult, setClassificationResult] = useState<ClassificationResult | null>(null);
   const [isClassifying, setIsClassifying] = useState(false);
   
   const { classifyDocument } = useDocumentClassifier();
+  
+  // Fetch workflows for the document management section
+  const { data: workflows = [] } = useQuery({
+    queryKey: ['/api/workflows'],
+  });
+  
+  // Use the first workflow as a default if available
+  const selectedWorkflow = workflows.length > 0 ? workflows[0] : null;
   
   const handleClassify = async () => {
     if (!documentText.trim()) return;
@@ -77,7 +89,7 @@ BENCHMARK: CITY OF KENNEWICK MONUMENT NO. 47 ELEVATION: 432.58 FEET (NAVD 88)`
   ];
   
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
+    <div className="container mx-auto py-8">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Document Classification</h1>
         <p className="text-muted-foreground mt-2">
@@ -85,182 +97,261 @@ BENCHMARK: CITY OF KENNEWICK MONUMENT NO. 47 ELEVATION: 432.58 FEET (NAVD 88)`
         </p>
       </div>
       
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-500" />
-                Document Input
-              </CardTitle>
-              <CardDescription>
-                Enter document text to classify or select from examples
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="documentTitle">Document Title</Label>
-                <Input
-                  id="documentTitle"
-                  placeholder="Enter document title (optional)"
-                  value={documentTitle}
-                  onChange={(e) => setDocumentTitle(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="documentText">Document Text</Label>
-                <Textarea
-                  id="documentText"
-                  placeholder="Paste document text here to classify"
-                  className="min-h-[200px]"
-                  value={documentText}
-                  onChange={(e) => setDocumentText(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleClassify} 
-                  className="flex-1"
-                  disabled={!documentText.trim() || isClassifying}
-                >
-                  <BrainCircuit className="mr-2 h-4 w-4" />
-                  {isClassifying ? 'Classifying...' : 'Classify Document'}
-                </Button>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto mb-8">
+          <TabsTrigger value="single" className="flex items-center gap-1">
+            <FileText className="h-4 w-4" />
+            <span>Single Document</span>
+          </TabsTrigger>
+          <TabsTrigger value="batch" className="flex items-center gap-1">
+            <Upload className="h-4 w-4" />
+            <span>Batch Process</span>
+          </TabsTrigger>
+          <TabsTrigger value="management" className="flex items-center gap-1">
+            <Database className="h-4 w-4" />
+            <span>Document Management</span>
+          </TabsTrigger>
+        </TabsList>
+        
+        {/* Single Document Classification Tab */}
+        <TabsContent value="single">
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Document Input
+                  </CardTitle>
+                  <CardDescription>
+                    Enter document text to classify or select from examples
+                  </CardDescription>
+                </CardHeader>
                 
-                <Button 
-                  variant="outline" 
-                  onClick={handleClear}
-                  disabled={isClassifying}
-                >
-                  Clear
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Document Examples</CardTitle>
-              <CardDescription>
-                Try with pre-written document text examples
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <Tabs defaultValue="plat_map" className="w-full">
-                <TabsList className="grid grid-cols-3 mb-4">
-                  <TabsTrigger value="plat_map">Plat Map</TabsTrigger>
-                  <TabsTrigger value="deed">Deed</TabsTrigger>
-                  <TabsTrigger value="survey">Survey</TabsTrigger>
-                </TabsList>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="documentTitle">Document Title</Label>
+                    <Input
+                      id="documentTitle"
+                      placeholder="Enter document title (optional)"
+                      value={documentTitle}
+                      onChange={(e) => setDocumentTitle(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="documentText">Document Text</Label>
+                    <Textarea
+                      id="documentText"
+                      placeholder="Paste document text here to classify"
+                      className="min-h-[200px]"
+                      value={documentText}
+                      onChange={(e) => setDocumentText(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleClassify} 
+                      className="flex-1"
+                      disabled={!documentText.trim() || isClassifying}
+                    >
+                      <BrainCircuit className="mr-2 h-4 w-4" />
+                      {isClassifying ? 'Classifying...' : 'Classify Document'}
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={handleClear}
+                      disabled={isClassifying}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Document Examples</CardTitle>
+                  <CardDescription>
+                    Try with pre-written document text examples
+                  </CardDescription>
+                </CardHeader>
                 
-                {examples.map((example, index) => (
-                  <TabsContent 
-                    key={index} 
-                    value={Object.values({
-                      plat_map: examples[0], 
-                      deed: examples[1], 
-                      survey: examples[2]
-                    })[index] === example ? 
-                      Object.keys({
-                        plat_map: examples[0], 
-                        deed: examples[1], 
-                        survey: examples[2]
-                      })[index] : ''}
-                    className="space-y-4"
-                  >
-                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md text-sm max-h-[200px] overflow-y-auto">
-                      <p className="font-medium mb-2">{example.name}</p>
-                      <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line">
-                        {example.text}
+                <CardContent>
+                  <Tabs defaultValue="plat_map" className="w-full">
+                    <TabsList className="grid grid-cols-3 mb-4">
+                      <TabsTrigger value="plat_map">Plat Map</TabsTrigger>
+                      <TabsTrigger value="deed">Deed</TabsTrigger>
+                      <TabsTrigger value="survey">Survey</TabsTrigger>
+                    </TabsList>
+                    
+                    {examples.map((example, index) => (
+                      <TabsContent 
+                        key={index} 
+                        value={Object.values({
+                          plat_map: examples[0], 
+                          deed: examples[1], 
+                          survey: examples[2]
+                        })[index] === example ? 
+                          Object.keys({
+                            plat_map: examples[0], 
+                            deed: examples[1], 
+                            survey: examples[2]
+                          })[index] : ''}
+                        className="space-y-4"
+                      >
+                        <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md text-sm max-h-[200px] overflow-y-auto">
+                          <p className="font-medium mb-2">{example.name}</p>
+                          <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                            {example.text}
+                          </p>
+                        </div>
+                        
+                        <Button 
+                          onClick={() => {
+                            setDocumentTitle(example.name);
+                            setDocumentText(example.text);
+                          }}
+                          variant="secondary"
+                          className="w-full"
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          Use This Example
+                        </Button>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BrainCircuit className="h-5 w-5 text-primary" />
+                    Classification Results
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered document type detection results
+                  </CardDescription>
+                </CardHeader>
+                
+                <CardContent>
+                  {classificationResult ? (
+                    <DocumentClassificationResult classification={classificationResult} />
+                  ) : (
+                    <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-md text-center">
+                      <BrainCircuit className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                      <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        No Document Classified Yet
+                      </h3>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm">
+                        Enter document text and click "Classify Document" to see results
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {classificationResult && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>How It Works</CardTitle>
+                    <CardDescription>
+                      Understanding the classification process
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="font-medium">ML-based Classification</h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        Our document classifier uses machine learning to analyze document text and identify patterns that match known document types in the Benton County Assessor's Office workflow.
                       </p>
                     </div>
                     
-                    <Button 
-                      onClick={() => {
-                        setDocumentTitle(example.name);
-                        setDocumentText(example.text);
-                      }}
-                      variant="secondary"
-                      className="w-full"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Use This Example
-                    </Button>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BrainCircuit className="h-5 w-5 text-blue-500" />
-                Classification Results
-              </CardTitle>
-              <CardDescription>
-                AI-powered document type detection results
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              {classificationResult ? (
-                <DocumentClassificationResult classification={classificationResult} />
-              ) : (
-                <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-md text-center">
-                  <BrainCircuit className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                  <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    No Document Classified Yet
-                  </h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm">
-                    Enter document text and click "Classify Document" to see results
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <h3 className="font-medium">Confidence Score</h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        The confidence score indicates how certain the model is about the classification. Higher confidence means the document more clearly matches a known document type.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h3 className="font-medium">Alternative Types</h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        When a document contains elements of multiple document types, the system shows alternative classifications with their confidence scores.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-            </CardContent>
-          </Card>
-          
-          {classificationResult && (
+            </div>
+          </div>
+        </TabsContent>
+        
+        {/* Batch Document Processing Tab */}
+        <TabsContent value="batch">
+          <div className="max-w-4xl mx-auto">
             <Card>
               <CardHeader>
-                <CardTitle>How It Works</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Batch Document Classification
+                </CardTitle>
                 <CardDescription>
-                  Understanding the classification process
+                  Upload and classify multiple documents at once
                 </CardDescription>
               </CardHeader>
               
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <h3 className="font-medium">ML-based Classification</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Our document classifier uses machine learning to analyze document text and identify patterns that match known document types in the Benton County Assessor's Office workflow.
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-medium">Confidence Score</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    The confidence score indicates how certain the model is about the classification. Higher confidence means the document more clearly matches a known document type.
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-medium">Alternative Types</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    When a document contains elements of multiple document types, the system shows alternative classifications with their confidence scores.
-                  </p>
-                </div>
+              <CardContent>
+                {selectedWorkflow ? (
+                  <BatchDocumentProcessor 
+                    workflowId={selectedWorkflow.id} 
+                    onComplete={() => {}}
+                  />
+                ) : (
+                  <div className="text-center py-8 border rounded-md">
+                    <Workflow className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                    <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      No Workflow Available
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-4">
+                      Please create or select a workflow to use batch processing
+                    </p>
+                    <Button variant="outline">
+                      Create New Workflow
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+        
+        {/* Document Management Tab */}
+        <TabsContent value="management">
+          {selectedWorkflow ? (
+            <EnhancedDocumentManagement workflow={selectedWorkflow} />
+          ) : (
+            <div className="text-center py-12">
+              <Database className="h-16 w-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
+              <h3 className="text-xl font-medium text-slate-700 dark:text-slate-300 mb-2">
+                No Workflow Available
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
+                Please create or select a workflow to use the document management features
+              </p>
+              <Button>
+                Create New Workflow
+              </Button>
+            </div>
           )}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

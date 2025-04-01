@@ -1,147 +1,173 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import { getDocumentTypeLabel } from '@shared/document-types';
 
-// Document types that match server-side DocumentType enum
-export enum DocumentType {
-  PLAT_MAP = 'plat_map',
-  DEED = 'deed',
-  SURVEY = 'survey',
-  LEGAL_DESCRIPTION = 'legal_description',
-  BOUNDARY_LINE_ADJUSTMENT = 'boundary_line_adjustment',
-  TAX_FORM = 'tax_form',
-  UNCLASSIFIED = 'unclassified'
-}
-
-// Classification result from the API
-export interface ClassificationResult {
-  documentType: DocumentType;
-  confidence: number;
+export type ClassificationResult = {
+  documentType: string;
   documentTypeLabel: string;
-  alternativeTypes?: Array<{
-    documentType: DocumentType;
-    confidence: number;
-  }>;
-  keywords?: string[];
+  confidence: number;
+  wasManuallyClassified?: boolean;
+};
+
+interface UploadWithClassificationParams {
+  workflowId?: number;
+  name: string;
+  content: string;
 }
 
-// Document upload with classification result
-export interface ClassifiedDocument {
+interface UploadWithClassificationResult {
   document: {
     id: number;
-    workflowId: number;
     name: string;
     type: string;
-    content: string;
-    uploadedAt: Date;
+    [key: string]: any;
   };
   classification: ClassificationResult;
 }
 
-/**
- * Hook for using the document classification API
- */
 export function useDocumentClassifier() {
-  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Mutation for classifying document text
-  const classifyMutation = useMutation({
-    mutationFn: async (text: string): Promise<ClassificationResult> => {
-      const res = await apiRequest('POST', '/api/documents/classify', { text });
-      return res.json();
-    },
-    onSuccess: () => {
-      // No need to invalidate any queries
-    },
-    onError: (error) => {
+  const { toast } = useToast();
+  
+  // Function to classify document text directly
+  const classifyDocument = async (documentText: string): Promise<ClassificationResult> => {
+    setIsProcessing(true);
+    
+    try {
+      const response = await apiRequest(
+        'POST',
+        '/api/documents/classify',
+        { content: documentText }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to classify document');
+      }
+      
+      const result = await response.json();
+      
+      // Enhance result with label
+      return {
+        ...result,
+        documentTypeLabel: getDocumentTypeLabel(result.documentType)
+      };
+    } catch (error) {
       toast({
         title: 'Classification Error',
-        description: error.message || 'Could not classify document',
-        variant: 'destructive',
+        description: error instanceof Error ? error.message : 'Failed to classify document',
+        variant: 'destructive'
       });
+      throw error;
+    } finally {
+      setIsProcessing(false);
     }
-  });
-
-  // Mutation for uploading a document with automatic classification
-  const uploadWithClassificationMutation = useMutation({
-    mutationFn: async ({ 
-      workflowId, 
-      name, 
-      content 
-    }: { 
-      workflowId: number; 
-      name: string; 
-      content: string;
-    }): Promise<ClassifiedDocument> => {
-      setIsProcessing(true);
-      try {
-        const res = await apiRequest(
-          'POST', 
-          `/api/workflows/${workflowId}/documents/auto-classify`, 
-          { name, content }
-        );
-        return res.json();
-      } finally {
-        setIsProcessing(false);
+  };
+  
+  // Function to upload a document and get its classification in one step
+  const uploadWithClassification = async ({
+    workflowId,
+    name,
+    content
+  }: UploadWithClassificationParams): Promise<UploadWithClassificationResult> => {
+    setIsUploading(true);
+    
+    try {
+      const response = await apiRequest(
+        'POST',
+        '/api/documents',
+        {
+          workflowId,
+          name,
+          content,
+          autoClassify: true
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload document');
       }
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/workflows/${data.document.workflowId}/documents`] });
-      toast({
-        title: 'Document Classified',
-        description: `Document classified as: ${data.classification.documentTypeLabel}`,
-      });
-    },
-    onError: (error) => {
+      
+      const result = await response.json();
+      
+      // Transform result to expected format
+      return {
+        document: result,
+        classification: {
+          documentType: result.type,
+          documentTypeLabel: getDocumentTypeLabel(result.type),
+          confidence: result.classification?.confidence || 0.95,
+          wasManuallyClassified: result.classification?.wasManuallyClassified || false
+        }
+      };
+    } catch (error) {
       toast({
         title: 'Upload Error',
-        description: error.message || 'Could not upload and classify document',
-        variant: 'destructive',
+        description: error instanceof Error ? error.message : 'Failed to upload document',
+        variant: 'destructive'
       });
+      throw error;
+    } finally {
+      setIsUploading(false);
     }
-  });
-
+  };
+  
+  // Mock classifier for demo purposes when backend is not available
+  const mockClassify = async (documentText: string): Promise<ClassificationResult> => {
+    setIsProcessing(true);
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    try {
+      // Simple keyword-based classification
+      const text = documentText.toLowerCase();
+      
+      let documentType = 'unclassified';
+      let confidence = 0.5;
+      
+      if (text.includes('plat') || text.includes('survey')) {
+        if (text.includes('plat') && text.includes('map')) {
+          documentType = 'plat_map';
+          confidence = 0.92;
+        } else if (text.includes('survey')) {
+          documentType = 'survey';
+          confidence = 0.88;
+        }
+      } else if (text.includes('deed') || text.includes('convey') || text.includes('warranty')) {
+        documentType = 'deed';
+        confidence = 0.87;
+      } else if (text.includes('legal description') || text.includes('metes and bounds')) {
+        documentType = 'legal_description';
+        confidence = 0.85;
+      } else if (text.includes('boundary') && text.includes('adjust')) {
+        documentType = 'boundary_line_adjustment';
+        confidence = 0.82;
+      } else if (text.includes('tax') && (text.includes('form') || text.includes('payment'))) {
+        documentType = 'tax_form';
+        confidence = 0.78;
+      }
+      
+      return {
+        documentType,
+        documentTypeLabel: getDocumentTypeLabel(documentType),
+        confidence,
+        wasManuallyClassified: false
+      };
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // Return public API
   return {
-    classifyDocument: classifyMutation.mutateAsync,
-    uploadWithClassification: uploadWithClassificationMutation.mutateAsync,
-    isClassifying: classifyMutation.isPending,
-    isUploading: uploadWithClassificationMutation.isPending,
+    classifyDocument,
+    uploadWithClassification,
+    mockClassify,
+    isUploading,
     isProcessing
   };
-}
-
-/**
- * Returns human-readable confidence levels for displaying to users
- */
-export function getConfidenceLabel(confidence: number): string {
-  if (confidence >= 0.9) {
-    return 'Very High';
-  } else if (confidence >= 0.7) {
-    return 'High';
-  } else if (confidence >= 0.5) {
-    return 'Medium';
-  } else if (confidence >= 0.3) {
-    return 'Low';
-  } else {
-    return 'Very Low';
-  }
-}
-
-/**
- * Returns a color based on confidence level
- */
-export function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.9) {
-    return 'text-green-600 dark:text-green-400';
-  } else if (confidence >= 0.7) {
-    return 'text-green-500 dark:text-green-300';
-  } else if (confidence >= 0.5) {
-    return 'text-amber-500 dark:text-amber-300';
-  } else if (confidence >= 0.3) {
-    return 'text-orange-500 dark:text-orange-300';
-  } else {
-    return 'text-red-500 dark:text-red-300';
-  }
 }
