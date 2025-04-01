@@ -3,11 +3,14 @@ import {
   workflows, type Workflow, type InsertWorkflow,
   workflowStates, type WorkflowState, type InsertWorkflowState,
   checklistItems, type ChecklistItem, type InsertChecklistItem,
-  documents, type Document, type InsertDocument,
+  documents, type Document, documentVersions, type DocumentVersion,
+  documentParcelLinks, type DocumentParcelLink,
   parcels, type Parcel, type InsertParcel,
   mapLayers, type MapLayer,
-  sm00Reports, type SM00Report
+  sm00Reports, type SM00Report,
+  type InsertDocumentVersion, type InsertDocumentParcelLink
 } from "@shared/schema";
+import { DocumentType } from "@shared/document-types";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -48,8 +51,49 @@ export interface IStorage {
   }>): Promise<ChecklistItem>;
   
   // Document operations
-  getDocuments(workflowId: number): Promise<Document[]>;
-  addDocument(workflowId: number, doc: { name: string, type: string, content: string }): Promise<Document>;
+  getDocuments(workflowId?: number): Promise<Document[]>;
+  getDocument(id: number): Promise<Document | undefined>;
+  addDocument(params: {
+    workflowId?: number; 
+    name: string;
+    type: DocumentType;
+    contentType: string;
+    contentHash: string;
+    storageKey: string;
+    classification?: {
+      documentType: string;
+      confidence: number;
+      wasManuallyClassified: boolean;
+      classifiedAt: string;
+    };
+    content: string;
+  }): Promise<Document>;
+  updateDocumentClassification(documentId: number, classification: {
+    documentType: string;
+    confidence: number;
+    wasManuallyClassified: boolean;
+    classifiedAt: string;
+  }): Promise<Document>;
+  
+  // Document versions
+  getDocumentVersions(documentId: number): Promise<DocumentVersion[]>;
+  addDocumentVersion(params: {
+    documentId: number;
+    versionNumber: number;
+    contentHash: string;
+    storageKey: string;
+    notes?: string;
+    content: string;
+  }): Promise<DocumentVersion>;
+  
+  // Document-parcel links
+  getDocumentParcelLink(documentId: number, parcelId: number): Promise<DocumentParcelLink | undefined>;
+  createDocumentParcelLink(link: InsertDocumentParcelLink): Promise<DocumentParcelLink>;
+  removeDocumentParcelLinks(documentId: number, parcelIds?: number[]): Promise<number>;
+  getParcelsForDocument(documentId: number): Promise<Parcel[]>;
+  getDocumentsForParcel(parcelId: number): Promise<Document[]>;
+  getParcelById(id: number): Promise<Parcel | undefined>;
+  searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]>;
   
   // Parcel operations
   generateParcelNumbers(parentParcelId: string, count: number): Promise<string[]>;
@@ -256,24 +300,169 @@ export class MemStorage implements IStorage {
   }
   
   // Document operations
-  async getDocuments(workflowId: number): Promise<Document[]> {
+  // Additional storage for document management
+  private documentVersions: Map<number, DocumentVersion> = new Map();
+  private documentParcelLinks: Map<number, DocumentParcelLink> = new Map();
+  private documentVersionId: number = 1;
+  private documentParcelLinkId: number = 1;
+  
+  async getDocuments(workflowId?: number): Promise<Document[]> {
+    if (workflowId === undefined) {
+      return Array.from(this.documents.values())
+        .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+    }
     return Array.from(this.documents.values())
       .filter((doc) => doc.workflowId === workflowId)
       .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
   }
   
-  async addDocument(workflowId: number, doc: { name: string, type: string, content: string }): Promise<Document> {
+  async getDocument(id: number): Promise<Document | undefined> {
+    return this.documents.get(id);
+  }
+  
+  async addDocument(params: {
+    workflowId?: number; 
+    name: string;
+    type: DocumentType;
+    contentType: string;
+    contentHash: string;
+    storageKey: string;
+    classification?: {
+      documentType: string;
+      confidence: number;
+      wasManuallyClassified: boolean;
+      classifiedAt: string;
+    };
+    content: string;
+  }): Promise<Document> {
     const id = this.documentId++;
     const document: Document = {
       id,
-      workflowId,
-      name: doc.name,
-      type: doc.type,
-      content: doc.content,
+      workflowId: params.workflowId || null,
+      name: params.name,
+      type: params.type,
+      contentType: params.contentType,
+      contentHash: params.contentHash,
+      storageKey: params.storageKey,
+      classification: params.classification || null,
       uploadedAt: new Date(),
+      updatedAt: new Date()
     };
     this.documents.set(id, document);
     return document;
+  }
+  
+  async updateDocumentClassification(documentId: number, classification: {
+    documentType: string;
+    confidence: number;
+    wasManuallyClassified: boolean;
+    classifiedAt: string;
+  }): Promise<Document> {
+    const document = this.documents.get(documentId);
+    if (!document) {
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    const updatedDocument = {
+      ...document,
+      type: classification.documentType as DocumentType,
+      classification,
+      updatedAt: new Date()
+    };
+    
+    this.documents.set(documentId, updatedDocument);
+    return updatedDocument;
+  }
+  
+  // Document version operations
+  async getDocumentVersions(documentId: number): Promise<DocumentVersion[]> {
+    return Array.from(this.documentVersions.values())
+      .filter(version => version.documentId === documentId)
+      .sort((a, b) => a.versionNumber - b.versionNumber);
+  }
+  
+  async addDocumentVersion(params: {
+    documentId: number;
+    versionNumber: number;
+    contentHash: string;
+    storageKey: string;
+    notes?: string;
+    content: string; // Base64 content, not actually stored in the database
+  }): Promise<DocumentVersion> {
+    const id = this.documentVersionId++;
+    const version: DocumentVersion = {
+      id,
+      documentId: params.documentId,
+      versionNumber: params.versionNumber,
+      contentHash: params.contentHash,
+      storageKey: params.storageKey,
+      notes: params.notes || null,
+      createdAt: new Date()
+    };
+    
+    this.documentVersions.set(id, version);
+    return version;
+  }
+  
+  // Document-parcel link operations
+  async getDocumentParcelLink(documentId: number, parcelId: number): Promise<DocumentParcelLink | undefined> {
+    return Array.from(this.documentParcelLinks.values()).find(
+      link => link.documentId === documentId && link.parcelId === parcelId
+    );
+  }
+  
+  async createDocumentParcelLink(link: InsertDocumentParcelLink): Promise<DocumentParcelLink> {
+    const id = this.documentParcelLinkId++;
+    const documentParcelLink: DocumentParcelLink = {
+      id,
+      documentId: link.documentId,
+      parcelId: link.parcelId,
+      createdAt: new Date()
+    };
+    
+    this.documentParcelLinks.set(id, documentParcelLink);
+    return documentParcelLink;
+  }
+  
+  async removeDocumentParcelLinks(documentId: number, parcelIds?: number[]): Promise<number> {
+    const links = Array.from(this.documentParcelLinks.values()).filter(
+      link => link.documentId === documentId && 
+        (parcelIds === undefined || parcelIds.includes(link.parcelId))
+    );
+    
+    // Remove the links
+    for (const link of links) {
+      this.documentParcelLinks.delete(link.id);
+    }
+    
+    return links.length;
+  }
+  
+  async getParcelsForDocument(documentId: number): Promise<Parcel[]> {
+    const parcelIds = Array.from(this.documentParcelLinks.values())
+      .filter(link => link.documentId === documentId)
+      .map(link => link.parcelId);
+    
+    return Array.from(this.parcels.values())
+      .filter(parcel => parcelIds.includes(parcel.id));
+  }
+  
+  async getDocumentsForParcel(parcelId: number): Promise<Document[]> {
+    const documentIds = Array.from(this.documentParcelLinks.values())
+      .filter(link => link.parcelId === parcelId)
+      .map(link => link.documentId);
+    
+    return Array.from(this.documents.values())
+      .filter(doc => documentIds.includes(doc.id));
+  }
+  
+  async getParcelById(id: number): Promise<Parcel | undefined> {
+    return this.parcels.get(id);
+  }
+  
+  async searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]> {
+    return Array.from(this.parcels.values())
+      .filter(parcel => parcel.parcelNumber.includes(parcelNumber));
   }
   
   // Parcel operations
@@ -687,23 +876,179 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Document operations
-  async getDocuments(workflowId: number): Promise<Document[]> {
-    return db.select().from(documents)
+  async getDocuments(workflowId?: number): Promise<Document[]> {
+    if (workflowId === undefined) {
+      return db.select()
+        .from(documents)
+        .orderBy(desc(documents.uploadedAt));
+    }
+    return db.select()
+      .from(documents)
       .where(eq(documents.workflowId, workflowId))
       .orderBy(desc(documents.uploadedAt));
   }
-
-  async addDocument(workflowId: number, doc: { name: string, type: string, content: string }): Promise<Document> {
+  
+  async getDocument(id: number): Promise<Document | undefined> {
+    const [document] = await db.select()
+      .from(documents)
+      .where(eq(documents.id, id));
+    return document;
+  }
+  
+  async addDocument(params: {
+    workflowId?: number; 
+    name: string;
+    type: DocumentType;
+    contentType: string;
+    contentHash: string;
+    storageKey: string;
+    classification?: {
+      documentType: string;
+      confidence: number;
+      wasManuallyClassified: boolean;
+      classifiedAt: string;
+    };
+    content: string;
+  }): Promise<Document> {
     const [document] = await db.insert(documents)
       .values({
-        workflowId,
-        name: doc.name,
-        type: doc.type,
-        content: doc.content,
-        uploadedAt: new Date()
+        workflowId: params.workflowId || null,
+        name: params.name,
+        type: params.type,
+        contentType: params.contentType,
+        contentHash: params.contentHash,
+        storageKey: params.storageKey,
+        classification: params.classification || null,
+        uploadedAt: new Date(),
+        updatedAt: new Date()
       })
       .returning();
     return document;
+  }
+  
+  async updateDocumentClassification(documentId: number, classification: {
+    documentType: string;
+    confidence: number;
+    wasManuallyClassified: boolean;
+    classifiedAt: string;
+  }): Promise<Document> {
+    const [updatedDocument] = await db.update(documents)
+      .set({
+        type: classification.documentType as DocumentType,
+        classification,
+        updatedAt: new Date()
+      })
+      .where(eq(documents.id, documentId))
+      .returning();
+      
+    if (!updatedDocument) {
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    return updatedDocument;
+  }
+  
+  // Document version operations
+  async getDocumentVersions(documentId: number): Promise<DocumentVersion[]> {
+    return db.select()
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, documentId))
+      .orderBy(asc(documentVersions.versionNumber));
+  }
+  
+  async addDocumentVersion(params: {
+    documentId: number;
+    versionNumber: number;
+    contentHash: string;
+    storageKey: string;
+    notes?: string;
+    content: string; // Base64 content, not actually stored in the database
+  }): Promise<DocumentVersion> {
+    const [version] = await db.insert(documentVersions)
+      .values({
+        documentId: params.documentId,
+        versionNumber: params.versionNumber,
+        contentHash: params.contentHash,
+        storageKey: params.storageKey,
+        notes: params.notes || null,
+        createdAt: new Date()
+      })
+      .returning();
+    return version;
+  }
+  
+  // Document-parcel link operations
+  async getDocumentParcelLink(documentId: number, parcelId: number): Promise<DocumentParcelLink | undefined> {
+    const [link] = await db.select()
+      .from(documentParcelLinks)
+      .where(
+        and(
+          eq(documentParcelLinks.documentId, documentId),
+          eq(documentParcelLinks.parcelId, parcelId)
+        )
+      );
+    return link;
+  }
+  
+  async createDocumentParcelLink(link: InsertDocumentParcelLink): Promise<DocumentParcelLink> {
+    const [documentParcelLink] = await db.insert(documentParcelLinks)
+      .values({
+        documentId: link.documentId,
+        parcelId: link.parcelId,
+        createdAt: new Date()
+      })
+      .returning();
+    return documentParcelLink;
+  }
+  
+  async removeDocumentParcelLinks(documentId: number, parcelIds?: number[]): Promise<number> {
+    if (parcelIds && parcelIds.length > 0) {
+      const result = await db.delete(documentParcelLinks)
+        .where(
+          and(
+            eq(documentParcelLinks.documentId, documentId),
+            sql`${documentParcelLinks.parcelId} IN (${sql.join(parcelIds, sql`, `)})`
+          )
+        );
+      return result.rowCount || 0;
+    } else {
+      const result = await db.delete(documentParcelLinks)
+        .where(eq(documentParcelLinks.documentId, documentId));
+      return result.rowCount || 0;
+    }
+  }
+  
+  async getParcelsForDocument(documentId: number): Promise<Parcel[]> {
+    return db.select({
+      parcel: parcels
+    })
+    .from(documentParcelLinks)
+    .innerJoin(parcels, eq(documentParcelLinks.parcelId, parcels.id))
+    .where(eq(documentParcelLinks.documentId, documentId))
+    .then(rows => rows.map(row => row.parcel));
+  }
+  
+  async getDocumentsForParcel(parcelId: number): Promise<Document[]> {
+    return db.select({
+      document: documents
+    })
+    .from(documentParcelLinks)
+    .innerJoin(documents, eq(documentParcelLinks.documentId, documents.id))
+    .where(eq(documentParcelLinks.parcelId, parcelId))
+    .then(rows => rows.map(row => row.document));
+  }
+  
+  async getParcelById(id: number): Promise<Parcel | undefined> {
+    const [parcel] = await db.select()
+      .from(parcels)
+      .where(eq(parcels.id, id));
+    return parcel;
+  }
+  
+  async searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]> {
+    return db.select()
+      .from(parcels)
+      .where(sql`${parcels.parcelNumber} LIKE ${`%${parcelNumber}%`}`);
   }
 
   // Parcel operations

@@ -10,12 +10,19 @@ import {
   WorkflowState, 
   insertWorkflowStateSchema,
   documents,
+  documentVersions,
+  documentParcelLinks,
   parcels,
   mapLayers,
   checklistItems,
-  WorkflowType
+  WorkflowType,
+  insertDocumentSchema,
+  insertDocumentParcelLinkSchema
 } from "@shared/schema";
-import { classifyDocument, DocumentType, getDocumentTypeLabel } from "./services/document-classifier";
+import { classifyDocument, getDocumentTypeLabel } from "./services/document-classifier";
+import { DocumentType } from "@shared/document-types";
+import { documentService } from "./services/document-service";
+import { documentParcelService } from "./services/document-parcel-service";
 import { 
   runGeospatialAnalysis, 
   GeospatialOperationType, 
@@ -356,14 +363,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/workflows/:id/documents", async (req, res) => {
     try {
       const workflowId = parseInt(req.params.id);
-      // In a real implementation, this would handle file uploads
-      const { name, type, content } = req.body;
+      const document = insertDocumentSchema.parse(req.body);
       
-      const newDocument = await storage.addDocument(workflowId, { name, type, content });
-      res.status(201).json(newDocument);
+      const result = await documentService.createDocument({
+        workflowId,
+        name: document.name,
+        contentType: document.contentType,
+        content: document.content
+      });
+      
+      res.status(201).json(result);
     } catch (error) {
       console.error("Error uploading document:", error);
-      res.status(500).json({ message: "Failed to upload document" });
+      res.status(500).json({ 
+        message: "Failed to upload document", 
+        error: error instanceof Error ? error.message : "Unknown error" 
+      });
     }
   });
 
@@ -376,6 +391,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching documents:", error);
       res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+  
+  // Get all documents (for document management page)
+  app.get("/api/documents", async (req, res) => {
+    try {
+      const documents = await storage.getDocuments();
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching all documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+  
+  // Get a specific document
+  app.get("/api/documents/:id", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const document = await storage.getDocument(documentId);
+      
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      res.json(document);
+    } catch (error) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ message: "Failed to fetch document" });
+    }
+  });
+  
+  // Update document classification manually
+  app.patch("/api/documents/:id/classification", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const { documentType } = req.body;
+      
+      if (!documentType) {
+        return res.status(400).json({ message: "Document type is required" });
+      }
+      
+      const updatedDocument = await documentService.updateDocumentClassification(
+        documentId, 
+        documentType as DocumentType
+      );
+      
+      res.json(updatedDocument);
+    } catch (error) {
+      console.error("Error updating document classification:", error);
+      res.status(500).json({ message: "Failed to update document classification" });
+    }
+  });
+  
+  // Create a new document version
+  app.post("/api/documents/:id/versions", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const { content, notes } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ message: "Document content is required" });
+      }
+      
+      // Get current versions count to determine the next version number
+      const versions = await documentService.getDocumentVersions(documentId);
+      const versionNumber = versions.length + 1;
+      
+      const newVersion = await documentService.createDocumentVersion({
+        documentId,
+        versionNumber,
+        content,
+        notes
+      });
+      
+      res.status(201).json(newVersion);
+    } catch (error) {
+      console.error("Error creating document version:", error);
+      res.status(500).json({ message: "Failed to create document version" });
+    }
+  });
+  
+  // Get all versions of a document
+  app.get("/api/documents/:id/versions", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const versions = await documentService.getDocumentVersions(documentId);
+      
+      res.json(versions);
+    } catch (error) {
+      console.error("Error fetching document versions:", error);
+      res.status(500).json({ message: "Failed to fetch document versions" });
+    }
+  });
+  
+  // Associate document with parcels
+  app.post("/api/documents/:id/parcels", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const { parcelIds } = req.body;
+      
+      if (!Array.isArray(parcelIds) || parcelIds.length === 0) {
+        return res.status(400).json({ message: "Parcel IDs array is required" });
+      }
+      
+      const result = await documentParcelService.associateDocumentWithParcels(
+        documentId,
+        parcelIds
+      );
+      
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error associating document with parcels:", error);
+      res.status(500).json({ message: "Failed to associate document with parcels" });
+    }
+  });
+  
+  // Remove document-parcel associations
+  app.delete("/api/documents/:id/parcels", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const { parcelIds } = req.body;
+      
+      // If parcelIds is provided, remove specific associations, otherwise remove all
+      const removedCount = await documentParcelService.disassociateDocumentFromParcels(
+        documentId,
+        Array.isArray(parcelIds) ? parcelIds : undefined
+      );
+      
+      res.json({ count: removedCount });
+    } catch (error) {
+      console.error("Error removing document-parcel associations:", error);
+      res.status(500).json({ message: "Failed to remove document-parcel associations" });
+    }
+  });
+  
+  // Get parcels associated with a document
+  app.get("/api/documents/:id/parcels", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const parcels = await documentParcelService.getParcelsForDocument(documentId);
+      
+      res.json(parcels);
+    } catch (error) {
+      console.error("Error fetching parcels for document:", error);
+      res.status(500).json({ message: "Failed to fetch parcels for document" });
+    }
+  });
+  
+  // Get documents associated with a parcel
+  app.get("/api/parcels/:id/documents", async (req, res) => {
+    try {
+      const parcelId = parseInt(req.params.id);
+      const documents = await documentParcelService.getDocumentsForParcel(parcelId);
+      
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching documents for parcel:", error);
+      res.status(500).json({ message: "Failed to fetch documents for parcel" });
+    }
+  });
+  
+  // Search for documents by parcel number
+  app.get("/api/parcels/number/:parcelNumber/documents", async (req, res) => {
+    try {
+      const parcelNumber = req.params.parcelNumber;
+      
+      if (!parcelNumber) {
+        return res.status(400).json({ message: "Parcel number is required" });
+      }
+      
+      const documents = await documentParcelService.getDocumentsForParcelNumber(parcelNumber);
+      
+      res.json(documents);
+    } catch (error) {
+      console.error("Error searching documents by parcel number:", error);
+      res.status(500).json({ message: "Failed to search documents by parcel number" });
     }
   });
 
@@ -700,7 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Document classification endpoint
+  // Document classification endpoint - analyze text without saving
   app.post("/api/documents/classify", async (req, res) => {
     try {
       const { text } = req.body;
@@ -727,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/workflows/:id/documents/auto-classify", async (req, res) => {
     try {
       const workflowId = parseInt(req.params.id);
-      const { name, content } = req.body;
+      const { name, contentType, content } = req.body;
       
       if (!content || typeof content !== 'string') {
         return res.status(400).json({ 
@@ -735,22 +926,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Classify the document based on its content
-      const classification = classifyDocument(content);
+      if (!contentType) {
+        return res.status(400).json({
+          message: "Content type is required"
+        });
+      }
       
-      // Add the document with the classified type
-      const newDocument = await storage.addDocument(workflowId, {
+      // Create document using document service - this handles auto-classification
+      const newDocument = await documentService.createDocument({
+        workflowId,
         name,
-        type: classification.documentType,
+        contentType,
         content
       });
+      
+      // Get the actual classification information from the document
+      const classificationInfo = newDocument.classification || {
+        documentType: newDocument.type as string,
+        confidence: 1.0,
+        wasManuallyClassified: false,
+        classifiedAt: new Date().toISOString()
+      };
       
       // Return the document with classification information
       res.status(201).json({
         document: newDocument,
         classification: {
-          ...classification,
-          documentTypeLabel: getDocumentTypeLabel(classification.documentType)
+          ...classificationInfo,
+          documentTypeLabel: getDocumentTypeLabel(classificationInfo.documentType as DocumentType)
         }
       });
     } catch (error) {
@@ -1079,6 +1282,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         message: "Failed to export analysis",
         error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Bulk auto-classification for workflow documents
+  app.post("/api/workflows/:id/documents/bulk-auto-classify", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      
+      // Get all documents for this workflow
+      const documents = await storage.getDocuments(workflowId);
+      
+      if (!documents || documents.length === 0) {
+        return res.json({ 
+          message: "No documents found for this workflow", 
+          updatedCount: 0 
+        });
+      }
+      
+      // Track documents that were updated
+      const updatedDocuments = [];
+      
+      // Only process documents without manual classification
+      for (const doc of documents) {
+        // Skip documents that were manually classified
+        if (doc.classification?.wasManuallyClassified) {
+          continue;
+        }
+        
+        try {
+          // In a real system, we would fetch the document content from storage using storageKey
+          // For this demo, we'll use a sample text to simulate document content
+          // This would typically be fetched from a document store using the storageKey
+          // const content = await documentStorageService.getContent(doc.storageKey);
+          
+          // For demonstration purposes only - in production, use real document content
+          const sampleContent = Buffer.from(
+            doc.name.includes("deed") ? "This is a deed for property transfer" :
+            doc.name.includes("survey") ? "Land survey report with property boundaries" :
+            doc.name.includes("plat") ? "Plat map showing subdivision of parcels" :
+            doc.name.includes("tax") ? "Property tax form with assessment values" :
+            doc.name.includes("legal") ? "Legal description of property boundaries" :
+            doc.name.includes("boundary") ? "Boundary line adjustment application" :
+            "General document content for classification"
+          ).toString('base64');
+          
+          // Extract text from the sample content
+          const textContent = documentService.extractText(sampleContent, doc.contentType);
+          
+          // Classify the document
+          const classification = classifyDocument(textContent);
+          
+          // Update the document classification if confidence is high enough
+          if (classification.confidence > 0.7) {
+            const updatedDoc = await documentService.updateDocumentClassification(
+              doc.id,
+              classification.documentType as DocumentType
+            );
+            
+            updatedDocuments.push(updatedDoc);
+          }
+        } catch (docError) {
+          console.error(`Error auto-classifying document ${doc.id}:`, docError);
+          // Continue with other documents
+        }
+      }
+      
+      res.json({
+        message: `Auto-classified ${updatedDocuments.length} of ${documents.length} documents`,
+        updatedCount: updatedDocuments.length,
+        totalDocuments: documents.length,
+        updatedDocuments: updatedDocuments.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          type: doc.type,
+          classification: doc.classification
+        }))
+      });
+    } catch (error) {
+      console.error("Error auto-classifying workflow documents:", error);
+      res.status(500).json({ 
+        message: "Failed to auto-classify documents",
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });

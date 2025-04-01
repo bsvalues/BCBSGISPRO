@@ -100,21 +100,89 @@ export const insertChecklistItemSchema = createInsertSchema(checklistItems).pick
   order: true,
 });
 
-// Documents
+// Document Types
+export const documentTypeEnum = pgEnum("document_type", [
+  "plat_map",
+  "deed",
+  "survey",
+  "legal_description",
+  "boundary_line_adjustment",
+  "tax_form",
+  "unclassified",
+]);
+
+// Document Content Types
+export const documentContentTypeEnum = pgEnum("document_content_type", [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/tiff",
+  "text/plain",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/rtf",
+]);
+
+// Documents table
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
-  workflowId: integer("workflow_id").notNull().references(() => workflows.id),
+  workflowId: integer("workflow_id").references(() => workflows.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type").notNull(),
-  content: text("content").notNull(), // This would be a file path or content reference
-  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  type: documentTypeEnum("type").notNull(),
+  contentType: documentContentTypeEnum("content_type").notNull(),
+  contentHash: text("content_hash").notNull(), // Hash of document content for integrity checks
+  storageKey: text("storage_key").notNull(), // Where the document is stored
+  classification: jsonb("classification").$type<{
+    documentType: string;
+    confidence: number;
+    wasManuallyClassified: boolean;
+    classifiedAt: string;
+  }>(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertDocumentSchema = createInsertSchema(documents).pick({
-  workflowId: true,
-  name: true,
-  type: true,
-  content: true,
+export const insertDocumentSchema = createInsertSchema(documents).omit({
+  id: true,
+  contentHash: true,
+  storageKey: true,
+  classification: true,
+  uploadedAt: true,
+  updatedAt: true,
+}).extend({
+  content: z.string(), // Base64 encoded file content
+});
+
+// Document-Parcel Links
+export const documentParcelLinks = pgTable("document_parcel_links", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  parcelId: integer("parcel_id").references(() => parcels.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertDocumentParcelLinkSchema = createInsertSchema(documentParcelLinks).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Document Versions
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  versionNumber: integer("version_number").notNull(),
+  contentHash: text("content_hash").notNull(),
+  storageKey: text("storage_key").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  notes: text("notes"),
+});
+
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  content: z.string(), // Base64 encoded file content
 });
 
 // Parcels
@@ -204,6 +272,12 @@ export type InsertChecklistItem = z.infer<typeof insertChecklistItemSchema>;
 
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+
+export type DocumentParcelLink = typeof documentParcelLinks.$inferSelect;
+export type InsertDocumentParcelLink = z.infer<typeof insertDocumentParcelLinkSchema>;
+
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 
 export type Parcel = typeof parcels.$inferSelect;
 export type InsertParcel = z.infer<typeof insertParcelSchema>;

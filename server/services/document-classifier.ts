@@ -1,25 +1,23 @@
-/**
- * Document Classification Service
- * 
- * This service provides machine learning capabilities to classify documents
- * uploaded to the Benton County Assessor's Office GIS system.
- * 
- * Currently implements a rule-based classifier with keyword matching.
- * In a production environment, this would be replaced with a proper ML model.
- */
+import { DocumentType } from '@shared/document-types';
 
-// Document types supported by the classifier
-export enum DocumentType {
-  PLAT_MAP = 'plat_map',
-  DEED = 'deed',
-  SURVEY = 'survey',
-  LEGAL_DESCRIPTION = 'legal_description',
-  BOUNDARY_LINE_ADJUSTMENT = 'boundary_line_adjustment',
-  TAX_FORM = 'tax_form',
-  UNCLASSIFIED = 'unclassified'
+// Export the utility function to use in routes
+export function getDocumentTypeLabel(type: DocumentType): string {
+  const labels: Record<DocumentType, string> = {
+    [DocumentType.PLAT_MAP]: 'Plat Map',
+    [DocumentType.DEED]: 'Deed',
+    [DocumentType.SURVEY]: 'Survey',
+    [DocumentType.LEGAL_DESCRIPTION]: 'Legal Description',
+    [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: 'Boundary Line Adjustment',
+    [DocumentType.TAX_FORM]: 'Tax Form',
+    [DocumentType.UNCLASSIFIED]: 'Unclassified Document'
+  };
+  
+  return labels[type] || 'Unknown Document Type';
 }
 
-// Document classification result
+/**
+ * Result of document classification operation
+ */
 export interface ClassificationResult {
   documentType: DocumentType;
   confidence: number;
@@ -37,30 +35,30 @@ export interface ClassificationResult {
 class RuleBasedClassifier {
   private keywordMap: Record<DocumentType, string[]> = {
     [DocumentType.PLAT_MAP]: [
-      'plat', 'subdivision', 'lot', 'block', 'boundary', 'tract', 
-      'survey', 'map', 'parcel', 'recorded', 'replat'
+      'plat', 'parcel map', 'subdivision', 'lot', 'tract', 'survey map',
+      'recorded map', 'property boundary', 'lot line', 'easement'
     ],
     [DocumentType.DEED]: [
-      'deed', 'grant', 'convey', 'warranty', 'quitclaim', 'title', 
-      'transfer', 'grantor', 'grantee', 'conveyance', 'consideration'
+      'deed', 'grant deed', 'quitclaim', 'warranty deed', 'convey', 'conveyance',
+      'transfer ownership', 'property transfer', 'title', 'grantor', 'grantee'
     ],
     [DocumentType.SURVEY]: [
-      'survey', 'bearing', 'distance', 'monument', 'coordinate', 
-      'surveyor', 'benchmark', 'corner', 'measure', 'elevation', 'topographic'
+      'survey', 'boundary survey', 'topographic', 'land survey', 'metes and bounds',
+      'monument', 'benchmark', 'elevation', 'ALTA survey'
     ],
     [DocumentType.LEGAL_DESCRIPTION]: [
-      'legal description', 'township', 'range', 'section', 'quarter section', 
-      'metes and bounds', 'beginning at', 'thence', 'meridian', 'feet', 'acres'
+      'legal description', 'described as', 'metes and bounds', 'section township range',
+      'point of beginning', 'thence', 'feet', 'acres', 'situated in', 'together with'
     ],
     [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: [
-      'boundary line adjustment', 'boundary line agreement', 'bla', 'lot line adjustment', 
-      'property line', 'adjust', 'modification', 'boundary'
+      'boundary line adjustment', 'BLA', 'lot line adjustment', 'property line adjustment', 
+      'adjust boundary', 'modified boundary', 'boundary change', 'boundary revision'
     ],
     [DocumentType.TAX_FORM]: [
-      'tax', 'assessment', 'property tax', 'levy', 'valuation', 
-      'assessed value', 'exemption', 'form', 'treasury', 'payment'
+      'tax', 'assessment', 'excise tax', 'property tax', 'tax parcel', 'tax statement',
+      'assessed value', 'tax exemption', 'tax roll', 'taxable value'
     ],
-    [DocumentType.UNCLASSIFIED]: []
+    [DocumentType.UNCLASSIFIED]: []  // Default category has no keywords
   };
 
   /**
@@ -69,13 +67,6 @@ class RuleBasedClassifier {
    * @returns Classification result with document type and confidence score
    */
   public classify(text: string): ClassificationResult {
-    if (!text || text.trim() === '') {
-      return {
-        documentType: DocumentType.UNCLASSIFIED,
-        confidence: 1.0
-      };
-    }
-
     const normalizedText = text.toLowerCase();
     const scores: Record<DocumentType, number> = {
       [DocumentType.PLAT_MAP]: 0,
@@ -84,88 +75,57 @@ class RuleBasedClassifier {
       [DocumentType.LEGAL_DESCRIPTION]: 0,
       [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: 0,
       [DocumentType.TAX_FORM]: 0,
-      [DocumentType.UNCLASSIFIED]: 0
+      [DocumentType.UNCLASSIFIED]: 0.1 // Small base score for unclassified
     };
-
-    // Calculate keyword match scores for each document type
-    const matchedKeywords: string[] = [];
+    
+    let matchedKeywords: string[] = [];
+    
+    // Count keyword occurrences for each document type
     Object.entries(this.keywordMap).forEach(([docType, keywords]) => {
-      const documentType = docType as DocumentType;
-      
-      if (documentType === DocumentType.UNCLASSIFIED) {
-        return;
-      }
-      
       keywords.forEach(keyword => {
-        if (normalizedText.includes(keyword.toLowerCase())) {
-          scores[documentType] += 1;
-          if (!matchedKeywords.includes(keyword)) {
-            matchedKeywords.push(keyword);
-          }
+        // Count occurrences of the keyword in the text
+        const regex = new RegExp('\\b' + keyword + '\\b', 'gi');
+        const matches = normalizedText.match(regex);
+        if (matches) {
+          const typeScore = matches.length * 0.1; // Adjust weight here
+          scores[docType as DocumentType] += typeScore;
+          matchedKeywords.push(keyword);
         }
       });
     });
-
-    // Find the document type with the highest score
-    let maxScore = 0;
-    let classifiedType = DocumentType.UNCLASSIFIED;
     
-    Object.entries(scores).forEach(([docType, score]) => {
-      if (score > maxScore) {
-        maxScore = score;
-        classifiedType = docType as DocumentType;
-      }
-    });
-
-    // If no keywords matched, return unclassified
-    if (maxScore === 0) {
+    // Get total score
+    const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
+    
+    // Normalize scores to get confidence values
+    const normalizedScores = Object.entries(scores).map(([docType, score]) => ({
+      documentType: docType as DocumentType,
+      confidence: totalScore > 0 ? score / totalScore : score
+    }));
+    
+    // Sort by confidence
+    normalizedScores.sort((a, b) => b.confidence - a.confidence);
+    
+    // The highest confidence type is the primary classification
+    const primaryClassification = normalizedScores[0];
+    
+    // If confidence is very low, use unclassified
+    if (primaryClassification.confidence < 0.4 && 
+        primaryClassification.documentType !== DocumentType.UNCLASSIFIED) {
       return {
         documentType: DocumentType.UNCLASSIFIED,
-        confidence: 1.0
+        confidence: 0.5,
+        alternativeTypes: normalizedScores.slice(0, 3),
+        keywords: [...new Set(matchedKeywords)]
       };
     }
-
-    // Calculate confidence based on the number of matching keywords
-    // and the total keywords for that document type
-    const totalKeywords = this.keywordMap[classifiedType].length;
-    const confidence = Math.min(maxScore / (totalKeywords * 0.5), 1.0);
-
-    // Get alternative types (second highest scores)
-    const alternativeTypes = Object.entries(scores)
-      .filter(([docType]) => docType !== classifiedType && docType !== DocumentType.UNCLASSIFIED)
-      .map(([docType, score]) => ({
-        documentType: docType as DocumentType,
-        confidence: Math.min(score / (this.keywordMap[docType as DocumentType].length * 0.5), 1.0)
-      }))
-      .filter(alt => alt.confidence > 0.2) // Only include alternatives with confidence > 20%
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 2); // Return top 2 alternatives
-
-    return {
-      documentType: classifiedType,
-      confidence,
-      alternativeTypes: alternativeTypes.length > 0 ? alternativeTypes : undefined,
-      keywords: matchedKeywords.length > 0 ? matchedKeywords : undefined
-    };
-  }
-
-  /**
-   * Gets a human-readable label for a document type
-   * @param documentType The document type enum value
-   * @returns Human-readable label
-   */
-  public getDocumentTypeLabel(documentType: DocumentType): string {
-    const labels: Record<DocumentType, string> = {
-      [DocumentType.PLAT_MAP]: 'Plat Map',
-      [DocumentType.DEED]: 'Deed',
-      [DocumentType.SURVEY]: 'Survey',
-      [DocumentType.LEGAL_DESCRIPTION]: 'Legal Description',
-      [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: 'Boundary Line Adjustment',
-      [DocumentType.TAX_FORM]: 'Tax Form',
-      [DocumentType.UNCLASSIFIED]: 'Unclassified Document'
-    };
     
-    return labels[documentType] || 'Unknown Document Type';
+    return {
+      documentType: primaryClassification.documentType,
+      confidence: primaryClassification.confidence,
+      alternativeTypes: normalizedScores.slice(1, 4), // Next 3 alternatives
+      keywords: [...new Set(matchedKeywords)]
+    };
   }
 }
 
@@ -179,13 +139,4 @@ const classifier = new RuleBasedClassifier();
  */
 export function classifyDocument(text: string): ClassificationResult {
   return classifier.classify(text);
-}
-
-/**
- * Gets a human-readable label for a document type
- * @param documentType The document type enum value
- * @returns Human-readable label
- */
-export function getDocumentTypeLabel(documentType: DocumentType): string {
-  return classifier.getDocumentTypeLabel(documentType);
 }
