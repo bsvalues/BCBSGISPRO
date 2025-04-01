@@ -1,5 +1,4 @@
 import { Switch, Route } from "wouter";
-import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
@@ -10,20 +9,21 @@ import PropertySearchPage from "@/pages/property-search-page";
 import ReportPage from "@/pages/report-page";
 import DocumentClassificationPage from "@/pages/document-classification-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
+import { ProtectedRoute } from "@/lib/protected-route";
 
-// Simple Router for development with no auth requirements
+// Router with authentication
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
-      <Route path="/" component={HomePage} />
-      <Route path="/workflow/:type" component={WorkflowPage} />
-      <Route path="/map-viewer" component={MapViewerPage} />
-      <Route path="/parcel-generator" component={ParcelGeneratorPage} />
-      <Route path="/property-search" component={PropertySearchPage} />
-      <Route path="/report" component={ReportPage} />
-      <Route path="/document-classification" component={DocumentClassificationPage} />
-      <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
+      <ProtectedRoute path="/" component={HomePage} />
+      <ProtectedRoute path="/workflow/:type" component={WorkflowPage} />
+      <ProtectedRoute path="/map-viewer" component={MapViewerPage} />
+      <ProtectedRoute path="/parcel-generator" component={ParcelGeneratorPage} />
+      <ProtectedRoute path="/property-search" component={PropertySearchPage} />
+      <ProtectedRoute path="/report" component={ReportPage} />
+      <ProtectedRoute path="/document-classification" component={DocumentClassificationPage} />
+      <ProtectedRoute path="/geospatial-analysis" component={GeospatialAnalysisPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -31,10 +31,7 @@ function Router() {
 
 function App() {
   return (
-    <>
-      <Router />
-      <Toaster />
-    </>
+    <Router />
   );
 }
 

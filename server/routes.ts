@@ -48,24 +48,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
 
-  // Development mode middleware to bypass authentication
-  app.use((req, res, next) => {
-    // For development, create a mock user if not authenticated
-    if (!req.user) {
-      req.user = {
-        id: 1,
-        username: 'admin',
-        fullName: 'Administrator',
-        email: 'admin@example.com',
-        department: 'IT',
-        isAdmin: true,
-        createdAt: new Date(),
-        password: 'hashed_password'
-      };
-    }
-    next();
-  });
-
   // Get all workflows
   app.get("/api/workflows", async (req, res) => {
     try {
