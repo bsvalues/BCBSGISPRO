@@ -9,6 +9,7 @@ import PropertySearchPage from "@/pages/property-search-page";
 import ReportPage from "@/pages/report-page";
 import DocumentClassificationPage from "@/pages/document-classification-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
+import PublicPropertyPortal from "@/pages/public-property-portal";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
@@ -61,8 +62,12 @@ function DevAutoLogin() {
 function Router() {
   return (
     <Switch>
+      {/* Public routes */}
+      <Route path="/properties" component={PublicPropertyPortal} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/dev-login" component={DevAutoLogin} />
+      
+      {/* Authenticated routes */}
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/workflow/:type" component={WorkflowPage} />
       <ProtectedRoute path="/map-viewer" component={MapViewerPage} />
@@ -71,6 +76,7 @@ function Router() {
       <ProtectedRoute path="/report" component={ReportPage} />
       <ProtectedRoute path="/document-classification" component={DocumentClassificationPage} />
       <ProtectedRoute path="/geospatial-analysis" component={GeospatialAnalysisPage} />
+      
       <Route component={NotFound} />
     </Switch>
   );

@@ -21,7 +21,7 @@ export function MapPreview({ workflowId, parcelId, enableFullMap = false, onOpen
   // Fetch map layers from API
   const { data: apiLayers, isLoading } = useQuery<MapLayer[]>({
     queryKey: ["/api/map-layers"],
-    enabled: !!workflowId, // Only fetch if workflowId is provided
+    // Always fetch map layers, whether in workflow context or public portal
   });
   
   useEffect(() => {
@@ -38,6 +38,25 @@ export function MapPreview({ workflowId, parcelId, enableFullMap = false, onOpen
     );
   };
   
+  // Determine if this is in public portal context
+  const isPublicPortal = !workflowId && typeof onOpenFullMap === 'undefined';
+  
+  // For the public portal, we don't wrap in a Card
+  if (isPublicPortal) {
+    return (
+      <div className="h-full w-full">
+        <div className="h-full bg-neutral-100 rounded-md border border-neutral-300 overflow-hidden relative">
+          <BasicMapViewer
+            mapLayers={mapLayers}
+            parcelId={parcelId}
+            enableLayerControl={false}
+          />
+        </div>
+      </div>
+    );
+  }
+  
+  // Standard version with Card for workflow context
   return (
     <Card>
       <CardHeader className="pb-3">

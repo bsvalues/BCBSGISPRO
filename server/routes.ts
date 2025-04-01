@@ -49,6 +49,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
   
+  // Public property information API
+  app.get("/api/public/properties/search", async (req, res) => {
+    try {
+      const query = req.query.query as string;
+      
+      if (!query || query.trim().length < 3) {
+        return res.status(400).json({ error: "Search query must be at least 3 characters" });
+      }
+      
+      // Search by address, parse out city and zip if included
+      let address = query;
+      let city = undefined;
+      let zip = undefined;
+      
+      // Extract city from query if it's in the format "address, city"
+      if (query.includes(',')) {
+        const parts = query.split(',');
+        address = parts[0].trim();
+        city = parts[1].trim();
+      }
+      
+      // Extract zip if it's in the format of 5 digits
+      const zipMatch = query.match(/\b\d{5}\b/);
+      if (zipMatch) {
+        zip = zipMatch[0];
+      }
+      
+      // Try to interpret query as parcel ID if it matches pattern
+      const parcelIdMatch = query.match(/[\d-]{4,}/);
+      if (parcelIdMatch) {
+        // Get exact match for parcel ID
+        const parcelInfo = await storage.getParcelInfo(parcelIdMatch[0]);
+        if (parcelInfo) {
+          return res.json([{
+            id: parcelInfo.parcelId,
+            taxParcelId: parcelInfo.parcelId,
+            address: parcelInfo.address || 'No address on file',
+            owner: parcelInfo.ownerName || 'Unknown',
+            zoning: parcelInfo.zones?.[0] || 'R-1',
+            acreage: Number(parcelInfo.acres) || 0,
+            assessedValue: parcelInfo.assessedValue || 0,
+            yearBuilt: parcelInfo.improvements?.[0]?.yearBuilt || null
+          }]);
+        }
+      }
+      
+      // Search by address components
+      const results = await storage.searchParcelsByAddress(address, city, zip);
+      
+      // Format results for the client
+      const formattedResults = results.map(parcel => ({
+        id: parcel.parcelId,
+        taxParcelId: parcel.parcelId,
+        address: parcel.address || 'No address on file',
+        owner: parcel.ownerName || 'Unknown',
+        zoning: parcel.zones?.[0] || 'R-1',
+        acreage: Number(parcel.acres) || 0,
+        assessedValue: parcel.assessedValue || 0,
+        yearBuilt: parcel.improvements?.[0]?.yearBuilt || null
+      }));
+      
+      res.json(formattedResults);
+    } catch (error) {
+      console.error("Error searching properties:", error);
+      res.status(500).json({ error: "Error searching properties" });
+    }
+  });
+  
+  app.get("/api/public/properties/details/:id", async (req, res) => {
+    try {
+      const parcelId = req.params.id;
+      
+      if (!parcelId) {
+        return res.status(400).json({ error: "Parcel ID is required" });
+      }
+      
+      const parcelInfo = await storage.getParcelInfo(parcelId);
+      
+      if (!parcelInfo) {
+        return res.status(404).json({ error: "Property not found" });
+      }
+      
+      // Format the property details for the client
+      const formattedDetails = {
+        id: parcelInfo.parcelId,
+        taxParcelId: parcelInfo.parcelId,
+        address: parcelInfo.address || 'No address on file',
+        owner: parcelInfo.ownerName || 'Unknown',
+        zoning: parcelInfo.zones?.[0] || 'R-1',
+        acreage: Number(parcelInfo.acres) || 0,
+        assessedValue: parcelInfo.assessedValue || 0,
+        yearBuilt: parcelInfo.improvements?.[0]?.yearBuilt || null,
+        legalDescription: parcelInfo.legalDescription || '',
+        propertyType: parcelInfo.propertyType || 'Residential',
+        city: parcelInfo.city || '',
+        zip: parcelInfo.zip || ''
+      };
+      
+      res.json(formattedDetails);
+    } catch (error) {
+      console.error("Error fetching property details:", error);
+      res.status(500).json({ error: "Error fetching property details" });
+    }
+  });
+  
   // Database test endpoint
   app.get("/api/db-test", async (req, res) => {
     try {
