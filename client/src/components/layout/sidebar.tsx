@@ -30,7 +30,8 @@ export function Sidebar({ activeModule }: SidebarProps) {
   const toolNavItems: NavItem[] = [
     { path: '/map-viewer', label: 'Map Viewer', icon: 'layer-group' },
     { path: '/parcel-generator', label: 'Parcel ID Generator', icon: 'hashtag' },
-    { path: '/property-search', label: 'Property Search', icon: 'search' }
+    { path: '/property-search', label: 'Property Search', icon: 'search' },
+    { path: '/document-classification', label: 'Document Classifier', icon: 'brain' }
   ];
   
   // Helper function to get Font Awesome icon

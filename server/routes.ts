@@ -12,6 +12,7 @@ import {
   checklistItems,
   WorkflowType
 } from "@shared/schema";
+import { classifyDocument, DocumentType, getDocumentTypeLabel } from "./services/document-classifier";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
@@ -217,6 +218,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error querying assistant:", error);
       res.status(500).json({ message: "Failed to query assistant" });
+    }
+  });
+
+  // Document classification endpoint
+  app.post("/api/documents/classify", async (req, res) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ 
+          message: "Document text is required for classification" 
+        });
+      }
+      
+      const classification = classifyDocument(text);
+      
+      res.json({
+        ...classification,
+        documentTypeLabel: getDocumentTypeLabel(classification.documentType)
+      });
+    } catch (error) {
+      console.error("Error classifying document:", error);
+      res.status(500).json({ message: "Failed to classify document" });
+    }
+  });
+  
+  // Enhanced document upload with automatic classification
+  app.post("/api/workflows/:id/documents/auto-classify", async (req, res) => {
+    try {
+      const workflowId = parseInt(req.params.id);
+      const { name, content } = req.body;
+      
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ 
+          message: "Document content is required for classification" 
+        });
+      }
+      
+      // Classify the document based on its content
+      const classification = classifyDocument(content);
+      
+      // Add the document with the classified type
+      const newDocument = await storage.addDocument(workflowId, {
+        name,
+        type: classification.documentType,
+        content
+      });
+      
+      // Return the document with classification information
+      res.status(201).json({
+        document: newDocument,
+        classification: {
+          ...classification,
+          documentTypeLabel: getDocumentTypeLabel(classification.documentType)
+        }
+      });
+    } catch (error) {
+      console.error("Error processing document:", error);
+      res.status(500).json({ message: "Failed to process document" });
     }
   });
 
