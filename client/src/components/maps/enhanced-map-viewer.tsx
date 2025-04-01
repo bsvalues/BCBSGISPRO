@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { 
   MapContainer, 
   TileLayer, 
@@ -13,6 +13,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import 'leaflet-defaulticon-compatibility';
+import 'leaflet-measure/dist/leaflet-measure.css';
 import { 
   GeoJSONFeature, 
   MapTool, 
@@ -24,6 +25,7 @@ import {
 import { DrawControl } from './draw-control';
 import { MapControls } from './map-controls';
 import MeasurementTool from './measurement-tool';
+import { MeasurementControl } from './measurement-control';
 import LayerFilter from './layer-filter';
 import BaseMapSelector from './basemap-selector';
 import { Button } from '@/components/ui/button';
@@ -53,33 +55,78 @@ interface EnhancedMapViewerProps {
   onParcelSelect?: (parcelId: string) => void;
   className?: string;
   initialTool?: MapTool;
+  activeTool?: MapTool;
   showDrawTools?: boolean;
   showMeasureTools?: boolean;
   showLayerControl?: boolean;
   readOnly?: boolean;
   disableInteraction?: boolean;
+  measurementType?: MeasurementType | null;
+  measurementUnit?: MeasurementUnit;
+  onMeasure?: (value: number, type: MeasurementType) => void;
+}
+
+export interface EnhancedMapViewerRef {
+  map: L.Map | null;
+  clearMeasurements: () => void;
+  setTool: (tool: MapTool) => void;
+}
+
+// Helper component to handle map events
+const MapEventHandler: React.FC<{ 
+  activeTool: MapTool; 
+  onParcelClick: (feature: GeoJSONFeature) => void;
+  disableInteraction: boolean;
+}> = ({ activeTool, onParcelClick, disableInteraction }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (disableInteraction) {
+      map.dragging.disable();
+      map.touchZoom.disable();
+      map.doubleClickZoom.disable();
+      map.scrollWheelZoom.disable();
+      map.boxZoom.disable();
+      map.keyboard.disable();
+    } else {
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.doubleClickZoom.enable();
+      map.scrollWheelZoom.enable();
+      map.boxZoom.enable();
+      map.keyboard.enable();
+    }
+  }, [map, disableInteraction]);
+
+  return null;
 }
 
 /**
  * An advanced map viewer with drawing, measurement and layer controls
  */
-export function EnhancedMapViewer({
-  width = '100%',
-  height = '400px',
-  center = [46.23, -119.16], // Benton County, WA
-  zoom = 11,
-  initialFeatures = [],
-  mapLayers = [],
-  onFeaturesChanged,
-  onParcelSelect,
-  className = '',
-  initialTool = MapTool.PAN,
-  showDrawTools = true,
-  showMeasureTools = true,
-  showLayerControl = true,
-  readOnly = false,
-  disableInteraction = false
-}: EnhancedMapViewerProps) {
+export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapViewerProps>((props, ref) => {
+  const {
+    width = '100%',
+    height = '400px',
+    center = [46.23, -119.16], // Benton County, WA
+    zoom = 11,
+    initialFeatures = [],
+    mapLayers = [],
+    onFeaturesChanged,
+    onParcelSelect,
+    className = '',
+    initialTool = MapTool.PAN,
+    activeTool: propActiveTool,
+    showDrawTools = true,
+    showMeasureTools = true,
+    showLayerControl = true,
+    readOnly = false,
+    disableInteraction = false,
+    measurementType: propMeasurementType,
+    measurementUnit: propMeasurementUnit = MeasurementUnit.METERS,
+    onMeasure
+  } = props;
+
   const [activeTool, setActiveTool] = useState<MapTool>(initialTool);
   const [basemapType, setBasemapType] = useState<'street' | 'satellite' | 'topo'>('street');
   const [features, setFeatures] = useState<GeoJSONFeature[]>(initialFeatures);
@@ -87,6 +134,25 @@ export function EnhancedMapViewer({
   const [selectedLayers, setSelectedLayers] = useState<string[]>([]);
   const featureGroupRef = useRef<L.FeatureGroup>(null);
   const mapRef = useRef<L.Map | null>(null);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    map: mapRef.current,
+    clearMeasurements: () => {
+      // Clear any measurements from the map
+      if (mapRef.current) {
+        // Implementation depends on measurement library used
+      }
+    },
+    setTool: (tool: MapTool) => {
+      setActiveTool(tool);
+      if (tool === MapTool.DRAW) {
+        setIsDrawControlVisible(true);
+      } else {
+        setIsDrawControlVisible(false);
+      }
+    }
+  }));
 
   // Handle base map change
   const handleBaseMapChange = (type: 'street' | 'satellite' | 'topo') => {
@@ -164,6 +230,18 @@ export function EnhancedMapViewer({
     }
   };
 
+  // Update active tool from prop
+  useEffect(() => {
+    if (propActiveTool !== undefined) {
+      setActiveTool(propActiveTool);
+      if (propActiveTool === MapTool.DRAW) {
+        setIsDrawControlVisible(true);
+      } else {
+        setIsDrawControlVisible(false);
+      }
+    }
+  }, [propActiveTool]);
+
   // Set the map cursor based on the active tool
   useEffect(() => {
     if (!mapRef.current) return;
@@ -186,6 +264,13 @@ export function EnhancedMapViewer({
         container.style.cursor = '';
     }
   }, [activeTool, mapRef]);
+
+  // Handle measurement events
+  const handleMeasure = (value: number, type: MeasurementType) => {
+    if (onMeasure) {
+      onMeasure(value, type);
+    }
+  };
 
   return (
     <div 
@@ -253,9 +338,6 @@ export function EnhancedMapViewer({
         </div>
       )}
 
-      {/* Base map selector */}
-      {/* Base map selector custom control is implemented via a Leaflet control for better placement */}
-
       {/* The map */}
       <MapContainer
         center={center}
@@ -276,19 +358,14 @@ export function EnhancedMapViewer({
         <ZoomControl position="bottomright" />
         <ScaleControl position="bottomright" imperial={true} metric={true} />
         
-        {/* Base map selector */}
-        <BaseMapSelector 
-          map={mapRef.current!}
-          position="bottomleft"
-          initialBaseMap={basemapType}
-          onBaseMapChange={handleBaseMapChange}
-        />
+        {/* Measurement tools */}
         {activeTool === MapTool.MEASURE && showMeasureTools && (
           <MeasurementTool 
             position="topright"
-            measurementType={MeasurementType.DISTANCE}
-            unit={MeasurementUnit.METERS}
+            measurementType={propMeasurementType || MeasurementType.DISTANCE}
+            unit={propMeasurementUnit}
             map={mapRef.current!}
+            onMeasure={handleMeasure}
           />
         )}
 
@@ -325,7 +402,6 @@ export function EnhancedMapViewer({
             map={mapRef.current!}
             onFilterChange={(filters) => {
               setSelectedLayers(filters);
-              // The onFilterChange will return a string array of selected layer types
             }}
           />
         )}
@@ -365,6 +441,7 @@ export function EnhancedMapViewer({
         )}
         
         {/* Map event handlers and state management */}
+        {/* Using the MapEventHandler component to manage map interactions */}
         <MapEventHandler 
           activeTool={activeTool}
           onParcelClick={handleParcelClick}
@@ -373,39 +450,8 @@ export function EnhancedMapViewer({
       </MapContainer>
     </div>
   );
-}
+});
 
-// Helper component to handle map events
-function MapEventHandler({ 
-  activeTool, 
-  onParcelClick,
-  disableInteraction
-}: { 
-  activeTool: MapTool; 
-  onParcelClick: (feature: GeoJSONFeature) => void;
-  disableInteraction: boolean;
-}) {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (disableInteraction) {
-      map.dragging.disable();
-      map.touchZoom.disable();
-      map.doubleClickZoom.disable();
-      map.scrollWheelZoom.disable();
-      map.boxZoom.disable();
-      map.keyboard.disable();
-    } else {
-      map.dragging.enable();
-      map.touchZoom.enable();
-      map.doubleClickZoom.enable();
-      map.scrollWheelZoom.enable();
-      map.boxZoom.enable();
-      map.keyboard.enable();
-    }
-  }, [map, disableInteraction]);
-
-  return null;
-}
+EnhancedMapViewer.displayName = 'EnhancedMapViewer';
 
 export default EnhancedMapViewer;

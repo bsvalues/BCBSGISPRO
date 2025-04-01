@@ -235,121 +235,175 @@ const MeasurementTool: React.FC<MeasurementToolProps> = ({
       DomEvent.disableClickPropagation(container);
       DomEvent.disableScrollPropagation(container);
       
-      // Create portal for React component
+      // Create container for the control content
       const mountPoint = DomUtil.create('div');
       container.appendChild(mountPoint);
       
-      // Portal to render React inside Leaflet Control
-      createPortal(
-        <div className="measurement-control">
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">Measure</h3>
+      // Instead of using createPortal, manually create the HTML structure
+      mountPoint.innerHTML = `
+        <div class="measurement-control">
+          <div class="flex flex-col space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="font-medium">Measure</h3>
               <button 
-                onClick={toggleActive}
-                className={`px-2 py-1 text-xs rounded ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                id="measurement-toggle-active"
+                class="px-2 py-1 text-xs rounded ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200'}"
               >
-                {isActive ? 'Stop' : 'Start'}
+                ${isActive ? 'Stop' : 'Start'}
               </button>
             </div>
             
-            <div className="flex space-x-1">
+            <div class="flex space-x-1">
               <button 
-                onClick={() => changeType(MeasurementType.DISTANCE)}
-                className={`px-2 py-1 text-xs rounded ${selectedType === MeasurementType.DISTANCE ? 'bg-blue-500 text-white active' : 'bg-gray-200'}`}
+                id="measurement-type-distance"
+                class="px-2 py-1 text-xs rounded ${selectedType === MeasurementType.DISTANCE ? 'bg-blue-500 text-white active' : 'bg-gray-200'}"
               >
                 Distance
               </button>
               <button 
-                onClick={() => changeType(MeasurementType.AREA)}
-                className={`px-2 py-1 text-xs rounded ${selectedType === MeasurementType.AREA ? 'bg-blue-500 text-white active' : 'bg-gray-200'}`}
+                id="measurement-type-area"
+                class="px-2 py-1 text-xs rounded ${selectedType === MeasurementType.AREA ? 'bg-blue-500 text-white active' : 'bg-gray-200'}"
               >
                 Area
               </button>
               <button 
-                onClick={() => changeType(MeasurementType.PERIMETER)}
-                className={`px-2 py-1 text-xs rounded ${selectedType === MeasurementType.PERIMETER ? 'bg-blue-500 text-white active' : 'bg-gray-200'}`}
+                id="measurement-type-perimeter"
+                class="px-2 py-1 text-xs rounded ${selectedType === MeasurementType.PERIMETER ? 'bg-blue-500 text-white active' : 'bg-gray-200'}"
               >
                 Perimeter
               </button>
             </div>
             
-            <div className="relative">
+            <div class="relative">
               <button 
-                onClick={() => setIsUnitMenuOpen(!isUnitMenuOpen)}
-                className="w-full px-2 py-1 text-xs bg-gray-100 rounded flex justify-between items-center"
+                id="measurement-unit-toggle"
+                class="w-full px-2 py-1 text-xs bg-gray-100 rounded flex justify-between items-center"
               >
-                <span>Units: {selectedUnit}</span>
+                <span>Units: ${selectedUnit}</span>
                 <span>▼</span>
               </button>
               
-              {isUnitMenuOpen && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded shadow-lg z-10">
+              ${isUnitMenuOpen ? `
+                <div id="measurement-unit-menu" class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded shadow-lg z-10">
                   <button 
-                    onClick={() => changeUnit(MeasurementUnit.METERS)}
-                    className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    id="measurement-unit-meters"
+                    class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
                   >
                     Meters
                   </button>
                   <button 
-                    onClick={() => changeUnit(MeasurementUnit.KILOMETERS)}
-                    className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    id="measurement-unit-kilometers"
+                    class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
                   >
                     Kilometers
                   </button>
                   <button 
-                    onClick={() => changeUnit(MeasurementUnit.FEET)}
-                    className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    id="measurement-unit-feet"
+                    class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
                   >
                     Feet
                   </button>
                   <button 
-                    onClick={() => changeUnit(MeasurementUnit.MILES)}
-                    className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    id="measurement-unit-miles"
+                    class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
                   >
                     Miles
                   </button>
-                  {selectedType === MeasurementType.AREA && (
-                    <>
-                      <button 
-                        onClick={() => changeUnit(MeasurementUnit.SQUARE_METERS)}
-                        className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
-                      >
-                        Square Meters
-                      </button>
-                      <button 
-                        onClick={() => changeUnit(MeasurementUnit.HECTARES)}
-                        className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
-                      >
-                        Hectares
-                      </button>
-                      <button 
-                        onClick={() => changeUnit(MeasurementUnit.ACRES)}
-                        className="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
-                      >
-                        Acres
-                      </button>
-                    </>
-                  )}
+                  ${selectedType === MeasurementType.AREA ? `
+                    <button 
+                      id="measurement-unit-sqmeters"
+                      class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    >
+                      Square Meters
+                    </button>
+                    <button 
+                      id="measurement-unit-hectares"
+                      class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    >
+                      Hectares
+                    </button>
+                    <button 
+                      id="measurement-unit-acres"
+                      class="w-full px-2 py-1 text-xs text-left hover:bg-gray-100"
+                    >
+                      Acres
+                    </button>
+                  ` : ''}
                 </div>
-              )}
+              ` : ''}
             </div>
             
-            <div className="flex items-center justify-between mt-2">
-              <div className="text-xs font-medium">
-                {getDisplayValue()}
+            <div class="flex items-center justify-between mt-2">
+              <div id="measurement-value" class="text-xs font-medium">
+                ${getDisplayValue()}
               </div>
               <button 
-                onClick={handleReset}
-                className="px-2 py-1 text-xs bg-red-500 text-white rounded"
+                id="measurement-reset"
+                class="px-2 py-1 text-xs bg-red-500 text-white rounded"
               >
                 Reset
               </button>
             </div>
           </div>
-        </div>,
-        mountPoint
-      );
+        </div>
+      `;
+      
+      // Add event listeners
+      const toggleActiveBtn = mountPoint.querySelector('#measurement-toggle-active');
+      if (toggleActiveBtn) {
+        DomEvent.on(toggleActiveBtn, 'click', () => {
+          toggleActive();
+          // Update button text and class after toggle
+          toggleActiveBtn.textContent = isActive ? 'Start' : 'Stop';
+          toggleActiveBtn.className = `px-2 py-1 text-xs rounded ${!isActive ? 'bg-blue-500 text-white' : 'bg-gray-200'}`;
+        });
+      }
+      
+      // Type buttons
+      const distanceBtn = mountPoint.querySelector('#measurement-type-distance');
+      if (distanceBtn) {
+        DomEvent.on(distanceBtn, 'click', () => changeType(MeasurementType.DISTANCE));
+      }
+      
+      const areaBtn = mountPoint.querySelector('#measurement-type-area');
+      if (areaBtn) {
+        DomEvent.on(areaBtn, 'click', () => changeType(MeasurementType.AREA));
+      }
+      
+      const perimeterBtn = mountPoint.querySelector('#measurement-type-perimeter');
+      if (perimeterBtn) {
+        DomEvent.on(perimeterBtn, 'click', () => changeType(MeasurementType.PERIMETER));
+      }
+      
+      // Unit toggle
+      const unitToggleBtn = mountPoint.querySelector('#measurement-unit-toggle');
+      if (unitToggleBtn) {
+        DomEvent.on(unitToggleBtn, 'click', () => setIsUnitMenuOpen(!isUnitMenuOpen));
+      }
+      
+      // Unit buttons
+      const unitsMap = {
+        '#measurement-unit-meters': MeasurementUnit.METERS,
+        '#measurement-unit-kilometers': MeasurementUnit.KILOMETERS,
+        '#measurement-unit-feet': MeasurementUnit.FEET,
+        '#measurement-unit-miles': MeasurementUnit.MILES,
+        '#measurement-unit-sqmeters': MeasurementUnit.SQUARE_METERS,
+        '#measurement-unit-hectares': MeasurementUnit.HECTARES,
+        '#measurement-unit-acres': MeasurementUnit.ACRES
+      };
+      
+      Object.entries(unitsMap).forEach(([selector, unitValue]) => {
+        const unitBtn = mountPoint.querySelector(selector);
+        if (unitBtn) {
+          DomEvent.on(unitBtn, 'click', () => changeUnit(unitValue));
+        }
+      });
+      
+      // Reset button
+      const resetBtn = mountPoint.querySelector('#measurement-reset');
+      if (resetBtn) {
+        DomEvent.on(resetBtn, 'click', handleReset);
+      }
       
       return container;
     },

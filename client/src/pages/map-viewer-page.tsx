@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
-import { EnhancedMapViewer } from '@/components/maps/enhanced-map-viewer';
+import EnhancedMapViewer from '@/components/maps/enhanced-map-viewer';
 import { EnhancedLayerControl } from '@/components/maps/enhanced-layer-control';
-import { GeoJSONFeature, MapLayerType } from '@/lib/map-utils';
+import { GeoJSONFeature, MapLayerType, MapTool, MeasurementType, MeasurementUnit } from '@/lib/map-utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   Search, 
   Map, 
@@ -18,13 +19,23 @@ import {
   Info,
   FileDown,
   FileUp,
-  Layers as LayersIcon
+  Layers as LayersIcon,
+  Ruler,
+  PenTool,
+  SquareStack,
+  Move,
+  Trash2
 } from 'lucide-react';
 
 export default function MapViewerPage() {
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [mapFeatures, setMapFeatures] = useState<GeoJSONFeature[]>([]);
   const [mapLayers, setMapLayers] = useState<any[]>([]);
+  const [activeTool, setActiveTool] = useState<MapTool>(MapTool.PAN);
+  const [measurementType, setMeasurementType] = useState<MeasurementType | null>(null);
+  const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>(MeasurementUnit.FEET);
+  const [measurementValue, setMeasurementValue] = useState<number | undefined>(undefined);
+  const mapRef = useRef<any>(null);
   
   // Simulated data loading
   useEffect(() => {
@@ -129,6 +140,15 @@ export default function MapViewerPage() {
                     initialFeatures={[]}
                     onFeaturesChanged={handleFeaturesChanged}
                     onParcelSelect={handleParcelSelect}
+                    ref={mapRef}
+                    activeTool={activeTool}
+                    showMeasureTools={true}
+                    measurementType={measurementType}
+                    measurementUnit={measurementUnit}
+                    onMeasure={(value, type) => {
+                      setMeasurementValue(value);
+                      if (type) setMeasurementType(type);
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -137,12 +157,15 @@ export default function MapViewerPage() {
             {/* Sidebar with property details and layers */}
             <div className="col-span-3">
               <Tabs defaultValue="property" className="h-[calc(100vh-180px)]">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="property" className="flex items-center gap-1">
                     <MapPin size={16} /> Property
                   </TabsTrigger>
                   <TabsTrigger value="layers" className="flex items-center gap-1">
                     <LayersIcon size={16} /> Layers
+                  </TabsTrigger>
+                  <TabsTrigger value="tools" className="flex items-center gap-1">
+                    <Ruler size={16} /> Tools
                   </TabsTrigger>
                   <TabsTrigger value="info" className="flex items-center gap-1">
                     <Info size={16} /> Info
@@ -213,6 +236,270 @@ export default function MapViewerPage() {
                 {/* Layers tab */}
                 <TabsContent value="layers" className="h-[calc(100%-40px)] overflow-y-auto">
                   <EnhancedLayerControl />
+                </TabsContent>
+                
+                {/* Tools tab */}
+                <TabsContent value="tools" className="h-[calc(100%-40px)] overflow-y-auto">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Measurement Tools</CardTitle>
+                      <CardDescription>
+                        Measure distances, areas, and perimeters on the map
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <div>
+                          <Label className="text-sm font-medium">Measurement Type</Label>
+                          <RadioGroup
+                            value={measurementType || ''}
+                            onValueChange={(value) => {
+                              if (value === '') {
+                                setMeasurementType(null);
+                                setActiveTool(MapTool.PAN);
+                              } else {
+                                setMeasurementType(value as MeasurementType);
+                                setActiveTool(MapTool.MEASURE);
+                              }
+                            }}
+                            className="grid grid-cols-3 gap-2 mt-2"
+                          >
+                            <div>
+                              <RadioGroupItem
+                                value={MeasurementType.DISTANCE}
+                                id="measurement-distance"
+                                className="peer sr-only"
+                              />
+                              <Label
+                                htmlFor="measurement-distance"
+                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                              >
+                                <Ruler className="mb-1" size={20} />
+                                <span className="text-xs">Distance</span>
+                              </Label>
+                            </div>
+                            <div>
+                              <RadioGroupItem
+                                value={MeasurementType.AREA}
+                                id="measurement-area"
+                                className="peer sr-only"
+                              />
+                              <Label
+                                htmlFor="measurement-area"
+                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                              >
+                                <SquareStack className="mb-1" size={20} />
+                                <span className="text-xs">Area</span>
+                              </Label>
+                            </div>
+                            <div>
+                              <RadioGroupItem
+                                value={MeasurementType.PERIMETER}
+                                id="measurement-perimeter"
+                                className="peer sr-only"
+                              />
+                              <Label
+                                htmlFor="measurement-perimeter"
+                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                              >
+                                <PenTool className="mb-1" size={20} />
+                                <span className="text-xs">Perimeter</span>
+                              </Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm font-medium">Measurement Units</Label>
+                          <RadioGroup
+                            value={measurementUnit}
+                            onValueChange={(value) => {
+                              setMeasurementUnit(value as MeasurementUnit);
+                            }}
+                            className="grid grid-cols-2 gap-2 mt-2"
+                          >
+                            {measurementType === MeasurementType.AREA ? (
+                              <>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.ACRES}
+                                    id="unit-acres"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-acres"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Acres</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.SQUARE_METERS}
+                                    id="unit-sq-meters"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-sq-meters"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Square Meters</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.HECTARES}
+                                    id="unit-hectares"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-hectares"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Hectares</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.SQUARE_FEET}
+                                    id="unit-sq-feet"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-sq-feet"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Square Feet</span>
+                                  </Label>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.FEET}
+                                    id="unit-feet"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-feet"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Feet</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.METERS}
+                                    id="unit-meters"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-meters"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Meters</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.MILES}
+                                    id="unit-miles"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-miles"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Miles</span>
+                                  </Label>
+                                </div>
+                                <div>
+                                  <RadioGroupItem
+                                    value={MeasurementUnit.KILOMETERS}
+                                    id="unit-kilometers"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="unit-kilometers"
+                                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                                  >
+                                    <span className="text-xs">Kilometers</span>
+                                  </Label>
+                                </div>
+                              </>
+                            )}
+                          </RadioGroup>
+                        </div>
+
+                        {measurementValue !== undefined && (
+                          <div className="mt-4 p-3 bg-muted rounded-md">
+                            <h4 className="font-medium mb-1">Measurement Result</h4>
+                            <div className="text-lg font-semibold">
+                              {measurementType === MeasurementType.AREA ? (
+                                <>
+                                  {measurementUnit === MeasurementUnit.ACRES && (
+                                    <>{(measurementValue * 0.000247105).toFixed(2)} acres</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.HECTARES && (
+                                    <>{(measurementValue / 10000).toFixed(2)} ha</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.SQUARE_METERS && (
+                                    <>{Math.round(measurementValue)} m²</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.SQUARE_FEET && (
+                                    <>{Math.round(measurementValue * 10.7639)} ft²</>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  {measurementUnit === MeasurementUnit.FEET && (
+                                    <>{Math.round(measurementValue * 3.28084)} ft</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.METERS && (
+                                    <>{Math.round(measurementValue)} m</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.MILES && (
+                                    <>{(measurementValue * 0.000621371).toFixed(2)} mi</>
+                                  )}
+                                  {measurementUnit === MeasurementUnit.KILOMETERS && (
+                                    <>{(measurementValue / 1000).toFixed(2)} km</>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between mt-2">
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              setMeasurementType(null);
+                              setMeasurementValue(undefined);
+                              setActiveTool(MapTool.PAN);
+                            }}
+                            className="w-full"
+                          >
+                            <Trash2 size={16} className="mr-2" /> Clear Measurements
+                          </Button>
+                        </div>
+
+                        {measurementType && (
+                          <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 mt-2">
+                            <p className="font-medium">How to use:</p>
+                            <ol className="list-decimal pl-4 mt-1 space-y-1">
+                              <li>Click on the map to start measuring</li>
+                              <li>Click multiple points to continue the measurement</li>
+                              <li>For area measurements, create at least three points to form a polygon</li>
+                              <li>Change units at any time to see different measurement formats</li>
+                              <li>Use Clear Measurements to start over</li>
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
                 
                 {/* Info tab */}
