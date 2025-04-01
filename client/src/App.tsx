@@ -36,8 +36,11 @@ function DevAutoLogin() {
         // Update the cache
         queryClient.setQueryData(["/api/user"], userData);
         
-        // Redirect to home
-        setLocation("/");
+        // Redirect to home with a small delay to ensure state is updated
+        setTimeout(() => {
+          console.log("Navigating to homepage after auto-login");
+          setLocation("/");
+        }, 100);
       } catch (error) {
         console.error("Auto login error:", error);
         setLocation("/auth");
@@ -83,6 +86,17 @@ function Router() {
 }
 
 function App() {
+  const [, navigate] = useLocation();
+  
+  useEffect(() => {
+    // Auto-redirect to dev-login on initial load in development
+    // Using import.meta.env for Vite environment variables
+    if (import.meta.env.DEV) {
+      console.log('Development mode detected, auto-redirecting to dev login');
+      navigate('/dev-login');
+    }
+  }, [navigate]);
+  
   return (
     <AuthProvider>
       <Router />

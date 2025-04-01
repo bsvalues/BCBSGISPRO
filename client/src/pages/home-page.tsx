@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Workflow } from "@shared/schema";
+import { Workflow, User } from "@shared/schema";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,41 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapIcon, ActivityIcon, CheckSquareIcon, ClockIcon, AlertTriangleIcon } from "lucide-react";
 import { workflowTypeLabels, workflowTypeIcons, WorkflowType } from "@/lib/workflow-types";
+import { getQueryFn } from "@/lib/queryClient";
 
 export default function HomePage() {
   const [, navigate] = useLocation();
   const [notificationCount, setNotificationCount] = useState(0);
-  const user = { fullName: "Developer", username: "dev", isAdmin: true, email: "dev@example.com" };
   
-  // In development mode, use mock workflows
-  const mockWorkflows: Workflow[] = [
-    {
-      id: 1,
-      title: "Sample Long Plat Workflow",
-      type: "long_plat",
-      status: "in_progress",
-      createdAt: new Date("2025-03-15"),
-      updatedAt: new Date("2025-03-30"),
-      userId: 1,
-      description: "Sample workflow for development",
-    },
-    {
-      id: 2,
-      title: "Example BLA Project",
-      type: "bla",
-      status: "review",
-      createdAt: new Date("2025-03-20"),
-      updatedAt: new Date("2025-03-31"),
-      userId: 1,
-      description: "Boundary line adjustment example",
-    }
-  ];
+  // Get user information
+  const { data: user, isLoading: isUserLoading } = useQuery<User | null>({
+    queryKey: ["/api/user"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
   
-  // Using mock data instead of actual API request in dev mode
-  const { data: workflows, isLoading } = {
-    data: mockWorkflows,
-    isLoading: false
-  };
+  // Fetch workflows from the server
+  const { data: workflows, isLoading } = useQuery<Workflow[]>({
+    queryKey: ["/api/workflows"],
+    enabled: !!user, // Only run query if user is authenticated
+  });
   
   useEffect(() => {
     // Set notification count based on number of workflows with recent updates
@@ -81,7 +63,7 @@ export default function HomePage() {
           {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-neutral-800 mb-2">
-              Welcome, {user?.fullName || 'User'}
+              Welcome, {isUserLoading ? 'Loading...' : ((user as any)?.fullName || user?.username || 'User')}
             </h1>
             <p className="text-neutral-600">
               Benton County Assessor's Office GIS Workflow Assistant
@@ -110,7 +92,6 @@ export default function HomePage() {
                     className="w-full"
                     onClick={() => handleCreateWorkflow(type as WorkflowType)}
                   >
-                    <i className={`fas fa-${workflowTypeIcons[type as WorkflowType]} mr-2`}></i>
                     Start
                   </Button>
                 </CardFooter>
@@ -151,7 +132,6 @@ export default function HomePage() {
                     <tr key={workflow.id} className="hover:bg-neutral-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <i className={`fas fa-${workflowTypeIcons[workflow.type as WorkflowType]} text-primary-500 mr-2`}></i>
                           <span className="text-sm text-neutral-600">
                             {workflowTypeLabels[workflow.type as WorkflowType]}
                           </span>

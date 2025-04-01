@@ -27,9 +27,10 @@ import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   className?: string;
+  notificationCount?: number;
 }
 
-export function Header({ className }: HeaderProps) {
+export function Header({ className, notificationCount = 0 }: HeaderProps) {
   const [location, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   
@@ -78,7 +79,11 @@ export function Header({ className }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell size={20} />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+              {notificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
