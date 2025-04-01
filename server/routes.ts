@@ -13,6 +13,12 @@ import {
   WorkflowType
 } from "@shared/schema";
 import { classifyDocument, DocumentType, getDocumentTypeLabel } from "./services/document-classifier";
+import { 
+  runGeospatialAnalysis, 
+  GeospatialOperationType, 
+  MeasurementUnit, 
+  type OperationParams 
+} from "./services/geospatial-analysis";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
@@ -277,6 +283,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error processing document:", error);
       res.status(500).json({ message: "Failed to process document" });
+    }
+  });
+
+  // Geospatial Analysis Operations Endpoint
+  app.post("/api/geospatial/analyze", async (req, res) => {
+    try {
+      const { operation, features, params } = req.body;
+      
+      // Input validation
+      if (!operation || !Object.values(GeospatialOperationType).includes(operation)) {
+        return res.status(400).json({ 
+          message: "Valid operation type is required",
+          validOperations: Object.values(GeospatialOperationType)
+        });
+      }
+      
+      if (!features || (Array.isArray(features) && features.length === 0)) {
+        return res.status(400).json({ 
+          message: "At least one feature is required for analysis" 
+        });
+      }
+      
+      // Run the geospatial analysis
+      const result = runGeospatialAnalysis(
+        operation as GeospatialOperationType, 
+        features, 
+        params as OperationParams
+      );
+      
+      // If there was an error in the analysis
+      if (result.error) {
+        return res.status(400).json({ 
+          message: result.error,
+          operation 
+        });
+      }
+      
+      // Return the analysis result
+      res.json(result);
+    } catch (error) {
+      console.error("Error in geospatial analysis:", error);
+      res.status(500).json({ 
+        message: "Failed to perform geospatial analysis",
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Merge Parcels Operation
+  app.post("/api/geospatial/merge-parcels", async (req, res) => {
+    try {
+      const { parcels, newParcelId } = req.body;
+      
+      if (!parcels || !Array.isArray(parcels) || parcels.length < 2) {
+        return res.status(400).json({ 
+          message: "At least two parcel features are required for merging" 
+        });
+      }
+      
+      // Run the merge operation
+      const result = runGeospatialAnalysis(
+        GeospatialOperationType.MERGE,
+        parcels,
+        { preserveProperties: true }
+      );
+      
+      // If there was an error in the analysis
+      if (result.error) {
+        return res.status(400).json({ 
+          message: result.error,
+          operation: GeospatialOperationType.MERGE
+        });
+      }
+      
+      // In a real implementation, we would update the database 
+      // to reflect the merged parcels
+      
+      // Return the analysis result
+      res.json(result);
+    } catch (error) {
+      console.error("Error in parcel merging:", error);
+      res.status(500).json({ 
+        message: "Failed to merge parcels",
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Split Parcel Operation
+  app.post("/api/geospatial/split-parcel", async (req, res) => {
+    try {
+      const { parcel, splitLine, newParcelIds } = req.body;
+      
+      if (!parcel) {
+        return res.status(400).json({ 
+          message: "A parcel feature is required for splitting" 
+        });
+      }
+      
+      if (!splitLine) {
+        return res.status(400).json({ 
+          message: "A line feature is required to define the split" 
+        });
+      }
+      
+      // Run the split operation (custom implementation using the features)
+      const result = runGeospatialAnalysis(
+        GeospatialOperationType.SPLIT,
+        [parcel, splitLine],
+        { preserveProperties: true }
+      );
+      
+      // If there was an error in the analysis
+      if (result.error) {
+        return res.status(400).json({ 
+          message: result.error,
+          operation: GeospatialOperationType.SPLIT
+        });
+      }
+      
+      // In a real implementation, we would update the database 
+      // to reflect the split parcels
+      
+      // Return the analysis result
+      res.json(result);
+    } catch (error) {
+      console.error("Error in parcel splitting:", error);
+      res.status(500).json({ 
+        message: "Failed to split parcel",
+        error: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 

@@ -9,6 +9,7 @@ import ParcelGeneratorPage from "@/pages/parcel-generator-page";
 import PropertySearchPage from "@/pages/property-search-page";
 import ReportPage from "@/pages/report-page";
 import DocumentClassificationPage from "@/pages/document-classification-page";
+import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
 
 // Simple Router for development with no auth requirements
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/property-search" component={PropertySearchPage} />
       <Route path="/report" component={ReportPage} />
       <Route path="/document-classification" component={DocumentClassificationPage} />
+      <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -29,6 +29,7 @@ export function Sidebar({ activeModule }: SidebarProps) {
   // Define tool navigation items
   const toolNavItems: NavItem[] = [
     { path: '/map-viewer', label: 'Map Viewer', icon: 'layer-group' },
+    { path: '/geospatial-analysis', label: 'Geospatial Analysis', icon: 'shapes' },
     { path: '/parcel-generator', label: 'Parcel ID Generator', icon: 'hashtag' },
     { path: '/property-search', label: 'Property Search', icon: 'search' },
     { path: '/document-classification', label: 'Document Classifier', icon: 'brain' }
