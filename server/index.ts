@@ -2,9 +2,52 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Create Express application
 const app = express();
+
+// Set trust proxy to properly handle requests behind reverse proxy
+app.set('trust proxy', 1);
+
+// Parse JSON bodies and URL-encoded bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// CORS headers for allowing cross-domain requests in development
+app.use((req, res, next) => {
+  // For Replit environment, we need to be more specific with CORS
+  // Use the same origin for requests from the same host
+  const origin = req.headers.origin || '*';
+  
+  // Allow the specific origin that made the request
+  res.header('Access-Control-Allow-Origin', origin);
+  
+  // Ensure credentials are allowed for cookie-based auth
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  
+  // Allow exposing headers for cookie access
+  res.header('Access-Control-Expose-Headers', 'Set-Cookie, Date, ETag');
+  
+  // Pre-flight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  // Add security headers and caching control
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'SAMEORIGIN');
+  res.header('X-XSS-Protection', '1; mode=block');
+  
+  // Set cache control headers to prevent caching of API responses
+  if (req.path.startsWith('/api')) {
+    res.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+  }
+  
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -209,22 +209,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-login endpoint for development purposes
+  // Enhanced auto-login endpoint for development purposes
   app.get("/api/dev-login", async (req, res) => {
     // Only allow in development mode
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).json({ message: "Endpoint not available in production" });
     }
     
-    console.log("Dev login attempt initiated");
+    console.log("\n====== DEV LOGIN ENDPOINT ======");
+    console.log("Current Session ID:", req.sessionID);
+    console.log("Cookies:", req.headers.cookie);
+    console.log("Is authenticated:", req.isAuthenticated());
+    
+    // Set strong cache control headers for all responses
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Set session cookie explicitly to ensure it's properly set
+    const cookieMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+    res.cookie('bentongis.sid', req.sessionID, {
+      path: '/',
+      httpOnly: true,
+      maxAge: cookieMaxAge,
+      sameSite: 'lax',
+      secure: false
+    });
     
     try {
       // Check if user is already logged in
-      if (req.isAuthenticated()) {
+      if (req.isAuthenticated() && req.user) {
         console.log("User already authenticated, providing existing session");
-        const { password, ...userWithoutPassword } = req.user;
-        return res.status(200).json(userWithoutPassword);
+        console.log("User ID:", req.user.id);
+        console.log("User:", req.user.username);
+        
+        // Force session save to ensure it persists
+        req.session.cookie.maxAge = cookieMaxAge;
+        req.session.save((err) => {
+          if (err) {
+            console.error("Error saving session:", err);
+          } else {
+            console.log("Session saved successfully, cookie maxAge:", req.session.cookie.maxAge);
+            console.log("Cookie settings:", JSON.stringify(req.session.cookie));
+          }
+          
+          const { password, ...userWithoutPassword } = req.user;
+          return res.status(200).json(userWithoutPassword);
+        });
+        return;
       }
+      
+      console.log("Creating new login session");
       
       // Check if test user exists, if not, create it
       let user = await storage.getUserByUsername("admin");
@@ -294,8 +329,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Login the user
         await loginUser();
         
-        // Mark session cookie to be saved
+        // Set more detailed cookie options
         req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        req.session.cookie.httpOnly = true;
+        req.session.cookie.secure = false; // Allow non-HTTPS in development
+        req.session.cookie.sameSite = 'lax';
+        req.session.cookie.path = "/";
         
         // Explicitly save the session
         await saveSession();

@@ -30,11 +30,10 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
         try {
           console.log("Attempting auto-login...");
           
-          // Clear any existing cookies by setting a new session
-          document.cookie = 'bentoncounty.sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-
-          // Add some delay to ensure cookie clearing takes effect
-          await new Promise(resolve => setTimeout(resolve, 50));
+          // Don't clear existing cookies - let the server manage sessions
+          // document.cookie = 'bentoncounty.sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+          
+          console.log("Current cookies:", document.cookie);
           
           // Use fetch directly with proper cache control
           const response = await fetch("/api/dev-login", {
@@ -42,8 +41,9 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
             credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              "Cache-Control": "no-cache, no-store",
-              "Pragma": "no-cache"
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              "Pragma": "no-cache",
+              "Expires": "0"
             },
             cache: "no-store"
           });
@@ -59,19 +59,20 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
           // Update the cache
           queryClient.setQueryData(["/api/user"], userData);
           
-          // Add a slight delay before verifying the session
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Add a longer delay before verifying the session
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           // Verify the session was established correctly
           try {
             const verifyResponse = await fetch("/api/user", {
               method: "GET",
               credentials: "include",
-              cache: "no-store",
               headers: {
-                "Cache-Control": "no-cache, no-store",
-                "Pragma": "no-cache"
-              }
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+              },
+              cache: "no-store"
             });
             
             if (verifyResponse.ok) {
@@ -81,14 +82,27 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
               
               // Double-update the cache to ensure it's synced
               queryClient.setQueryData(["/api/user"], verifiedUser);
+              
+              // Invalidate query to make sure it's refreshed
+              queryClient.invalidateQueries({ queryKey: ["/api/user"] });
             } else {
               console.error("Session verification failed:", verifyResponse.status);
+              console.log("Cookies after failed verification:", document.cookie);
+              
+              // Try a different approach - refetch through React Query
+              queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+              
               // Try one more time after a longer delay
               setTimeout(async () => {
                 try {
                   const retryResponse = await fetch("/api/user", {
                     method: "GET",
                     credentials: "include",
+                    headers: {
+                      "Cache-Control": "no-cache, no-store, must-revalidate",
+                      "Pragma": "no-cache",
+                      "Expires": "0"
+                    },
                     cache: "no-store"
                   });
                   
@@ -96,11 +110,22 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
                     const retryUser = await retryResponse.json();
                     console.log("Session verified on retry:", retryUser);
                     queryClient.setQueryData(["/api/user"], retryUser);
+                    
+                    // Force a page refresh as a last resort if needed
+                    if (!user) {
+                      console.log("Forcing page refresh to establish session");
+                      window.location.reload();
+                    }
+                  } else {
+                    console.error("Retry verification failed:", retryResponse.status);
+                    console.log("Will attempt to force reload");
+                    // Force reload after multiple failures as last resort
+                    setTimeout(() => window.location.reload(), 1000);
                   }
                 } catch (err) {
                   console.error("Error on retry verification:", err);
                 }
-              }, 300);
+              }, 1000);
             }
           } catch (err) {
             console.error("Error verifying session:", err);
@@ -135,11 +160,10 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
     );
   }
 
-  // Render route - DEVELOPMENT MODE BYPASS
-  // In development mode, bypass authentication completely
+  // Render route
   return (
     <Route path={path}>
-      {import.meta.env.DEV || user ? <Component /> : <Redirect to="/auth" />}
+      {user ? <Component /> : <Redirect to="/auth" />}
     </Route>
   );
 }

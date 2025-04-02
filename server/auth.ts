@@ -31,22 +31,61 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   const isProduction = process.env.NODE_ENV === 'production';
   
-  // Create more robust session settings
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "benton-county-gis-workflow-assistant-secret",
-    resave: false, // Only save session if it was modified
-    saveUninitialized: false, // Don't create session until something is stored
-    store: storage.sessionStore as any,
-    name: 'bentoncounty.sid', // Custom name to avoid default connect.sid 
-    rolling: true, // Reset expiration on each request
-    cookie: {
-      secure: isProduction, // Only secure in production
-      httpOnly: true, // Prevents client-side JS from reading cookie
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax', // Allows cross-origin on GET requests only
-      path: '/' // Ensure cookie is sent for all paths
-    }
+  // Create more robust session settings with additional debugging
+  const cookieMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+  console.log(`Configuring session with cookie max age: ${cookieMaxAge}ms`);
+  
+  // Generate a stronger session secret
+  const sessionSecret = process.env.SESSION_SECRET || 
+    `benton-county-gis-workflow-assistant-secret-${Math.random().toString(36).substring(2, 15)}`;
+  
+  // Memory store provides a more reliable session in development environment
+  const memoryStore = storage.sessionStore as any;
+  
+  // Log every set and destroy operation for debugging
+  const originalSet = memoryStore.set;
+  memoryStore.set = function(sid: string, session: any, callback: any) {
+    console.log(`Setting session ${sid} with cookie expiry: ${session?.cookie?._expires}`);
+    return originalSet.call(this, sid, session, callback);
   };
+  
+  const originalDestroy = memoryStore.destroy;
+  memoryStore.destroy = function(sid: string, callback: any) {
+    console.log(`Destroying session ${sid}`);
+    return originalDestroy.call(this, sid, callback);
+  };
+  
+  const sessionSettings: session.SessionOptions = {
+    secret: sessionSecret,
+    resave: true, // Save session on each request
+    saveUninitialized: true, // Create session even without data
+    store: memoryStore,
+    name: 'bentongis.sid', // Change session name to avoid conflicts
+    rolling: true, // Reset expiration on each request
+    proxy: true, // Trust the reverse proxy
+    cookie: {
+      secure: false, // Allow non-HTTPS cookies in development
+      httpOnly: true, // Prevents client-side JS from reading cookie
+      maxAge: cookieMaxAge,
+      sameSite: 'lax', // Allows cross-origin on GET requests
+      path: '/', // Ensure cookie is sent for all paths
+      domain: undefined // Allow cookies on any domain
+    },
+    // Ensure Replit environment variables are properly considered
+    unset: 'destroy' // Remove session from store when req.session is destroyed
+  };
+  
+  console.log('Session store configured with settings:', {
+    resave: sessionSettings.resave,
+    saveUninitialized: sessionSettings.saveUninitialized,
+    rolling: sessionSettings.rolling,
+    proxy: sessionSettings.proxy,
+    cookieSecure: sessionSettings.cookie?.secure,
+    cookieHttpOnly: sessionSettings.cookie?.httpOnly,
+    cookieSameSite: sessionSettings.cookie?.sameSite,
+    cookiePath: sessionSettings.cookie?.path,
+    cookieMaxAge: sessionSettings.cookie?.maxAge
+  });
 
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
@@ -115,9 +154,33 @@ export function setupAuth(app: Express) {
         if (loginErr) {
           return next(loginErr);
         }
-        // Remove password from response
-        const { password, ...userWithoutPassword } = user;
-        return res.json(userWithoutPassword);
+        
+        // Set cache-control headers to prevent caching
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        
+        // Set session cookie explicitly
+        res.cookie('bentongis.sid', req.sessionID, {
+          path: '/',
+          httpOnly: true,
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          sameSite: 'lax',
+          secure: false
+        });
+        
+        // Force save the session
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Error saving session after login:", saveErr);
+          } else {
+            console.log("Session saved successfully after login");
+          }
+          
+          // Remove password from response
+          const { password, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        });
       });
     })(req, res, next);
   });
@@ -130,11 +193,46 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
+    console.log("GET /api/user - Session ID:", req.sessionID);
+    console.log("GET /api/user - Cookies:", req.headers.cookie);
+    console.log("GET /api/user - Is authenticated:", req.isAuthenticated());
+    
+    // Always set the cookie to ensure it's sent in subsequent requests
+    const cookieMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+    res.cookie('bentongis.sid', req.sessionID, {
+      path: '/',
+      httpOnly: true,
+      maxAge: cookieMaxAge,
+      sameSite: 'lax',
+      secure: false
+    });
+    
+    // Set cache-control to prevent caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     if (!req.isAuthenticated()) {
+      console.log("GET /api/user - Not authenticated, session:", req.session);
       return res.status(401).json({ message: "Not authenticated" });
     }
+    
+    console.log("GET /api/user - User:", req.user.id, req.user.username);
+    
     // Remove password from response
     const { password, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
+    
+    // Touch session to extend expiration time
+    req.session.touch();
+    req.session.save((err) => {
+      if (err) {
+        console.error("Error saving session in /api/user:", err);
+      } else {
+        console.log("Session saved successfully in /api/user");
+      }
+      
+      // Send response
+      res.json(userWithoutPassword);
+    });
   });
 }

@@ -102,12 +102,33 @@ export default function AuthPage() {
     },
   });
   
-  // Dev auto-login mutation
+  // Enhanced dev auto-login mutation with direct fetch
   const devLoginMutation = useMutation({
     mutationFn: async () => {
-      console.log("Starting dev login request");
-      const response = await apiRequest("GET", "/api/dev-login");
+      console.log("Starting dev login request with custom implementation");
+      console.log("Current cookies:", document.cookie);
+      
+      // Use direct fetch with explicit credentials and cache control
+      const response = await fetch("/api/dev-login", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate, private",
+          "Pragma": "no-cache",
+          "Expires": "0",
+          "Accept": "application/json",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        cache: "no-store",
+        mode: "cors",
+        redirect: "follow"
+      });
+      
       console.log("Dev login response:", response.status, response.statusText);
+      
+      // Wait for cookies to be set before proceeding
+      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log("Cookies after login attempt:", document.cookie);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -116,7 +137,35 @@ export default function AuthPage() {
       
       const data = await response.json();
       console.log("Dev login data:", data);
-      return data;
+      
+      // Verify the session was established
+      try {
+        console.log("Verifying session after login");
+        const verifyResponse = await fetch("/api/user", {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+          },
+          cache: "no-store"
+        });
+        
+        console.log("Verify response status:", verifyResponse.status);
+        
+        if (verifyResponse.ok) {
+          console.log("Session verification successful");
+          const verifiedUser = await verifyResponse.json();
+          return verifiedUser; // Return verified user data
+        } else {
+          console.log("Session verification failed, using original data");
+          return data; // Fall back to the original response
+        }
+      } catch (verifyError) {
+        console.error("Error verifying session:", verifyError);
+        return data; // Return original data if verification fails
+      }
     },
     onSuccess: (data) => {
       console.log("Dev login success with data:", data);
@@ -129,11 +178,14 @@ export default function AuthPage() {
       // Update the query client
       queryClient.setQueryData(["/api/user"], data);
       
-      // Force a small delay before navigating
+      // Invalidate the query to force a refresh
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
+      // Force a reload to establish the session properly
       setTimeout(() => {
-        console.log("Navigating to home page");
-        navigate("/");
-      }, 100);
+        console.log("Reloading page to complete login");
+        window.location.reload();
+      }, 200);
     },
     onError: (error: Error) => {
       console.error("Dev login error:", error);
