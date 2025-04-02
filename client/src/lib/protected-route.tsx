@@ -30,13 +30,22 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
         try {
           console.log("Attempting auto-login...");
           
-          // Use fetch directly for better control
+          // Clear any existing cookies by setting a new session
+          document.cookie = 'bentoncounty.sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
+          // Add some delay to ensure cookie clearing takes effect
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          // Use fetch directly with proper cache control
           const response = await fetch("/api/dev-login", {
             method: "GET",
             credentials: "include",
             headers: {
               "Content-Type": "application/json",
+              "Cache-Control": "no-cache, no-store",
+              "Pragma": "no-cache"
             },
+            cache: "no-store"
           });
           
           if (!response.ok) {
@@ -50,19 +59,48 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
           // Update the cache
           queryClient.setQueryData(["/api/user"], userData);
           
+          // Add a slight delay before verifying the session
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Verify the session was established correctly
           try {
             const verifyResponse = await fetch("/api/user", {
               method: "GET",
               credentials: "include",
+              cache: "no-store",
+              headers: {
+                "Cache-Control": "no-cache, no-store",
+                "Pragma": "no-cache"
+              }
             });
             
             if (verifyResponse.ok) {
               console.log("Session verified successfully");
               const verifiedUser = await verifyResponse.json();
               console.log("Verified user:", verifiedUser);
+              
+              // Double-update the cache to ensure it's synced
+              queryClient.setQueryData(["/api/user"], verifiedUser);
             } else {
               console.error("Session verification failed:", verifyResponse.status);
+              // Try one more time after a longer delay
+              setTimeout(async () => {
+                try {
+                  const retryResponse = await fetch("/api/user", {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store"
+                  });
+                  
+                  if (retryResponse.ok) {
+                    const retryUser = await retryResponse.json();
+                    console.log("Session verified on retry:", retryUser);
+                    queryClient.setQueryData(["/api/user"], retryUser);
+                  }
+                } catch (err) {
+                  console.error("Error on retry verification:", err);
+                }
+              }, 300);
             }
           } catch (err) {
             console.error("Error verifying session:", err);

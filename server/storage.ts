@@ -794,12 +794,15 @@ export class DatabaseStorage implements IStorage {
   sessionStore: ReturnType<typeof createMemoryStore>;
 
   constructor() {
-    // Set up PostgreSQL session store
+    // Set up PostgreSQL session store with improved configuration
     this.sessionStore = new PostgresSessionStore({
       conObject: {
         connectionString: process.env.DATABASE_URL
       },
-      createTableIfMissing: true
+      createTableIfMissing: true,
+      tableName: 'session', // Default table name
+      pruneSessionInterval: 60, // Cleanup expired sessions every minute
+      ttl: 86400 // 24 hours - matching the cookie maxAge
     }) as unknown as ReturnType<typeof createMemoryStore>;
   }
 

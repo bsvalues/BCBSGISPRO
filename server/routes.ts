@@ -232,27 +232,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Found existing admin user");
       }
 
-      // Log the user in
-      req.login(user, (err) => {
-        if (err) {
-          console.error("Login error in dev-login:", err);
-          return res.status(500).json({ message: "Failed to auto-login", error: err.message });
-        }
+      // Wrap session methods in Promises for better async handling
+      const regenerateSession = () => {
+        return new Promise((resolve, reject) => {
+          req.session.regenerate((err) => {
+            if (err) reject(err);
+            else resolve(null);
+          });
+        });
+      };
+
+      const saveSession = () => {
+        return new Promise((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) reject(err);
+            else resolve(null);
+          });
+        });
+      };
+
+      const loginUser = () => {
+        return new Promise((resolve, reject) => {
+          req.login(user, (err) => {
+            if (err) reject(err);
+            else resolve(null);
+          });
+        });
+      };
+
+      try {
+        // Best practice: regenerate session first to prevent session fixation
+        await regenerateSession();
+        
+        // Then login the user
+        await loginUser();
+        
+        // Explicitly save the session
+        await saveSession();
         
         // Remove password from response
         const { password, ...userWithoutPassword } = user;
         
-        // Check if session was properly created
+        // Log session state
         console.log("Session after login:", req.session);
         console.log("Is authenticated:", req.isAuthenticated());
         
-        // Ensure headers are correctly set
-        res.setHeader('Cache-Control', 'no-store');
+        // Ensure headers are correctly set - prevent caching
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         
         // Return the user data with OK status
         console.log("Auto-login successful for user:", userWithoutPassword.username);
         return res.status(200).json(userWithoutPassword);
-      });
+      } catch (err) {
+        console.error("Login process error:", err);
+        return res.status(500).json({ 
+          message: "Failed to auto-login during session handling", 
+          error: err instanceof Error ? err.message : String(err) 
+        });
+      }
     } catch (error) {
       console.error("Auto-login error:", error);
       res.status(500).json({ 

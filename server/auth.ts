@@ -31,14 +31,16 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "benton-county-gis-workflow-assistant-secret",
-    resave: true, // Changed to true to ensure session is saved back to store
-    saveUninitialized: true, // Changed to true for dev environment
+    resave: true, // Ensures session is saved back to store even if unmodified
+    saveUninitialized: true, // Creates session for anonymous users
     store: storage.sessionStore,
+    name: 'bentoncounty.sid', // Custom name to avoid default connect.sid 
     cookie: {
-      secure: false, // Force to false in dev
-      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Only secure in production
+      httpOnly: true, // Prevents client-side JS from reading cookie
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax' // Add sameSite policy
+      sameSite: 'lax', // Allows cross-origin on GET requests only
+      path: '/' // Ensure cookie is sent for all paths
     }
   };
 
