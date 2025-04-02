@@ -56,18 +56,18 @@ export function PropertyListingsPanel({
   }, [latitude, longitude, radiusMiles]);
   
   return (
-    <Card className="w-full max-w-md shadow-lg">
-      <CardHeader className="pb-2">
+    <Card className="w-full max-w-md shadow-lg border-benton-navy">
+      <CardHeader className="pb-2 bg-gradient-to-r from-benton-navy to-benton-slate text-white">
         <div className="flex justify-between items-center">
           <CardTitle className="text-lg flex items-center">
-            <Home className="mr-2 h-5 w-5" />
-            Property Listings
+            <Home className="mr-2 h-5 w-5 text-benton-green" />
+            Benton County Property Listings
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-white hover:text-benton-tan hover:bg-benton-navy/50">
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <CardDescription>
+        <CardDescription className="text-benton-tan">
           Showing properties near {latitude.toFixed(4)}, {longitude.toFixed(4)}
         </CardDescription>
       </CardHeader>
@@ -105,11 +105,11 @@ export function PropertyListingsPanel({
         )}
       </CardContent>
       
-      <CardFooter className="pt-2 flex justify-between">
-        <Badge variant="outline" className="text-xs">
+      <CardFooter className="pt-2 flex justify-between bg-gradient-to-r from-benton-slate/20 to-benton-navy/20">
+        <Badge variant="outline" className="text-xs bg-benton-tan/10 text-benton-navy border-benton-navy">
           Data from Zillow
         </Badge>
-        <Button variant="outline" size="sm" onClick={onClose}>
+        <Button variant="outline" size="sm" onClick={onClose} className="border-benton-navy text-benton-navy hover:bg-benton-navy hover:text-white">
           Close
         </Button>
       </CardFooter>
@@ -133,7 +133,7 @@ function PropertyListingCard({ property }: PropertyListingCardProps) {
   };
   
   return (
-    <Card className="border overflow-hidden">
+    <Card className="border overflow-hidden border-benton-slate/30 hover:border-benton-navy transition-colors">
       <div className="relative h-[150px] bg-muted">
         {property.photos && property.photos.length > 0 ? (
           <img 
@@ -142,12 +142,12 @@ function PropertyListingCard({ property }: PropertyListingCardProps) {
             className="w-full h-full object-cover" 
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-secondary">
-            <Home className="h-12 w-12 text-muted" />
+          <div className="w-full h-full flex items-center justify-center bg-benton-tan/20">
+            <Home className="h-12 w-12 text-benton-navy/50" />
           </div>
         )}
         <div className="absolute top-2 right-2">
-          <Badge className="bg-primary text-primary-foreground">
+          <Badge className="bg-benton-green text-white font-medium">
             {property.statusType || 'For Sale'}
           </Badge>
         </div>
@@ -167,65 +167,65 @@ function PropertyListingCard({ property }: PropertyListingCardProps) {
       
       <CardContent className="pb-2">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="location">Location</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-benton-tan/20">
+            <TabsTrigger value="details" className="data-[state=active]:bg-benton-navy data-[state=active]:text-white">Details</TabsTrigger>
+            <TabsTrigger value="location" className="data-[state=active]:bg-benton-navy data-[state=active]:text-white">Location</TabsTrigger>
           </TabsList>
           
           <TabsContent value="details" className="space-y-2 pt-2">
             <div className="grid grid-cols-3 gap-2 text-sm">
-              <div className="flex flex-col items-center p-1 border rounded">
-                <BedDouble className="h-4 w-4 mb-1 text-muted-foreground" />
-                <span className="font-medium">{property.bedrooms}</span>
-                <span className="text-xs text-muted-foreground">Beds</span>
+              <div className="flex flex-col items-center p-1 border rounded border-benton-navy/20 bg-benton-tan/10">
+                <BedDouble className="h-4 w-4 mb-1 text-benton-navy" />
+                <span className="font-medium text-benton-slate">{property.bedrooms}</span>
+                <span className="text-xs text-benton-slate/80">Beds</span>
               </div>
-              <div className="flex flex-col items-center p-1 border rounded">
-                <Bath className="h-4 w-4 mb-1 text-muted-foreground" />
-                <span className="font-medium">{property.bathrooms}</span>
-                <span className="text-xs text-muted-foreground">Baths</span>
+              <div className="flex flex-col items-center p-1 border rounded border-benton-navy/20 bg-benton-tan/10">
+                <Bath className="h-4 w-4 mb-1 text-benton-navy" />
+                <span className="font-medium text-benton-slate">{property.bathrooms}</span>
+                <span className="text-xs text-benton-slate/80">Baths</span>
               </div>
-              <div className="flex flex-col items-center p-1 border rounded">
-                <Maximize className="h-4 w-4 mb-1 text-muted-foreground" />
-                <span className="font-medium">{property.livingArea.toLocaleString()}</span>
-                <span className="text-xs text-muted-foreground">Sq Ft</span>
+              <div className="flex flex-col items-center p-1 border rounded border-benton-navy/20 bg-benton-tan/10">
+                <Maximize className="h-4 w-4 mb-1 text-benton-navy" />
+                <span className="font-medium text-benton-slate">{property.livingArea.toLocaleString()}</span>
+                <span className="text-xs text-benton-slate/80">Sq Ft</span>
               </div>
             </div>
             
             <div className="flex items-center text-sm">
-              <Home className="h-4 w-4 mr-1 text-muted-foreground" />
-              <span className="text-muted-foreground">Type:</span>
-              <span className="ml-1 font-medium">{property.homeType}</span>
+              <Home className="h-4 w-4 mr-1 text-benton-blue" />
+              <span className="text-benton-slate">Type:</span>
+              <span className="ml-1 font-medium text-benton-navy">{property.homeType}</span>
             </div>
             
             {property.yearBuilt && (
               <div className="flex items-center text-sm">
-                <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                <span className="text-muted-foreground">Built:</span>
-                <span className="ml-1 font-medium">{property.yearBuilt}</span>
+                <Calendar className="h-4 w-4 mr-1 text-benton-blue" />
+                <span className="text-benton-slate">Built:</span>
+                <span className="ml-1 font-medium text-benton-navy">{property.yearBuilt}</span>
               </div>
             )}
           </TabsContent>
           
           <TabsContent value="location" className="pt-2 space-y-2">
             <div className="flex items-center text-sm space-x-1">
-              <MapIcon className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Location:</span>
-              <span className="font-medium line-clamp-1">
+              <MapIcon className="h-4 w-4 text-benton-rust" />
+              <span className="text-benton-slate">Location:</span>
+              <span className="font-medium line-clamp-1 text-benton-navy">
                 {[property.city, property.state, property.zipcode].filter(Boolean).join(', ')}
               </span>
             </div>
             
             <div className="flex items-center text-sm">
-              <span className="text-muted-foreground">Coordinates:</span>
-              <span className="ml-1 font-medium">
+              <span className="text-benton-slate">Coordinates:</span>
+              <span className="ml-1 font-medium text-benton-navy">
                 {property.latitude.toFixed(4)}, {property.longitude.toFixed(4)}
               </span>
             </div>
             
             {property.lotSize && (
               <div className="flex items-center text-sm">
-                <span className="text-muted-foreground">Lot Size:</span>
-                <span className="ml-1 font-medium">{property.lotSize.toLocaleString()} Sq Ft</span>
+                <span className="text-benton-slate">Lot Size:</span>
+                <span className="ml-1 font-medium text-benton-navy">{property.lotSize.toLocaleString()} Sq Ft</span>
               </div>
             )}
           </TabsContent>
@@ -233,9 +233,14 @@ function PropertyListingCard({ property }: PropertyListingCardProps) {
       </CardContent>
       
       <CardFooter className="pt-0 pb-2">
-        <Button variant="secondary" size="sm" className="w-full" onClick={openZillowListing}>
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          className="w-full bg-benton-green hover:bg-benton-navy text-white" 
+          onClick={openZillowListing}
+        >
           <DollarSign className="h-4 w-4 mr-1" />
-          View Details
+          View Property Details
         </Button>
       </CardFooter>
     </Card>

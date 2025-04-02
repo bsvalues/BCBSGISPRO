@@ -51,6 +51,16 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
+        benton: {
+          "navy": "#2A4654",
+          "green": "#4CB64A",
+          "blue": "#3EBFDE",
+          "orange": "#FF9E19",
+          "rust": "#EB5C2C",
+          "brown": "#A07951",
+          "tan": "#CCBEA3",
+          "slate": "#5B758A",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
