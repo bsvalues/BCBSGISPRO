@@ -55,6 +55,11 @@ export function setupAuth(app: Express) {
     return originalDestroy.call(this, sid, callback);
   };
   
+  // Get the domain from REPLIT_URL environment variable
+  const replitUrl = process.env.REPLIT_URL;
+  const domain = replitUrl ? new URL(`https://${replitUrl}`).hostname : undefined;
+  console.log(`Using session domain: ${domain || 'undefined (default)'}`);
+  
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: true, // Save session on each request
@@ -64,12 +69,12 @@ export function setupAuth(app: Express) {
     rolling: true, // Reset expiration on each request
     proxy: true, // Trust the reverse proxy
     cookie: {
-      secure: false, // Allow non-HTTPS cookies in development
+      secure: true, // Enable secure cookies for HTTPS on Replit
       httpOnly: true, // Prevents client-side JS from reading cookie
       maxAge: cookieMaxAge,
-      sameSite: 'lax', // Allows cross-origin on GET requests
+      sameSite: 'none', // Allow cross-origin in Replit environment
       path: '/', // Ensure cookie is sent for all paths
-      domain: undefined // Allow cookies on any domain
+      domain: undefined // Let browser determine the domain
     },
     // Ensure Replit environment variables are properly considered
     unset: 'destroy' // Remove session from store when req.session is destroyed
@@ -160,13 +165,13 @@ export function setupAuth(app: Express) {
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         
-        // Set session cookie explicitly
+        // Set session cookie explicitly with same settings as sessionSettings
         res.cookie('bentongis.sid', req.sessionID, {
           path: '/',
           httpOnly: true,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-          sameSite: 'lax',
-          secure: false
+          maxAge: cookieMaxAge,
+          sameSite: 'none',
+          secure: true
         });
         
         // Force save the session
@@ -198,13 +203,13 @@ export function setupAuth(app: Express) {
     console.log("GET /api/user - Is authenticated:", req.isAuthenticated());
     
     // Always set the cookie to ensure it's sent in subsequent requests
-    const cookieMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+    // Using same settings as in sessionSettings for consistency
     res.cookie('bentongis.sid', req.sessionID, {
       path: '/',
       httpOnly: true,
       maxAge: cookieMaxAge,
-      sameSite: 'lax',
-      secure: false
+      sameSite: 'none',
+      secure: true
     });
     
     // Set cache-control to prevent caching

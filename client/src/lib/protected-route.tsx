@@ -38,14 +38,15 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
           // Use fetch directly with proper cache control
           const response = await fetch("/api/dev-login", {
             method: "GET",
-            credentials: "include",
+            credentials: "include", // Important: this ensures cookies are sent and received
             headers: {
               "Content-Type": "application/json",
               "Cache-Control": "no-cache, no-store, must-revalidate",
               "Pragma": "no-cache",
               "Expires": "0"
             },
-            cache: "no-store"
+            cache: "no-store",
+            mode: "cors", // Explicitly set CORS mode
           });
           
           if (!response.ok) {
@@ -72,7 +73,8 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
                 "Pragma": "no-cache",
                 "Expires": "0"
               },
-              cache: "no-store"
+              cache: "no-store",
+              mode: "cors" // Explicitly set CORS mode
             });
             
             if (verifyResponse.ok) {
@@ -103,7 +105,8 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
                       "Pragma": "no-cache",
                       "Expires": "0"
                     },
-                    cache: "no-store"
+                    cache: "no-store",
+                    mode: "cors" // Explicitly set CORS mode
                   });
                   
                   if (retryResponse.ok) {

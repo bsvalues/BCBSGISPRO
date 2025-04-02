@@ -227,12 +227,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader('Expires', '0');
     
     // Set session cookie explicitly to ensure it's properly set
+    // Use SameSite=None for better support with cross-domain requests in Replit
     const cookieMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
     res.cookie('bentongis.sid', req.sessionID, {
       path: '/',
       httpOnly: true,
       maxAge: cookieMaxAge,
-      sameSite: 'lax',
+      sameSite: 'none',
       secure: false
     });
     
@@ -333,7 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
         req.session.cookie.httpOnly = true;
         req.session.cookie.secure = false; // Allow non-HTTPS in development
-        req.session.cookie.sameSite = 'lax';
+        req.session.cookie.sameSite = 'none'; // Better cross-domain support
         req.session.cookie.path = "/";
         
         // Explicitly save the session

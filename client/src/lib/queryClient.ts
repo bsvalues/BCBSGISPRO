@@ -115,6 +115,9 @@ export const getQueryFn: <T>(options: {
     // Log current cookies for debugging
     console.log("Current cookies:", document.cookie);
     
+    // Log the URL that will be fetched
+    console.log(`Fetching: ${urlWithCacheBuster}`);
+    
     const res = await fetch(urlWithCacheBuster, {
       credentials: "include", // Always include cookies
       headers: {

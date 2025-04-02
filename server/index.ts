@@ -15,13 +15,24 @@ app.use(express.urlencoded({ extended: false }));
 // CORS headers for allowing cross-domain requests in development
 app.use((req, res, next) => {
   // For Replit environment, we need to be more specific with CORS
-  // Use the same origin for requests from the same host
-  const origin = req.headers.origin || '*';
+  const replitUrl = process.env.REPLIT_URL;
+  const allowedOrigins = [
+    `https://${replitUrl}`,
+    req.headers.origin || '*',
+    'https://replit.com',
+    'https://*.replit.app',
+    'https://*.repl.co'
+  ];
   
   // Allow the specific origin that made the request
-  res.header('Access-Control-Allow-Origin', origin);
+  const origin = req.headers.origin || '';
+  if (allowedOrigins.includes(origin) || origin.includes('replit')) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', allowedOrigins[0] || '*');
+  }
   
-  // Ensure credentials are allowed for cookie-based auth
+  // Ensure credentials are always allowed for cookie-based auth
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -29,7 +40,7 @@ app.use((req, res, next) => {
   // Allow exposing headers for cookie access
   res.header('Access-Control-Expose-Headers', 'Set-Cookie, Date, ETag');
   
-  // Pre-flight requests
+  // Handle pre-flight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -45,6 +56,13 @@ app.use((req, res, next) => {
     res.header('Pragma', 'no-cache');
     res.header('Expires', '0');
   }
+  
+  // Log CORS-related headers for debugging
+  console.log(`Request to ${req.path} from origin: ${req.headers.origin}`);
+  console.log(`CORS headers: ${JSON.stringify({
+    'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin'),
+    'Access-Control-Allow-Credentials': res.getHeader('Access-Control-Allow-Credentials')
+  })}`);
   
   next();
 });
