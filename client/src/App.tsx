@@ -10,6 +10,7 @@ import PropertySearchPage from "@/pages/property-search-page";
 import ReportPage from "@/pages/report-page";
 import DocumentClassificationPage from "@/pages/document-classification-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
+import CartographerToolsPage from "@/pages/cartographer-tools-page";
 import PublicPropertyPortal from "@/pages/public-property-portal";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { useEffect } from "react";
@@ -122,6 +123,7 @@ function Router() {
       <ProtectedRoute path="/report" component={ReportPage} />
       <ProtectedRoute path="/document-classification" component={DocumentClassificationPage} />
       <ProtectedRoute path="/geospatial-analysis" component={GeospatialAnalysisPage} />
+      <ProtectedRoute path="/cartographer-tools" component={CartographerToolsPage} />
       
       <Route component={NotFound} />
     </Switch>

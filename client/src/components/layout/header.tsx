@@ -13,7 +13,8 @@ import {
   FileText,
   Search,
   Layers,
-  CheckSquare
+  CheckSquare,
+  PenTool
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -70,6 +71,7 @@ export function Header({ className, notificationCount = 0 }: HeaderProps) {
             <NavItem href="/property-search" icon={<Search size={18} />} label="Property Search" />
             <NavItem href="/geospatial-analysis" icon={<Layers size={18} />} label="Analysis" />
             <NavItem href="/report" icon={<FileText size={18} />} label="Reports" />
+            <NavItem href="/cartographer-tools" icon={<PenTool size={18} />} label="Cartographer" />
           </ul>
         </nav>
       </div>

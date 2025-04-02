@@ -102,8 +102,20 @@ export function DrawControl({
           showArea: true,
           metric: true
         },
-        circle: false,
-        circlemarker: false,
+        circle: {
+          shapeOptions: {
+            color: '#3B82F6',
+            weight: 2,
+            fillOpacity: 0.2
+          },
+          metric: true
+        },
+        circlemarker: {
+          radius: 4,
+          color: '#3B82F6',
+          fillColor: '#3B82F6',
+          fillOpacity: 0.5
+        },
         marker: {
           icon: new L.Icon.Default()
         },
