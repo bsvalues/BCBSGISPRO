@@ -56,7 +56,17 @@ export default function MapViewerPage() {
         const layers = await response.json();
         
         // Transform API layers to the format expected by the map component
-        const formattedLayers = layers.map(layer => ({
+        const formattedLayers = layers.map((layer: {
+          name: string;
+          metadata?: {
+            style?: {
+              color: string;
+              weight: number;
+              fillOpacity?: number;
+              fillColor?: string;
+            }
+          }
+        }) => ({
           name: layer.name,
           data: {
             type: "FeatureCollection",

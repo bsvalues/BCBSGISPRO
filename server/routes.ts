@@ -748,8 +748,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/map-layers", async (req, res) => {
     try {
       const visibleLayers = await storage.getVisibleMapLayers();
-      // Create a new copy before sorting
-      const sortedLayers = [...visibleLayers].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      // Create a new copy before sorting and normalize opacity from 0-100 to 0-1
+      const sortedLayers = [...visibleLayers]
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map(layer => ({
+          ...layer,
+          opacity: (layer.opacity ?? 100) / 100 // Convert DB opacity (0-100) to UI opacity (0-1)
+        }));
       res.json(sortedLayers);
     } catch (error) {
       console.error("Error fetching map layers:", error);
@@ -761,8 +766,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/map-layers/all", async (req, res) => {
     try {
       const layers = await storage.getMapLayers();
-      // Create a new sorted array (don't modify the original)
-      const sortedLayers = [...layers].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      // Create a new sorted array and normalize opacity from 0-100 to 0-1
+      const sortedLayers = [...layers]
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map(layer => ({
+          ...layer,
+          opacity: (layer.opacity ?? 100) / 100 // Convert DB opacity (0-100) to UI opacity (0-1) 
+        }));
       res.json(sortedLayers);
     } catch (error) {
       console.error("Error fetching all map layers:", error);
@@ -809,7 +819,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order
       });
       
-      res.json(updatedLayer);
+      // Convert DB opacity (0-100) to UI opacity (0-1) before sending to client
+      res.json({
+        ...updatedLayer,
+        opacity: (updatedLayer.opacity ?? 100) / 100
+      });
     } catch (error) {
       console.error("Error updating map layer:", error);
       res.status(500).json({ message: "Failed to update map layer" });
