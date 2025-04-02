@@ -67,15 +67,24 @@ export function DrawControl({
 
     const featureGroup = featGroupRef.current;
 
-    // Set default options for each drawing tool
+    // Set default options for each drawing tool - improved for better UX
     const defaultOptions = {
       polyline: {
         shapeOptions: {
           color: '#3B82F6',
-          weight: 4
+          weight: 4,
+          opacity: 0.8
         },
         showLength: true,
-        metric: true
+        metric: true,
+        guidelineDistance: 10,
+        maxGuideLineLength: 4000,
+        repeatMode: true, // Allow drawing multiple polylines without reselecting tool
+        tooltip: {
+          start: 'Click to start drawing a line',
+          cont: 'Click to continue the line (double-click to finish)',
+          end: 'Double-click to finish the line'
+        }
       },
       polygon: {
         allowIntersection: false,
@@ -85,37 +94,63 @@ export function DrawControl({
         },
         shapeOptions: {
           color: '#3B82F6',
-          weight: 2,
-          fillOpacity: 0.2
+          weight: 3,
+          fillOpacity: 0.3,
+          fillColor: '#93C5FD'
         },
         showArea: true,
-        metric: true
+        metric: true,
+        repeatMode: true,
+        tooltip: {
+          start: 'Click to start drawing a parcel',
+          cont: 'Click to continue the parcel boundary',
+          end: 'Click first point to close this parcel'
+        }
       },
       rectangle: {
         shapeOptions: {
           color: '#3B82F6',
-          weight: 2,
-          fillOpacity: 0.2
+          weight: 3,
+          fillOpacity: 0.3,
+          fillColor: '#93C5FD'
         },
         showArea: true,
-        metric: true
+        metric: true,
+        repeatMode: true,
+        tooltip: {
+          start: 'Click and drag to draw a rectangle'
+        }
       },
       circle: {
         shapeOptions: {
           color: '#3B82F6',
-          weight: 2,
-          fillOpacity: 0.2
+          weight: 3,
+          fillOpacity: 0.3,
+          fillColor: '#93C5FD'
         },
-        metric: true
+        metric: true,
+        repeatMode: true,
+        tooltip: {
+          start: 'Click and drag to draw a circle',
+          end: 'Release mouse to finish drawing'
+        }
       },
       circlemarker: {
-        radius: 4,
+        radius: 6,
         color: '#3B82F6',
         fillColor: '#3B82F6',
-        fillOpacity: 0.5
+        fillOpacity: 0.8,
+        repeatMode: true,
+        tooltip: {
+          start: 'Click to place a marker'
+        }
       },
       marker: {
-        icon: new L.Icon.Default()
+        icon: new L.Icon.Default(),
+        repeatMode: true,
+        tooltip: {
+          start: 'Click to place a marker'
+        }
       }
     };
     
@@ -166,22 +201,35 @@ export function DrawControl({
       processedDrawOptions.marker = false;
     }
 
-    // Initialize draw control
+    // Initialize draw control with improved edit options
+    const editOptions: any = {
+      featureGroup,
+      remove: edit?.remove !== false
+    };
+    
+    // Only add edit capability if explicitly enabled
+    if (edit?.edit !== false) {
+      editOptions.edit = {
+        // Enhanced edit options for better UX
+        selectedPathOptions: {
+          color: '#FCD34D',
+          weight: 3,
+          opacity: 0.7,
+          dashArray: '10, 10'
+        },
+        moveMarkers: true,  // Allow moving markers during edit
+        removeDisabled: false, // Don't disable remove while editing
+        editDisabled: false,  // Always allow editing
+        showHiddenLayers: true // Show all editable layers
+      };
+    } else {
+      editOptions.edit = false;
+    }
+    
     const drawOptions = {
       position,
       draw: processedDrawOptions,
-      edit: {
-        featureGroup,
-        edit: edit?.edit !== false ? {
-          // Default edit options
-          selectedPathOptions: {
-            color: '#FCD34D',
-            weight: 3,
-            opacity: 0.7
-          }
-        } : false,
-        remove: edit?.remove !== false
-      }
+      edit: editOptions
     };
 
     drawControlRef.current = new L.Control.Draw(drawOptions);
