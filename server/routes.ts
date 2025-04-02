@@ -211,30 +211,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Auto-login endpoint for development purposes
   app.get("/api/dev-login", async (req, res) => {
+    // Only allow in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ message: "Endpoint not available in production" });
+    }
+    
+    console.log("Dev login attempt initiated");
+    
     try {
-      console.log("Dev login attempt initiated");
+      // Check if user is already logged in
+      if (req.isAuthenticated()) {
+        console.log("User already authenticated, providing existing session");
+        const { password, ...userWithoutPassword } = req.user;
+        return res.status(200).json(userWithoutPassword);
+      }
       
       // Check if test user exists, if not, create it
       let user = await storage.getUserByUsername("admin");
       
       if (!user) {
         console.log("Creating default admin user");
-        // Create a default admin user
-        user = await storage.createUser({
-          username: "admin",
-          password: await hashPassword("admin123"),
-          fullName: "Admin User",
-          email: "admin@bentoncounty.gov",
-          department: "Assessor's Office",
-          isAdmin: true
-        });
+        try {
+          // Create a default admin user
+          user = await storage.createUser({
+            username: "admin",
+            password: await hashPassword("admin123"),
+            fullName: "Admin User",
+            email: "admin@bentoncounty.gov",
+            department: "Assessor's Office",
+            isAdmin: true
+          });
+          console.log("Admin user created successfully");
+        } catch (createError) {
+          console.error("Error creating default admin user:", createError);
+          return res.status(500).json({ 
+            message: "Failed to create default admin user", 
+            error: createError instanceof Error ? createError.message : String(createError) 
+          });
+        }
       } else {
-        console.log("Found existing admin user");
+        console.log("Found existing admin user:", user.id);
       }
 
       // Wrap session methods in Promises for better async handling
       const regenerateSession = () => {
         return new Promise((resolve, reject) => {
+          if (!req.session) {
+            return resolve(null);
+          }
           req.session.regenerate((err) => {
             if (err) reject(err);
             else resolve(null);
@@ -244,6 +268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const saveSession = () => {
         return new Promise((resolve, reject) => {
+          if (!req.session) {
+            return resolve(null);
+          }
           req.session.save((err) => {
             if (err) reject(err);
             else resolve(null);
@@ -261,11 +288,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       try {
-        // Best practice: regenerate session first to prevent session fixation
+        // Regenerate session to prevent session fixation
         await regenerateSession();
         
-        // Then login the user
+        // Login the user
         await loginUser();
+        
+        // Mark session cookie to be saved
+        req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
         
         // Explicitly save the session
         await saveSession();
@@ -273,16 +303,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Remove password from response
         const { password, ...userWithoutPassword } = user;
         
-        // Log session state
-        console.log("Session after login:", req.session);
+        // Verify the session was created properly
+        console.log("Session ID after login:", req.sessionID);
         console.log("Is authenticated:", req.isAuthenticated());
         
-        // Ensure headers are correctly set - prevent caching
+        // Prevent caching of authentication responses
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         
-        // Return the user data with OK status
         console.log("Auto-login successful for user:", userWithoutPassword.username);
         return res.status(200).json(userWithoutPassword);
       } catch (err) {
