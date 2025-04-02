@@ -75,10 +75,11 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
     );
   }
 
-  // Render route
+  // Render route - DEVELOPMENT MODE BYPASS
+  // In development mode, bypass authentication completely
   return (
     <Route path={path}>
-      {user ? <Component /> : <Redirect to="/auth" />}
+      {import.meta.env.DEV || user ? <Component /> : <Redirect to="/auth" />}
     </Route>
   );
 }

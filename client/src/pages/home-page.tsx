@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapIcon, ActivityIcon, CheckSquareIcon, ClockIcon, AlertTriangleIcon } from "lucide-react";
 import { workflowTypeLabels, workflowTypeIcons, WorkflowType } from "@/lib/workflow-types";
 import { getQueryFn } from "@/lib/queryClient";
+import { EnhancedMetricsPanel } from "@/components/dashboard/enhanced-metrics-panel";
 
 export default function HomePage() {
   const [, navigate] = useLocation();
@@ -187,6 +188,12 @@ export default function HomePage() {
               </CardContent>
             </Card>
           )}
+          
+          {/* Dashboard Analytics */}
+          <h2 className="text-lg font-semibold text-neutral-700 mt-8 mb-4">Dashboard Analytics</h2>
+          <div className="grid grid-cols-12 gap-6">
+            <EnhancedMetricsPanel />
+          </div>
           
           {/* Quick Access Shortcuts */}
           <h2 className="text-lg font-semibold text-neutral-700 mt-8 mb-4">Quick Access</h2>
