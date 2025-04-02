@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON, FeatureGroup } from 'react-leaflet';
+import { useState, useCallback, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, FeatureGroup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { 
   Card, 
@@ -41,6 +41,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { DrawControl } from '@/components/maps/draw-control';
 import ExportResultsDialog from '@/components/analysis/export-results-dialog';
 import { FileImportExport } from '@/components/maps/file-import-export';
+import { CoordinateAddressDisplay } from '@/components/maps/coordinate-address-display';
 import { 
   Calculator,
   Scissors, 
@@ -202,6 +203,7 @@ export default function GeospatialAnalysisPage() {
   const [selectedFeatures, setSelectedFeatures] = useState<any[]>([]);
   const [drawnItems, setDrawnItems] = useState<any | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [clickedCoords, setClickedCoords] = useState<{lat: number, lng: number} | null>(null);
 
   // Handle imported data from the FileImportExport component
   const handleImportedData = (data: any) => {
@@ -369,6 +371,25 @@ export default function GeospatialAnalysisPage() {
   const handleCloseExportDialog = () => {
     setShowExportDialog(false);
   };
+  
+  // Close address information panel
+  const handleCloseAddressPanel = () => {
+    setClickedCoords(null);
+  };
+  
+  // Map click handler component
+  const MapClickHandler = useCallback(() => {
+    const map = useMapEvents({
+      click: (e) => {
+        // Update coordinates
+        setClickedCoords({
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        });
+      }
+    });
+    return null;
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -497,7 +518,21 @@ export default function GeospatialAnalysisPage() {
                       featureGroup: drawnItems || new L.FeatureGroup()
                     }}
                   />
+                  
+                  {/* Map click handler */}
+                  <MapClickHandler />
                 </MapContainer>
+                
+                {/* Show address information when a location is clicked */}
+                {clickedCoords && (
+                  <div className="absolute bottom-4 right-4 z-[1000] max-w-md">
+                    <CoordinateAddressDisplay 
+                      latitude={clickedCoords.lat}
+                      longitude={clickedCoords.lng}
+                      onClose={handleCloseAddressPanel}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
