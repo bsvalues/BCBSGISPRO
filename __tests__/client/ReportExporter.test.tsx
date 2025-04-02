@@ -1,208 +1,139 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReportExporter } from '@/components/reporting/report-exporter';
-import { useMutation } from '@tanstack/react-query';
 
-// Mock TanStack Query
-jest.mock('@tanstack/react-query', () => ({
-  useMutation: jest.fn(),
-}));
-
-// Mock API request
-jest.mock('@/lib/queryClient', () => ({
-  apiRequest: jest.fn(),
-}));
-
-describe('ReportExporter Component', () => {
+describe('ReportExporter', () => {
   const mockReport = {
-    id: 123,
-    name: 'Test Report',
-    createdAt: new Date().toISOString(),
+    id: 1,
+    name: 'Q1 Property Assessment Report',
     templateId: 1,
-    templateName: 'SM00 Report',
-    status: 'completed'
+    templateName: 'Property Assessment Summary',
+    status: 'completed',
+    createdAt: '2025-03-31T16:30:00Z',
+    completedAt: '2025-03-31T16:35:00Z',
+    totalRows: 250
   };
 
-  beforeEach(() => {
-    // Mock export mutations
-    const mockExportMutation = jest.fn().mockImplementation(({ format }) => {
-      return Promise.resolve({
-        downloadUrl: `/api/reports/${mockReport.id}/export/${format}`,
-        filename: `${mockReport.name}.${format}`
-      });
-    });
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockExportMutation,
-      isPending: false,
-    });
-  });
-
-  test('renders export options correctly', () => {
+  test('renders export options for a completed report', () => {
     render(<ReportExporter report={mockReport} />);
     
     expect(screen.getByText('Export Report')).toBeInTheDocument();
+    expect(screen.getByLabelText('Export Format')).toBeInTheDocument();
     expect(screen.getByText('PDF')).toBeInTheDocument();
     expect(screen.getByText('Excel')).toBeInTheDocument();
     expect(screen.getByText('CSV')).toBeInTheDocument();
-    expect(screen.getByText('HTML')).toBeInTheDocument();
   });
 
-  test('exports report as PDF', async () => {
-    // Create a spy for window.open
-    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+  test('does not render for non-completed reports', () => {
+    const pendingReport = { ...mockReport, status: 'pending', completedAt: undefined };
+    render(<ReportExporter report={pendingReport} />);
     
+    expect(screen.queryByText('Export Report')).not.toBeInTheDocument();
+  });
+
+  test('shows format-specific options when format is selected', () => {
     render(<ReportExporter report={mockReport} />);
     
-    // Click PDF export button
-    fireEvent.click(screen.getByText('PDF'));
+    const formatSelect = screen.getByLabelText('Export Format');
     
-    // Wait for export to complete
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith(
-        `/api/reports/${mockReport.id}/export/pdf`,
-        '_blank'
-      );
-    });
+    // Test PDF options
+    fireEvent.change(formatSelect, { target: { value: 'pdf' } });
+    expect(screen.getByText('PDF Options')).toBeInTheDocument();
+    expect(screen.getByLabelText('Page Size')).toBeInTheDocument();
+    expect(screen.getByLabelText('Include Page Numbers')).toBeInTheDocument();
     
-    // Restore the spy
-    openSpy.mockRestore();
+    // Test Excel options
+    fireEvent.change(formatSelect, { target: { value: 'excel' } });
+    expect(screen.getByText('Excel Options')).toBeInTheDocument();
+    expect(screen.getByLabelText('Include Formulas')).toBeInTheDocument();
   });
 
-  test('exports report as Excel', async () => {
-    // Create a spy for window.open
-    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
-    
+  test('validates export options before submission', async () => {
     render(<ReportExporter report={mockReport} />);
     
-    // Click Excel export button
-    fireEvent.click(screen.getByText('Excel'));
+    // Try to export without selecting any options
+    const exportButton = screen.getByText('Export');
+    fireEvent.click(exportButton);
     
-    // Wait for export to complete
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith(
-        `/api/reports/${mockReport.id}/export/xlsx`,
-        '_blank'
-      );
-    });
-    
-    // Restore the spy
-    openSpy.mockRestore();
+    expect(await screen.findByText('Please select an export format')).toBeInTheDocument();
   });
 
-  test('exports report as CSV', async () => {
-    // Create a spy for window.open
-    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
-    
-    render(<ReportExporter report={mockReport} />);
-    
-    // Click CSV export button
-    fireEvent.click(screen.getByText('CSV'));
-    
-    // Wait for export to complete
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith(
-        `/api/reports/${mockReport.id}/export/csv`,
-        '_blank'
-      );
-    });
-    
-    // Restore the spy
-    openSpy.mockRestore();
-  });
-
-  test('exports report as HTML', async () => {
-    // Create a spy for window.open
-    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
-    
-    render(<ReportExporter report={mockReport} />);
-    
-    // Click HTML export button
-    fireEvent.click(screen.getByText('HTML'));
-    
-    // Wait for export to complete
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith(
-        `/api/reports/${mockReport.id}/export/html`,
-        '_blank'
-      );
-    });
-    
-    // Restore the spy
-    openSpy.mockRestore();
-  });
-
-  test('handles export errors gracefully', async () => {
-    // Mock error in export
-    const mockErrorMutation = jest.fn().mockRejectedValue(new Error('Export failed'));
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockErrorMutation,
-      isPending: false,
-    });
-    
-    render(<ReportExporter report={mockReport} />);
-    
-    // Click PDF export button
-    fireEvent.click(screen.getByText('PDF'));
-    
-    // Verify error message displayed
-    await waitFor(() => {
-      expect(screen.getByText('Export failed')).toBeInTheDocument();
-    });
-  });
-
-  test('shows loading state during export', async () => {
-    // Mock a slow export
-    const mockSlowExport = jest.fn().mockImplementation(() => {
-      return new Promise(resolve => {
-        setTimeout(() => {
-          resolve({
-            downloadUrl: `/api/reports/${mockReport.id}/export/pdf`,
-            filename: `${mockReport.name}.pdf`
-          });
-        }, 100);
+  test('handles export submission', async () => {
+    const mockExport = jest.fn().mockImplementation(() => 
+      Promise.resolve({ downloadUrl: '/api/reports/exports/123', filename: 'report.pdf' })
+    );
+    global.fetch = jest.fn().mockImplementation((url, options) => {
+      if (url === '/api/reports/1/export' && options.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => mockExport()
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
       });
     });
     
-    // Set up the mutation with isPending state management
-    let setIsPending: (value: boolean) => void;
-    (useMutation as jest.Mock).mockImplementation(() => {
-      const [isPending, _setIsPending] = React.useState(false);
-      setIsPending = _setIsPending;
-      
-      return {
-        mutateAsync: async (...args: any[]) => {
-          setIsPending(true);
-          try {
-            return await mockSlowExport(...args);
-          } finally {
-            setIsPending(false);
-          }
-        },
-        isPending
-      };
-    });
+    global.URL.createObjectURL = jest.fn(() => 'blob:test');
+    global.Blob = jest.fn(() => ({}));
     
+    const mockAnchorElement = {
+      href: '',
+      download: '',
+      click: jest.fn(),
+      remove: jest.fn()
+    };
+    document.createElement = jest.fn().mockImplementation((tag) => {
+      if (tag === 'a') return mockAnchorElement;
+      return {};
+    });
+    document.body.appendChild = jest.fn();
+    document.body.removeChild = jest.fn();
+
     render(<ReportExporter report={mockReport} />);
     
-    // Click PDF export button
-    fireEvent.click(screen.getByText('PDF'));
+    const formatSelect = screen.getByLabelText('Export Format');
+    fireEvent.change(formatSelect, { target: { value: 'pdf' } });
     
-    // Set isPending to true to simulate loading state
-    setIsPending(true);
+    // Configure some PDF options
+    const pageSizeSelect = screen.getByLabelText('Page Size');
+    fireEvent.change(pageSizeSelect, { target: { value: 'letter' } });
     
-    // Verify loading indicator is shown
+    const pageNumbersCheckbox = screen.getByLabelText('Include Page Numbers');
+    fireEvent.click(pageNumbersCheckbox);
+    
+    const exportButton = screen.getByText('Export');
+    fireEvent.click(exportButton);
+    
     await waitFor(() => {
-      expect(screen.getByText('Exporting...')).toBeInTheDocument();
+      expect(mockExport).toHaveBeenCalledWith({
+        format: 'pdf',
+        options: {
+          pageSize: 'letter',
+          includePageNumbers: true
+        }
+      });
+      expect(mockAnchorElement.click).toHaveBeenCalled();
     });
-    
-    // Finish the export
-    setIsPending(false);
-    
-    // Verify loading is gone
-    await waitFor(() => {
-      expect(screen.queryByText('Exporting...')).not.toBeInTheDocument();
+  });
+
+  test('shows error message when export fails', async () => {
+    global.fetch = jest.fn().mockImplementation(() => {
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ message: 'Export generation failed' })
+      });
     });
+
+    render(<ReportExporter report={mockReport} />);
+    
+    const formatSelect = screen.getByLabelText('Export Format');
+    fireEvent.change(formatSelect, { target: { value: 'pdf' } });
+    
+    const exportButton = screen.getByText('Export');
+    fireEvent.click(exportButton);
+    
+    expect(await screen.findByText('Export failed: Export generation failed')).toBeInTheDocument();
   });
 });

@@ -1,372 +1,198 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReportScheduler } from '@/components/reporting/report-scheduler';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock TanStack Query
-jest.mock('@tanstack/react-query', () => ({
-  useQuery: jest.fn(),
-  useMutation: jest.fn(),
-}));
-
-// Mock API request
-jest.mock('@/lib/queryClient', () => ({
-  queryClient: {
-    invalidateQueries: jest.fn(),
-  },
-  apiRequest: jest.fn(),
-}));
-
-describe('ReportScheduler Component', () => {
+describe('ReportScheduler', () => {
+  const queryClient = new QueryClient();
   const mockTemplates = [
-    { id: 1, name: 'SM00 Report', description: 'Summary of workflow activities' },
-    { id: 2, name: 'Parcel Changes Report', description: 'Tracks boundary adjustments and ownership changes' },
-    { id: 3, name: 'Document Classification Report', description: 'Statistics on document types processed' }
+    { id: 1, name: 'Property Assessment Summary', description: 'Summary of property assessments' },
+    { id: 2, name: 'Parcel Activity Report', description: 'Recent activity on parcels' }
   ];
-
+  
   const mockSchedules = [
     { 
-      id: 101, 
+      id: 1, 
+      name: 'Monthly Assessment Report', 
       templateId: 1, 
-      templateName: 'SM00 Report',
-      schedule: 'WEEKLY', 
-      dayOfWeek: 1, // Monday
-      hour: 8, 
+      frequency: 'monthly',
+      dayOfMonth: 1,
+      hour: 8,
       minute: 0,
-      parameters: { 
-        range: 'LAST_WEEK' 
-      },
       active: true,
-      recipients: ['admin@example.com']
-    },
-    { 
-      id: 102, 
-      templateId: 2, 
-      templateName: 'Parcel Changes Report',
-      schedule: 'MONTHLY', 
-      dayOfMonth: 1, 
-      hour: 9, 
-      minute: 0,
-      parameters: { 
-        range: 'LAST_MONTH' 
-      },
-      active: true,
-      recipients: ['admin@example.com', 'manager@example.com']
+      parameters: { format: 'pdf' },
+      createdAt: '2025-01-01T00:00:00Z',
+      nextRunAt: '2025-04-01T08:00:00Z'
     }
   ];
 
   beforeEach(() => {
-    // Setup default mock implementations
-    (useQuery as jest.Mock).mockImplementation(({ queryKey }) => {
-      // Mock report templates data
-      if (queryKey[0] === '/api/reports/templates') {
-        return {
-          data: mockTemplates,
-          isLoading: false,
-          error: null,
-        };
+    global.fetch = jest.fn().mockImplementation((url) => {
+      if (url === '/api/reports/templates') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockTemplates)
+        });
       }
-      
-      // Mock report schedules data
-      if (queryKey[0] === '/api/reports/schedules') {
-        return {
-          data: mockSchedules,
-          isLoading: false,
-          error: null,
-        };
+      if (url === '/api/reports/schedules') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockSchedules)
+        });
       }
-      
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-      };
-    });
-
-    // Mock mutation for creating/updating schedules
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: jest.fn().mockResolvedValue({ success: true }),
-      isPending: false,
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
+      });
     });
   });
 
-  test('renders scheduled reports correctly', async () => {
-    render(<ReportScheduler />);
+  test('renders report scheduler interface', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
     
+    expect(await screen.findByText('Scheduled Reports')).toBeInTheDocument();
+    expect(await screen.findByText('Create Schedule')).toBeInTheDocument();
+  });
+
+  test('displays existing scheduled reports', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
+
     await waitFor(() => {
-      expect(screen.getByText('Scheduled Reports')).toBeInTheDocument();
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-      expect(screen.getByText('Weekly')).toBeInTheDocument();
-      expect(screen.getByText('Parcel Changes Report')).toBeInTheDocument();
+      expect(screen.getByText('Monthly Assessment Report')).toBeInTheDocument();
       expect(screen.getByText('Monthly')).toBeInTheDocument();
+      expect(screen.getByText('Apr 1, 2025')).toBeInTheDocument();
     });
   });
 
-  test('creates new report schedule', async () => {
-    const mockCreateSchedule = jest.fn().mockResolvedValue({
-      id: 103,
-      templateId: 3,
-      templateName: 'Document Classification Report',
-      schedule: 'DAILY',
-      hour: 7,
-      minute: 30,
-      parameters: {
-        range: 'YESTERDAY'
-      },
-      active: true,
-      recipients: ['admin@example.com']
-    });
+  test('opens create schedule form when button is clicked', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
+
+    const createButton = await screen.findByText('Create Schedule');
+    fireEvent.click(createButton);
     
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockCreateSchedule,
-      isPending: false,
-    });
+    expect(await screen.findByText('New Scheduled Report')).toBeInTheDocument();
+    expect(screen.getByLabelText('Schedule Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Report Template')).toBeInTheDocument();
+    expect(screen.getByLabelText('Frequency')).toBeInTheDocument();
+  });
+
+  test('validates schedule form inputs', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
+
+    const createButton = await screen.findByText('Create Schedule');
+    fireEvent.click(createButton);
     
-    render(<ReportScheduler />);
+    const saveButton = screen.getByText('Save Schedule');
+    fireEvent.click(saveButton);
     
-    // Click create new schedule button
-    fireEvent.click(screen.getByText('Create New Schedule'));
+    expect(await screen.findByText('Name is required')).toBeInTheDocument();
+    expect(screen.getByText('Template selection is required')).toBeInTheDocument();
+  });
+
+  test('handles frequency-specific form fields', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
+
+    const createButton = await screen.findByText('Create Schedule');
+    fireEvent.click(createButton);
     
-    // Select report template
-    await waitFor(() => {
-      expect(screen.getByText('Select Report Template')).toBeInTheDocument();
-    });
+    const frequencySelect = screen.getByLabelText('Frequency');
     
-    fireEvent.mouseDown(screen.getByLabelText('Report Template'));
-    await waitFor(() => screen.getByText('Document Classification Report'));
-    fireEvent.click(screen.getByText('Document Classification Report'));
+    // Test for monthly options
+    fireEvent.change(frequencySelect, { target: { value: 'monthly' } });
+    expect(await screen.findByLabelText('Day of Month')).toBeInTheDocument();
     
-    // Set frequency to Daily
-    fireEvent.mouseDown(screen.getByLabelText('Frequency'));
-    await waitFor(() => screen.getByText('Daily'));
-    fireEvent.click(screen.getByText('Daily'));
+    // Test for weekly options
+    fireEvent.change(frequencySelect, { target: { value: 'weekly' } });
+    expect(await screen.findByLabelText('Day of Week')).toBeInTheDocument();
     
-    // Set time
-    fireEvent.change(screen.getByLabelText('Hour'), { target: { value: '7' } });
-    fireEvent.change(screen.getByLabelText('Minute'), { target: { value: '30' } });
-    
-    // Set range parameter
-    fireEvent.mouseDown(screen.getByLabelText('Time Range'));
-    await waitFor(() => screen.getByText('Yesterday'));
-    fireEvent.click(screen.getByText('Yesterday'));
-    
-    // Add email recipient
-    fireEvent.change(screen.getByLabelText('Recipients'), { 
-      target: { value: 'admin@example.com' } 
-    });
-    
-    // Save schedule
-    fireEvent.click(screen.getByText('Save Schedule'));
-    
-    // Verify that create schedule was called with correct params
-    await waitFor(() => {
-      expect(mockCreateSchedule).toHaveBeenCalledWith({
-        templateId: 3,
-        schedule: 'DAILY',
-        hour: 7,
-        minute: 30,
-        parameters: {
-          range: 'YESTERDAY'
-        },
-        recipients: ['admin@example.com'],
-        active: true
+    // Test for daily options - shouldn't have extra fields
+    fireEvent.change(frequencySelect, { target: { value: 'daily' } });
+    expect(screen.queryByLabelText('Day of Month')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Day of Week')).not.toBeInTheDocument();
+  });
+
+  test('successfully creates a new scheduled report', async () => {
+    const mockCreate = jest.fn().mockImplementation(() => 
+      Promise.resolve({ id: 2, name: 'New Weekly Report' })
+    );
+    global.fetch = jest.fn().mockImplementation((url, options) => {
+      if (url === '/api/reports/schedules' && options.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => mockCreate()
+        });
+      }
+      if (url === '/api/reports/templates') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockTemplates)
+        });
+      }
+      if (url === '/api/reports/schedules') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockSchedules)
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
       });
     });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportScheduler />
+      </QueryClientProvider>
+    );
     
-    // Verify success message
+    const createButton = await screen.findByText('Create Schedule');
+    fireEvent.click(createButton);
+    
+    // Fill required fields
+    const nameInput = screen.getByLabelText('Schedule Name');
+    fireEvent.change(nameInput, { target: { value: 'New Weekly Report' } });
+    
+    const templateSelect = screen.getByLabelText('Report Template');
+    fireEvent.change(templateSelect, { target: { value: '2' } });
+    
+    const frequencySelect = screen.getByLabelText('Frequency');
+    fireEvent.change(frequencySelect, { target: { value: 'weekly' } });
+    
+    const daySelect = screen.getByLabelText('Day of Week');
+    fireEvent.change(daySelect, { target: { value: '1' } });
+    
+    const hourInput = screen.getByLabelText('Hour');
+    fireEvent.change(hourInput, { target: { value: '9' } });
+    
+    const minuteInput = screen.getByLabelText('Minute');
+    fireEvent.change(minuteInput, { target: { value: '30' } });
+    
+    const saveButton = screen.getByText('Save Schedule');
+    fireEvent.click(saveButton);
+    
     await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
       expect(screen.getByText('Schedule created successfully')).toBeInTheDocument();
-    });
-  });
-
-  test('edits existing report schedule', async () => {
-    const mockUpdateSchedule = jest.fn().mockResolvedValue({
-      id: 101,
-      templateId: 1,
-      templateName: 'SM00 Report',
-      schedule: 'WEEKLY',
-      dayOfWeek: 5, // Friday instead of Monday
-      hour: 8,
-      minute: 0,
-      parameters: {
-        range: 'LAST_WEEK'
-      },
-      active: true,
-      recipients: ['admin@example.com', 'newemail@example.com']
-    });
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockUpdateSchedule,
-      isPending: false,
-    });
-    
-    render(<ReportScheduler />);
-    
-    // Wait for schedules to load
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    // Click edit button for first schedule
-    const editButtons = screen.getAllByText('Edit');
-    fireEvent.click(editButtons[0]);
-    
-    // Wait for edit form to appear
-    await waitFor(() => {
-      expect(screen.getByText('Edit Schedule')).toBeInTheDocument();
-    });
-    
-    // Change day of week to Friday
-    fireEvent.mouseDown(screen.getByLabelText('Day of Week'));
-    await waitFor(() => screen.getByText('Friday'));
-    fireEvent.click(screen.getByText('Friday'));
-    
-    // Add new recipient
-    const recipientsInput = screen.getByLabelText('Recipients');
-    fireEvent.change(recipientsInput, { 
-      target: { value: recipientsInput.value + ', newemail@example.com' } 
-    });
-    
-    // Save changes
-    fireEvent.click(screen.getByText('Save Changes'));
-    
-    // Verify that update schedule was called with correct params
-    await waitFor(() => {
-      expect(mockUpdateSchedule).toHaveBeenCalledWith({
-        id: 101,
-        templateId: 1,
-        schedule: 'WEEKLY',
-        dayOfWeek: 5,
-        hour: 8,
-        minute: 0,
-        parameters: {
-          range: 'LAST_WEEK'
-        },
-        recipients: ['admin@example.com', 'newemail@example.com'],
-        active: true
-      });
-    });
-    
-    // Verify success message
-    await waitFor(() => {
-      expect(screen.getByText('Schedule updated successfully')).toBeInTheDocument();
-    });
-  });
-
-  test('deletes report schedule', async () => {
-    const mockDeleteSchedule = jest.fn().mockResolvedValue({ success: true });
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockDeleteSchedule,
-      isPending: false,
-    });
-    
-    render(<ReportScheduler />);
-    
-    // Wait for schedules to load
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    // Click delete button for first schedule
-    const deleteButtons = screen.getAllByText('Delete');
-    fireEvent.click(deleteButtons[0]);
-    
-    // Confirm deletion
-    await waitFor(() => {
-      expect(screen.getByText('Are you sure you want to delete this schedule?')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('Confirm'));
-    
-    // Verify that delete schedule was called with correct ID
-    await waitFor(() => {
-      expect(mockDeleteSchedule).toHaveBeenCalledWith({ id: 101 });
-    });
-    
-    // Verify success message
-    await waitFor(() => {
-      expect(screen.getByText('Schedule deleted successfully')).toBeInTheDocument();
-    });
-  });
-
-  test('toggles schedule activation status', async () => {
-    const mockToggleSchedule = jest.fn().mockResolvedValue({
-      id: 101,
-      active: false
-    });
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockToggleSchedule,
-      isPending: false,
-    });
-    
-    render(<ReportScheduler />);
-    
-    // Wait for schedules to load
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    // Click toggle switch for first schedule
-    const toggleSwitches = screen.getAllByRole('switch');
-    fireEvent.click(toggleSwitches[0]);
-    
-    // Verify that toggle was called with correct params
-    await waitFor(() => {
-      expect(mockToggleSchedule).toHaveBeenCalledWith({ 
-        id: 101, 
-        active: false 
-      });
-    });
-  });
-
-  test('validates required fields before submission', async () => {
-    render(<ReportScheduler />);
-    
-    // Click create new schedule button
-    fireEvent.click(screen.getByText('Create New Schedule'));
-    
-    // Try to save without filling required fields
-    fireEvent.click(screen.getByText('Save Schedule'));
-    
-    // Verify validation error messages
-    await waitFor(() => {
-      expect(screen.getByText('Report template is required')).toBeInTheDocument();
-      expect(screen.getByText('Frequency is required')).toBeInTheDocument();
-      expect(screen.getByText('At least one recipient is required')).toBeInTheDocument();
-    });
-  });
-
-  test('displays appropriate schedule parameters based on frequency', async () => {
-    render(<ReportScheduler />);
-    
-    // Click create new schedule button
-    fireEvent.click(screen.getByText('Create New Schedule'));
-    
-    // Select report template
-    await waitFor(() => {
-      expect(screen.getByLabelText('Report Template')).toBeInTheDocument();
-    });
-    
-    // Select Weekly frequency
-    fireEvent.mouseDown(screen.getByLabelText('Frequency'));
-    await waitFor(() => screen.getByText('Weekly'));
-    fireEvent.click(screen.getByText('Weekly'));
-    
-    // Verify weekly-specific field appears
-    await waitFor(() => {
-      expect(screen.getByLabelText('Day of Week')).toBeInTheDocument();
-    });
-    
-    // Change to Monthly frequency
-    fireEvent.mouseDown(screen.getByLabelText('Frequency'));
-    await waitFor(() => screen.getByText('Monthly'));
-    fireEvent.click(screen.getByText('Monthly'));
-    
-    // Verify monthly-specific field appears
-    await waitFor(() => {
-      expect(screen.getByLabelText('Day of Month')).toBeInTheDocument();
     });
   });
 });

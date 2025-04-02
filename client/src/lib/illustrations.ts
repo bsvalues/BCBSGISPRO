@@ -14,6 +14,10 @@ export const illustrations = {
   },
   report: {
     general: reportHelpSvg,
+    generator: reportHelpSvg,
+    schedule: reportHelpSvg,
+    export: reportHelpSvg,
+    viewer: reportHelpSvg,
   },
   workflow: {
     general: workflowHelpSvg,

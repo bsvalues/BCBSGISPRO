@@ -1,197 +1,131 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReportGenerator } from '@/components/reporting/report-generator';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock TanStack Query
-jest.mock('@tanstack/react-query', () => ({
-  useQuery: jest.fn(),
-  useMutation: jest.fn(),
-}));
+describe('ReportGenerator', () => {
+  const queryClient = new QueryClient();
+  const mockTemplates = [
+    { id: 1, name: 'Property Assessment Summary', description: 'Summary of property assessments' },
+    { id: 2, name: 'Parcel Activity Report', description: 'Recent activity on parcels' }
+  ];
 
-// Mock API request
-jest.mock('@/lib/queryClient', () => ({
-  queryClient: {
-    invalidateQueries: jest.fn(),
-  },
-  apiRequest: jest.fn(),
-}));
-
-describe('ReportGenerator Component', () => {
   beforeEach(() => {
-    // Setup default mock implementations
-    (useQuery as jest.Mock).mockImplementation(({ queryKey }) => {
-      // Mock report templates data
-      if (queryKey[0] === '/api/reports/templates') {
-        return {
-          data: [
-            { id: 1, name: 'SM00 Report', description: 'Summary of workflow activities' },
-            { id: 2, name: 'Parcel Changes Report', description: 'Tracks boundary adjustments and ownership changes' },
-            { id: 3, name: 'Document Classification Report', description: 'Statistics on document types processed' }
-          ],
-          isLoading: false,
-          error: null,
-        };
+    global.fetch = jest.fn().mockImplementation((url) => {
+      if (url === '/api/reports/templates') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockTemplates)
+        });
       }
-      
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-      };
-    });
-
-    // Mock generate report mutation
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: jest.fn().mockResolvedValue({ 
-        id: 123, 
-        name: 'Generated Report',
-        createdAt: new Date().toISOString(),
-        status: 'completed'
-      }),
-      isPending: false,
-    });
-  });
-
-  test('renders report template options correctly', async () => {
-    render(<ReportGenerator />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-      expect(screen.getByText('Parcel Changes Report')).toBeInTheDocument();
-      expect(screen.getByText('Document Classification Report')).toBeInTheDocument();
-    });
-  });
-
-  test('selects report template and displays parameters', async () => {
-    render(<ReportGenerator />);
-    
-    // Wait for templates to load
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    // Select a template
-    fireEvent.click(screen.getByText('SM00 Report'));
-    
-    // Check that parameter form is displayed
-    await waitFor(() => {
-      expect(screen.getByText('Report Parameters')).toBeInTheDocument();
-      expect(screen.getByLabelText('Start Date')).toBeInTheDocument();
-      expect(screen.getByLabelText('End Date')).toBeInTheDocument();
-    });
-  });
-
-  test('generates report with valid parameters', async () => {
-    // Mock specific mutation for this test
-    const mockGenerateReport = jest.fn().mockResolvedValue({ 
-      id: 123, 
-      name: 'SM00 Report - 2023-01-01 to 2023-01-31',
-      createdAt: new Date().toISOString(),
-      status: 'completed'
-    });
-    
-    (useMutation as jest.Mock).mockReturnValue({
-      mutateAsync: mockGenerateReport,
-      isPending: false,
-    });
-    
-    render(<ReportGenerator />);
-    
-    // Wait for templates to load and select one
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('SM00 Report'));
-    
-    // Fill in parameters
-    await waitFor(() => {
-      expect(screen.getByLabelText('Start Date')).toBeInTheDocument();
-    });
-    
-    fireEvent.change(screen.getByLabelText('Start Date'), { 
-      target: { value: '2023-01-01' }
-    });
-    
-    fireEvent.change(screen.getByLabelText('End Date'), { 
-      target: { value: '2023-01-31' }
-    });
-    
-    // Generate report
-    fireEvent.click(screen.getByText('Generate Report'));
-    
-    // Verify report generation was called with correct params
-    await waitFor(() => {
-      expect(mockGenerateReport).toHaveBeenCalledWith({
-        templateId: 1,
-        parameters: {
-          startDate: '2023-01-01',
-          endDate: '2023-01-31'
-        }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
       });
     });
+  });
+
+  test('renders report generator interface', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportGenerator />
+      </QueryClientProvider>
+    );
     
-    // Verify success message
+    expect(await screen.findByText('Generate Report')).toBeInTheDocument();
+    expect(await screen.findByText('Select Template')).toBeInTheDocument();
+    expect(await screen.findByText('Configure Parameters')).toBeInTheDocument();
+  });
+
+  test('loads available report templates', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportGenerator />
+      </QueryClientProvider>
+    );
+
     await waitFor(() => {
-      expect(screen.getByText('Report Generated Successfully')).toBeInTheDocument();
+      expect(screen.getByText('Property Assessment Summary')).toBeInTheDocument();
+      expect(screen.getByText('Parcel Activity Report')).toBeInTheDocument();
     });
   });
 
-  test('shows validation errors for invalid parameters', async () => {
-    render(<ReportGenerator />);
+  test('displays template-specific parameters when template is selected', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportGenerator />
+      </QueryClientProvider>
+    );
+
+    const templateSelect = await screen.findByLabelText('Report Template');
+    fireEvent.change(templateSelect, { target: { value: '1' } });
     
-    // Wait for templates to load and select one
-    await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('SM00 Report'));
-    
-    // Don't fill any parameters and try to generate
-    await waitFor(() => {
-      expect(screen.getByText('Generate Report')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('Generate Report'));
-    
-    // Verify validation error messages
-    await waitFor(() => {
-      expect(screen.getByText('Start date is required')).toBeInTheDocument();
-      expect(screen.getByText('End date is required')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Report Parameters')).toBeInTheDocument();
   });
 
-  test('displays preview of report before generation', async () => {
-    render(<ReportGenerator />);
+  test('validates required parameters before submission', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportGenerator />
+      </QueryClientProvider>
+    );
+
+    const templateSelect = await screen.findByLabelText('Report Template');
+    fireEvent.change(templateSelect, { target: { value: '1' } });
     
-    // Wait for templates to load and select one
+    const submitButton = screen.getByText('Generate Report');
+    fireEvent.click(submitButton);
+    
+    expect(await screen.findByText('Required parameters missing')).toBeInTheDocument();
+  });
+
+  test('successfully submits report generation request', async () => {
+    const mockGenerate = jest.fn().mockImplementation(() => 
+      Promise.resolve({ id: 123, status: 'pending' })
+    );
+    global.fetch = jest.fn().mockImplementation((url, options) => {
+      if (url === '/api/reports' && options.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => mockGenerate()
+        });
+      }
+      if (url === '/api/reports/templates') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockTemplates)
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
+      });
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReportGenerator />
+      </QueryClientProvider>
+    );
+    
+    const templateSelect = await screen.findByLabelText('Report Template');
+    fireEvent.change(templateSelect, { target: { value: '1' } });
+    
+    // Fill in required parameters
+    const nameInput = screen.getByLabelText('Report Name');
+    fireEvent.change(nameInput, { target: { value: 'Test Report' } });
+    
+    const startDateInput = screen.getByLabelText('Start Date');
+    fireEvent.change(startDateInput, { target: { value: '2025-01-01' } });
+    
+    const endDateInput = screen.getByLabelText('End Date');
+    fireEvent.change(endDateInput, { target: { value: '2025-03-31' } });
+    
+    const submitButton = screen.getByText('Generate Report');
+    fireEvent.click(submitButton);
+    
     await waitFor(() => {
-      expect(screen.getByText('SM00 Report')).toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('SM00 Report'));
-    
-    // Fill in parameters
-    await waitFor(() => {
-      expect(screen.getByLabelText('Start Date')).toBeInTheDocument();
-    });
-    
-    fireEvent.change(screen.getByLabelText('Start Date'), { 
-      target: { value: '2023-01-01' }
-    });
-    
-    fireEvent.change(screen.getByLabelText('End Date'), { 
-      target: { value: '2023-01-31' }
-    });
-    
-    // Click preview button
-    fireEvent.click(screen.getByText('Preview Report'));
-    
-    // Verify preview is shown
-    await waitFor(() => {
-      expect(screen.getByText('Report Preview')).toBeInTheDocument();
-      expect(screen.getByText('SM00 Report - 2023-01-01 to 2023-01-31')).toBeInTheDocument();
+      expect(mockGenerate).toHaveBeenCalled();
+      expect(screen.getByText('Report generation started')).toBeInTheDocument();
     });
   });
 });

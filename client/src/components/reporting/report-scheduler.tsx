@@ -1,751 +1,875 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { CalendarClock, Clock, Users, Calendar, AlertTriangle, Info, Trash2, PencilLine, CheckCircle2 } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { z } from 'zod';
+import { format, addDays, addWeeks, addMonths } from 'date-fns';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { 
+  Loader2, 
+  Calendar, 
+  Clock, 
+  ChevronRight, 
+  MoreHorizontal, 
+  Trash2, 
+  Edit2, 
+  Play, 
+  Pause, 
+  CheckCircle2, 
+  AlertCircle, 
+  Clock4 
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { illustrations } from '@/lib/illustrations';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { cn } from '@/lib/utils';
 
-// Zod schema for schedule form
-const scheduleSchema = z.object({
-  templateId: z.number({ required_error: 'Report template is required' }),
-  name: z.string().min(1, 'Schedule name is required'),
-  frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly'], { required_error: 'Frequency is required' }),
-  dayOfWeek: z.number().optional(),
-  dayOfMonth: z.number().optional(),
-  month: z.number().optional(),
-  hour: z.number().min(0).max(23),
-  minute: z.number().min(0).max(59),
-  parameters: z.record(z.any()),
-  recipients: z.string().min(1, 'At least one recipient is required'),
-  active: z.boolean().default(true),
-});
-
-// TypeScript types
 interface ReportTemplate {
   id: number;
   name: string;
   description: string;
-  templateType: string;
-  parameterSchema: Record<string, any>;
 }
 
-interface ReportSchedule {
-  id?: number;
-  templateId: number;
-  templateName?: string;
+interface ReportScheduleItem {
+  id: number;
   name: string;
+  templateId: number;
+  templateName: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
   dayOfWeek?: number;
   dayOfMonth?: number;
-  month?: number;
   hour: number;
   minute: number;
   parameters: Record<string, any>;
-  recipients: string;
   active: boolean;
-  createdAt?: string;
+  nextRun: string;
   lastRun?: string;
-  nextRun?: string;
 }
 
-type ScheduleFormValues = z.infer<typeof scheduleSchema>;
+const schedulerFormSchema = z.object({
+  name: z.string().min(3, "Schedule name must be at least 3 characters"),
+  templateId: z.number({
+    required_error: "Please select a report template",
+  }),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly']),
+  dayOfWeek: z.number().optional(),
+  dayOfMonth: z.number().optional(),
+  hour: z.number().min(0).max(23),
+  minute: z.number().min(0).max(59),
+  active: z.boolean().default(true),
+  parameters: z.record(z.any()),
+});
+
+type SchedulerFormValues = z.infer<typeof schedulerFormSchema>;
 
 export const ReportScheduler = () => {
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<ReportSchedule | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ReportScheduleItem | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const { toast } = useToast();
-
-  // Fetch report templates
-  const { data: templates } = useQuery({
-    queryKey: ['/api/reports/templates'],
+  
+  // Fetch templates for dropdown
+  const templatesQuery = useQuery({
+    queryKey: ['/api/report-templates'],
     queryFn: async () => {
-      const response = await apiRequest('/api/reports/templates');
-      return response as ReportTemplate[];
-    },
+      const response = await fetch('/api/report-templates');
+      if (!response.ok) {
+        throw new Error('Failed to fetch report templates');
+      }
+      return response.json();
+    }
   });
-
-  // Fetch report schedules
-  const { data: schedules, isLoading: loadingSchedules } = useQuery({
-    queryKey: ['/api/reports/schedules'],
+  
+  // Fetch existing schedules
+  const schedulesQuery = useQuery({
+    queryKey: ['/api/report-schedules'],
     queryFn: async () => {
-      const response = await apiRequest('/api/reports/schedules');
-      return response as ReportSchedule[];
-    },
+      const response = await fetch('/api/report-schedules');
+      if (!response.ok) {
+        throw new Error('Failed to fetch report schedules');
+      }
+      return response.json();
+    }
   });
-
-  // Create form
-  const createForm = useForm<ScheduleFormValues>({
-    resolver: zodResolver(scheduleSchema),
+  
+  // Form setup
+  const form = useForm<SchedulerFormValues>({
+    resolver: zodResolver(schedulerFormSchema),
     defaultValues: {
       name: '',
-      hour: 8,
+      hour: 0,
       minute: 0,
-      parameters: {},
-      recipients: '',
       active: true,
+      parameters: {},
     }
   });
-
-  // Edit form
-  const editForm = useForm<ScheduleFormValues>({
-    resolver: zodResolver(scheduleSchema),
-  });
-
-  // Mutations
+  
+  // Create new schedule
   const createScheduleMutation = useMutation({
-    mutationFn: async (values: ScheduleFormValues) => {
-      const response = await apiRequest('/api/reports/schedules', {
+    mutationFn: async (data: SchedulerFormValues) => {
+      const response = await apiRequest('/api/report-schedules', {
         method: 'POST',
-        data: values,
-      });
-      return response;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/schedules'] });
-      setIsCreateDialogOpen(false);
-      createForm.reset();
-      toast({
-        title: 'Schedule created successfully',
-        description: 'Your report schedule has been created and is now active.',
-        variant: 'default',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Failed to create schedule',
-        description: error.message || 'An error occurred while creating the schedule.',
-        variant: 'destructive',
-      });
-    }
-  });
-
-  const updateScheduleMutation = useMutation({
-    mutationFn: async (values: ScheduleFormValues & { id: number }) => {
-      const { id, ...data } = values;
-      const response = await apiRequest(`/api/reports/schedules/${id}`, {
-        method: 'PATCH',
         data,
       });
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/schedules'] });
-      setIsEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/report-schedules'] });
       toast({
-        title: 'Schedule updated successfully',
-        description: 'Your changes to the schedule have been saved.',
-        variant: 'default',
+        title: "Schedule Created",
+        description: "Your report schedule has been created successfully.",
+      });
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Creation Failed",
+        description: error.message,
+        variant: "destructive",
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Failed to update schedule',
-        description: error.message || 'An error occurred while updating the schedule.',
-        variant: 'destructive',
-      });
-    }
   });
-
+  
+  // Update existing schedule
+  const updateScheduleMutation = useMutation({
+    mutationFn: async (data: SchedulerFormValues & { id: number }) => {
+      const { id, ...scheduleData } = data;
+      const response = await apiRequest(`/api/report-schedules/${id}`, {
+        method: 'PATCH',
+        data: scheduleData,
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/report-schedules'] });
+      toast({
+        title: "Schedule Updated",
+        description: "Your report schedule has been updated successfully.",
+      });
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Delete schedule
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await apiRequest(`/api/reports/schedules/${id}`, {
+      const response = await apiRequest(`/api/report-schedules/${id}`, {
         method: 'DELETE',
       });
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/schedules'] });
-      setIsDeleteDialogOpen(false);
-      setSelectedSchedule(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/report-schedules'] });
       toast({
-        title: 'Schedule deleted successfully',
-        description: 'The report schedule has been removed.',
-        variant: 'default',
+        title: "Schedule Deleted",
+        description: "Your report schedule has been deleted successfully.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: 'Failed to delete schedule',
-        description: error.message || 'An error occurred while deleting the schedule.',
-        variant: 'destructive',
+        title: "Deletion Failed",
+        description: error.message,
+        variant: "destructive",
       });
-    }
+    },
   });
-
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, active }: { id: number, active: boolean }) => {
-      const response = await apiRequest(`/api/reports/schedules/${id}`, {
+  
+  // Toggle schedule active status
+  const toggleScheduleMutation = useMutation({
+    mutationFn: async ({ id, active }: { id: number; active: boolean }) => {
+      const response = await apiRequest(`/api/report-schedules/${id}`, {
         method: 'PATCH',
         data: { active },
       });
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/report-schedules'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: 'Failed to update schedule',
-        description: error.message || 'An error occurred while updating the schedule.',
-        variant: 'destructive',
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
       });
-    }
+    },
   });
-
-  // Form submission handlers
-  const onCreateSubmit = (values: ScheduleFormValues) => {
-    createScheduleMutation.mutateAsync(values);
-  };
-
-  const onEditSubmit = (values: ScheduleFormValues) => {
-    if (!selectedSchedule?.id) return;
-    updateScheduleMutation.mutateAsync({ ...values, id: selectedSchedule.id });
-  };
-
-  const handleEdit = (schedule: ReportSchedule) => {
-    setSelectedSchedule(schedule);
+  
+  // Helper function to format frequency display text
+  const formatFrequency = (schedule: ReportScheduleItem) => {
+    const time = `${schedule.hour.toString().padStart(2, '0')}:${schedule.minute.toString().padStart(2, '0')}`;
     
-    // Reset form with schedule values
-    editForm.reset({
-      templateId: schedule.templateId,
-      name: schedule.name,
-      frequency: schedule.frequency,
-      dayOfWeek: schedule.dayOfWeek,
-      dayOfMonth: schedule.dayOfMonth,
-      month: schedule.month,
-      hour: schedule.hour,
-      minute: schedule.minute,
-      parameters: schedule.parameters,
-      recipients: schedule.recipients,
-      active: schedule.active,
-    });
+    switch (schedule.frequency) {
+      case 'daily':
+        return `Daily at ${time}`;
+      case 'weekly':
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const day = days[schedule.dayOfWeek || 0];
+        return `Every ${day} at ${time}`;
+      case 'monthly':
+        const dayOfMonth = schedule.dayOfMonth || 1;
+        const ordinal = dayOfMonth === 1 ? 'st' : dayOfMonth === 2 ? 'nd' : dayOfMonth === 3 ? 'rd' : 'th';
+        return `Monthly on the ${dayOfMonth}${ordinal} at ${time}`;
+      case 'quarterly':
+        return `Quarterly on the ${schedule.dayOfMonth || 1}${schedule.dayOfMonth === 1 ? 'st' : 'th'} at ${time}`;
+      default:
+        return 'Unknown frequency';
+    }
+  };
+  
+  // Handle form submission
+  const onSubmit = (values: SchedulerFormValues) => {
+    // Clean up values based on frequency
+    if (values.frequency !== 'weekly') {
+      delete values.dayOfWeek;
+    }
     
-    setIsEditDialogOpen(true);
+    if (values.frequency !== 'monthly' && values.frequency !== 'quarterly') {
+      delete values.dayOfMonth;
+    }
+    
+    if (editingSchedule) {
+      updateScheduleMutation.mutate({ ...values, id: editingSchedule.id });
+    } else {
+      createScheduleMutation.mutate(values);
+    }
   };
-
-  const handleDelete = (schedule: ReportSchedule) => {
-    setSelectedSchedule(schedule);
-    setIsDeleteDialogOpen(true);
+  
+  // Handle template selection
+  const handleTemplateChange = (templateId: string) => {
+    const id = parseInt(templateId, 10);
+    const template = templatesQuery.data?.find((t: ReportTemplate) => t.id === id);
+    
+    if (template) {
+      setSelectedTemplate(template);
+      form.setValue('templateId', id);
+      
+      // If this is a new schedule, update the name based on template
+      if (!editingSchedule) {
+        form.setValue('name', `${template.name} Schedule`);
+      }
+    }
   };
-
-  const confirmDelete = () => {
-    if (!selectedSchedule?.id) return;
-    deleteScheduleMutation.mutateAsync(selectedSchedule.id);
-  };
-
-  const handleToggleActive = (schedule: ReportSchedule) => {
-    if (!schedule.id) return;
-    toggleActiveMutation.mutateAsync({ 
+  
+  // Toggle schedule active status
+  const handleToggleActive = (schedule: ReportScheduleItem) => {
+    toggleScheduleMutation.mutate({ 
       id: schedule.id, 
       active: !schedule.active 
     });
   };
-
-  // Helper to get frequency display text
-  const getFrequencyDisplay = (schedule: ReportSchedule) => {
-    switch (schedule.frequency) {
-      case 'daily':
-        return 'Daily';
-      case 'weekly':
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        return `Weekly on ${days[schedule.dayOfWeek || 0]}`;
-      case 'monthly':
-        return `Monthly on day ${schedule.dayOfMonth}`;
-      case 'quarterly':
-        const months = ['January', 'April', 'July', 'October'];
-        return 'Quarterly';
-      default:
-        return schedule.frequency;
+  
+  // Delete a schedule
+  const handleDeleteSchedule = (schedule: ReportScheduleItem) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the schedule "${schedule.name}"? This action cannot be undone.`
+    );
+    
+    if (confirmed) {
+      deleteScheduleMutation.mutate(schedule.id);
     }
   };
-
-  // Helper to format time
-  const formatTime = (hour: number, minute: number) => {
-    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  
+  // Reset form and editing state
+  const resetForm = () => {
+    form.reset({
+      name: '',
+      hour: 0,
+      minute: 0,
+      active: true,
+      parameters: {},
+    });
+    setIsCreating(false);
+    setEditingSchedule(null);
+    setSelectedTemplate(null);
   };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Scheduled Reports</h2>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          Create New Schedule
-        </Button>
-      </div>
-
-      {loadingSchedules ? (
-        <div>Loading schedules...</div>
-      ) : !schedules || schedules.length === 0 ? (
-        <Card className="bg-muted/30">
-          <CardContent className="pt-6 text-center">
-            <InfoIcon className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-            <h3 className="mt-4 text-lg font-medium">No schedules created yet</h3>
-            <p className="mt-2 mb-4 text-sm text-muted-foreground">
-              Create a schedule to automatically generate reports on a regular basis.
-            </p>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              Create Your First Schedule
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {schedules.map((schedule) => (
-            <Card key={schedule.id} className={cn(!schedule.active && "opacity-70")}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {schedule.name}
-                      {!schedule.active && (
-                        <Badge variant="outline" className="ml-2">
-                          Inactive
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      {schedule.templateName || `Template ID: ${schedule.templateId}`}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(schedule)}>
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(schedule)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Delete</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+  
+  // Handle edit button click
+  const handleEditSchedule = (schedule: ReportScheduleItem) => {
+    setEditingSchedule(schedule);
+    setIsCreating(true);
+    
+    // Find the template
+    const template = templatesQuery.data?.find((t: ReportTemplate) => t.id === schedule.templateId);
+    setSelectedTemplate(template || null);
+    
+    // Fill the form with schedule data
+    form.reset({
+      name: schedule.name,
+      templateId: schedule.templateId,
+      frequency: schedule.frequency,
+      dayOfWeek: schedule.dayOfWeek,
+      dayOfMonth: schedule.dayOfMonth,
+      hour: schedule.hour,
+      minute: schedule.minute,
+      active: schedule.active,
+      parameters: schedule.parameters || {},
+    });
+  };
+  
+  // Show the form or schedule list based on state
+  if (isCreating) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {editingSchedule ? 'Edit Schedule' : 'Create Schedule'}
+            <IllustratedTooltip
+              illustration={illustrations.report.schedule}
+              title="Report Scheduler"
+              content={
+                <div>
+                  <p className="mb-1">• Schedule automated report generation</p>
+                  <p className="mb-1">• Configure frequency and timing</p>
+                  <p className="mb-1">• Set custom parameters for each schedule</p>
+                  <p>• Manage all your report schedules</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                    <span>{getFrequencyDisplay(schedule)}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {schedule.frequency === 'weekly' && schedule.dayOfWeek !== undefined 
-                        ? `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][schedule.dayOfWeek]} at ` 
-                        : schedule.frequency === 'monthly' && schedule.dayOfMonth !== undefined
-                        ? `Day ${schedule.dayOfMonth} at `
-                        : ''}
-                      {formatTime(schedule.hour, schedule.minute)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {schedule.recipients.split(',').length} recipient{schedule.recipients.split(',').length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                </div>
-                
-                {schedule.lastRun && (
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    Last run: {format(new Date(schedule.lastRun), 'PPp')}
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="pt-0 flex justify-between">
-                {schedule.nextRun && (
-                  <div className="text-sm">
-                    Next run: {format(new Date(schedule.nextRun), 'PPp')}
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Active</span>
-                  <Switch 
-                    checked={schedule.active} 
-                    onCheckedChange={() => handleToggleActive(schedule)}
-                  />
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Create Schedule Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Create New Schedule</DialogTitle>
-            <DialogDescription>
-              Set up a recurring report schedule
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...createForm}>
-            <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-4">
-              <div className="grid grid-cols-1 gap-4">
-                <FormField
-                  control={createForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Schedule Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Monthly Workflow Summary" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={createForm.control}
-                  name="templateId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Report Template</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a report template" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {templates?.map((template) => (
-                            <SelectItem key={template.id} value={template.id.toString()}>
-                              {template.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              }
+              position="right"
+            />
+          </CardTitle>
+          <CardDescription>
+            {editingSchedule 
+              ? `Update settings for "${editingSchedule.name}"`
+              : 'Configure automatic report generation on a schedule'
+            }
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          {templatesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <p>Loading templates...</p>
+            </div>
+          ) : templatesQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                Failed to load report templates. Please try again later.
+              </AlertDescription>
+            </Alert>
+          ) : templatesQuery.data?.length === 0 ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>No Templates Available</AlertTitle>
+              <AlertDescription>
+                There are no report templates available for scheduling.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
                   <FormField
-                    control={createForm.control}
-                    name="frequency"
+                    control={form.control}
+                    name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Frequency</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select frequency" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Schedule Name</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="Enter a name for this schedule"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          A descriptive name to identify this schedule
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   
-                  {createForm.watch('frequency') === 'weekly' && (
+                  <FormField
+                    control={form.control}
+                    name="templateId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Report Template</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(parseInt(value, 10));
+                            handleTemplateChange(value);
+                          }}
+                          value={field.value?.toString()}
+                          disabled={!!editingSchedule}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a template" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {templatesQuery.data?.map((template: ReportTemplate) => (
+                              <SelectItem key={template.id} value={template.id.toString()}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {selectedTemplate?.description || 'The report template to use for this schedule'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Schedule Settings</h3>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
                     <FormField
-                      control={createForm.control}
-                      name="dayOfWeek"
+                      control={form.control}
+                      name="frequency"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Day of Week</FormLabel>
+                          <FormLabel>Frequency</FormLabel>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
+                            onValueChange={field.onChange}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select day" />
+                                <SelectValue placeholder="Select frequency" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="0">Sunday</SelectItem>
-                              <SelectItem value="1">Monday</SelectItem>
-                              <SelectItem value="2">Tuesday</SelectItem>
-                              <SelectItem value="3">Wednesday</SelectItem>
-                              <SelectItem value="4">Thursday</SelectItem>
-                              <SelectItem value="5">Friday</SelectItem>
-                              <SelectItem value="6">Saturday</SelectItem>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="quarterly">Quarterly</SelectItem>
                             </SelectContent>
                           </Select>
+                          <FormDescription>
+                            How often the report should be generated
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
+                    
+                    {form.watch('frequency') === 'weekly' && (
+                      <FormField
+                        control={form.control}
+                        name="dayOfWeek"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Day of Week</FormLabel>
+                            <Select
+                              onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                              value={field.value?.toString()}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select day" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="0">Sunday</SelectItem>
+                                <SelectItem value="1">Monday</SelectItem>
+                                <SelectItem value="2">Tuesday</SelectItem>
+                                <SelectItem value="3">Wednesday</SelectItem>
+                                <SelectItem value="4">Thursday</SelectItem>
+                                <SelectItem value="5">Friday</SelectItem>
+                                <SelectItem value="6">Saturday</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Which day of the week the report should run
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    
+                    {(form.watch('frequency') === 'monthly' || form.watch('frequency') === 'quarterly') && (
+                      <FormField
+                        control={form.control}
+                        name="dayOfMonth"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Day of Month</FormLabel>
+                            <Select
+                              onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                              value={field.value?.toString()}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select day" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                                  <SelectItem key={day} value={day.toString()}>
+                                    {day}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Which day of the month the report should run
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
                   
-                  {createForm.watch('frequency') === 'monthly' && (
+                  <div className="grid gap-6 md:grid-cols-2">
                     <FormField
-                      control={createForm.control}
-                      name="dayOfMonth"
+                      control={form.control}
+                      name="hour"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Day of Month</FormLabel>
+                          <FormLabel>Hour</FormLabel>
                           <Select
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                            defaultValue={field.value?.toString()}
+                            onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                            value={field.value?.toString()}
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select day" />
+                                <SelectValue placeholder="Select hour" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Array.from({ length: 31 }, (_, i) => (
-                                <SelectItem key={i} value={(i + 1).toString()}>
-                                  {i + 1}
+                              {Array.from({ length: 24 }, (_, i) => i).map((hour) => (
+                                <SelectItem key={hour} value={hour.toString()}>
+                                  {hour.toString().padStart(2, '0')}:00
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          <FormDescription>
+                            Hour of the day (24-hour format)
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={createForm.control}
-                    name="hour"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Hour</FormLabel>
-                        <FormControl>
-                          <Input type="number" min={0} max={23} {...field} />
-                        </FormControl>
-                        <FormDescription>24-hour format (0-23)</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    
+                    <FormField
+                      control={form.control}
+                      name="minute"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Minute</FormLabel>
+                          <Select
+                            onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                            value={field.value?.toString()}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select minute" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {[0, 15, 30, 45].map((minute) => (
+                                <SelectItem key={minute} value={minute.toString()}>
+                                  :{minute.toString().padStart(2, '0')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Minute of the hour
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   
                   <FormField
-                    control={createForm.control}
-                    name="minute"
+                    control={form.control}
+                    name="active"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Minute</FormLabel>
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            Active
+                          </FormLabel>
+                          <FormDescription>
+                            Enable or disable this schedule
+                          </FormDescription>
+                        </div>
                         <FormControl>
-                          <Input type="number" min={0} max={59} {...field} />
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
                         </FormControl>
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
                 
-                <FormField
-                  control={createForm.control}
-                  name="parameters"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time Range</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange({ range: value })}
-                        defaultValue={field.value?.range}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time range" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="CURRENT_DAY">Current Day</SelectItem>
-                          <SelectItem value="YESTERDAY">Yesterday</SelectItem>
-                          <SelectItem value="CURRENT_WEEK">Current Week</SelectItem>
-                          <SelectItem value="LAST_WEEK">Last Week</SelectItem>
-                          <SelectItem value="CURRENT_MONTH">Current Month</SelectItem>
-                          <SelectItem value="LAST_MONTH">Last Month</SelectItem>
-                          <SelectItem value="CURRENT_QUARTER">Current Quarter</SelectItem>
-                          <SelectItem value="LAST_QUARTER">Last Quarter</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        The time period to include in the report
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={createForm.control}
-                  name="recipients"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Recipients</FormLabel>
-                      <FormControl>
-                        <Input placeholder="email@example.com, another@example.com" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Comma-separated list of email addresses
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={createForm.control}
-                  name="active"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">Active</FormLabel>
-                        <FormDescription>
-                          Schedule will run automatically if active
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsCreateDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createScheduleMutation.isPending}
-                >
-                  {createScheduleMutation.isPending ? "Saving..." : "Save Schedule"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Edit Schedule Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Edit Schedule</DialogTitle>
-            <DialogDescription>
-              Update the recurring report schedule
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-4">
-              {/* Same form fields as create, but populated with schedule data */}
-              {/* ... (Similar to create form but with editForm) */}
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={updateScheduleMutation.isPending}
-                >
-                  {updateScheduleMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this schedule?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. The schedule will be permanently removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteScheduleMutation.isPending ? "Deleting..." : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-};
-
-// Helper icon component
-const InfoIcon = ({ className }: { className?: string }) => {
+                {selectedTemplate && (
+                  <Alert className="mt-4">
+                    <Clock4 className="h-4 w-4" />
+                    <AlertTitle>Schedule Preview</AlertTitle>
+                    <AlertDescription>
+                      Based on your settings, the report{' '}
+                      <span className="font-medium">{selectedTemplate.name}</span>{' '}
+                      will run{' '}
+                      {form.watch('frequency') === 'daily' && 'every day'}
+                      {form.watch('frequency') === 'weekly' && form.watch('dayOfWeek') !== undefined && 
+                        `every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][form.watch('dayOfWeek')]}`
+                      }
+                      {form.watch('frequency') === 'monthly' && form.watch('dayOfMonth') !== undefined && 
+                        `on day ${form.watch('dayOfMonth')} of every month`
+                      }
+                      {form.watch('frequency') === 'quarterly' && form.watch('dayOfMonth') !== undefined && 
+                        `on day ${form.watch('dayOfMonth')} of the first month of each quarter`
+                      }{' '}
+                      at{' '}
+                      {form.watch('hour')?.toString().padStart(2, '0')}:{form.watch('minute')?.toString().padStart(2, '0')}.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </form>
+            </Form>
+          )}
+        </CardContent>
+        
+        <CardFooter className="flex justify-between">
+          <Button 
+            variant="outline" 
+            onClick={resetForm}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={form.handleSubmit(onSubmit)}
+            disabled={
+              createScheduleMutation.isPending || 
+              updateScheduleMutation.isPending || 
+              !form.formState.isValid
+            }
+          >
+            {(createScheduleMutation.isPending || updateScheduleMutation.isPending) && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {editingSchedule ? 'Update Schedule' : 'Create Schedule'}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+  
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </svg>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              Scheduled Reports
+              <IllustratedTooltip
+                illustration={illustrations.report.schedule}
+                title="Report Scheduler"
+                content={
+                  <div>
+                    <p className="mb-1">• Schedule automated report generation</p>
+                    <p className="mb-1">• Configure frequency and timing</p>
+                    <p className="mb-1">• Set custom parameters for each schedule</p>
+                    <p>• Manage all your report schedules</p>
+                  </div>
+                }
+                position="right"
+              />
+            </CardTitle>
+            <CardDescription>
+              Manage your automated report generation schedules
+            </CardDescription>
+          </div>
+          <Button onClick={() => setIsCreating(true)}>
+            <Calendar className="mr-2 h-4 w-4" />
+            New Schedule
+          </Button>
+        </div>
+      </CardHeader>
+      
+      <CardContent>
+        {schedulesQuery.isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            <p>Loading schedules...</p>
+          </div>
+        ) : schedulesQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              Failed to load report schedules. Please try again later.
+            </AlertDescription>
+          </Alert>
+        ) : !schedulesQuery.data || schedulesQuery.data.length === 0 ? (
+          <div className="text-center py-10 border rounded-md bg-muted/10">
+            <Calendar className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
+            <h3 className="text-lg font-medium">No Scheduled Reports</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              You haven't created any report schedules yet. Schedule reports to automate your reporting workflow.
+            </p>
+            <Button onClick={() => setIsCreating(true)}>
+              <Calendar className="mr-2 h-4 w-4" />
+              Create Your First Schedule
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Report</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead>Next Run</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {schedulesQuery.data.map((schedule: ReportScheduleItem) => (
+                  <TableRow key={schedule.id}>
+                    <TableCell className="font-medium">{schedule.name}</TableCell>
+                    <TableCell>{schedule.templateName}</TableCell>
+                    <TableCell>{formatFrequency(schedule)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {format(new Date(schedule.nextRun), 'MMM d, yyyy h:mm a')}
+                    </TableCell>
+                    <TableCell>
+                      <div 
+                        className={cn(
+                          "flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full w-fit",
+                          schedule.active 
+                            ? "bg-green-100 text-green-800" 
+                            : "bg-gray-100 text-gray-800"
+                        )}
+                      >
+                        {schedule.active 
+                          ? <><CheckCircle2 className="h-3 w-3" /> Active</>
+                          : <><Pause className="h-3 w-3" /> Paused</>
+                        }
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleActive(schedule)}
+                          title={schedule.active ? "Pause schedule" : "Activate schedule"}
+                        >
+                          {schedule.active ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditSchedule(schedule)}>
+                              <Edit2 className="h-4 w-4 mr-2" />
+                              <span>Edit Schedule</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleToggleActive(schedule)}
+                              className="text-amber-600"
+                            >
+                              {schedule.active ? (
+                                <>
+                                  <Pause className="h-4 w-4 mr-2" />
+                                  <span>Pause Schedule</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-4 w-4 mr-2" />
+                                  <span>Activate Schedule</span>
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteSchedule(schedule)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              <span>Delete Schedule</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };

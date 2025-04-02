@@ -1,324 +1,389 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Calendar, User, File, RefreshCw, BarChart3 } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { FileText, Table as TableIcon, BarChart2, Loader2, AlertCircle } from 'lucide-react';
+import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { illustrations } from '@/lib/illustrations';
+import { ReportExporter } from '@/components/reporting/report-exporter';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { ReportExporter } from './report-exporter';
-import { apiRequest } from '@/lib/queryClient';
-import { cn } from '@/lib/utils';
-
-// TypeScript types
-interface ReportMetadata {
-  id: number;
-  name: string;
-  templateId: number;
-  templateName: string;
-  parameters: Record<string, any>;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  error?: string;
-  createdAt: string;
-  completedAt?: string;
-  generatedBy: string;
-  totalRows?: number;
+interface ViewerProps {
+  reportId: number;
 }
 
-interface ReportData {
-  headers: { id: string; label: string }[];
-  rows: Record<string, any>[];
-  summaries: { label: string; value: any }[];
-  charts?: any[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalRows: number;
-    pageSize: number;
-  };
-}
-
-export const ReportViewer = ({ reportId }: { reportId: number }) => {
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-
+export const ReportViewer = ({ reportId }: ViewerProps) => {
+  const [selectedTab, setSelectedTab] = useState('data');
+  const [page, setPage] = useState(1);
+  const perPage = 10;
+  
   // Fetch report metadata
-  const { data: report, isLoading: loadingReport, error: reportError } = useQuery({
+  const reportQuery = useQuery({
     queryKey: [`/api/reports/${reportId}`],
     queryFn: async () => {
-      const response = await apiRequest(`/api/reports/${reportId}`);
-      return response as ReportMetadata;
-    },
-  });
-
-  // Fetch report data with pagination and sorting
-  const { 
-    data: reportData, 
-    isLoading: loadingData, 
-    error: dataError,
-    refetch
-  } = useQuery({
-    queryKey: [`/api/reports/${reportId}/data`, { page: currentPage, sortField, sortDirection }],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('page', currentPage.toString());
-      if (sortField) {
-        params.append('sortField', sortField);
-        params.append('sortDirection', sortDirection);
+      const response = await fetch(`/api/reports/${reportId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
       }
-      const response = await apiRequest(`/api/reports/${reportId}/data?${params.toString()}`);
-      return response as ReportData;
-    },
-    enabled: !!report && report.status === 'completed',
-  });
-
-  const handleSort = (fieldId: string) => {
-    if (sortField === fieldId) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(fieldId);
-      setSortDirection('asc');
+      return response.json();
     }
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-  };
-
-  if (loadingReport) {
+  });
+  
+  // Fetch report data with pagination
+  const dataQuery = useQuery({
+    queryKey: [`/api/reports/${reportId}/data`, { page, perPage }],
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/${reportId}/data?page=${page}&perPage=${perPage}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch report data');
+      }
+      return response.json();
+    },
+    enabled: !!reportQuery.data && reportQuery.data.status === 'completed'
+  });
+  
+  // If report is not completed, don't show data
+  if (reportQuery.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-48 w-full" />
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        <p>Loading report metadata...</p>
       </div>
     );
   }
-
-  if (reportError) {
+  
+  if (reportQuery.isError) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Error Loading Report</CardTitle>
-          <CardDescription>
-            Failed to load report information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-destructive">
-            {(reportError as Error).message || 'An unknown error occurred'}
-          </p>
-          <Button onClick={() => window.location.reload()} className="mt-4">
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive" className="my-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Failed to load report metadata. Please try again later.
+        </AlertDescription>
+      </Alert>
     );
   }
-
-  if (!report) {
-    return null;
+  
+  if (reportQuery.data?.status === 'pending' || reportQuery.data?.status === 'processing') {
+    return (
+      <Alert className="my-4">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <AlertTitle>Report is processing</AlertTitle>
+        <AlertDescription>
+          This report is still being generated. Please check back later.
+          {reportQuery.data?.status === 'processing' && (
+            <span> Currently processing...</span>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
   }
-
+  
+  if (reportQuery.data?.status === 'failed') {
+    return (
+      <Alert variant="destructive" className="my-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Report generation failed</AlertTitle>
+        <AlertDescription>
+          There was an error generating this report. Please try creating it again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+  
+  // Render pagination
+  const renderPagination = () => {
+    if (!dataQuery.data?.pagination) return null;
+    
+    const { totalPages } = dataQuery.data.pagination;
+    if (totalPages <= 1) return null;
+    
+    // Generate page numbers with ellipsis for long ranges
+    const pageNumbers: (number | null)[] = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      // Show all pages if fewer than max visible
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      // Always show first page
+      pageNumbers.push(1);
+      
+      // Show ellipsis or pages in the middle
+      if (page <= 3) {
+        // Near the start
+        for (let i = 2; i <= Math.min(page + 1, 4); i++) {
+          pageNumbers.push(i);
+        }
+        pageNumbers.push(null); // Ellipsis
+      } else if (page >= totalPages - 2) {
+        // Near the end
+        pageNumbers.push(null); // Ellipsis
+        for (let i = Math.max(totalPages - 3, 2); i < totalPages; i++) {
+          pageNumbers.push(i);
+        }
+      } else {
+        // Middle
+        pageNumbers.push(null); // Ellipsis
+        pageNumbers.push(page - 1);
+        pageNumbers.push(page);
+        pageNumbers.push(page + 1);
+        pageNumbers.push(null); // Ellipsis
+      }
+      
+      // Always show last page
+      pageNumbers.push(totalPages);
+    }
+    
+    return (
+      <Pagination>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious 
+              onClick={() => handlePageChange(page - 1)}
+              className={page === 1 ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+          
+          {pageNumbers.map((pageNum, index) => 
+            pageNum === null ? (
+              <PaginationItem key={`ellipsis-${index}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={pageNum}>
+                <PaginationLink
+                  isActive={pageNum === page}
+                  onClick={() => handlePageChange(pageNum as number)}
+                >
+                  {pageNum}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          
+          <PaginationItem>
+            <PaginationNext 
+              onClick={() => handlePageChange(page + 1)}
+              className={page === totalPages ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
+  
+  // Render data table with dynamic columns
+  const renderDataTable = () => {
+    if (dataQuery.isLoading) {
+      return (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          <p>Loading data...</p>
+        </div>
+      );
+    }
+    
+    if (dataQuery.isError) {
+      return (
+        <Alert variant="destructive" className="my-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Failed to load report data. Please try again later.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
+    if (!dataQuery.data?.rows?.length) {
+      return (
+        <div className="text-center py-10">
+          <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-medium">No Data Available</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This report did not return any data matching the criteria.
+          </p>
+        </div>
+      );
+    }
+    
+    // Extract column headers from the first row
+    const columns = Object.keys(dataQuery.data.rows[0]);
+    
+    return (
+      <>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {columns.map((column) => (
+                  <TableHead key={column}>{column}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {dataQuery.data.rows.map((row, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  {columns.map((column) => (
+                    <TableCell key={column}>{row[column]?.toString() || '-'}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        
+        <div className="mt-4 flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            Showing page {dataQuery.data.pagination.page} of {dataQuery.data.pagination.totalPages}
+            {' '}({dataQuery.data.pagination.totalRows} total rows)
+          </div>
+          {renderPagination()}
+        </div>
+      </>
+    );
+  };
+  
+  // Render summary/metrics panels
+  const renderSummaries = () => {
+    if (dataQuery.isLoading) {
+      return (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          <p>Loading summaries...</p>
+        </div>
+      );
+    }
+    
+    if (!dataQuery.data?.summaries || Object.keys(dataQuery.data.summaries).length === 0) {
+      return (
+        <div className="text-center py-10">
+          <BarChart2 className="mx-auto h-10 w-10 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-medium">No Summaries Available</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This report does not include summary metrics.
+          </p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Object.entries(dataQuery.data.summaries).map(([key, value]) => (
+          <Card key={key}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {key}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {typeof value === 'number' ? value.toLocaleString() : value.toString()}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+  
+  // Main render
   return (
-    <div className="space-y-6">
-      <Card>
+    <>
+      <Card className="w-full mb-6">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>{report.name}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                {reportQuery.data?.name}
+                <IllustratedTooltip
+                  illustration={illustrations.report.viewer}
+                  title="Report Viewer"
+                  content={
+                    <div>
+                      <p className="mb-1">• View detailed report data</p>
+                      <p className="mb-1">• Explore summary metrics</p>
+                      <p className="mb-1">• Navigate through paginated results</p>
+                      <p>• Export report in various formats</p>
+                    </div>
+                  }
+                  position="right"
+                />
+              </CardTitle>
               <CardDescription>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    {format(parseISO(report.createdAt), 'PPP')}
+                {reportQuery.data?.templateName}
+                {reportQuery.data?.completedAt && (
+                  <span className="ml-2">
+                    (Generated: {format(parseISO(reportQuery.data.completedAt), 'MMM d, yyyy h:mm a')})
                   </span>
-                  <span className="flex items-center gap-1">
-                    <User className="h-4 w-4" />
-                    Generated by: {report.generatedBy}
-                  </span>
-                  {report.totalRows && (
-                    <span className="flex items-center gap-1">
-                      <File className="h-4 w-4" />
-                      Total rows: {report.totalRows}
-                    </span>
-                  )}
-                </div>
+                )}
               </CardDescription>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Badge variant={
-                report.status === 'completed' ? 'default' :
-                report.status === 'failed' ? 'destructive' :
-                'secondary'
-              }>
-                {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-              </Badge>
-              
-              {report.status === 'completed' && (
-                <ReportExporter report={report} />
-              )}
             </div>
           </div>
         </CardHeader>
         
-        {report.status === 'completed' ? (
-          loadingData ? (
-            <CardContent>
-              <div className="text-center py-8">
-                <p className="mb-2">Loading report data...</p>
-                <Skeleton className="h-48 w-full" />
-              </div>
-            </CardContent>
-          ) : dataError ? (
-            <CardContent>
-              <Card className="bg-destructive/10">
-                <CardHeader>
-                  <CardTitle>Error loading report data</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>{(dataError as Error).message || 'An unknown error occurred'}</p>
-                  <Button onClick={() => refetch()} className="mt-4" variant="outline">
-                    <RefreshCw className="mr-2 h-4 w-4" /> Retry
-                  </Button>
-                </CardContent>
-              </Card>
-            </CardContent>
-          ) : (
-            <>
-              <CardContent>
-                {reportData?.summaries && reportData.summaries.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-                    {reportData.summaries.map((summary, index) => (
-                      <Card key={index}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">{summary.label}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-2xl font-bold">{summary.value}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-                
-                {reportData?.rows && reportData.rows.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-muted">
-                          {reportData.headers.map((header) => (
-                            <th 
-                              key={header.id} 
-                              className="px-4 py-2 text-left"
-                              onClick={() => handleSort(header.id)}
-                            >
-                              <div className="flex items-center gap-1 cursor-pointer">
-                                {header.label}
-                                {sortField === header.id && (
-                                  sortDirection === 'asc' ? (
-                                    <ChevronUp className="h-4 w-4" aria-label="sorted ascending" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" aria-label="sorted descending" />
-                                  )
-                                )}
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportData.rows.map((row, rowIndex) => (
-                          <tr key={rowIndex} className="border-b hover:bg-muted/50">
-                            {reportData.headers.map((header) => (
-                              <td key={header.id} className="px-4 py-2">
-                                {row[header.id]}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                
-                {reportData?.charts && reportData.charts.length > 0 && (
-                  <div className="mt-8">
-                    <h3 className="flex items-center gap-2 text-lg font-medium mb-4">
-                      <BarChart3 className="h-5 w-5" />
-                      Report Visualizations
-                    </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Charts would be rendered here, e.g., using recharts */}
-                      <div className="p-4 border rounded-md h-64 bg-muted/20 flex items-center justify-center">
-                        <p className="text-muted-foreground">Chart visualization placeholder</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              
-              {reportData?.pagination && reportData.pagination.totalPages > 1 && (
-                <CardFooter className="flex justify-between">
-                  <p>Page {reportData.pagination.currentPage} of {reportData.pagination.totalPages}</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage <= 1}
-                      aria-label="Go to previous page"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage >= reportData.pagination.totalPages}
-                      aria-label="Go to next page"
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardFooter>
-              )}
-            </>
-          )
-        ) : report.status === 'failed' ? (
-          <CardContent>
-            <Card className="bg-destructive/10">
-              <CardHeader>
-                <CardTitle>Error Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>{report.error || 'An unknown error occurred while generating the report.'}</p>
-                <Button className="mt-4">
-                  Retry Report
-                </Button>
-              </CardContent>
-            </Card>
-          </CardContent>
-        ) : (
-          <CardContent>
-            <Card>
-              <CardContent className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-                  </div>
-                  <p className="text-lg font-medium">
-                    {report.status === 'pending' ? 'Report is queued for processing' : 'Report is being generated'}
-                  </p>
-                  <p className="text-muted-foreground mt-2">This may take a few moments to complete.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </CardContent>
-        )}
+        <CardContent>
+          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="data">
+                <TableIcon className="mr-2 h-4 w-4" />
+                Data
+              </TabsTrigger>
+              <TabsTrigger value="summaries">
+                <BarChart2 className="mr-2 h-4 w-4" />
+                Summaries
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="data" className="space-y-4">
+              {renderDataTable()}
+            </TabsContent>
+            <TabsContent value="summaries" className="space-y-4">
+              {renderSummaries()}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
       </Card>
-    </div>
+      
+      {reportQuery.data?.status === 'completed' && (
+        <ReportExporter report={reportQuery.data} />
+      )}
+    </>
   );
 };
