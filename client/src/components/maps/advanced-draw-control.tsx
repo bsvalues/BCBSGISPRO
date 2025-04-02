@@ -1,670 +1,728 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
-import 'leaflet-draw/dist/leaflet.draw.css';
-import { GeoJSONFeature } from '@/lib/map-utils';
-import { 
-  findNearestPoint, 
-  canSnapToFeature,
-  FeatureVersionTracker,
-  createFeature,
-  splitPolygon,
-  joinPolygons,
-  generateLegalDescription
-} from '@/lib/advanced-drawing-utils';
 import { Button } from '@/components/ui/button';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger 
+} from '@/components/ui/popover';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import {
-  Scissors,
-  Combine,
-  RotateCcw,
+import { Input } from '@/components/ui/input';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { GeoJSONFeature, MapTool } from '@/lib/map-utils';
+import { 
+  MapIcon, 
+  Ruler, 
+  Square, 
+  LayoutList, 
+  Undo2, 
+  Redo2,
   Save,
-  FileText,
-  Undo2,
-  Grid,
-  Ruler
+  Clock,
+  Edit3,
+  Trash2,
+  User,
+  StickyNote,
+  RotateCcw,
+  Plus,
+  EyeOff
 } from 'lucide-react';
 
-// Event constants
-const CREATED = 'draw:created';
-const EDITED = 'draw:edited';
-const DELETED = 'draw:deleted';
-const DRAWSTART = 'draw:drawstart';
-const DRAWSTOP = 'draw:drawstop';
-const DRAWVERTEX = 'draw:drawvertex';
-const EDITSTART = 'draw:editstart';
-const EDITSTOP = 'draw:editstop';
-const EDITVERTEX = 'draw:editvertex';
+// Import the new measurement, snapping, and history functionality
+import { 
+  MeasurementManager, 
+  MeasurementDisplay, 
+  MeasurementUnit 
+} from '@/lib/measurement-system';
+import { 
+  SnapMode, 
+  SnapOptions, 
+  createSnapManager 
+} from '@/lib/snap-to-feature';
+import { 
+  createDrawingHistoryManager, 
+  DrawingHistoryManager 
+} from '@/lib/drawing-history';
+import { 
+  createAnnotationManager, 
+  AnnotationManager 
+} from '@/lib/drawing-annotation';
 
-interface AdvancedDrawControlProps {
+export interface AdvancedDrawControlProps {
   position?: L.ControlPosition;
-  onFeatureCreate?: (feature: GeoJSONFeature) => void;
-  onFeatureEdit?: (features: GeoJSONFeature[]) => void;
-  onFeatureDelete?: (features: GeoJSONFeature[]) => void;
-  onVersionChange?: (featureId: string, versionId: string) => void;
-  onLegalDescriptionGenerate?: (description: string, feature: GeoJSONFeature) => void;
+  currentTool: MapTool;
+  onToolChange: (tool: MapTool) => void;
+  onFeatureCreated?: (feature: GeoJSONFeature) => void;
+  onFeatureEdited?: (feature: GeoJSONFeature) => void;
+  onFeatureDeleted?: (feature: GeoJSONFeature) => void;
   existingFeatures?: GeoJSONFeature[];
-  snapDistance?: number; // Distance in meters for snapping
-  enableSnapping?: boolean;
-  enableVersioning?: boolean;
-  enableSplitJoin?: boolean;
-  enablePrecisionTools?: boolean;
-  draw?: {
-    polyline?: L.DrawOptions.PolylineOptions | false;
-    polygon?: L.DrawOptions.PolygonOptions | false;
-    rectangle?: L.DrawOptions.RectangleOptions | false;
-    circle?: L.DrawOptions.CircleOptions | false;
-    marker?: L.DrawOptions.MarkerOptions | false;
-    circlemarker?: L.DrawOptions.CircleMarkerOptions | false;
-  };
-  edit?: {
-    featureGroup?: L.FeatureGroup;
-    edit?: L.DrawOptions.EditHandlerOptions | false;
-    remove?: L.DrawOptions.DeleteHandlerOptions | false;
-  };
+  drawOptions?: L.Control.DrawConstructorOptions;
 }
 
-/**
- * Advanced drawing control with snapping, versioning, and specialized parcel editing tools
- */
-export function AdvancedDrawControl({
+export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
   position = 'topleft',
-  onFeatureCreate,
-  onFeatureEdit,
-  onFeatureDelete,
-  onVersionChange,
-  onLegalDescriptionGenerate,
+  currentTool,
+  onToolChange,
+  onFeatureCreated,
+  onFeatureEdited,
+  onFeatureDeleted,
   existingFeatures = [],
-  snapDistance = 10, // meters
-  enableSnapping = true,
-  enableVersioning = true,
-  enableSplitJoin = true,
-  enablePrecisionTools = true,
-  draw,
-  edit,
-}: AdvancedDrawControlProps) {
+  drawOptions
+}) => {
   const map = useMap();
-  const drawControlRef = useRef<L.Control.Draw | null>(null);
   const featureGroupRef = useRef<L.FeatureGroup | null>(null);
-  const mouseMarkerRef = useRef<L.CircleMarker | null>(null);
-  const snapMarkerRef = useRef<L.CircleMarker | null>(null);
-  const versionTrackerRef = useRef<FeatureVersionTracker>(new FeatureVersionTracker());
-  const [activeDrawing, setActiveDrawing] = useState(false);
-  const [activeEditing, setActiveEditing] = useState(false);
-  const [selectedFeature, setSelectedFeature] = useState<GeoJSONFeature | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [versionDescription, setVersionDescription] = useState('');
-  const [showLegalDialog, setShowLegalDialog] = useState(false);
-  const [legalDescription, setLegalDescription] = useState('');
-  const { toast } = useToast();
+  const drawControlRef = useRef<L.Control.Draw | null>(null);
+  const [isDrawActive, setIsDrawActive] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState<L.Layer | null>(null);
+  const [measurementText, setMeasurementText] = useState<string>('');
+  const [snapMode, setSnapMode] = useState<SnapMode>(SnapMode.BOTH);
+  const [snapThreshold, setSnapThreshold] = useState<number>(0.01);
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
+  const [activeVersionName, setActiveVersionName] = useState<string>('Current');
+  const [note, setNote] = useState<string>('');
   
-  // Initialize the feature group and draw control
+  // Create manager instances
+  const measurementManagerRef = useRef<MeasurementManager>(new MeasurementManager());
+  const measurementDisplayRef = useRef<MeasurementDisplay>(new MeasurementDisplay());
+  const snapManagerRef = useRef(createSnapManager());
+  const historyManagerRef = useRef<DrawingHistoryManager>(createDrawingHistoryManager());
+  const annotationManagerRef = useRef<AnnotationManager>(createAnnotationManager());
+  
+  // Store references to managers for easier access
+  const measurementManager = measurementManagerRef.current;
+  const measurementDisplay = measurementDisplayRef.current;
+  const snapManager = snapManagerRef.current;
+  const historyManager = historyManagerRef.current;
+  const annotationManager = annotationManagerRef.current;
+  
+  // Get saved versions
+  const [versions, setVersions] = useState(historyManager.getVersions());
+  
+  // Initialize draw control
   useEffect(() => {
-    // Initialize the FeatureGroup to store editable layers
-    if (!featureGroupRef.current) {
-      featureGroupRef.current = edit?.featureGroup || new L.FeatureGroup();
-      map.addLayer(featureGroupRef.current);
+    if (map) {
+      // Create feature group if it doesn't exist
+      if (!featureGroupRef.current) {
+        featureGroupRef.current = new L.FeatureGroup().addTo(map);
+      }
+      
+      // Add existing features to the feature group
+      if (existingFeatures && existingFeatures.length > 0 && featureGroupRef.current) {
+        // Clear previous features
+        featureGroupRef.current.clearLayers();
+        
+        // Add each feature to the feature group
+        existingFeatures.forEach(feature => {
+          const layer = L.geoJSON(feature as any).getLayers()[0];
+          featureGroupRef.current?.addLayer(layer);
+          
+          // Add feature to snap manager for snapping
+          snapManager.addFeature(feature);
+        });
+      }
+
+      // Create draw control with options
+      const defaultOptions: L.Control.DrawConstructorOptions = {
+        position,
+        draw: {
+          polyline: {
+            shapeOptions: {
+              color: '#3b82f6',
+              weight: 3
+            }
+          },
+          polygon: {
+            allowIntersection: false,
+            drawError: {
+              color: '#e11d48',
+              timeout: 1000
+            },
+            shapeOptions: {
+              color: '#3b82f6',
+              weight: 3
+            }
+          },
+          circle: {
+            shapeOptions: {
+              color: '#3b82f6',
+              weight: 3
+            }
+          },
+          rectangle: {
+            shapeOptions: {
+              color: '#3b82f6',
+              weight: 3
+            }
+          },
+          marker: true,
+          circlemarker: false
+        },
+        edit: {
+          featureGroup: featureGroupRef.current,
+          remove: true,
+          edit: {
+            selectedPathOptions: {
+              color: '#f97316',
+              weight: 4
+            }
+          }
+        }
+      };
+
+      // Merge default options with provided options
+      const mergedOptions = {
+        ...defaultOptions,
+        ...(drawOptions || {}),
+        edit: {
+          ...defaultOptions.edit,
+          ...(drawOptions?.edit || {})
+        }
+      };
+
+      // Create draw control
+      drawControlRef.current = new L.Control.Draw(mergedOptions);
     }
 
-    const featureGroup = featureGroupRef.current;
-
-    // Initialize draw control with enhanced options
-    const drawOptions = {
-      position,
-      draw: {
-        polyline: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 4
-          },
-          showLength: true,
-          metric: true
-        },
-        polygon: {
-          allowIntersection: false,
-          drawError: {
-            color: '#EF4444',
-            message: '<strong>Error:</strong> Polygon edges cannot cross!'
-          },
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          showArea: true,
-          metric: true
-        },
-        rectangle: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          showArea: true,
-          metric: true
-        },
-        circle: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          metric: true
-        },
-        circlemarker: {
-          radius: 4,
-          color: '#3B82F6',
-          fillColor: '#3B82F6',
-          fillOpacity: 0.5
-        },
-        marker: {
-          icon: new L.Icon.Default()
-        },
-        ...draw,
-      },
-      edit: {
-        featureGroup,
-        edit: true,
-        remove: true,
-        ...edit,
-      },
-    };
-
-    drawControlRef.current = new L.Control.Draw(drawOptions);
-    map.addControl(drawControlRef.current);
-    
-    // Create mouse marker for snapping visualization
-    if (enableSnapping && !mouseMarkerRef.current) {
-      mouseMarkerRef.current = L.circleMarker([0, 0], {
-        radius: 4,
-        color: '#3B82F6',
-        fillColor: '#3B82F6',
-        fillOpacity: 1,
-        opacity: 1,
-        weight: 1
-      }).addTo(map);
-      mouseMarkerRef.current.setOpacity(0);
-    }
-    
-    // Create snap indicator marker
-    if (enableSnapping && !snapMarkerRef.current) {
-      snapMarkerRef.current = L.circleMarker([0, 0], {
-        radius: 6,
-        color: '#10B981',
-        fillColor: '#10B981',
-        fillOpacity: 1,
-        opacity: 1,
-        weight: 2
-      }).addTo(map);
-      snapMarkerRef.current.setOpacity(0);
-    }
-    
-    // Return cleanup function
+    // Cleanup
     return () => {
-      if (drawControlRef.current) {
+      if (map && drawControlRef.current) {
         map.removeControl(drawControlRef.current);
       }
-      
-      if (mouseMarkerRef.current) {
-        map.removeLayer(mouseMarkerRef.current);
-        mouseMarkerRef.current = null;
-      }
-      
-      if (snapMarkerRef.current) {
-        map.removeLayer(snapMarkerRef.current);
-        snapMarkerRef.current = null;
-      }
     };
-  }, [map, position, draw, edit, enableSnapping]);
-  
-  // Event handlers for draw events
+  }, [map, position, existingFeatures, drawOptions]);
+
+  // Handle tool changes
   useEffect(() => {
-    // Event handler for draw:created
+    if (!map || !drawControlRef.current) return;
+
+    // Remove existing control
+    if (drawControlRef.current) {
+      map.removeControl(drawControlRef.current);
+    }
+
+    // Add control if draw tool is selected
+    if (currentTool === MapTool.DRAW || currentTool === MapTool.EDIT) {
+      map.addControl(drawControlRef.current);
+      setIsDrawActive(true);
+    } else {
+      setIsDrawActive(false);
+    }
+  }, [map, currentTool]);
+
+  // Handle map events
+  useEffect(() => {
+    if (!map) return;
+
+    // Event handler for when a new shape is created
     const handleCreated = (e: L.LeafletEvent) => {
-      if (!featureGroupRef.current) return;
+      const layer = e.layer;
+      featureGroupRef.current?.addLayer(layer);
       
-      featureGroupRef.current.addLayer(e.layer);
+      // Convert the layer to a GeoJSON feature
+      const feature = layer.toGeoJSON() as GeoJSONFeature;
       
-      if (onFeatureCreate) {
-        const geoJSON = e.layer.toGeoJSON() as GeoJSONFeature;
-        
-        // Ensure the feature has a unique ID
-        if (!geoJSON.properties) {
-          geoJSON.properties = {};
-        }
-        
-        if (!geoJSON.properties.id) {
-          geoJSON.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        }
-        
-        // Add layer type to properties
-        if (e.layerType) {
-          geoJSON.properties.type = e.layerType;
-        }
-        
-        // Store the feature in version tracker
-        if (enableVersioning) {
-          versionTrackerRef.current.addVersion(
-            geoJSON.properties.id,
-            geoJSON,
-            'Initial creation'
-          );
-        }
-        
-        // Store layer reference in properties for later retrieval
-        (e.layer as any)._featureId = geoJSON.properties.id;
-        
-        onFeatureCreate(geoJSON);
+      // Add to history manager
+      historyManager.addOperation('create', feature);
+      
+      // Add attribution information
+      annotationManager.setAttribution(feature.id as string, {
+        createdBy: 'Current User',
+        createdAt: new Date()
+      });
+      
+      // Add to snap manager for future snapping
+      snapManager.addFeature(feature);
+      
+      // Update versions list
+      setVersions(historyManager.getVersions());
+      
+      // Call callback if provided
+      if (onFeatureCreated) {
+        onFeatureCreated(feature);
       }
     };
 
-    // Event handler for draw:edited
+    // Event handler for when a shape is edited
     const handleEdited = (e: L.LeafletEvent) => {
-      if (onFeatureEdit && e.layers) {
-        const editedFeatures: GeoJSONFeature[] = [];
-        e.layers.getLayers().forEach((layer: any) => {
-          const geoJSON = layer.toGeoJSON() as GeoJSONFeature;
-          
-          // Ensure feature has proper properties
-          if (!geoJSON.properties) {
-            geoJSON.properties = {};
-          }
-          
-          if (!geoJSON.properties.id && layer._featureId) {
-            geoJSON.properties.id = layer._featureId;
-          }
-          
-          // Handle versioning
-          if (enableVersioning && geoJSON.properties.id) {
-            if (dialogOpen) {
-              // Dialog is already open, just update the selected feature
-              setSelectedFeature(geoJSON);
-            } else {
-              // Show dialog for version description
-              setSelectedFeature(geoJSON);
-              setVersionDescription('');
-              setDialogOpen(true);
-            }
-          }
-          
-          editedFeatures.push(geoJSON);
+      const layers = (e as any).layers;
+      layers.eachLayer((layer: L.Layer) => {
+        // Convert the edited layer to a GeoJSON feature
+        const feature = layer.toGeoJSON() as GeoJSONFeature;
+        
+        // Add to history manager
+        historyManager.addOperation('modify', feature);
+        
+        // Record modification
+        annotationManager.recordModification(feature.id as string, {
+          modifiedBy: 'Current User',
+          modifiedAt: new Date(),
+          description: 'Shape edited'
         });
         
-        if (!dialogOpen) {
-          onFeatureEdit(editedFeatures);
+        // Update in snap manager
+        snapManager.addFeature(feature);
+        
+        // Update versions list
+        setVersions(historyManager.getVersions());
+        
+        // Call callback if provided
+        if (onFeatureEdited) {
+          onFeatureEdited(feature);
         }
-      }
+      });
     };
 
-    // Event handler for draw:deleted
+    // Event handler for when a shape is deleted
     const handleDeleted = (e: L.LeafletEvent) => {
-      if (onFeatureDelete && e.layers) {
-        const deletedFeatures: GeoJSONFeature[] = [];
-        e.layers.getLayers().forEach((layer: any) => {
-          const geoJSON = layer.toGeoJSON() as GeoJSONFeature;
-          
-          // If feature has an ID, add it to list of deleted features
-          if (layer._featureId && (!geoJSON.properties || !geoJSON.properties.id)) {
-            if (!geoJSON.properties) {
-              geoJSON.properties = {};
-            }
-            geoJSON.properties.id = layer._featureId;
-          }
-          
-          deletedFeatures.push(geoJSON);
-        });
+      const layers = (e as any).layers;
+      layers.eachLayer((layer: L.Layer) => {
+        // Convert the deleted layer to a GeoJSON feature
+        const feature = layer.toGeoJSON() as GeoJSONFeature;
         
-        onFeatureDelete(deletedFeatures);
-      }
-    };
-    
-    // Event handlers for draw states
-    const handleDrawStart = (e: L.LeafletEvent) => {
-      setActiveDrawing(true);
-    };
-    
-    const handleDrawStop = (e: L.LeafletEvent) => {
-      setActiveDrawing(false);
-      if (mouseMarkerRef.current) {
-        mouseMarkerRef.current.setOpacity(0);
-      }
-      if (snapMarkerRef.current) {
-        snapMarkerRef.current.setOpacity(0);
-      }
-    };
-    
-    const handleEditStart = (e: L.LeafletEvent) => {
-      setActiveEditing(true);
-    };
-    
-    const handleEditStop = (e: L.LeafletEvent) => {
-      setActiveEditing(false);
-      if (mouseMarkerRef.current) {
-        mouseMarkerRef.current.setOpacity(0);
-      }
-      if (snapMarkerRef.current) {
-        snapMarkerRef.current.setOpacity(0);
-      }
-    };
-    
-    // Attach event handlers
-    map.on(CREATED, handleCreated);
-    map.on(EDITED, handleEdited);
-    map.on(DELETED, handleDeleted);
-    map.on(DRAWSTART, handleDrawStart);
-    map.on(DRAWSTOP, handleDrawStop);
-    map.on(EDITSTART, handleEditStart);
-    map.on(EDITSTOP, handleEditStop);
-    
-    // Return cleanup function
-    return () => {
-      map.off(CREATED, handleCreated);
-      map.off(EDITED, handleEdited);
-      map.off(DELETED, handleDeleted);
-      map.off(DRAWSTART, handleDrawStart);
-      map.off(DRAWSTOP, handleDrawStop);
-      map.off(EDITSTART, handleEditStart);
-      map.off(EDITSTOP, handleEditStop);
-    };
-  }, [map, onFeatureCreate, onFeatureEdit, onFeatureDelete, enableVersioning, dialogOpen]);
-  
-  // Set up snapping functionality
-  useEffect(() => {
-    if (!enableSnapping) return;
-    
-    // Event handler for mouse move to implement snapping
-    const handleMouseMove = (e: L.LeafletMouseEvent) => {
-      if (!activeDrawing && !activeEditing) return;
-      
-      // Update mouse marker position
-      if (mouseMarkerRef.current) {
-        mouseMarkerRef.current.setLatLng(e.latlng);
-        mouseMarkerRef.current.setOpacity(1);
-      }
-      
-      // Try to snap to existing features
-      const point: [number, number] = [e.latlng.lng, e.latlng.lat];
-      
-      // Find nearest snappable point
-      for (const feature of existingFeatures) {
-        const snappedPoint = canSnapToFeature(point, feature, snapDistance);
+        // Add to history manager
+        historyManager.addOperation('delete', feature);
         
-        if (snappedPoint) {
-          // Update snap marker to show snap point
-          if (snapMarkerRef.current) {
-            snapMarkerRef.current.setLatLng(L.latLng(snappedPoint[1], snappedPoint[0]));
-            snapMarkerRef.current.setOpacity(1);
-          }
-          
-          // Modify the current draw handler to use the snapped point
-          if (activeDrawing && (e as any).originalEvent) {
-            // This is a simplified approach - for full implementation,
-            // you would need to modify the Leaflet.Draw handlers directly
-            const originalEvent = (e as any).originalEvent;
-            originalEvent.clientX = map.latLngToContainerPoint(L.latLng(snappedPoint[1], snappedPoint[0])).x;
-            originalEvent.clientY = map.latLngToContainerPoint(L.latLng(snappedPoint[1], snappedPoint[0])).y;
-          }
-          
-          return; // Stop after finding the first snap point
+        // Update versions list
+        setVersions(historyManager.getVersions());
+        
+        // Call callback if provided
+        if (onFeatureDeleted) {
+          onFeatureDeleted(feature);
         }
+      });
+    };
+
+    // Handle draw events for real-time measurements
+    const handleDrawStart = (e: L.LeafletEvent) => {
+      // Clear previous measurements
+      measurementManager.clear();
+    };
+
+    const handleDrawVertex = (e: L.LeafletEvent) => {
+      const latlng = (e as any).latlng;
+      let point: [number, number] = [latlng.lng, latlng.lat];
+      
+      // Apply snapping if enabled
+      if (snapEnabled) {
+        point = snapManager.snapPoint(point, {
+          mode: snapMode,
+          threshold: snapThreshold
+        });
       }
       
-      // Hide snap marker if no snap point found
-      if (snapMarkerRef.current) {
-        snapMarkerRef.current.setOpacity(0);
-      }
+      // Add point to measurement manager
+      measurementManager.addPoint(point);
+      
+      // Update measurement display
+      updateMeasurementText();
     };
-    
-    // Attach mouse move handler
-    map.on('mousemove', handleMouseMove);
-    
-    // Return cleanup function
+
+    // Add event listeners
+    map.on(L.Draw.Event.CREATED, handleCreated);
+    map.on(L.Draw.Event.EDITED, handleEdited);
+    map.on(L.Draw.Event.DELETED, handleDeleted);
+    map.on(L.Draw.Event.DRAWSTART, handleDrawStart);
+    map.on(L.Draw.Event.DRAWVERTEX, handleDrawVertex);
+
+    // Cleanup event listeners
     return () => {
-      map.off('mousemove', handleMouseMove);
+      map.off(L.Draw.Event.CREATED, handleCreated);
+      map.off(L.Draw.Event.EDITED, handleEdited);
+      map.off(L.Draw.Event.DELETED, handleDeleted);
+      map.off(L.Draw.Event.DRAWSTART, handleDrawStart);
+      map.off(L.Draw.Event.DRAWVERTEX, handleDrawVertex);
     };
-  }, [map, activeDrawing, activeEditing, existingFeatures, enableSnapping, snapDistance]);
-  
-  // Handle versioning confirm/cancel
-  function handleVersionConfirm() {
-    if (!selectedFeature || !selectedFeature.properties?.id) return;
+  }, [map, onFeatureCreated, onFeatureEdited, onFeatureDeleted, snapEnabled, snapMode, snapThreshold]);
+
+  // Update measurement text displayed to the user
+  const updateMeasurementText = useCallback(() => {
+    const perimeter = measurementManager.getCurrentPerimeter();
+    const area = measurementManager.getCurrentArea();
     
-    const featureId = selectedFeature.properties.id;
+    let text = '';
     
-    // Add version with description
-    versionTrackerRef.current.addVersion(
-      featureId,
-      selectedFeature,
-      versionDescription || 'Edited feature'
-    );
-    
-    const newVersion = versionTrackerRef.current.getLatestVersion(featureId);
-    
-    if (newVersion && onVersionChange) {
-      onVersionChange(featureId, newVersion.id);
+    if (perimeter > 0) {
+      text += `Distance: ${measurementDisplay.formatDistance(perimeter, MeasurementUnit.METERS)}`;
     }
     
-    if (onFeatureEdit) {
-      onFeatureEdit([selectedFeature]);
+    if (area > 0) {
+      if (text) text += ' | ';
+      text += `Area: ${measurementDisplay.formatArea(area, MeasurementUnit.SQUARE_METERS)}`;
+      
+      // Also show in acres for land management
+      const acres = area / 4046.86;
+      text += ` (${acres.toFixed(2)} ac)`;
     }
     
-    setDialogOpen(false);
-    setSelectedFeature(null);
+    setMeasurementText(text);
+  }, [measurementManager, measurementDisplay]);
+
+  // Handle undo operation
+  const handleUndo = () => {
+    if (historyManager.undo()) {
+      // Update the feature group with the new state
+      updateFeatureGroup();
+    }
+  };
+
+  // Handle redo operation
+  const handleRedo = () => {
+    if (historyManager.redo()) {
+      // Update the feature group with the new state
+      updateFeatureGroup();
+    }
+  };
+
+  // Save current state as a named version
+  const handleSaveVersion = (name: string) => {
+    const versionId = historyManager.saveVersion(name);
+    setVersions(historyManager.getVersions());
+    setActiveVersionName(name);
+  };
+
+  // Restore to a saved version
+  const handleRestoreVersion = (versionId: string) => {
+    if (historyManager.restoreVersion(versionId)) {
+      // Update the feature group with the new state
+      updateFeatureGroup();
+      
+      // Find the version name
+      const version = versions.find(v => v.id === versionId);
+      if (version) {
+        setActiveVersionName(version.name);
+      }
+    }
+  };
+
+  // Add a note to the selected feature
+  const handleAddNote = () => {
+    if (selectedFeature && note) {
+      const feature = selectedFeature.toGeoJSON() as GeoJSONFeature;
+      annotationManager.addNote(feature.id as string, note);
+      setNote('');
+    }
+  };
+
+  // Update the feature group based on the current state
+  const updateFeatureGroup = () => {
+    if (!featureGroupRef.current) return;
     
-    toast({
-      title: "Version saved",
-      description: "Feature changes have been versioned",
+    // Clear current features
+    featureGroupRef.current.clearLayers();
+    
+    // Get current state and add features to the feature group
+    const features = historyManager.getCurrentState();
+    features.forEach(feature => {
+      const layer = L.geoJSON(feature as any).getLayers()[0];
+      featureGroupRef.current?.addLayer(layer);
     });
-  }
-  
-  function handleVersionCancel() {
-    setDialogOpen(false);
-    setSelectedFeature(null);
-  }
-  
-  // Generate legal description for selected feature
-  function handleGenerateLegalDescription() {
-    if (!selectedFeature) {
-      toast({
-        title: "No feature selected",
-        description: "Please select a polygon feature to generate a legal description",
-        variant: "destructive"
-      });
-      return;
-    }
     
-    if (selectedFeature.geometry.type !== 'Polygon' && selectedFeature.geometry.type !== 'MultiPolygon') {
-      toast({
-        title: "Invalid feature type",
-        description: "Legal descriptions can only be generated for polygon features",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const description = generateLegalDescription(selectedFeature);
-    setLegalDescription(description);
-    setShowLegalDialog(true);
-    
-    if (onLegalDescriptionGenerate) {
-      onLegalDescriptionGenerate(description, selectedFeature);
-    }
-  }
-  
-  // Additional precision tools for advanced editing
+    // Reset snap manager
+    snapManager.clearFeatures();
+    features.forEach(feature => snapManager.addFeature(feature));
+  };
+
+  // Switch between draw tool modes
+  const switchTool = (tool: MapTool) => {
+    onToolChange(tool);
+  };
+
   return (
-    <>
-      {/* Advanced tools toolbar */}
-      {enablePrecisionTools && (
-        <div className="absolute top-14 left-2 z-[1000] bg-white rounded-md shadow-md p-1 flex flex-col gap-1">
-          {enableSplitJoin && (
-            <>
+    <div className="leaflet-draw-section">
+      <div className="leaflet-draw-toolbar leaflet-bar">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
+                variant={currentTool === MapTool.PAN ? "default" : "outline"}
                 size="icon"
-                variant="outline"
-                onClick={() => {
-                  // Split feature logic would be implemented here
-                  toast({
-                    title: "Split Tool",
-                    description: "Draw a line across a polygon to split it",
-                  });
-                }}
-                title="Split Parcel"
-                disabled={!activeDrawing && !activeEditing}
+                className="h-8 w-8"
+                onClick={() => switchTool(MapTool.PAN)}
               >
-                <Scissors size={18} />
+                <MapIcon className="h-4 w-4" />
               </Button>
+            </TooltipTrigger>
+            <TooltipContent>Pan</TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
+                variant={currentTool === MapTool.MEASURE ? "default" : "outline"}
                 size="icon"
-                variant="outline"
-                onClick={() => {
-                  // Join features logic would be implemented here
-                  toast({
-                    title: "Join Tool",
-                    description: "Select adjacent polygons to join them",
-                  });
-                }}
-                title="Join Parcels"
-                disabled={!activeDrawing && !activeEditing}
+                className="h-8 w-8"
+                onClick={() => switchTool(MapTool.MEASURE)}
               >
-                <Combine size={18} />
+                <Ruler className="h-4 w-4" />
               </Button>
-              <div className="w-full h-px bg-gray-200 my-1"></div>
-            </>
+            </TooltipTrigger>
+            <TooltipContent>Measure</TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={currentTool === MapTool.DRAW ? "default" : "outline"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => switchTool(MapTool.DRAW)}
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Draw</TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={currentTool === MapTool.EDIT ? "default" : "outline"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => switchTool(MapTool.EDIT)}
+              >
+                <Edit3 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      
+      {isDrawActive && (
+        <div className="leaflet-draw-actions absolute left-0 top-10 bg-background border rounded-md p-2 shadow-md flex flex-col gap-2 z-50">
+          {/* Measurement display */}
+          {measurementText && (
+            <div className="text-xs font-medium bg-muted p-2 rounded-md">
+              {measurementText}
+            </div>
           )}
           
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={handleGenerateLegalDescription}
-            title="Generate Legal Description"
-          >
-            <FileText size={18} />
-          </Button>
+          {/* Drawing tools */}
+          <div className="flex flex-wrap gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={handleUndo}
+                  >
+                    <Undo2 className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Undo</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={handleRedo}
+                  >
+                    <Redo2 className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Redo</TooltipContent>
+              </Tooltip>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                  >
+                    <Save className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60">
+                  <div className="flex flex-col gap-2">
+                    <h3 className="font-medium">Save Version</h3>
+                    <Input 
+                      placeholder="Version name"
+                      onChange={(e) => setActiveVersionName(e.target.value)}
+                      value={activeVersionName}
+                    />
+                    <Button size="sm" onClick={() => handleSaveVersion(activeVersionName)}>
+                      Save
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                  >
+                    <Clock className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60">
+                  <div className="flex flex-col gap-2">
+                    <h3 className="font-medium">Versions</h3>
+                    <ScrollArea className="h-36">
+                      {versions.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No saved versions</p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {versions.map((version) => (
+                            <div key={version.id} className="flex justify-between items-center">
+                              <span className="text-xs">
+                                {version.name}
+                              </span>
+                              <Button 
+                                size="xs" 
+                                variant="ghost" 
+                                onClick={() => handleRestoreVersion(version.id)}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                Restore
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </TooltipProvider>
+          </div>
           
-          {enableVersioning && (
-            <Button
-              size="icon"
-              variant="outline"
-              onClick={() => {
-                // Version history logic would be implemented here
-                toast({
-                  title: "Version History",
-                  description: "View and restore previous versions",
-                });
-              }}
-              title="Version History"
-            >
-              <Undo2 size={18} />
-            </Button>
-          )}
-          
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => {
-              // Precision measurement logic would be implemented here
-              toast({
-                title: "Precision Measurement",
-                description: "Measure distances and angles precisely",
-              });
-            }}
-            title="Precision Measurement"
-          >
-            <Ruler size={18} />
-          </Button>
-          
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => {
-              // Grid overlay logic would be implemented here
-              toast({
-                title: "Grid Overlay",
-                description: "Show/hide measurement grid",
-              });
-            }}
-            title="Grid Overlay"
-          >
-            <Grid size={18} />
-          </Button>
+          {/* Snapping controls */}
+          <Tabs defaultValue="snap">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="snap">Snapping</TabsTrigger>
+              <TabsTrigger value="annotations">Annotations</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="snap" className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="snap-enabled" className="text-xs">Enable Snapping</Label>
+                <input
+                  id="snap-enabled"
+                  type="checkbox"
+                  checked={snapEnabled}
+                  onChange={(e) => setSnapEnabled(e.target.checked)}
+                  className="toggle toggle-sm"
+                />
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="snap-mode" className="text-xs">Snap Mode</Label>
+                <Select
+                  value={snapMode}
+                  onValueChange={(value) => setSnapMode(value as SnapMode)}
+                >
+                  <SelectTrigger id="snap-mode">
+                    <SelectValue placeholder="Snap Mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SnapMode.VERTEX}>Vertex only</SelectItem>
+                    <SelectItem value={SnapMode.EDGE}>Edge only</SelectItem>
+                    <SelectItem value={SnapMode.BOTH}>Both</SelectItem>
+                    <SelectItem value={SnapMode.NONE}>None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="snap-threshold" className="text-xs">
+                  Snap Threshold: {snapThreshold.toFixed(3)}
+                </Label>
+                <input
+                  id="snap-threshold"
+                  type="range"
+                  min="0.001"
+                  max="0.1"
+                  step="0.001"
+                  value={snapThreshold}
+                  onChange={(e) => setSnapThreshold(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="annotations" className="space-y-2">
+              {selectedFeature ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center">
+                    <User className="h-3 w-3 mr-1" />
+                    <span className="text-xs">Created by: Current User</span>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="note" className="text-xs">Add Note</Label>
+                    <div className="flex gap-1">
+                      <Input 
+                        id="note"
+                        placeholder="Add a note..." 
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        className="text-xs h-7"
+                      />
+                      <Button 
+                        size="icon"
+                        variant="outline"
+                        className="h-7 w-7"
+                        onClick={handleAddNote}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Notes</Label>
+                    <ScrollArea className="h-20 border rounded-md p-1">
+                      {selectedFeature && (
+                        <div className="flex flex-col gap-1">
+                          {annotationManager.getNotes((selectedFeature.toGeoJSON() as GeoJSONFeature).id as string).map((note, index) => (
+                            <div key={index} className="flex items-start gap-1 p-1 border-b">
+                              <StickyNote className="h-3 w-3 mt-0.5" />
+                              <span className="text-xs">{note}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Select a feature to add annotations</p>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
-      
-      {/* Version dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save Feature Version</DialogTitle>
-            <DialogDescription>
-              Provide a description of the changes made to this feature.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="version-description">Change Description</Label>
-              <Input
-                id="version-description"
-                placeholder="Describe your changes..."
-                value={versionDescription}
-                onChange={(e) => setVersionDescription(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={handleVersionCancel}>Cancel</Button>
-            <Button onClick={handleVersionConfirm}>Save Version</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Legal description dialog */}
-      <Dialog open={showLegalDialog} onOpenChange={setShowLegalDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Legal Description</DialogTitle>
-            <DialogDescription>
-              The following is a legal description of the selected parcel.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="max-h-[400px] overflow-y-auto border rounded p-3 whitespace-pre-wrap font-mono text-sm">
-            {legalDescription}
-          </div>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                // Copy to clipboard
-                navigator.clipboard.writeText(legalDescription);
-                toast({
-                  title: "Copied",
-                  description: "Legal description copied to clipboard",
-                });
-              }}
-            >
-              Copy to Clipboard
-            </Button>
-            <Button onClick={() => setShowLegalDialog(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   );
-}
-
-export default AdvancedDrawControl;
+};
