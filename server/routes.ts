@@ -212,10 +212,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-login endpoint for development purposes
   app.get("/api/dev-login", async (req, res) => {
     try {
+      console.log("Dev login attempt initiated");
+      
       // Check if test user exists, if not, create it
       let user = await storage.getUserByUsername("admin");
       
       if (!user) {
+        console.log("Creating default admin user");
         // Create a default admin user
         user = await storage.createUser({
           username: "admin",
@@ -225,21 +228,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           department: "Assessor's Office",
           isAdmin: true
         });
+      } else {
+        console.log("Found existing admin user");
       }
 
       // Log the user in
       req.login(user, (err) => {
         if (err) {
-          return res.status(500).json({ message: "Failed to auto-login" });
+          console.error("Login error in dev-login:", err);
+          return res.status(500).json({ message: "Failed to auto-login", error: err.message });
         }
         
         // Remove password from response
         const { password, ...userWithoutPassword } = user;
+        
+        // Check if session was properly created
+        console.log("Session after login:", req.session);
+        console.log("Is authenticated:", req.isAuthenticated());
+        
+        // Ensure headers are correctly set
+        res.setHeader('Cache-Control', 'no-store');
+        
+        // Return the user data with OK status
+        console.log("Auto-login successful for user:", userWithoutPassword.username);
         return res.status(200).json(userWithoutPassword);
       });
     } catch (error) {
       console.error("Auto-login error:", error);
-      res.status(500).json({ message: "Failed to auto-login" });
+      res.status(500).json({ 
+        message: "Failed to auto-login", 
+        error: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 

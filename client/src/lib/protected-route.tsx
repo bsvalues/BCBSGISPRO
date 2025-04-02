@@ -28,6 +28,8 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
       
       const performAutoLogin = async () => {
         try {
+          console.log("Attempting auto-login...");
+          
           // Use fetch directly for better control
           const response = await fetch("/api/dev-login", {
             method: "GET",
@@ -38,13 +40,33 @@ export function ProtectedRoute({ path, component: Component }: ProtectedRoutePro
           });
           
           if (!response.ok) {
+            console.error("Auto-login response not OK:", response.status, response.statusText);
             throw new Error("Auto-login failed");
           }
           
           const userData = await response.json();
+          console.log("Auto-login successful, user data:", userData);
           
           // Update the cache
           queryClient.setQueryData(["/api/user"], userData);
+          
+          // Verify the session was established correctly
+          try {
+            const verifyResponse = await fetch("/api/user", {
+              method: "GET",
+              credentials: "include",
+            });
+            
+            if (verifyResponse.ok) {
+              console.log("Session verified successfully");
+              const verifiedUser = await verifyResponse.json();
+              console.log("Verified user:", verifiedUser);
+            } else {
+              console.error("Session verification failed:", verifyResponse.status);
+            }
+          } catch (err) {
+            console.error("Error verifying session:", err);
+          }
         } catch (error) {
           console.error("Auto-login error:", error);
         }
