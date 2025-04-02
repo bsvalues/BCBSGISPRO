@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MapContainer, TileLayer, GeoJSON, FeatureGroup } from 'react-leaflet';
+import L from 'leaflet';
 import { 
   Card, 
   CardContent, 
@@ -422,7 +423,41 @@ export default function GeospatialAnalysisPage() {
                   {/* Drawing tools */}
                   <DrawControl 
                     position="topright"
-                    onCreated={handleCreated}
+                    onCreate={handleCreated}
+                    draw={{
+                      polyline: {
+                        shapeOptions: {
+                          color: '#3B82F6',
+                          weight: 4
+                        }
+                      },
+                      polygon: {
+                        shapeOptions: {
+                          color: '#3B82F6',
+                          weight: 2,
+                          fillOpacity: 0.2
+                        }
+                      },
+                      rectangle: {
+                        shapeOptions: {
+                          color: '#3B82F6',
+                          weight: 2,
+                          fillOpacity: 0.2
+                        }
+                      },
+                      circle: {
+                        shapeOptions: {
+                          color: '#3B82F6',
+                          weight: 2,
+                          fillOpacity: 0.2
+                        }
+                      },
+                      marker: false,
+                      circlemarker: false
+                    }}
+                    edit={{
+                      featureGroup: drawnItems || new L.FeatureGroup()
+                    }}
                   />
                 </MapContainer>
               </div>

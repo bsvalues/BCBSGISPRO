@@ -1,0 +1,68 @@
+Accessibility
+Buttons must have discernible text: Element has no title attribute
+<button data-replit-metadata="client/src/components/maps/advanced-draw-control.tsx:457:14" data-component-name="Button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed">
+Open in Elements
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this axe rule at Deque University
+Learn why this is important and how to fix it on webhint.io
+<button data-replit-metadata="client/src/components/maps/advanced-draw-control.tsx:471:14" data-component-name="Button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed">
+Open in Elements
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this axe rule at Deque University
+Learn why this is important and how to fix it on webhint.io
+<button data-replit-metadata="client/src/components/maps/advanced-draw-control.tsx:485:14" data-component-name="Button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed">
+Open in Elements
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this axe rule at Deque University
+Learn why this is important and how to fix it on webhint.io
+<button data-replit-metadata="client/src/components/maps/advanced-draw-control.tsx:499:14" data-component-name="Button" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed">
+Open in Elements
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this axe rule at Deque University
+Learn why this is important and how to fix it on webhint.io
+Compatibility
+'-moz-user-select' is not supported by Chrome, Chrome Android, Edge, Safari. Add 'user-select' to support Chrome 54+, Chrome Android 54+, Edge 79+. Add '-webkit-user-select' to support Safari 3+.
+.leaflet-overlay-pane svg {
+    -moz-user-select: none;
+}
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this CSS feature on MDN
+Learn why this is important and how to fix it on webhint.io
+'-webkit-text-size-adjust' is not supported by Chrome, Chrome Android, Edge 79+, Firefox, Safari. Add 'text-size-adjust' to support Chrome 54+, Chrome Android 54+, Edge 79+.
+html,
+:host {
+    -webkit-text-size-adjust: 100%;
+}
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn more about this CSS feature on MDN
+Learn why this is important and how to fix it on webhint.io
+'charset' meta element should be the first thing in '<head>'.
+<meta charset="UTF-8">
+Open in Sources
+Request
+https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/
+Further Reading
+Learn why this is important and how to fix it on webhint.io
+'-ms-zoom' is not supported by Firefox.
+'-webkit-user-drag' is not supported by Firefox.
+'content-type' header media type value should be 'image/x-icon', not 'text/html'.
+'content-type' header media type value should be 'text/css', not 'text/javascript'.
+'content-type' header media type value should be 'text/x-typescript', not 'text/javascript'.
+'text-size-adjust' is not supported by Firefox, Safari.
+Performance
+'height' changes to this property will trigger: 'Layout', which can impact performance when used inside @keyframes.
+Other
+'text-size-adjust' should be listed after '-webkit-text-size-adjust'.
+A form field element should have an id or name attribute

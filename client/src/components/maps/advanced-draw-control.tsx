@@ -459,6 +459,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => switchTool(MapTool.PAN)}
+                aria-label="Pan map"
               >
                 <MapIcon className="h-4 w-4" />
               </Button>
@@ -473,6 +474,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => switchTool(MapTool.MEASURE)}
+                aria-label="Measure distances"
               >
                 <Ruler className="h-4 w-4" />
               </Button>
@@ -487,6 +489,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => switchTool(MapTool.DRAW)}
+                aria-label="Draw shapes"
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -501,6 +504,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => switchTool(MapTool.EDIT)}
+                aria-label="Edit features"
               >
                 <Edit3 className="h-4 w-4" />
               </Button>
@@ -529,6 +533,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                     size="icon"
                     className="h-7 w-7"
                     onClick={handleUndo}
+                    aria-label="Undo last change"
                   >
                     <Undo2 className="h-3 w-3" />
                   </Button>
@@ -543,6 +548,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                     size="icon"
                     className="h-7 w-7"
                     onClick={handleRedo}
+                    aria-label="Redo last undone change"
                   >
                     <Redo2 className="h-3 w-3" />
                   </Button>
@@ -556,6 +562,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
+                    aria-label="Save feature version"
                   >
                     <Save className="h-3 w-3" />
                   </Button>
@@ -581,6 +588,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
+                    aria-label="View version history"
                   >
                     <Clock className="h-3 w-3" />
                   </Button>
@@ -694,6 +702,7 @@ export const AdvancedDrawControl: React.FC<AdvancedDrawControlProps> = ({
                         variant="outline"
                         className="h-7 w-7"
                         onClick={handleAddNote}
+                        aria-label="Add annotation note"
                       >
                         <Plus className="h-3 w-3" />
                       </Button>

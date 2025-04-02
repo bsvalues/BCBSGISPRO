@@ -67,66 +67,121 @@ export function DrawControl({
 
     const featureGroup = featGroupRef.current;
 
+    // Set default options for each drawing tool
+    const defaultOptions = {
+      polyline: {
+        shapeOptions: {
+          color: '#3B82F6',
+          weight: 4
+        },
+        showLength: true,
+        metric: true
+      },
+      polygon: {
+        allowIntersection: false,
+        drawError: {
+          color: '#EF4444',
+          message: '<strong>Error:</strong> Polygon edges cannot cross!'
+        },
+        shapeOptions: {
+          color: '#3B82F6',
+          weight: 2,
+          fillOpacity: 0.2
+        },
+        showArea: true,
+        metric: true
+      },
+      rectangle: {
+        shapeOptions: {
+          color: '#3B82F6',
+          weight: 2,
+          fillOpacity: 0.2
+        },
+        showArea: true,
+        metric: true
+      },
+      circle: {
+        shapeOptions: {
+          color: '#3B82F6',
+          weight: 2,
+          fillOpacity: 0.2
+        },
+        metric: true
+      },
+      circlemarker: {
+        radius: 4,
+        color: '#3B82F6',
+        fillColor: '#3B82F6',
+        fillOpacity: 0.5
+      },
+      marker: {
+        icon: new L.Icon.Default()
+      }
+    };
+    
+    // Process draw options to ensure we have valid configuration objects for each drawing tool
+    const processedDrawOptions: any = {};
+    
+    if (draw) {
+      // Start with a clean slate for all draw tools
+      processedDrawOptions.polyline = false;
+      processedDrawOptions.polygon = false;
+      processedDrawOptions.rectangle = false;
+      processedDrawOptions.circle = false;
+      processedDrawOptions.circlemarker = false;
+      processedDrawOptions.marker = false;
+      
+      // Only apply configurations for tools that are enabled
+      Object.entries(draw).forEach(([tool, option]) => {
+        // Skip if the tool is explicitly disabled with false
+        if (option === false) {
+          processedDrawOptions[tool] = false;
+          return;
+        }
+        
+        // For all other cases (whether true, an object, or undefined), start with default options
+        if (defaultOptions.hasOwnProperty(tool)) {
+          const defaultForTool = defaultOptions[tool as keyof typeof defaultOptions];
+          
+          // Use appropriate options based on input type
+          if (typeof option === 'object') {
+            // Merge provided options with defaults
+            processedDrawOptions[tool] = {
+              ...defaultForTool,
+              ...option
+            };
+          } else {
+            // For boolean true or undefined, use defaults
+            processedDrawOptions[tool] = { ...defaultForTool };
+          }
+        }
+      });
+    } else {
+      // If no draw options provided, disable all tools
+      processedDrawOptions.polyline = false;
+      processedDrawOptions.polygon = false;
+      processedDrawOptions.rectangle = false;
+      processedDrawOptions.circle = false;
+      processedDrawOptions.circlemarker = false;
+      processedDrawOptions.marker = false;
+    }
+
     // Initialize draw control
     const drawOptions = {
       position,
-      draw: {
-        polyline: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 4
-          },
-          showLength: true,
-          metric: true
-        },
-        polygon: {
-          allowIntersection: false,
-          drawError: {
-            color: '#EF4444',
-            message: '<strong>Error:</strong> Polygon edges cannot cross!'
-          },
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          showArea: true,
-          metric: true
-        },
-        rectangle: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          showArea: true,
-          metric: true
-        },
-        circle: {
-          shapeOptions: {
-            color: '#3B82F6',
-            weight: 2,
-            fillOpacity: 0.2
-          },
-          metric: true
-        },
-        circlemarker: {
-          radius: 4,
-          color: '#3B82F6',
-          fillColor: '#3B82F6',
-          fillOpacity: 0.5
-        },
-        marker: {
-          icon: new L.Icon.Default()
-        },
-        ...draw,
-      },
+      draw: processedDrawOptions,
       edit: {
         featureGroup,
-        edit: true,
-        remove: true,
-        ...edit,
-      },
+        edit: edit?.edit !== false ? {
+          // Default edit options
+          selectedPathOptions: {
+            color: '#FCD34D',
+            weight: 3,
+            opacity: 0.7
+          }
+        } : false,
+        remove: edit?.remove !== false
+      }
     };
 
     drawControlRef.current = new L.Control.Draw(drawOptions);
