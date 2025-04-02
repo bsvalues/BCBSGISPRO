@@ -180,6 +180,9 @@ export default function CartographerToolsPage() {
           <CardFooter className="flex justify-between border-t pt-4">
             <div className="text-sm text-muted-foreground">
               {mapFeatures.length} feature{mapFeatures.length !== 1 ? 's' : ''} on map
+              <span className="ml-4 text-blue-500 font-medium">
+                NEW: Animated County Boundary Transitions now available!
+              </span>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowTutorial(true)}>
@@ -268,6 +271,22 @@ export default function CartographerToolsPage() {
           </DialogHeader>
           
           <div className="space-y-4 mt-4">
+            <div className="border-l-4 border-blue-500 pl-4 py-2 mb-6 bg-blue-50 rounded">
+              <h3 className="text-lg font-semibold mb-2 text-blue-700">NEW: Animated County Boundaries</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                Smooth transitions between county boundary layers:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li><strong>County View:</strong> View the entire county boundary</li>
+                <li><strong>Township View:</strong> Zoom to township boundaries with smooth animations</li>
+                <li><strong>Section View:</strong> Transition to section boundaries within townships</li>
+                <li><strong>Parcel View:</strong> View individual parcels with animated transitions</li>
+              </ul>
+              <p className="text-sm text-blue-700 mt-2 font-medium">
+                Use the boundary control in the top-left corner of the map to try this new feature!
+              </p>
+            </div>
+            
             <div>
               <h3 className="text-lg font-semibold mb-2">Drawing Tools</h3>
               <p className="text-sm text-muted-foreground mb-2">

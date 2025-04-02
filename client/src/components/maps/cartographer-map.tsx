@@ -6,6 +6,7 @@ import {
 import { AdvancedDrawControl } from './advanced-draw-control';
 import { FeatureVersionHistory } from './feature-version-history';
 import { PrecisionDrawingTools } from './precision-drawing-tools';
+import { AnimatedCountyBoundaries } from './animated-county-boundaries';
 import { 
   GeoJSONFeature, 
   MapTool, 
@@ -32,6 +33,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import L from 'leaflet';
+import {
+  bentonCountyBoundary,
+  bentonTownshipBoundaries,
+  bentonSectionBoundaries,
+  bentonParcelBoundaries
+} from '@/data/county-boundary-data';
 
 interface CartographerMapProps {
   width?: string;
@@ -251,6 +258,23 @@ export function CartographerMap({
             enableVersioning={true}
             enableSplitJoin={true}
             enablePrecisionTools={true}
+          />
+          
+          {/* Animated County Boundaries Control */}
+          <AnimatedCountyBoundaries
+            countyData={bentonCountyBoundary}
+            townshipData={bentonTownshipBoundaries}
+            sectionData={bentonSectionBoundaries}
+            parcelData={bentonParcelBoundaries}
+            position="topleft"
+            highlightColor="#3B82F6"
+            animationDuration={800}
+            onBoundaryChange={(state) => {
+              toast({
+                title: "Boundary Changed",
+                description: `Switched to ${state} view`,
+              });
+            }}
           />
         </EnhancedMapViewer>
         
