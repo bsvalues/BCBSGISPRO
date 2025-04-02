@@ -43,7 +43,8 @@ import ExportResultsDialog from '@/components/analysis/export-results-dialog';
 import { FileImportExport } from '@/components/maps/file-import-export';
 import { CoordinateAddressDisplay } from '@/components/maps/coordinate-address-display';
 import { BuildingFootprintsLayer } from '@/components/maps/building-footprints-layer';
-import { Building, Map } from 'lucide-react';
+import { PropertyListingsPanel } from '@/components/maps/property-listings-panel';
+import { Building, Map, Home } from 'lucide-react';
 import { 
   Calculator,
   Scissors, 
@@ -207,6 +208,7 @@ export default function GeospatialAnalysisPage() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [clickedCoords, setClickedCoords] = useState<{lat: number, lng: number} | null>(null);
   const [showBuildingFootprints, setShowBuildingFootprints] = useState(false);
+  const [showPropertyListings, setShowPropertyListings] = useState(false);
 
   // Handle imported data from the FileImportExport component
   const handleImportedData = (data: any) => {
@@ -380,6 +382,11 @@ export default function GeospatialAnalysisPage() {
     setClickedCoords(null);
   };
   
+  // Close property listings panel
+  const handleClosePropertyListingsPanel = () => {
+    setShowPropertyListings(false);
+  };
+  
   // Map click handler component
   const MapClickHandler = useCallback(() => {
     const map = useMapEvents({
@@ -546,6 +553,18 @@ export default function GeospatialAnalysisPage() {
                     />
                   </div>
                 )}
+                
+                {/* Show property listings when enabled */}
+                {showPropertyListings && clickedCoords && (
+                  <div className="absolute top-4 right-4 z-[1000] max-w-md">
+                    <PropertyListingsPanel
+                      latitude={clickedCoords.lat}
+                      longitude={clickedCoords.lng}
+                      radiusMiles={1}
+                      onClose={handleClosePropertyListingsPanel}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
@@ -565,6 +584,16 @@ export default function GeospatialAnalysisPage() {
                 >
                   <Building className="mr-1 h-4 w-4" />
                   {!isMobile && "Buildings"}
+                </Button>
+                <Button 
+                  variant={showPropertyListings ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setShowPropertyListings(!showPropertyListings)}
+                  title="Toggle Property Listings"
+                  className="flex items-center"
+                >
+                  <Home className="mr-1 h-4 w-4" />
+                  {!isMobile && "Properties"}
                 </Button>
               </div>
               <div className="flex items-center space-x-2">
