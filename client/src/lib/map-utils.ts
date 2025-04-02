@@ -346,3 +346,38 @@ export function getBaseMapUrl(baseMapType: string): string {
       return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   }
 }
+
+/**
+ * Utility conversion functions for measurement units
+ */
+export function squareMetersToAcres(squareMeters: number): number {
+  return squareMeters / 4046.86;
+}
+
+export function acresToSquareMeters(acres: number): number {
+  return acres * 4046.86;
+}
+
+export function squareMetersToSquareFeet(squareMeters: number): number {
+  return squareMeters * 10.7639;
+}
+
+export function squareFeetToSquareMeters(squareFeet: number): number {
+  return squareFeet / 10.7639;
+}
+
+export function metersToFeet(meters: number): number {
+  return meters * 3.28084;
+}
+
+export function feetToMeters(feet: number): number {
+  return feet / 3.28084;
+}
+
+export function metersToMiles(meters: number): number {
+  return meters / 1609.344;
+}
+
+export function milesToMeters(miles: number): number {
+  return miles * 1609.344;
+}
