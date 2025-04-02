@@ -40,6 +40,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { DrawControl } from '@/components/maps/draw-control';
 import ExportResultsDialog from '@/components/analysis/export-results-dialog';
+import { FileImportExport } from '@/components/maps/file-import-export';
 import { 
   Calculator,
   Scissors, 
@@ -201,6 +202,43 @@ export default function GeospatialAnalysisPage() {
   const [selectedFeatures, setSelectedFeatures] = useState<any[]>([]);
   const [drawnItems, setDrawnItems] = useState<any | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Handle imported data from the FileImportExport component
+  const handleImportedData = (data: any) => {
+    if (!data) return;
+    
+    try {
+      // Clear any existing selected features
+      setSelectedFeatures([]);
+      setDrawnItems(null);
+      
+      // Process imported features
+      if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+        // Handle GeoJSON FeatureCollection
+        setSelectedFeatures(data.features);
+        toast({
+          title: "Data Imported",
+          description: `Imported ${data.features.length} features`,
+        });
+      } else if (data.type === 'Feature') {
+        // Handle single GeoJSON Feature
+        setSelectedFeatures([data]);
+        toast({
+          title: "Data Imported",
+          description: "Imported 1 feature",
+        });
+      } else {
+        throw new Error('Invalid GeoJSON format');
+      }
+    } catch (error) {
+      console.error('Error processing imported data:', error);
+      toast({
+        title: "Import Error",
+        description: error instanceof Error ? error.message : "Failed to process imported data",
+        variant: "destructive"
+      });
+    }
+  };
   
   // Setup form
   const form = useForm<GeospatialFormValues>({
@@ -479,6 +517,10 @@ export default function GeospatialAnalysisPage() {
                   <DownloadCloud className="mr-2 h-4 w-4" />
                   Download Report
                 </Button>
+                <FileImportExport 
+                  features={selectedFeatures.length > 0 ? selectedFeatures : (resultFeatures ? resultFeatures : undefined)}
+                  onImport={handleImportedData} 
+                />
               </div>
             </CardFooter>
           </Card>
@@ -650,7 +692,7 @@ export default function GeospatialAnalysisPage() {
               <CardHeader className="pb-2">
                 <CardTitle>Analysis Results</CardTitle>
                 <CardDescription>
-                  {operationLabels[analysisResult.type]} operation completed
+                  {operationLabels[analysisResult.type as GeospatialOperationType]} operation completed
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -664,8 +706,8 @@ export default function GeospatialAnalysisPage() {
                   <TabsContent value="summary" className="space-y-2 pt-2">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center">
-                        <span className="mr-2">{operationIcons[analysisResult.type]}</span>
-                        <span className="font-medium">{operationLabels[analysisResult.type]}</span>
+                        <span className="mr-2">{operationIcons[analysisResult.type as GeospatialOperationType]}</span>
+                        <span className="font-medium">{operationLabels[analysisResult.type as GeospatialOperationType]}</span>
                       </div>
                       <Badge variant="outline">Success</Badge>
                     </div>
@@ -766,7 +808,7 @@ export default function GeospatialAnalysisPage() {
         open={showExportDialog}
         onClose={handleCloseExportDialog}
         analysisResult={analysisResult}
-        defaultTitle={analysisResult ? `${operationLabels[analysisResult.type]} Analysis` : ''}
+        defaultTitle={analysisResult ? `${operationLabels[analysisResult.type as GeospatialOperationType]} Analysis` : ''}
       />
     </div>
   );
