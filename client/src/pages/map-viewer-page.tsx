@@ -41,39 +41,44 @@ export default function MapViewerPage() {
   const [measurementValue, setMeasurementValue] = useState<number | undefined>(undefined);
   const mapRef = useRef<any>(null);
   
-  // Simulated data loading
+  // Fetch map layers from the API
   useEffect(() => {
-    // In a real application, this would fetch layers from the server
-    const mockLayers = [
-      {
-        name: "Parcels",
-        data: {
-          type: "FeatureCollection",
-          features: []
-        },
-        style: {
-          color: "#3B82F6",
-          weight: 2,
-          fillOpacity: 0.2,
-          fillColor: "#93C5FD"
+    const fetchMapLayers = async () => {
+      try {
+        const response = await fetch('/api/map-layers', {
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch map layers: ${response.statusText}`);
         }
-      },
-      {
-        name: "Zoning",
-        data: {
-          type: "FeatureCollection",
-          features: []
-        },
-        style: {
-          color: "#10B981",
-          weight: 1,
-          fillOpacity: 0.2,
-          fillColor: "#6EE7B7"
-        }
+        
+        const layers = await response.json();
+        
+        // Transform API layers to the format expected by the map component
+        const formattedLayers = layers.map(layer => ({
+          name: layer.name,
+          data: {
+            type: "FeatureCollection",
+            features: []
+          },
+          style: layer.metadata?.style || {
+            color: "#3B82F6",
+            weight: 2,
+            fillOpacity: 0.2,
+            fillColor: "#93C5FD"
+          }
+        }));
+        
+        setMapLayers(formattedLayers);
+      } catch (error) {
+        console.error('Error fetching map layers:', error);
+        // Fallback to empty layers array in case of error
+        setMapLayers([]);
       }
-    ];
+    };
     
-    setMapLayers(mockLayers);
+    fetchMapLayers();
   }, []);
   
   // Handle parcel selection
