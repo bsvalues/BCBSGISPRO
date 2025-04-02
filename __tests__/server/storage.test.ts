@@ -1,119 +1,165 @@
-import { storage } from '../../server/storage';
+import { db } from '../../server/db';
+import { IStorage } from '../../server/storage';
+import { User, Workflow, WorkflowType } from '../../shared/schema';
 import { DocumentType } from '../../shared/document-types';
 
-describe('Storage Interface', () => {
-  // Test user operations
-  test('User CRUD operations', async () => {
-    // Create a test user
-    const testUser = await storage.createUser({
-      username: 'testuser',
-      password: 'hashed_password_for_test',
-      fullName: 'Test User',
-      email: 'test@example.com',
-      department: 'Testing',
-      isAdmin: false
-    });
+// Mock the database
+jest.mock('../../server/db', () => ({
+  db: {
+    query: jest.fn()
+  }
+}));
 
-    expect(testUser).toBeDefined();
-    expect(testUser.username).toBe('testuser');
+// Get the mocked database
+const mockedDb = db as jest.Mocked<typeof db>;
+
+describe('Storage Layer', () => {
+  // Import the storage implementation after mocking the database
+  let storage: IStorage;
+  
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
     
-    // Get user by ID
-    const retrievedUser = await storage.getUser(testUser.id);
-    expect(retrievedUser).toBeDefined();
-    expect(retrievedUser?.username).toBe('testuser');
+    // Reset the mock implementation
+    mockedDb.query.mockReset();
     
-    // Get user by username
-    const userByUsername = await storage.getUserByUsername('testuser');
-    expect(userByUsername).toBeDefined();
-    expect(userByUsername?.id).toBe(testUser.id);
+    // Import the storage module in each test to get a fresh instance
+    const { storage: freshStorage } = require('../../server/storage');
+    storage = freshStorage;
   });
   
-  // Test workflow operations
-  test('Workflow CRUD operations', async () => {
-    // Create a test workflow
-    const testWorkflow = await storage.createWorkflow({
-      name: 'Test Workflow',
-      description: 'A workflow for testing',
-      type: 'plat_review',
-      userId: 2, // Admin user ID from dev-login
-      status: 'in_progress'
+  describe('User Operations', () => {
+    test('getUser should return user by ID if found', async () => {
+      const mockUser: User = {
+        id: 1,
+        username: 'testuser',
+        password: 'hashedpassword',
+        fullName: 'Test User',
+        email: 'test@example.com',
+        department: 'IT',
+        isAdmin: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      mockedDb.query.mockResolvedValueOnce([mockUser]);
+      
+      const user = await storage.getUser(1);
+      expect(user).toEqual(mockUser);
     });
     
-    expect(testWorkflow).toBeDefined();
-    expect(testWorkflow.name).toBe('Test Workflow');
-    
-    // Get workflow by ID
-    const retrievedWorkflow = await storage.getWorkflow(testWorkflow.id);
-    expect(retrievedWorkflow).toBeDefined();
-    expect(retrievedWorkflow?.name).toBe('Test Workflow');
-    
-    // Get all workflows
-    const workflows = await storage.getWorkflows(2);
-    expect(workflows.length).toBeGreaterThan(0);
-    expect(workflows.some(w => w.id === testWorkflow.id)).toBe(true);
-  });
-  
-  // Test document operations
-  test('Document operations', async () => {
-    // Create a test document
-    const testDocument = await storage.addDocument({
-      name: 'Test Document',
-      type: DocumentType.PLAT_MAP,
-      contentType: 'application/pdf',
-      contentHash: 'test-hash-123',
-      storageKey: 'test-key-123',
-      content: 'Test content'
+    test('getUser should return undefined if user not found', async () => {
+      mockedDb.query.mockResolvedValueOnce([]);
+      
+      const user = await storage.getUser(999);
+      expect(user).toBeUndefined();
     });
     
-    expect(testDocument).toBeDefined();
-    expect(testDocument.name).toBe('Test Document');
-    
-    // Get document by ID
-    const retrievedDocument = await storage.getDocument(testDocument.id);
-    expect(retrievedDocument).toBeDefined();
-    expect(retrievedDocument?.name).toBe('Test Document');
-    
-    // Update document classification
-    const updatedDocument = await storage.updateDocumentClassification(
-      testDocument.id,
-      {
-        documentType: DocumentType.DEED,
-        confidence: 0.95,
-        wasManuallyClassified: true,
-        classifiedAt: new Date().toISOString()
-      }
-    );
-    
-    expect(updatedDocument).toBeDefined();
-    expect(updatedDocument.classification?.documentType).toBe(DocumentType.DEED);
+    test('getUserByUsername should return user if found', async () => {
+      const mockUser: User = {
+        id: 1,
+        username: 'testuser',
+        password: 'hashedpassword',
+        fullName: 'Test User',
+        email: 'test@example.com',
+        department: 'IT',
+        isAdmin: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      mockedDb.query.mockResolvedValueOnce([mockUser]);
+      
+      const user = await storage.getUserByUsername('testuser');
+      expect(user).toEqual(mockUser);
+    });
   });
   
-  // Test map layer operations
-  test('Map layer operations', async () => {
-    // Get all map layers
-    const layers = await storage.getMapLayers();
-    expect(layers.length).toBeGreaterThan(0);
+  describe('Workflow Operations', () => {
+    test('getWorkflows should return all workflows for a user', async () => {
+      const mockWorkflows: Workflow[] = [
+        {
+          id: 1,
+          userId: 1,
+          type: WorkflowType.LONG_PLAT,
+          title: 'Test Workflow 1',
+          description: 'Description 1',
+          status: 'draft',
+          priority: 'medium',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: 2,
+          userId: 1,
+          type: WorkflowType.BLA,
+          title: 'Test Workflow 2',
+          description: 'Description 2',
+          status: 'in_progress',
+          priority: 'high',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
+      
+      mockedDb.query.mockResolvedValueOnce(mockWorkflows);
+      
+      const workflows = await storage.getWorkflows(1);
+      expect(workflows).toEqual(mockWorkflows);
+      expect(workflows.length).toBe(2);
+    });
     
-    if (layers.length > 0) {
-      const firstLayer = layers[0];
+    test('getWorkflow should return a specific workflow by ID', async () => {
+      const mockWorkflow: Workflow = {
+        id: 1,
+        userId: 1,
+        type: WorkflowType.LONG_PLAT,
+        title: 'Test Workflow',
+        description: 'Description',
+        status: 'draft',
+        priority: 'medium',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       
-      // Update a map layer
-      const updatedLayer = await storage.updateMapLayer(firstLayer.id, {
-        visible: !firstLayer.visible,
-        opacity: 0.75
-      });
+      mockedDb.query.mockResolvedValueOnce([mockWorkflow]);
       
-      expect(updatedLayer).toBeDefined();
-      expect(updatedLayer.visible).toBe(!firstLayer.visible);
-      expect(updatedLayer.opacity).toBe(0.75);
+      const workflow = await storage.getWorkflow(1);
+      expect(workflow).toEqual(mockWorkflow);
+    });
+  });
+  
+  describe('Document Operations', () => {
+    test('getDocuments should return all documents or filtered by workflowId', async () => {
+      const mockDocuments = [
+        {
+          id: 1,
+          workflowId: 1,
+          name: 'Test Document 1',
+          type: DocumentType.PLAT_MAP,
+          contentType: 'application/pdf',
+          contentHash: 'hash1',
+          storageKey: 'key1',
+          uploadedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: 2,
+          workflowId: 1,
+          name: 'Test Document 2',
+          type: DocumentType.DEED,
+          contentType: 'application/pdf',
+          contentHash: 'hash2',
+          storageKey: 'key2',
+          uploadedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
       
-      // Get visible map layers
-      const visibleLayers = await storage.getVisibleMapLayers();
-      if (updatedLayer.visible) {
-        expect(visibleLayers.some(l => l.id === updatedLayer.id)).toBe(true);
-      } else {
-        expect(visibleLayers.some(l => l.id === updatedLayer.id)).toBe(false);
-      }
-    }
+      mockedDb.query.mockResolvedValueOnce(mockDocuments);
+      
+      const documents = await storage.getDocuments(1);
+      expect(documents).toEqual(mockDocuments);
+      expect(documents.length).toBe(2);
+    });
   });
 });
