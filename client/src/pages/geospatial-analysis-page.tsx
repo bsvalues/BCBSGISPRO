@@ -42,6 +42,8 @@ import { DrawControl } from '@/components/maps/draw-control';
 import ExportResultsDialog from '@/components/analysis/export-results-dialog';
 import { FileImportExport } from '@/components/maps/file-import-export';
 import { CoordinateAddressDisplay } from '@/components/maps/coordinate-address-display';
+import { BuildingFootprintsLayer } from '@/components/maps/building-footprints-layer';
+import { Building, Map } from 'lucide-react';
 import { 
   Calculator,
   Scissors, 
@@ -204,6 +206,7 @@ export default function GeospatialAnalysisPage() {
   const [drawnItems, setDrawnItems] = useState<any | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [clickedCoords, setClickedCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [showBuildingFootprints, setShowBuildingFootprints] = useState(false);
 
   // Handle imported data from the FileImportExport component
   const handleImportedData = (data: any) => {
@@ -519,6 +522,16 @@ export default function GeospatialAnalysisPage() {
                     }}
                   />
                   
+                  {/* Building footprints layer */}
+                  {showBuildingFootprints && (
+                    <BuildingFootprintsLayer 
+                      fillColor="#6366f1"
+                      strokeColor="#4338ca"
+                      opacity={0.15}
+                      weight={1}
+                    />
+                  )}
+                  
                   {/* Map click handler */}
                   <MapClickHandler />
                 </MapContainer>
@@ -542,6 +555,16 @@ export default function GeospatialAnalysisPage() {
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleClearResults}>
                   Clear Results
+                </Button>
+                <Button 
+                  variant={showBuildingFootprints ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setShowBuildingFootprints(!showBuildingFootprints)}
+                  title="Toggle Building Footprints"
+                  className="flex items-center"
+                >
+                  <Building className="mr-1 h-4 w-4" />
+                  {!isMobile && "Buildings"}
                 </Button>
               </div>
               <div className="flex items-center space-x-2">
