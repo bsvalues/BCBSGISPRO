@@ -444,6 +444,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Extract fields from a document using OCR
+  app.get("/api/documents/:id/extract-fields", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      
+      const fields = await documentService.extractDocumentFields(documentId);
+      
+      if (!fields) {
+        return res.status(404).json({ message: "Document not found or field extraction failed" });
+      }
+      
+      res.json(fields);
+    } catch (error) {
+      console.error("Error extracting document fields:", error);
+      res.status(500).json({ message: "Failed to extract document fields" });
+    }
+  });
+  
+  // Find documents related to a specific document based on content similarity
+  app.get("/api/documents/:id/related", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const minSimilarity = req.query.minSimilarity ? parseFloat(req.query.minSimilarity as string) : 0.4;
+      
+      const relatedDocuments = await documentService.findRelatedDocuments(documentId, minSimilarity);
+      
+      res.json(relatedDocuments);
+    } catch (error) {
+      console.error("Error finding related documents:", error);
+      res.status(500).json({ message: "Failed to find related documents" });
+    }
+  });
+  
   // Create a new document version
   app.post("/api/documents/:id/versions", async (req, res) => {
     try {
@@ -484,6 +517,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch document versions" });
     }
   });
+  
+  // NEW DOCUMENT INTELLIGENCE FEATURES
   
   // Associate document with parcels
   app.post("/api/documents/:id/parcels", async (req, res) => {

@@ -1,7 +1,8 @@
 import { createHash } from 'crypto';
-import { InsertDocument, InsertDocumentVersion, documentTypeEnum } from '@shared/schema';
+import { InsertDocument, InsertDocumentVersion, documentTypeEnum, Document } from '@shared/schema';
 import { DocumentType } from '@shared/document-types';
 import { classifyDocument, ClassificationResult } from './document-classifier';
+import { documentOcrService, OcrExtractionResult } from './document-ocr-service';
 import { storage } from '../storage';
 
 /**
@@ -10,6 +11,7 @@ import { storage } from '../storage';
 class DocumentService {
   /**
    * Creates a new document in the system with automatic classification
+   * Now with enhanced OCR and field extraction
    * @param params Document creation parameters
    * @returns Created document with classification details
    */
@@ -23,9 +25,11 @@ class DocumentService {
     const contentHash = this.generateContentHash(params.content);
     const storageKey = this.generateStorageKey(params.name, contentHash);
     
-    // Extract text from document for classification (in production, this would use OCR or text extraction)
-    // For now, we'll use a simple approach with the base64 data
-    const textContent = this.extractText(params.content, params.contentType);
+    // Extract text from document using advanced OCR
+    const textContent = await this.extractText(params.content, params.contentType);
+    
+    // Extract structured fields
+    const extractionResult = await documentOcrService.extractFields(textContent);
     
     // Classify the document based on its text content
     const classification = classifyDocument(textContent);
@@ -53,6 +57,23 @@ class DocumentService {
       versionNumber: 1,
       content: params.content
     });
+    
+    // If we extracted parcel numbers, try to associate them automatically
+    if (extractionResult.parcelNumbers && extractionResult.parcelNumbers.length > 0) {
+      try {
+        for (const parcelNumber of extractionResult.parcelNumbers) {
+          const parcels = await storage.searchParcelsByNumber(parcelNumber);
+          if (parcels.length > 0) {
+            // Found matching parcels, associate them with the document
+            const parcelIds = parcels.map(p => p.id);
+            await this.associateWithParcels(document.id, parcelIds);
+          }
+        }
+      } catch (error) {
+        console.error('Error auto-associating parcels:', error);
+        // Continue even if parcel association fails
+      }
+    }
     
     return document;
   }
@@ -130,33 +151,152 @@ class DocumentService {
   
   /**
    * Extracts text from document content for classification
-   * In a production system, this would use proper OCR or text extraction services
+   * Using the enhanced OCR service for better text extraction
    * @param content Base64 encoded document content
    * @param contentType MIME type of the document
    * @returns Extracted text
    */
-  public extractText(content: string, contentType: string): string {
-    // Simple extraction of readable text from base64 content
-    // In production, use proper text extraction based on content type (PDF, image, etc.)
+  public async extractText(content: string, contentType: string): Promise<string> {
     try {
-      const buffer = Buffer.from(content, 'base64');
-      // For text-based files, try to extract as UTF-8
-      if (contentType.startsWith('text/') || 
-          contentType.includes('json') || 
-          contentType.includes('xml')) {
-        return buffer.toString('utf-8');
-      }
-      
-      // For other files, just return a partial extraction of readable ASCII characters
-      // This is a very simplified approach just for demo purposes
-      return buffer.toString('ascii')
-        .replace(/[^\x20-\x7E]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      // Use the enhanced OCR service
+      return await documentOcrService.extractText(content, contentType);
     } catch (error) {
       console.error('Error extracting text from document:', error);
       return ''; // Return empty string if extraction fails
     }
+  }
+  
+  /**
+   * Extracts structured fields from document text
+   * @param documentId Document ID
+   * @returns Extraction result with fields
+   */
+  public async extractDocumentFields(documentId: number): Promise<OcrExtractionResult | null> {
+    // Get the document
+    const document = await storage.getDocument(documentId);
+    if (!document) {
+      return null;
+    }
+    
+    // Get the latest version of the document to access its content
+    const versions = await storage.getDocumentVersions(documentId);
+    if (!versions || versions.length === 0) {
+      return null;
+    }
+    
+    // Sort versions by version number (latest first)
+    const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+    const latestVersion = sortedVersions[0];
+    
+    // Get the document content (which would be stored in version record)
+    const documentContent = await this.getDocumentContentByKey(latestVersion.storageKey);
+    if (!documentContent) {
+      return null;
+    }
+    
+    // First extract the text
+    const text = await this.extractText(documentContent, document.contentType);
+    
+    // Then extract structured fields
+    return await documentOcrService.extractFields(text);
+  }
+  
+  /**
+   * Retrieves document content by storage key
+   * In a real system, this would fetch from S3, filesystem, or another storage
+   * For this implementation, we're simulating content retrieval
+   * @param storageKey The key where the document is stored
+   * @returns The document content or null if not found
+   */
+  private async getDocumentContentByKey(storageKey: string): Promise<string | null> {
+    // In a real implementation, this would fetch from persistent storage
+    // For now, we'll simulate having the content by generating placeholder text
+    // based on the storage key to make it deterministic
+    
+    // This is a simplified simulation - in a real app, actual document content would be retrieved
+    return `Sample document content for ${storageKey}`;
+  }
+  
+  /**
+   * Finds documents potentially related to a given document based on content similarity
+   * @param documentId Document ID to find relations for
+   * @param minSimilarity Minimum similarity threshold (0-1)
+   * @returns Array of document similarity results
+   */
+  public async findRelatedDocuments(documentId: number, minSimilarity: number = 0.4): Promise<any[]> {
+    // Get the target document
+    const document = await storage.getDocument(documentId);
+    if (!document) {
+      return [];
+    }
+    
+    // Get the document versions for the target
+    const versions = await storage.getDocumentVersions(documentId);
+    if (!versions || versions.length === 0) {
+      return [];
+    }
+    
+    // Get the latest version
+    const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+    const latestVersion = sortedVersions[0];
+    
+    // Get target document content
+    const targetContent = await this.getDocumentContentByKey(latestVersion.storageKey);
+    if (!targetContent) {
+      return [];
+    }
+    
+    // Get all other documents (excluding the target)
+    const allDocuments = await storage.getDocuments();
+    const candidateDocumentIds = allDocuments
+      .filter(doc => doc.id !== documentId)
+      .map(doc => doc.id);
+    
+    // No candidates to compare
+    if (candidateDocumentIds.length === 0) {
+      return [];
+    }
+    
+    // Extract text from target document
+    const targetText = await this.extractText(targetContent, document.contentType);
+    
+    // Calculate similarity with each candidate
+    const results = [];
+    for (const candidateId of candidateDocumentIds) {
+      // Get the candidate document
+      const candidateDoc = await storage.getDocument(candidateId);
+      if (!candidateDoc) continue;
+      
+      // Get candidate versions
+      const candidateVersions = await storage.getDocumentVersions(candidateId);
+      if (!candidateVersions || candidateVersions.length === 0) continue;
+      
+      // Get latest candidate version
+      const sortedCandidateVersions = [...candidateVersions].sort((a, b) => b.versionNumber - a.versionNumber);
+      const latestCandidateVersion = sortedCandidateVersions[0];
+      
+      // Get candidate content
+      const candidateContent = await this.getDocumentContentByKey(latestCandidateVersion.storageKey);
+      if (!candidateContent) continue;
+      
+      // Extract text from candidate
+      const candidateText = await this.extractText(candidateContent, candidateDoc.contentType);
+      
+      // Calculate similarity
+      const similarity = await documentOcrService.calculateContentSimilarity(targetText, candidateText);
+      
+      if (similarity >= minSimilarity) {
+        results.push({
+          documentId: candidateDoc.id,
+          name: candidateDoc.name,
+          type: candidateDoc.type,
+          similarityScore: similarity
+        });
+      }
+    }
+    
+    // Sort by similarity (highest first)
+    return results.sort((a, b) => b.similarityScore - a.similarityScore);
   }
   
   /**
@@ -175,6 +315,32 @@ class DocumentService {
    */
   async getDocumentVersions(documentId: number) {
     return await storage.getDocumentVersions(documentId);
+  }
+  
+  /**
+   * Associates a document with parcels
+   * Helper method used for automatic parcel linking
+   * @param documentId Document ID
+   * @param parcelIds Array of parcel IDs
+   */
+  private async associateWithParcels(documentId: number, parcelIds: number[]) {
+    if (!parcelIds || parcelIds.length === 0) return;
+    
+    for (const parcelId of parcelIds) {
+      try {
+        // Check if link already exists
+        const existingLink = await storage.getDocumentParcelLink(documentId, parcelId);
+        if (!existingLink) {
+          // Create new link
+          await storage.createDocumentParcelLink({
+            documentId,
+            parcelId
+          });
+        }
+      } catch (error) {
+        console.error(`Error linking document ${documentId} to parcel ${parcelId}:`, error);
+      }
+    }
   }
 }
 
