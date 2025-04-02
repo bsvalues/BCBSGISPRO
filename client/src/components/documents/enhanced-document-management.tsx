@@ -35,6 +35,8 @@ import { BatchDocumentProcessor } from './batch-document-processor';
 import { DocumentVersionControl } from './document-version-control';
 import { DocumentParcelManager } from './document-parcel-manager';
 import { DocumentClassificationResult } from './document-classification-result';
+import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { illustrations } from '@/lib/illustrations';
 import { getDocumentTypeLabel } from '@shared/document-types';
 import { formatDistanceToNow } from 'date-fns';
 import { 
@@ -110,11 +112,27 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight mb-1">Document Management</h2>
-          <p className="text-muted-foreground">
-            Manage documents for {workflow.title}
-          </p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight mb-1">Document Management</h2>
+            <p className="text-muted-foreground">
+              Manage documents for {workflow.title}
+            </p>
+          </div>
+          <IllustratedTooltip
+            illustration={illustrations.document.general}
+            title="Document Management Help"
+            content={
+              <div>
+                <p className="mb-1">• View and organize documents by type</p>
+                <p className="mb-1">• Track document versions with the version history feature</p>
+                <p className="mb-1">• Associate parcels with documents for easy cross-referencing</p>
+                <p>• Batch upload multiple documents for automatic classification</p>
+              </div>
+            }
+            position="right"
+            iconSize={18}
+          />
         </div>
         
         <Button onClick={() => setShowBatchUploader(true)}>

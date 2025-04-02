@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { illustrations } from '@/lib/illustrations';
 import {
   Table,
   TableBody,
@@ -127,9 +129,25 @@ export const ReportsDashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col space-y-2 sm:flex-row sm:justify-between sm:space-y-0">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-          <p className="text-muted-foreground">View, generate, and manage your reports</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+            <p className="text-muted-foreground">View, generate, and manage your reports</p>
+          </div>
+          <IllustratedTooltip
+            illustration={illustrations.report.general}
+            title="Reports Dashboard Help"
+            content={
+              <div>
+                <p className="mb-1">• Filter reports by date range, status, and template</p>
+                <p className="mb-1">• View detailed report information and download options</p>
+                <p className="mb-1">• Generate new reports from available templates</p>
+                <p>• Set up scheduled reports for automation</p>
+              </div>
+            }
+            position="right"
+            iconSize={18}
+          />
         </div>
         <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
