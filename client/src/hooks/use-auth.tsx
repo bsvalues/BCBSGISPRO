@@ -1,130 +1,44 @@
-import { createContext, ReactNode, useContext } from "react";
-import {
-  useQuery,
-  useMutation,
-  UseMutationResult,
-} from "@tanstack/react-query";
-import { insertUserSchema, User } from "@shared/schema";
-import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+/**
+ * Extremely simplified mock authentication for development.
+ * This bypasses the need for actual authentication by providing a mock user and empty mutations.
+ */
+import { ReactNode } from "react";
+import { User } from "@shared/schema";
 
-type AuthContextType = {
-  user: User | null;
-  isLoading: boolean;
-  error: Error | null;
-  loginMutation: UseMutationResult<User, Error, LoginData>;
-  logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<User, Error, RegisterData>;
+// Simple mock user for development
+const mockUser: User = {
+  id: 1,
+  username: "demo_user",
+  password: "password123",
+  fullName: "Demo User",
+  email: "demo@bentoncounty.gov",
+  department: "GIS Department",
+  isAdmin: true,
+  createdAt: new Date().toISOString() as unknown as Date 
 };
 
-type LoginData = {
-  username: string;
-  password: string;
-};
-
-type RegisterData = {
-  username: string;
-  password: string;
-  fullName: string;
-  email: string;
-  department?: string;
-};
-
-export const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { toast } = useToast();
-  const {
-    data: user,
-    error,
-    isLoading,
-  } = useQuery<User | null, Error>({
-    queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
-  });
-
-  const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+// Simple mock auth functions 
+export function useAuth() {
+  return {
+    user: mockUser,
+    isLoading: false,
+    error: null,
+    loginMutation: {
+      mutate: () => {},
+      isPending: false,
     },
-    onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "Login successful",
-        description: `Welcome back, ${user.fullName}!`,
-      });
+    logoutMutation: {
+      mutate: () => {},
+      isPending: false,
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (credentials: RegisterData) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
-    },
-    onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "Registration successful",
-        description: `Welcome to Benton GIS Workflow Assistant, ${user.fullName}!`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user: user ?? null,
-        isLoading,
-        error,
-        loginMutation,
-        logoutMutation,
-        registerMutation,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+    registerMutation: {
+      mutate: () => {},
+      isPending: false,
+    }
+  };
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+// Simplified auth provider that just passes children through
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
