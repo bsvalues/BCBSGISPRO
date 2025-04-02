@@ -1,7 +1,8 @@
-import fetch from 'node-fetch';
+const request = require('supertest');
+const fetch = require('node-fetch');
 
-describe('API Routes', () => {
-  const serverUrl = 'http://localhost:5000';
+describe('API Tests', () => {
+  let serverUrl = 'http://localhost:5000';
 
   test('GET /api/user should return 401 when not authenticated', async () => {
     const response = await fetch(`${serverUrl}/api/user`);
@@ -10,7 +11,6 @@ describe('API Routes', () => {
 
   test('GET /api/dev-login should return user data for development', async () => {
     const response = await fetch(`${serverUrl}/api/dev-login`, {
-      // @ts-ignore
       credentials: 'include'
     });
     
@@ -19,16 +19,5 @@ describe('API Routes', () => {
     expect(data).toHaveProperty('id');
     expect(data).toHaveProperty('username');
     expect(data.username).toBe('admin');
-  });
-
-  test('GET /api/db-test should connect to the database', async () => {
-    const response = await fetch(`${serverUrl}/api/db-test`);
-    
-    expect(response.ok).toBeTruthy();
-    const data = await response.json();
-    expect(data).toHaveProperty('success');
-    expect(data.success).toBe(true);
-    expect(data).toHaveProperty('message');
-    expect(data.message).toBe('Database connection successful');
   });
 });

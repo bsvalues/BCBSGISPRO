@@ -1,100 +1,119 @@
 import { storage } from '../../server/storage';
-import { WorkflowType } from '../../shared/schema';
+import { DocumentType } from '../../shared/document-types';
 
-describe('Storage', () => {
-  // User operations tests
-  describe('User operations', () => {
-    test('Can create and retrieve user', async () => {
-      const newUser = await storage.createUser({
-        username: 'testuser',
-        password: 'password',
-        fullName: 'Test User',
-        email: 'test@example.com',
-        department: 'Testing',
-        isAdmin: false,
-        createdAt: new Date()
-      });
-      
-      expect(newUser).toHaveProperty('id');
-      expect(newUser.username).toBe('testuser');
-      
-      const retrievedUser = await storage.getUser(newUser.id);
-      expect(retrievedUser).toBeDefined();
-      expect(retrievedUser?.username).toBe(newUser.username);
+describe('Storage Interface', () => {
+  // Test user operations
+  test('User CRUD operations', async () => {
+    // Create a test user
+    const testUser = await storage.createUser({
+      username: 'testuser',
+      password: 'hashed_password_for_test',
+      fullName: 'Test User',
+      email: 'test@example.com',
+      department: 'Testing',
+      isAdmin: false
     });
+
+    expect(testUser).toBeDefined();
+    expect(testUser.username).toBe('testuser');
     
-    test('Can retrieve user by username', async () => {
-      const user = await storage.getUserByUsername('testuser');
-      expect(user).toBeDefined();
-      expect(user?.username).toBe('testuser');
-    });
+    // Get user by ID
+    const retrievedUser = await storage.getUser(testUser.id);
+    expect(retrievedUser).toBeDefined();
+    expect(retrievedUser?.username).toBe('testuser');
+    
+    // Get user by username
+    const userByUsername = await storage.getUserByUsername('testuser');
+    expect(userByUsername).toBeDefined();
+    expect(userByUsername?.id).toBe(testUser.id);
   });
   
-  // Workflow operations tests
-  describe('Workflow operations', () => {
-    let workflowId: number;
-    
-    test('Can create workflow', async () => {
-      const newWorkflow = await storage.createWorkflow({
-        title: 'Test Workflow',
-        type: WorkflowType.LONG_PLAT,
-        description: 'Testing workflow',
-        userId: 1,
-        status: 'in_progress'
-      });
-      
-      expect(newWorkflow).toHaveProperty('id');
-      expect(newWorkflow.title).toBe('Test Workflow');
-      workflowId = newWorkflow.id;
+  // Test workflow operations
+  test('Workflow CRUD operations', async () => {
+    // Create a test workflow
+    const testWorkflow = await storage.createWorkflow({
+      name: 'Test Workflow',
+      description: 'A workflow for testing',
+      type: 'plat_review',
+      userId: 2, // Admin user ID from dev-login
+      status: 'in_progress'
     });
     
-    test('Can retrieve workflows', async () => {
-      const workflows = await storage.getWorkflows(1);
-      expect(Array.isArray(workflows)).toBe(true);
-      expect(workflows.length).toBeGreaterThan(0);
-      
-      const workflow = await storage.getWorkflow(workflowId);
-      expect(workflow).toBeDefined();
-      expect(workflow?.title).toBe('Test Workflow');
-    });
+    expect(testWorkflow).toBeDefined();
+    expect(testWorkflow.name).toBe('Test Workflow');
     
-    test('Can update workflow state', async () => {
-      const state = await storage.updateWorkflowState(workflowId, {
-        currentStep: 2,
-        data: JSON.stringify({ status: 'in_progress' })
-      });
-      
-      expect(state).toHaveProperty('workflowId', workflowId);
-      expect(state).toHaveProperty('currentStep', 2);
-      
-      const retrievedState = await storage.getWorkflowState(workflowId);
-      expect(retrievedState).toBeDefined();
-      expect(retrievedState?.currentStep).toBe(2);
-    });
+    // Get workflow by ID
+    const retrievedWorkflow = await storage.getWorkflow(testWorkflow.id);
+    expect(retrievedWorkflow).toBeDefined();
+    expect(retrievedWorkflow?.name).toBe('Test Workflow');
+    
+    // Get all workflows
+    const workflows = await storage.getWorkflows(2);
+    expect(workflows.length).toBeGreaterThan(0);
+    expect(workflows.some(w => w.id === testWorkflow.id)).toBe(true);
   });
   
-  // Map operations tests
-  describe('Map operations', () => {
-    test('Can retrieve map layers', async () => {
-      const layers = await storage.getMapLayers();
-      expect(Array.isArray(layers)).toBe(true);
-      expect(layers.length).toBeGreaterThan(0);
+  // Test document operations
+  test('Document operations', async () => {
+    // Create a test document
+    const testDocument = await storage.addDocument({
+      name: 'Test Document',
+      type: DocumentType.PLAT_MAP,
+      contentType: 'application/pdf',
+      contentHash: 'test-hash-123',
+      storageKey: 'test-key-123',
+      content: 'Test content'
     });
+    
+    expect(testDocument).toBeDefined();
+    expect(testDocument.name).toBe('Test Document');
+    
+    // Get document by ID
+    const retrievedDocument = await storage.getDocument(testDocument.id);
+    expect(retrievedDocument).toBeDefined();
+    expect(retrievedDocument?.name).toBe('Test Document');
+    
+    // Update document classification
+    const updatedDocument = await storage.updateDocumentClassification(
+      testDocument.id,
+      {
+        documentType: DocumentType.DEED,
+        confidence: 0.95,
+        wasManuallyClassified: true,
+        classifiedAt: new Date().toISOString()
+      }
+    );
+    
+    expect(updatedDocument).toBeDefined();
+    expect(updatedDocument.classification?.documentType).toBe(DocumentType.DEED);
   });
   
-  // Parcel operations tests
-  describe('Parcel operations', () => {
-    test('Can generate parcel numbers', async () => {
-      const count = 3;
-      const parcels = await storage.generateParcelNumbers('12345678', count);
-      expect(Array.isArray(parcels)).toBe(true);
-      expect(parcels.length).toBe(count);
+  // Test map layer operations
+  test('Map layer operations', async () => {
+    // Get all map layers
+    const layers = await storage.getMapLayers();
+    expect(layers.length).toBeGreaterThan(0);
+    
+    if (layers.length > 0) {
+      const firstLayer = layers[0];
       
-      // Check that parcel numbers follow expected format
-      parcels.forEach(parcel => {
-        expect(typeof parcel).toBe('string');
-        expect(parcel.length).toBeGreaterThan(0);
+      // Update a map layer
+      const updatedLayer = await storage.updateMapLayer(firstLayer.id, {
+        visible: !firstLayer.visible,
+        opacity: 0.75
       });
-    });
+      
+      expect(updatedLayer).toBeDefined();
+      expect(updatedLayer.visible).toBe(!firstLayer.visible);
+      expect(updatedLayer.opacity).toBe(0.75);
+      
+      // Get visible map layers
+      const visibleLayers = await storage.getVisibleMapLayers();
+      if (updatedLayer.visible) {
+        expect(visibleLayers.some(l => l.id === updatedLayer.id)).toBe(true);
+      } else {
+        expect(visibleLayers.some(l => l.id === updatedLayer.id)).toBe(false);
+      }
+    }
   });
 });

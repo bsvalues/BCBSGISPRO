@@ -1,6 +1,11 @@
 #!/bin/bash
 
-# This script runs Jest tests for the project
-
-echo "Running Jest tests..."
-npx jest "$@"
+# Run all tests if no argument is provided
+if [ $# -eq 0 ]; then
+  echo "Running all tests..."
+  npx jest
+else
+  # Run specific test files passed as arguments
+  echo "Running tests: $@"
+  npx jest $@
+fi
