@@ -1,97 +1,64 @@
-import React from 'react';
-import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-export type ToastVariant = 'default' | 'destructive' | 'success' | 'info' | 'warning';
-export type ToastPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+const toastVariants = cva(
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  {
+    variants: {
+      variant: {
+        default: "border bg-white text-foreground",
+        error: "destructive group border-red-500 bg-red-50 text-red-800",
+        success: "border-green-500 bg-green-50 text-green-800",
+        warning: "border-yellow-500 bg-yellow-50 text-yellow-800",
+        info: "border-blue-500 bg-blue-50 text-blue-800",
+        loading: "border-gray-500 bg-gray-50 text-gray-800",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
 
-export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: ToastVariant;
-  onClose?: () => void;
-  title?: string;
-  description?: string;
-  duration?: number;
-  position?: ToastPosition;
+export interface ToastProps extends React.HTMLAttributes<HTMLDivElement>,
+  VariantProps<typeof toastVariants> {
+  title?: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactNode
+  onClose?: () => void
 }
 
-export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ 
-    className, 
-    variant = 'default', 
-    onClose, 
-    title, 
-    description, 
-    children,
-    ...props 
-  }, ref) => {
-    const variantStyles = {
-      default: 'bg-white border-gray-200 text-gray-800',
-      destructive: 'bg-red-50 border-red-200 text-red-800',
-      success: 'bg-green-50 border-green-200 text-green-800',
-      info: 'bg-blue-50 border-blue-200 text-blue-800',
-      warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-    };
-
+const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
+  ({ className, variant, title, description, action, onClose, ...props }, ref) => {
     return (
       <div
         ref={ref}
-        className={cn(
-          'max-w-md w-full shadow-lg rounded-lg pointer-events-auto overflow-hidden border',
-          variantStyles[variant],
-          className
-        )}
+        className={cn(toastVariants({ variant }), className)}
         {...props}
       >
-        <div className="flex items-start p-4">
-          <div className="flex-1">
-            {title && (
-              <h4 className="text-sm font-medium mb-1">{title}</h4>
-            )}
-            {description && (
-              <p className="text-sm opacity-90">{description}</p>
-            )}
-            {children}
-          </div>
-          {onClose && (
-            <button 
-              onClick={onClose}
-              className="ml-4 flex-shrink-0 flex justify-center items-center h-5 w-5 rounded-full hover:bg-gray-200 transition"
-              aria-label="Close"
-            >
-              <X className="h-3 w-3" />
-            </button>
+        <div className="grid gap-1">
+          {title && <div className="text-sm font-semibold">{title}</div>}
+          {description && (
+            <div className="text-sm opacity-90">{description}</div>
           )}
         </div>
-      </div>
-    );
-  }
-);
-
-Toast.displayName = 'Toast';
-
-export const ToastViewport = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { position?: ToastPosition }>(
-  ({ className, position = 'bottom-right', ...props }, ref) => {
-    const positionStyles = {
-      'top-right': 'top-0 right-0',
-      'top-left': 'top-0 left-0',
-      'bottom-right': 'bottom-0 right-0',
-      'bottom-left': 'bottom-0 left-0',
-      'top-center': 'top-0 left-1/2 -translate-x-1/2',
-      'bottom-center': 'bottom-0 left-1/2 -translate-x-1/2',
-    };
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          'fixed z-50 flex max-h-screen flex-col-reverse p-4 gap-2 sm:flex-col',
-          positionStyles[position],
-          className
+        {action}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </button>
         )}
-        {...props}
-      />
-    );
+      </div>
+    )
   }
-);
+)
+Toast.displayName = "Toast"
 
-ToastViewport.displayName = 'ToastViewport';
+export { Toast, toastVariants }

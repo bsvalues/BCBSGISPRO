@@ -1,75 +1,83 @@
-import { useContext } from 'react';
-import { ToastContext, ToastContextType } from '@/components/ui/toast-provider';
+import { useCallback } from 'react';
+import { useToastContext, createToast, ToastItem } from '@/components/ui/toast-provider';
 
 /**
- * Hook for accessing toast functionality throughout the application
+ * Hook that provides methods for displaying toast notifications
  * 
- * @returns Toast context object with methods for managing toasts
- * @throws Error if used outside of a ToastProvider
- */
-export const useToast = (): ToastContextType => {
-  const context = useContext(ToastContext);
-  
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  
-  return context;
-};
-
-/**
- * Helper function to create toast with consistent types across the app
- */
-export type ToastTypes = {
-  success: (options: { title: string; description?: string; duration?: number }) => string;
-  error: (options: { title: string; description?: string; duration?: number }) => string;
-  warning: (options: { title: string; description?: string; duration?: number }) => string;
-  info: (options: { title: string; description?: string; duration?: number }) => string;
-};
-
-/**
- * Factory function to create typed toast functions
+ * @returns Methods for displaying and managing toast notifications
  * 
- * @returns Object with typed toast functions
+ * @example
+ * ```tsx
+ * const { toast, dismiss } = useToast();
+ * 
+ * // Show a success toast
+ * toast.success({
+ *   title: 'Success!',
+ *   description: 'Your action was completed successfully.'
+ * });
+ * 
+ * // Show an error toast
+ * toast.error({
+ *   title: 'Error',
+ *   description: 'Something went wrong. Please try again.'
+ * });
+ * ```
  */
-export const createToastTypes = (): ToastTypes => {
-  const { addToast } = useToast();
-  
+export function useToast() {
+  const { addToast, removeToast, updateToast } = useToastContext();
+
+  // Create a toast with default variant
+  const toast = useCallback(
+    (props: Omit<ToastItem, 'id'>) => {
+      return addToast(props);
+    },
+    [addToast]
+  );
+
+  // Dismiss a toast by ID
+  const dismiss = useCallback(
+    (toastId: string) => {
+      removeToast(toastId);
+    },
+    [removeToast]
+  );
+
+  // Update a toast by ID
+  const update = useCallback(
+    (toastId: string, props: Partial<Omit<ToastItem, 'id'>>) => {
+      updateToast(toastId, props);
+    },
+    [updateToast]
+  );
+
+  // Create helper methods for different toast variants
   return {
-    success: ({ title, description, duration = 5000 }) => {
-      return addToast({
-        variant: 'success',
-        title,
-        description,
-        duration,
-      });
-    },
-    
-    error: ({ title, description, duration = 7000 }) => {
-      return addToast({
-        variant: 'destructive',
-        title,
-        description,
-        duration,
-      });
-    },
-    
-    warning: ({ title, description, duration = 5000 }) => {
-      return addToast({
-        variant: 'warning',
-        title,
-        description,
-        duration,
-      });
-    },
-    
-    info: ({ title, description, duration = 5000 }) => {
-      return addToast({
-        variant: 'info',
-        title,
-        description,
-        duration,
-      });
-    },
+    toast: Object.assign(toast, {
+      // Show a default toast
+      default: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.default(props)),
+      
+      // Show a success toast
+      success: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.success(props)),
+      
+      // Show an error toast
+      error: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.error(props)),
+      
+      // Show a warning toast
+      warning: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.warning(props)),
+      
+      // Show an info toast
+      info: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.info(props)),
+      
+      // Show a loading toast
+      loading: (props: Omit<ToastItem, 'id' | 'variant'>) => 
+        addToast(createToast.loading(props)),
+    }),
+    dismiss,
+    update,
   };
-};
+}

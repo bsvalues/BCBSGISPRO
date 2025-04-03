@@ -1,97 +1,145 @@
 import { useState, useCallback } from 'react';
+import { useToast } from './use-toast';
 
 /**
- * ErrorDetails interface for additional error context
+ * Options for error handling behavior
  */
-interface ErrorDetails {
-  context?: string;
-  timestamp?: string;
-  [key: string]: unknown;
+export interface ErrorOptions {
+  /**
+   * Whether to show a toast notification for this error
+   */
+  showToast?: boolean;
+  /**
+   * Custom title for the toast notification
+   */
+  toastTitle?: string;
+  /**
+   * Custom description for the toast notification
+   */
+  toastDescription?: string;
+  /**
+   * The intended UI variant for the error
+   */
+  variant?: 'error' | 'warning' | 'info';
+  /**
+   * Whether to log the error to the console
+   */
+  logToConsole?: boolean;
+  /**
+   * Custom error handler function
+   */
+  customHandler?: (error: Error) => void;
 }
 
 /**
- * ErrorState interface to manage error state
+ * Error handler function type
  */
-interface ErrorState {
-  hasError: boolean;
-  message: string;
-  details?: ErrorDetails;
-  stack?: string;
-}
+export type ErrorHandler = (error: Error, options?: ErrorOptions) => void;
 
 /**
- * ErrorHandlerHook interface defining the shape of the hook return value
- */
-interface ErrorHandlerHook {
-  error: ErrorState;
-  setError: (error: Error | unknown, details?: ErrorDetails) => void;
-  clearError: () => void;
-  withErrorHandling: <T extends (...args: any[]) => Promise<any>>(fn: T) => T;
-}
-
-/**
- * Default error state
- */
-const defaultErrorState: ErrorState = {
-  hasError: false,
-  message: '',
-};
-
-/**
- * Custom hook for standardized error handling throughout the application
+ * Hook that provides standardized error handling functionality
  * 
- * @returns Object containing error state and error handling functions
+ * @returns Object containing error handling utilities
+ * 
+ * @example
+ * ```tsx
+ * const { handleError, withErrorHandling, tryCatch } = useErrorHandler();
+ * 
+ * // Basic error handling
+ * try {
+ *   doSomething();
+ * } catch (error) {
+ *   handleError(error as Error);
+ * }
+ * 
+ * // With a wrapped async function
+ * const fetchData = withErrorHandling(async () => {
+ *   const response = await fetch('/api/data');
+ *   return response.json();
+ * });
+ * 
+ * // With the tryCatch utility
+ * const [result, error] = tryCatch(() => {
+ *   return complexCalculation();
+ * });
+ * ```
  */
-export const useErrorHandler = (): ErrorHandlerHook => {
-  const [error, setErrorState] = useState<ErrorState>(defaultErrorState);
+export function useErrorHandler() {
+  const { toast } = useToast();
+  const [lastError, setLastError] = useState<Error | null>(null);
 
-  /**
-   * Set an error with additional context details
-   */
-  const setError = useCallback((err: Error | unknown, details?: ErrorDetails) => {
-    console.error('Error handled by useErrorHandler:', err);
-    
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    const errorStack = err instanceof Error ? err.stack : undefined;
-    
-    setErrorState({
-      hasError: true,
-      message: errorMessage,
-      stack: errorStack,
-      details: {
-        ...details,
-        timestamp: details?.timestamp || new Date().toISOString(),
-      },
-    });
-  }, []);
+  // Main error handling function
+  const handleError: ErrorHandler = useCallback((error: Error, options?: ErrorOptions) => {
+    const {
+      showToast = true,
+      toastTitle = 'Error',
+      toastDescription,
+      variant = 'error',
+      logToConsole = true,
+      customHandler
+    } = options || {};
 
-  /**
-   * Clear the current error state
-   */
+    // Update last error state
+    setLastError(error);
+
+    // Log to console if enabled
+    if (logToConsole) {
+      console.error('Error caught by useErrorHandler:', error);
+    }
+
+    // Show toast notification if enabled
+    if (showToast) {
+      toast({
+        title: toastTitle,
+        description: toastDescription || error.message,
+        variant: variant
+      });
+    }
+
+    // Call custom handler if provided
+    if (customHandler) {
+      customHandler(error);
+    }
+  }, [toast]);
+
+  // Utility to handle errors in synchronous code
+  const tryCatch = useCallback(<T>(fn: () => T, options?: ErrorOptions): [T | null, Error | null] => {
+    try {
+      return [fn(), null];
+    } catch (error) {
+      handleError(error as Error, options);
+      return [null, error as Error];
+    }
+  }, [handleError]);
+
+  // Utility to wrap async functions with error handling
+  const withErrorHandling = useCallback(
+    <T, Args extends any[]>(
+      fn: (...args: Args) => Promise<T>,
+      options?: ErrorOptions
+    ) => {
+      return async (...args: Args): Promise<T> => {
+        try {
+          return await fn(...args);
+        } catch (error) {
+          handleError(error as Error, options);
+          throw error; // Re-throw to allow caller to handle if needed
+        }
+      };
+    },
+    [handleError]
+  );
+
+  // Clear the last error
   const clearError = useCallback(() => {
-    setErrorState(defaultErrorState);
+    setLastError(null);
   }, []);
-
-  /**
-   * Higher-order function that wraps an async function with error handling
-   */
-  const withErrorHandling = useCallback(<T extends (...args: any[]) => Promise<any>>(
-    fn: T
-  ): T => {
-    return (async (...args: Parameters<T>) => {
-      try {
-        return await fn(...args);
-      } catch (err) {
-        setError(err);
-        return undefined as any; // The return type is not used when an error occurs
-      }
-    }) as T;
-  }, [setError]);
 
   return {
-    error,
-    setError,
-    clearError,
+    handleError,
+    tryCatch,
     withErrorHandling,
+    lastError,
+    clearError
   };
-};
+}
