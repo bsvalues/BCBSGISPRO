@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { 
@@ -78,6 +78,8 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithClassification | null>(null);
   const [activeTab, setActiveTab] = useState('details');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string | null>(null);
   
   // Fetch documents for the workflow
   const { 
@@ -89,6 +91,23 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
     queryKey: [`/api/workflows/${workflow.id}/documents`],
     enabled: !!workflow.id,
   });
+  
+  // Filter documents based on search query and document type
+  const filteredDocuments = useMemo(() => {
+    return documents.filter(doc => {
+      // Apply search query filter
+      const matchesSearch = searchQuery === '' || 
+        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.classification?.documentType || doc.type).toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Apply document type filter
+      const matchesType = filterType === null || 
+        doc.type === filterType || 
+        doc.classification?.documentType === filterType;
+      
+      return matchesSearch && matchesType;
+    });
+  }, [documents, searchQuery, filterType]);
   
   const handleBatchUploaderComplete = () => {
     setShowBatchUploader(false);
@@ -172,6 +191,17 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
           </div>
           
           <div className="flex items-center space-x-2">
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Search documents..." 
+                className="h-9 pl-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-1 focus:ring-primary focus:border-primary"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
             <motion.div
               className="bg-slate-100 dark:bg-slate-800 rounded-md p-1 flex"
               initial={{ opacity: 0, y: -10 }}
@@ -205,58 +235,79 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5 }}
             >
-              {viewMode === 'table' ? (
-                <div className="border rounded-md overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Uploaded</TableHead>
-                        <TableHead className="w-24 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {documents.map((document) => (
-                        <TableRow key={document.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
-                          <TableCell 
-                            className="font-medium"
-                            onClick={() => handleViewDocument(document)}
-                          >
-                            {document.name}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {document.type.replace(/_/g, ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center text-sm text-slate-500">
-                              <Clock className="h-3.5 w-3.5 mr-1.5" />
-                              {formatDistanceToNow(new Date(document.uploadedAt))} ago
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8"
-                              onClick={() => handleViewDocument(document)}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+              {filteredDocuments.length > 0 ? (
+                <>
+                  {viewMode === 'table' ? (
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Uploaded</TableHead>
+                            <TableHead className="w-24 text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredDocuments.map((document) => (
+                            <TableRow key={document.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
+                              <TableCell 
+                                className="font-medium"
+                                onClick={() => handleViewDocument(document)}
+                              >
+                                {document.name}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="capitalize">
+                                  {document.type.replace(/_/g, ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center text-sm text-slate-500">
+                                  <Clock className="h-3.5 w-3.5 mr-1.5" />
+                                  {formatDistanceToNow(new Date(document.uploadedAt))} ago
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={() => handleViewDocument(document)}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <DocumentGridView
+                      documents={filteredDocuments}
+                      onViewDocument={handleViewDocument}
+                    />
+                  )}
+                </>
               ) : (
-                <DocumentGridView
-                  documents={documents}
-                  onViewDocument={handleViewDocument}
-                />
+                <div className="text-center py-12 border rounded-md">
+                  <Search className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Matching Documents</h3>
+                  <p className="text-slate-500 mb-6">
+                    No documents match your search criteria
+                  </p>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFilterType(null);
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
               )}
             </motion.div>
           ) : (
