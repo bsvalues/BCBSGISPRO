@@ -982,9 +982,9 @@ export class DatabaseStorage implements IStorage {
     workflowId?: number; 
     name: string;
     type: DocumentType;
-    contentType: string;
-    contentHash: string;
-    storageKey: string;
+    contentType?: string; // Made optional since the DB doesn't have it
+    contentHash?: string; // Made optional since the DB doesn't have it
+    storageKey?: string;  // Made optional since the DB doesn't have it
     classification?: {
       documentType: string;
       confidence: number;
@@ -993,19 +993,20 @@ export class DatabaseStorage implements IStorage {
     };
     content: string;
   }): Promise<Document> {
+    // Only use fields that actually exist in the database
     const [document] = await db.insert(documents)
       .values({
         workflowId: params.workflowId || null,
         name: params.name,
         type: params.type,
-        contentType: params.contentType,
-        contentHash: params.contentHash,
-        storageKey: params.storageKey,
-        classification: params.classification || null,
+        content: params.content, // Store the content in the content field
         uploadedAt: new Date(),
-        updatedAt: new Date()
       })
       .returning();
+    
+    // If we wanted to store additional metadata like classification in a separate table, 
+    // we would need to add that logic here
+    
     return document;
   }
   
@@ -1015,11 +1016,11 @@ export class DatabaseStorage implements IStorage {
     wasManuallyClassified: boolean;
     classifiedAt: string;
   }): Promise<Document> {
+    // Just update the type field since that's all we have in the database
     const [updatedDocument] = await db.update(documents)
       .set({
-        type: classification.documentType as DocumentType,
-        classification,
-        updatedAt: new Date()
+        type: classification.documentType as DocumentType
+        // No classification or updatedAt field in current schema
       })
       .where(eq(documents.id, documentId))
       .returning();
@@ -1028,7 +1029,11 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Document with ID ${documentId} not found`);
     }
     
-    return updatedDocument;
+    // Return the document with the classification data appended (not stored in DB)
+    return {
+      ...updatedDocument,
+      classification  // Add the classification even though it's not in the DB
+    };
   }
   
   // Document version operations

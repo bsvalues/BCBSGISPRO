@@ -1206,7 +1206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const classification = classifyDocument(text);
+      const classification = await classifyDocument(text);
       
       res.json({
         ...classification,
@@ -1633,10 +1633,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ).toString('base64');
           
           // Extract text from the sample content
-          const textContent = documentService.extractText(sampleContent, doc.contentType);
+          const textContent = await documentService.extractText(sampleContent, doc.contentType);
           
           // Classify the document
-          const classification = classifyDocument(textContent);
+          const classification = await classifyDocument(textContent);
           
           // Update the document classification if confidence is high enough
           if (classification.confidence > 0.7) {

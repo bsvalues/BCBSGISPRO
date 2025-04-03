@@ -162,34 +162,30 @@ export const documentContentTypeEnum = pgEnum("document_content_type", [
   "application/rtf",
 ]);
 
-// Documents table
+// Documents table - adjusted to match the actual database schema
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   workflowId: integer("workflow_id").references(() => workflows.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   type: documentTypeEnum("type").notNull(),
-  contentType: documentContentTypeEnum("content_type").notNull(),
-  contentHash: text("content_hash").notNull(), // Hash of document content for integrity checks
-  storageKey: text("storage_key").notNull(), // Where the document is stored
-  classification: jsonb("classification").$type<{
-    documentType: string;
-    confidence: number;
-    wasManuallyClassified: boolean;
-    classifiedAt: string;
-  }>(),
+  content: text("content"), // The actual document content (likely base64 encoded)
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // NOTE: The following fields are defined in code but don't exist in the database:
+  // contentType: documentContentTypeEnum("content_type").notNull(),
+  // contentHash: text("content_hash").notNull(),
+  // storageKey: text("storage_key").notNull(),
+  // classification: jsonb("classification").$type<{
+  //   documentType: string;
+  //   confidence: number;
+  //   wasManuallyClassified: boolean;
+  //   classifiedAt: string;
+  // }>(),
+  // updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
-  contentHash: true,
-  storageKey: true,
-  classification: true,
   uploadedAt: true,
-  updatedAt: true,
-}).extend({
-  content: z.string(), // Base64 encoded file content
 });
 
 // Document-Parcel Link Types
