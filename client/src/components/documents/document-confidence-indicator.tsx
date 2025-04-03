@@ -82,6 +82,13 @@ export function DocumentConfidenceIndicator({
         return 'h-2 w-24';
     }
   };
+
+  // Get indicator style based on confidence level
+  const getIndicatorStyle = () => {
+    if (isHigh) return 'bg-green-500';
+    if (isMedium) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
   
   return (
     <TooltipProvider>
@@ -116,11 +123,15 @@ export function DocumentConfidenceIndicator({
               <StatusIcon />
               <span>{getStatusLabel()}</span>
             </div>
-            <Progress
-              value={percentage}
-              className={cn('bg-gray-200 dark:bg-gray-700', getSizeClasses())}
-              indicatorClassName={cn(getStatusColor().replace('bg-', ''))}
-            />
+            
+            {/* Custom styled progress with appropriate confidence level color */}
+            <div className={cn('relative overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700', getSizeClasses())}>
+              <div 
+                className={cn('h-full transition-all', getIndicatorStyle())}
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+            
             <p className="text-xs text-gray-500">
               {isHigh && 'Classification is highly reliable'}
               {isMedium && 'Classification is probably correct but may need review'}

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DocumentConfidenceIndicator } from './document-confidence-indicator';
-import { ClassificationResult } from '@/hooks/use-document-classifier';
+import { ClassificationResult } from './document-classification-result';
 import { formatDistanceToNow } from 'date-fns';
 import { getDocumentTypeIcon, getDocumentTypeLabel } from '@/lib/document-utils';
 import { Brain, Edit, AlertCircle, RotateCw } from 'lucide-react';
