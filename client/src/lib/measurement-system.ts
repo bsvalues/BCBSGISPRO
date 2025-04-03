@@ -10,7 +10,23 @@
  */
 export enum MeasurementType {
   LENGTH = 'length',
-  AREA = 'area'
+  AREA = 'area',
+  DISTANCE = 'distance',
+  PERIMETER = 'perimeter'
+}
+
+/**
+ * Supported measurement units
+ */
+export enum MeasurementUnit {
+  METERS = 'meters',
+  KILOMETERS = 'kilometers',
+  FEET = 'feet',
+  MILES = 'miles',
+  SQUARE_METERS = 'square_meters',
+  HECTARES = 'hectares',
+  SQUARE_FEET = 'square_feet',
+  ACRES = 'acres'
 }
 
 /**
@@ -283,4 +299,360 @@ export function convertMeasurement(
  */
 export function generateMeasurementId(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+/**
+ * Convert value from one unit to another
+ * 
+ * @param value The value to convert 
+ * @param fromUnit The source unit
+ * @param toUnit The target unit
+ * @returns Converted value
+ */
+export function convertUnit(value: number, fromUnit: MeasurementUnit, toUnit: MeasurementUnit): number {
+  if (fromUnit === toUnit) return value;
+  
+  // Convert to base units (meters or square meters) first
+  let baseValue: number;
+  
+  // Convert from source unit to base unit
+  switch (fromUnit) {
+    case MeasurementUnit.METERS:
+      baseValue = value;
+      break;
+    case MeasurementUnit.KILOMETERS:
+      baseValue = value * 1000;
+      break;
+    case MeasurementUnit.FEET:
+      baseValue = value / 3.28084;
+      break;
+    case MeasurementUnit.MILES:
+      baseValue = value * 1609.34;
+      break;
+    case MeasurementUnit.SQUARE_METERS:
+      baseValue = value;
+      break;
+    case MeasurementUnit.HECTARES:
+      baseValue = value * 10000;
+      break;
+    case MeasurementUnit.SQUARE_FEET:
+      baseValue = value / 10.7639;
+      break;
+    case MeasurementUnit.ACRES:
+      baseValue = value * 4046.86;
+      break;
+    default:
+      baseValue = value;
+  }
+  
+  // Convert from base unit to target unit
+  switch (toUnit) {
+    case MeasurementUnit.METERS:
+      return baseValue;
+    case MeasurementUnit.KILOMETERS:
+      return baseValue / 1000;
+    case MeasurementUnit.FEET:
+      return baseValue * 3.28084;
+    case MeasurementUnit.MILES:
+      return baseValue / 1609.34;
+    case MeasurementUnit.SQUARE_METERS:
+      return baseValue;
+    case MeasurementUnit.HECTARES:
+      return baseValue / 10000;
+    case MeasurementUnit.SQUARE_FEET:
+      return baseValue * 10.7639;
+    case MeasurementUnit.ACRES:
+      return baseValue / 4046.86;
+    default:
+      return baseValue;
+  }
+}
+
+/**
+ * Calculate the perimeter of a polygon
+ * 
+ * @param points Array of points forming the polygon
+ * @returns Perimeter length in meters
+ */
+export function calculatePerimeter(points: Point[]): number {
+  if (points.length < 3) return 0;
+  
+  // Make sure the polygon is closed
+  const closedPoints = [...points];
+  if (closedPoints[0].lat !== closedPoints[closedPoints.length - 1].lat ||
+      closedPoints[0].lng !== closedPoints[closedPoints.length - 1].lng) {
+    closedPoints.push(closedPoints[0]);
+  }
+  
+  return calculatePathLength(closedPoints);
+}
+
+/**
+ * MeasurementManager class for managing measurements on a map
+ */
+export class MeasurementManager {
+  private measurements: Map<string, Measurement> = new Map();
+  private activeUnit: MeasurementUnit = MeasurementUnit.METERS;
+  private listeners: Array<(measurements: Measurement[]) => void> = [];
+  
+  /**
+   * Add a new measurement
+   * 
+   * @param measurement Measurement to add
+   * @returns The added measurement with a generated ID if none was provided
+   */
+  addMeasurement(measurement: Measurement): Measurement {
+    const id = measurement.id || generateMeasurementId();
+    const measurementWithId = { ...measurement, id };
+    this.measurements.set(id, measurementWithId);
+    this.notifyListeners();
+    return measurementWithId;
+  }
+  
+  /**
+   * Get a measurement by ID
+   * 
+   * @param id Measurement ID
+   * @returns The measurement or undefined if not found
+   */
+  getMeasurement(id: string): Measurement | undefined {
+    return this.measurements.get(id);
+  }
+  
+  /**
+   * Get all measurements
+   * 
+   * @returns Array of all measurements
+   */
+  getAllMeasurements(): Measurement[] {
+    return Array.from(this.measurements.values());
+  }
+  
+  /**
+   * Update an existing measurement
+   * 
+   * @param id Measurement ID
+   * @param updates Partial measurement updates
+   * @returns The updated measurement or undefined if not found
+   */
+  updateMeasurement(id: string, updates: Partial<Measurement>): Measurement | undefined {
+    const measurement = this.measurements.get(id);
+    if (!measurement) return undefined;
+    
+    const updatedMeasurement = { ...measurement, ...updates };
+    this.measurements.set(id, updatedMeasurement);
+    this.notifyListeners();
+    return updatedMeasurement;
+  }
+  
+  /**
+   * Remove a measurement
+   * 
+   * @param id Measurement ID
+   * @returns True if the measurement was removed, false otherwise
+   */
+  removeMeasurement(id: string): boolean {
+    const result = this.measurements.delete(id);
+    if (result) this.notifyListeners();
+    return result;
+  }
+  
+  /**
+   * Clear all measurements
+   */
+  clearMeasurements(): void {
+    this.measurements.clear();
+    this.notifyListeners();
+  }
+  
+  /**
+   * Set the active measurement unit
+   * 
+   * @param unit Unit to set as active
+   */
+  setActiveUnit(unit: MeasurementUnit): void {
+    this.activeUnit = unit;
+  }
+  
+  /**
+   * Get the active measurement unit
+   * 
+   * @returns Active measurement unit
+   */
+  getActiveUnit(): MeasurementUnit {
+    return this.activeUnit;
+  }
+  
+  /**
+   * Add a listener for measurement changes
+   * 
+   * @param listener Function to call when measurements change
+   */
+  addListener(listener: (measurements: Measurement[]) => void): void {
+    this.listeners.push(listener);
+  }
+  
+  /**
+   * Remove a listener
+   * 
+   * @param listener Listener to remove
+   */
+  removeListener(listener: (measurements: Measurement[]) => void): void {
+    this.listeners = this.listeners.filter(l => l !== listener);
+  }
+  
+  /**
+   * Notify all listeners of changes
+   */
+  private notifyListeners(): void {
+    const measurements = this.getAllMeasurements();
+    for (const listener of this.listeners) {
+      listener(measurements);
+    }
+  }
+}
+
+/**
+ * MeasurementDisplay class for displaying measurements on a map
+ */
+export class MeasurementDisplay {
+  private map: any = null;
+  private measurementLayers: Map<string, any> = new Map();
+  private style = {
+    color: '#3388ff',
+    weight: 2,
+    fillColor: '#3388ff',
+    fillOpacity: 0.2
+  };
+  
+  /**
+   * Set the map instance for displaying measurements
+   * 
+   * @param map Leaflet map instance
+   */
+  setMap(map: any): void {
+    this.map = map;
+  }
+  
+  /**
+   * Display a measurement on the map
+   * 
+   * @param measurement Measurement to display
+   * @returns ID of the measurement
+   */
+  displayMeasurement(measurement: Measurement): string {
+    if (!this.map) return measurement.id || '';
+    
+    // Remove existing layer if there is one
+    if (measurement.id && this.measurementLayers.has(measurement.id)) {
+      this.removeMeasurement(measurement.id);
+    }
+    
+    const id = measurement.id || generateMeasurementId();
+    let layer: any = null;
+    
+    // Create the appropriate layer based on measurement type
+    if (measurement.type === MeasurementType.LENGTH || 
+        measurement.type === MeasurementType.DISTANCE) {
+      
+      // Create a polyline for length/distance measurements
+      const latLngs = measurement.points.map(p => [p.lat, p.lng]);
+      layer = L.polyline(latLngs, {
+        ...this.style,
+        color: measurement.color || this.style.color
+      });
+      
+      // Add a label at the midpoint
+      if (measurement.points.length >= 2) {
+        const midpointIdx = Math.floor(measurement.points.length / 2);
+        const labelPoint = measurement.points[midpointIdx];
+        const popupContent = `<div class="measurement-popup">${measurement.formatted}</div>`;
+        layer.bindTooltip(popupContent, { permanent: true });
+      }
+    } 
+    else if (measurement.type === MeasurementType.AREA ||
+             measurement.type === MeasurementType.PERIMETER) {
+      
+      // Create a polygon for area measurements
+      const latLngs = measurement.points.map(p => [p.lat, p.lng]);
+      layer = L.polygon(latLngs, {
+        ...this.style,
+        color: measurement.color || this.style.color,
+        fillColor: measurement.color || this.style.fillColor
+      });
+      
+      // Add a label at the centroid
+      if (measurement.points.length >= 3) {
+        const centroidLat = measurement.points.reduce((sum, p) => sum + p.lat, 0) / measurement.points.length;
+        const centroidLng = measurement.points.reduce((sum, p) => sum + p.lng, 0) / measurement.points.length;
+        const popupContent = `<div class="measurement-popup">${measurement.formatted}</div>`;
+        layer.bindTooltip(popupContent, { permanent: true });
+      }
+    }
+    
+    if (layer) {
+      layer.addTo(this.map);
+      this.measurementLayers.set(id, layer);
+    }
+    
+    return id;
+  }
+  
+  /**
+   * Remove a measurement from the map
+   * 
+   * @param id Measurement ID
+   * @returns True if the measurement was removed, false otherwise
+   */
+  removeMeasurement(id: string): boolean {
+    const layer = this.measurementLayers.get(id);
+    if (layer && this.map) {
+      this.map.removeLayer(layer);
+      return this.measurementLayers.delete(id);
+    }
+    return false;
+  }
+  
+  /**
+   * Clear all measurements from the map
+   */
+  clearMeasurements(): void {
+    for (const [id, layer] of this.measurementLayers.entries()) {
+      if (this.map) {
+        this.map.removeLayer(layer);
+      }
+    }
+    this.measurementLayers.clear();
+  }
+  
+  /**
+   * Update the style for all measurements
+   * 
+   * @param style Style properties to update
+   */
+  updateStyle(style: Partial<typeof this.style>): void {
+    this.style = { ...this.style, ...style };
+    
+    // Update all existing layers with the new style
+    for (const layer of this.measurementLayers.values()) {
+      if (layer.setStyle) {
+        layer.setStyle(this.style);
+      }
+    }
+  }
+  
+  /**
+   * Update a specific measurement's display
+   * 
+   * @param measurement Updated measurement
+   * @returns True if the measurement was updated, false otherwise
+   */
+  updateMeasurement(measurement: Measurement): boolean {
+    if (!measurement.id) return false;
+    
+    // Re-display the measurement to update it
+    this.removeMeasurement(measurement.id);
+    this.displayMeasurement(measurement);
+    return true;
+  }
 }

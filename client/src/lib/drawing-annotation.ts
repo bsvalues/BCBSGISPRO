@@ -25,6 +25,56 @@ export interface Annotation {
   id: string;
 }
 
+/**
+ * Interface for the annotation manager
+ */
+export interface AnnotationManager {
+  /**
+   * Add a new annotation
+   */
+  addAnnotation(position: { lat: number; lng: number }, text: string, type: string): Annotation;
+  
+  /**
+   * Get all annotations
+   */
+  getAnnotations(): Annotation[];
+  
+  /**
+   * Clear all annotations
+   */
+  clearAnnotations(): void;
+  
+  /**
+   * Remove a specific annotation
+   */
+  removeAnnotation(id: string): boolean;
+  
+  /**
+   * Find annotations near a point
+   */
+  findAnnotationsNear(position: { lat: number; lng: number }, radiusMeters?: number): Annotation[];
+  
+  /**
+   * Update an existing annotation
+   */
+  updateAnnotation(id: string, updates: Partial<Omit<Annotation, 'id' | 'createdAt'>>): Annotation | null;
+  
+  /**
+   * Filter annotations by type
+   */
+  getAnnotationsByType(type: string): Annotation[];
+  
+  /**
+   * Export annotations to GeoJSON
+   */
+  exportAnnotationsAsGeoJSON(): any;
+  
+  /**
+   * Import annotations from GeoJSON
+   */
+  importAnnotationsFromGeoJSON(geojson: any): Annotation[];
+}
+
 // In-memory storage for annotations
 let annotations: Annotation[] = [];
 
@@ -215,4 +265,50 @@ export function importAnnotationsFromGeoJSON(geojson: any): Annotation[] {
   annotations = [...annotations, ...importedAnnotations];
   
   return importedAnnotations;
+}
+
+/**
+ * Create a new annotation manager instance
+ * 
+ * @returns An AnnotationManager instance
+ */
+export function createAnnotationManager(): AnnotationManager {
+  // Use the module-level functions to implement the manager
+  return {
+    addAnnotation(position, text, type) {
+      return addAnnotation(position, text, type);
+    },
+    
+    getAnnotations() {
+      return getAnnotations();
+    },
+    
+    clearAnnotations() {
+      clearAnnotations();
+    },
+    
+    removeAnnotation(id) {
+      return removeAnnotation(id);
+    },
+    
+    findAnnotationsNear(position, radiusMeters) {
+      return findAnnotationsNear(position, radiusMeters);
+    },
+    
+    updateAnnotation(id, updates) {
+      return updateAnnotation(id, updates);
+    },
+    
+    getAnnotationsByType(type) {
+      return getAnnotationsByType(type);
+    },
+    
+    exportAnnotationsAsGeoJSON() {
+      return exportAnnotationsAsGeoJSON();
+    },
+    
+    importAnnotationsFromGeoJSON(geojson) {
+      return importAnnotationsFromGeoJSON(geojson);
+    }
+  };
 }
