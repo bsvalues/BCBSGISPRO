@@ -1,0 +1,103 @@
+# 📬 MCP AI Agent: Appeals Routing & Escalation
+
+This notebook defines the Benton County AI Agent logic for triaging, routing, and escalating property value appeals.
+
+---
+
+## 🎯 Agent Purpose
+- Ingest appeal records
+- Enrich with parcel + assessment context
+- Classify type and complexity
+- Route to appropriate division or flag for manual review
+
+---
+
+## 🗃️ Appeal Record Schema (from PACS or Forms System)
+```yaml
+- appeal_id: string
+- parcel_id: string
+- reason_code: enum [Overvaluation, Classification Error, Exemption Denied, Other]
+- filing_date: date
+- documents_uploaded: bool
+- prior_appeals: int
+- requested_value: number
+```
+
+---
+
+## 🔍 SQL Mapping Tools
+
+### Tool: `get_parcel_details`
+```sql
+SELECT parcel_id, situs_address, total_assessed, land_value, building_value, city
+FROM Assessments WHERE parcel_id = ? AND year = CURRENT_YEAR;
+```
+
+### Tool: `lookup_appeal_history`
+```sql
+SELECT appeal_id, decision_date, resolution_type FROM Appeals
+WHERE parcel_id = ? ORDER BY decision_date DESC;
+```
+
+---
+
+## 🔁 Decision Flow
+```mermaid
+graph TD
+    A[Appeal Submitted] --> B{Reason Code}
+    B -->|Overvaluation| OV[Route to Appraisal Division]
+    B -->|Exemption Denied| EX[Route to Exemptions Officer]
+    B -->|Classification Error| CL[Route to Mapping or Land Use]
+    B -->|Other| HR[Hold for Manual Review]
+
+    OV --> D{Requested Value Change}
+    D -->|>25%| M[Flag for Board of Equalization Review]
+    D -->|<25%| N[Appraiser Case Assignment]
+```
+
+---
+
+## 🧠 LLM Prompt Template
+```txt
+A taxpayer has submitted an appeal on parcel 113456000012000 for Overvaluation. They request a reduction from $625,000 to $410,000.
+
+Please:
+1. Retrieve current assessed value.
+2. Classify appeal type.
+3. Determine if value delta > 25%.
+4. Suggest routing.
+
+Output:
+- Routing decision (division name)
+- Escalation required? (true/false)
+- Explanation
+```
+
+---
+
+## ✅ Example LLM Response
+```json
+{
+  "division": "Appraisal Division",
+  "escalation_required": true,
+  "explanation": "Requested reduction exceeds 25% of current assessed value; escalate to Board of Equalization per policy."
+}
+```
+
+---
+
+## 🔐 Safeguards
+- Require `parcel_id` verification before routing
+- Redact PII from logs
+- Log all LLM-generated decisions + human override
+
+---
+
+## 📌 Outputs
+- Update to `AppealsRoutingLog`
+- Optional integration to task assignment queue
+- Slack/email alert to division chief
+
+---
+
+> Use this notebook to build out the MCP agent toolset for appeal classification and internal workflow routing.
