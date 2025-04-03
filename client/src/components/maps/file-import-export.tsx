@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useToast, toast } from '@/hooks/use-toast';
+// Import toast separately as it's a standalone function
+import { toast } from '@/hooks/use-toast';
 import type { GeoJSONFeature } from '@/lib/map-utils';
 
 interface FileImportExportProps {
@@ -31,7 +32,6 @@ interface FileImportExportProps {
 }
 
 export const FileImportExport = ({ features, onImport }: FileImportExportProps) => {
-  const { toasts, dismiss } = useToast();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectedImportFormat, setSelectedImportFormat] = useState('shapefile');
@@ -63,12 +63,10 @@ export const FileImportExport = ({ features, onImport }: FileImportExportProps) 
         throw new Error('Invalid file format. Please check the file extension matches the selected import type.');
       }
       
-      // Use the standalone toast function
-      import('@/hooks/use-toast').then(({ toast }) => {
-        toast({
-          title: "Import successful",
-          description: `Successfully imported ${file.name}`,
-        });
+      // Show success notification
+      toast({
+        title: "Import successful",
+        description: `Successfully imported ${file.name}`,
       });
     } catch (error) {
       console.error('Import error:', error);

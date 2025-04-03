@@ -109,9 +109,9 @@ function App({ children }: { children?: React.ReactNode }) {
               <Route path="/progress-tracker" component={ProgressTrackerDemo} />
               <Route path="/error-handling" component={ErrorHandlingPage} />
               
-              {/* Default to the cartographer tools */}
+              {/* Default to the error-handling page for testing */}
               <Route>
-                <CartographerToolsPage />
+                <ErrorHandlingPage />
               </Route>
             </Switch>
           </ErrorBoundary>
