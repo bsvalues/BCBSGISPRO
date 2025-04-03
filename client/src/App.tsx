@@ -5,6 +5,7 @@ import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
 import ProgressTrackerDemo from "@/pages/progress-tracker-demo";
 import ErrorHandlingPage from "./pages/error-handling-page";
 import FullScreenMapPage from "@/pages/full-screen-map-page";
+import ToastTestPage from "@/pages/toast-test-page";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -12,7 +13,8 @@ import {
   Ruler, 
   GitPullRequest, 
   AlertTriangle, 
-  Maximize 
+  Maximize,
+  BellRing
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast-provider";
@@ -93,6 +95,16 @@ function App({ children }: { children?: React.ReactNode }) {
                   Error Handling Demo
                 </Button>
               </Link>
+              
+              <Link href="/toast-test">
+                <Button 
+                  variant={location === "/toast-test" ? "secondary" : "outline"} 
+                  size="sm"
+                >
+                  <BellRing className="mr-1 h-4 w-4" />
+                  Toast Test
+                </Button>
+              </Link>
             </nav>
           </div>
         </header>
@@ -108,10 +120,11 @@ function App({ children }: { children?: React.ReactNode }) {
               <Route path="/cartographer-tools" component={CartographerToolsPage} />
               <Route path="/progress-tracker" component={ProgressTrackerDemo} />
               <Route path="/error-handling" component={ErrorHandlingPage} />
+              <Route path="/toast-test" component={ToastTestPage} />
               
-              {/* Default to the error-handling page for testing */}
+              {/* Default to the toast test page for testing */}
               <Route>
-                <ErrorHandlingPage />
+                <ToastTestPage />
               </Route>
             </Switch>
           </ErrorBoundary>
