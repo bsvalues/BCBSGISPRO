@@ -883,11 +883,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // NEW DOCUMENT INTELLIGENCE FEATURES
   
-  // Associate document with parcels
+  // Associate document with parcels (with optional relationship metadata)
   app.post("/api/documents/:id/parcels", async (req, res) => {
     try {
       const documentId = parseInt(req.params.id);
-      const { parcelIds } = req.body;
+      const { parcelIds, linkType, notes } = req.body;
       
       if (!Array.isArray(parcelIds) || parcelIds.length === 0) {
         return res.status(400).json({ message: "Parcel IDs array is required" });
@@ -895,7 +895,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await documentParcelService.associateDocumentWithParcels(
         documentId,
-        parcelIds
+        parcelIds,
+        linkType,
+        notes
       );
       
       res.status(201).json(result);
@@ -937,6 +939,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get document-parcel links (with metadata) for a document
+  app.get("/api/documents/:id/parcel-links", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const links = await documentParcelService.getDocumentParcelLinks(documentId);
+      
+      res.json(links);
+    } catch (error) {
+      console.error("Error fetching document-parcel links:", error);
+      res.status(500).json({ message: "Failed to fetch document-parcel links" });
+    }
+  });
+  
+  // Get full relationship information for a document
+  app.get("/api/documents/:id/relationships", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.id);
+      const relationshipData = await documentParcelService.getDocumentRelationships(documentId);
+      
+      res.json(relationshipData);
+    } catch (error) {
+      console.error("Error fetching document relationships:", error);
+      res.status(500).json({ message: "Failed to fetch document relationships" });
+    }
+  });
+  
   // Get documents associated with a parcel
   app.get("/api/parcels/:id/documents", async (req, res) => {
     try {
@@ -947,6 +975,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching documents for parcel:", error);
       res.status(500).json({ message: "Failed to fetch documents for parcel" });
+    }
+  });
+  
+  // Get document-parcel links (with metadata) for a parcel
+  app.get("/api/parcels/:id/document-links", async (req, res) => {
+    try {
+      const parcelId = parseInt(req.params.id);
+      const links = await documentParcelService.getParcelDocumentLinks(parcelId);
+      
+      res.json(links);
+    } catch (error) {
+      console.error("Error fetching parcel-document links:", error);
+      res.status(500).json({ message: "Failed to fetch parcel-document links" });
+    }
+  });
+  
+  // Get full relationship information for a parcel
+  app.get("/api/parcels/:id/relationships", async (req, res) => {
+    try {
+      const parcelId = parseInt(req.params.id);
+      const relationshipData = await documentParcelService.getParcelRelationships(parcelId);
+      
+      res.json(relationshipData);
+    } catch (error) {
+      console.error("Error fetching parcel relationships:", error);
+      res.status(500).json({ message: "Failed to fetch parcel relationships" });
+    }
+  });
+  
+  // Update document-parcel link metadata
+  app.patch("/api/document-parcel-links/:id", async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const { linkType, notes } = req.body;
+      
+      const updatedLink = await documentParcelService.updateDocumentParcelLink(
+        linkId, 
+        linkType, 
+        notes
+      );
+      
+      res.json(updatedLink);
+    } catch (error) {
+      console.error("Error updating document-parcel link:", error);
+      res.status(500).json({ message: "Failed to update document-parcel link" });
     }
   });
   

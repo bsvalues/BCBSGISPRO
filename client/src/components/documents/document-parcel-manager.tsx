@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, 
   DialogContent, 
@@ -39,6 +40,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { 
   FileText, 
@@ -48,22 +56,48 @@ import {
   AlertTriangle, 
   Home,
   User, 
-  Unlink
+  Unlink,
+  Edit2,
+  Settings,
+  Link2
 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Document, Parcel } from '@shared/schema';
+import { Document, Parcel, DocumentParcelLink } from '@shared/schema';
 
 interface DocumentParcelManagerProps {
   document: Document;
+  showLinkTypeOptions?: boolean;
 }
 
-export function DocumentParcelManager({ document }: DocumentParcelManagerProps) {
+interface ParcelWithLinkInfo extends Parcel {
+  linkId?: number;
+  linkType?: string;
+  linkNotes?: string;
+}
+
+const documentLinkTypes = [
+  { value: "reference", label: "General Reference" },
+  { value: "related", label: "Related" },
+  { value: "legal_description", label: "Legal Description" },
+  { value: "ownership", label: "Ownership" },
+  { value: "subdivision", label: "Subdivision" },
+  { value: "transaction", label: "Transaction" },
+  { value: "other", label: "Other" }
+];
+
+export function DocumentParcelManager({ document, showLinkTypeOptions = false }: DocumentParcelManagerProps) {
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [isLinkOptionsDialogOpen, setIsLinkOptionsDialogOpen] = useState(false);
+  const [isEditLinkDialogOpen, setIsEditLinkDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParcelToUnlink, setSelectedParcelToUnlink] = useState<Parcel | null>(null);
+  const [selectedParcelToLink, setSelectedParcelToLink] = useState<Parcel | null>(null);
+  const [selectedParcelToEdit, setSelectedParcelToEdit] = useState<ParcelWithLinkInfo | null>(null);
+  const [linkType, setLinkType] = useState<string>("reference");
+  const [linkNotes, setLinkNotes] = useState<string>("");
   const { toast } = useToast();
   
-  // Fetch linked parcels
+  // Fetch linked parcels with link information
   const { 
     data: linkedParcels = [], 
     isLoading: isLoadingLinkedParcels,
@@ -71,6 +105,15 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
   } = useQuery({
     queryKey: [`/api/documents/${document.id}/parcels`],
     enabled: !!document.id,
+  });
+  
+  // Fetch parcel-document links 
+  const {
+    data: documentParcelLinks = [],
+    isLoading: isLoadingLinks
+  } = useQuery({
+    queryKey: [`/api/documents/${document.id}/parcel-links`],
+    enabled: !!document.id && showLinkTypeOptions,
   });
   
   // Parcel search query
@@ -84,25 +127,40 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
     enabled: false, // Don't run automatically
   });
   
-  // Link document to parcel mutation
-  const linkParcelMutation = useMutation({
+  // Create document-parcel link mutation with link type options
+  const createLinkMutation = useMutation({
     mutationFn: async ({
       documentId,
-      parcelId
+      parcelId,
+      linkType,
+      notes
     }: {
       documentId: number;
       parcelId: number;
+      linkType?: string;
+      notes?: string;
     }) => {
       const res = await apiRequest(
         'POST',
         `/api/documents/${documentId}/parcels`,
-        { parcelIds: [parcelId] }
+        { 
+          parcelIds: [parcelId],
+          linkType,
+          notes 
+        }
       );
       return res.json();
     },
     onSuccess: () => {
-      // Refresh linked parcels
+      // Reset current selections
+      setSelectedParcelToLink(null);
+      setLinkType("reference");
+      setLinkNotes("");
+      setIsLinkOptionsDialogOpen(false);
+      
+      // Refresh linked parcels and links
       queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcels`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcel-links`] });
       
       // Show success toast
       toast({
@@ -113,6 +171,51 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
     onError: (error) => {
       toast({
         title: 'Error Linking Parcel',
+        description: error instanceof Error ? error.message : 'Something went wrong',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Update document-parcel link mutation
+  const updateLinkMutation = useMutation({
+    mutationFn: async ({
+      id,
+      linkType,
+      notes
+    }: {
+      id: number;
+      linkType?: string;
+      notes?: string;
+    }) => {
+      const res = await apiRequest(
+        'PATCH',
+        `/api/document-parcel-links/${id}`,
+        { 
+          linkType,
+          notes 
+        }
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      // Reset current selections
+      setSelectedParcelToEdit(null);
+      setIsEditLinkDialogOpen(false);
+      
+      // Refresh links
+      queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcels`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcel-links`] });
+      
+      // Show success toast
+      toast({
+        title: 'Link Updated',
+        description: 'Successfully updated document-parcel relationship'
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error Updating Link',
         description: error instanceof Error ? error.message : 'Something went wrong',
         variant: 'destructive'
       });
@@ -139,8 +242,9 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
       // Reset selected parcel
       setSelectedParcelToUnlink(null);
       
-      // Refresh linked parcels
+      // Refresh linked parcels and links
       queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcels`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/documents/${document.id}/parcel-links`] });
       
       // Show success toast
       toast({
@@ -155,6 +259,23 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
         variant: 'destructive'
       });
     }
+  });
+  
+  // Enhance parcels with link information if available
+  const enhancedParcels: ParcelWithLinkInfo[] = linkedParcels.map(parcel => {
+    // Find matching link if available
+    const link = documentParcelLinks.find(link => link.parcelId === parcel.id);
+    
+    if (link) {
+      return {
+        ...parcel,
+        linkId: link.id,
+        linkType: link.linkType,
+        linkNotes: link.notes || undefined
+      };
+    }
+    
+    return parcel;
   });
   
   const handleSearch = async () => {
@@ -178,14 +299,67 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
     }
   };
   
+  const handleOpenLinkOptions = (parcel: Parcel) => {
+    setSelectedParcelToLink(parcel);
+    setLinkType("reference");
+    setLinkNotes("");
+    setIsLinkOptionsDialogOpen(true);
+  };
+  
+  const handleOpenEditLink = (parcel: ParcelWithLinkInfo) => {
+    setSelectedParcelToEdit(parcel);
+    setLinkType(parcel.linkType || "reference");
+    setLinkNotes(parcel.linkNotes || "");
+    setIsEditLinkDialogOpen(true);
+  };
+  
   const handleLinkParcel = async (parcelId: number) => {
+    if (showLinkTypeOptions) {
+      // If link options enabled, open the options dialog instead of linking directly
+      const parcel = searchResults.find(p => p.id === parcelId);
+      if (parcel) {
+        handleOpenLinkOptions(parcel);
+      }
+      return;
+    }
+    
+    // Direct linking without options
     try {
-      await linkParcelMutation.mutateAsync({
+      await createLinkMutation.mutateAsync({
         documentId: document.id,
         parcelId
       });
     } catch (error) {
       console.error('Error linking parcel:', error);
+    }
+  };
+  
+  const handleSubmitLinkWithOptions = async () => {
+    if (!selectedParcelToLink) return;
+    
+    try {
+      await createLinkMutation.mutateAsync({
+        documentId: document.id,
+        parcelId: selectedParcelToLink.id,
+        linkType,
+        notes: linkNotes.trim() || undefined
+      });
+    } catch (error) {
+      console.error('Error linking parcel with options:', error);
+    }
+  };
+  
+  const handleSubmitEditLink = async () => {
+    if (!selectedParcelToEdit || !selectedParcelToEdit.linkId) return;
+    
+    try {
+      await updateLinkMutation.mutateAsync({
+        id: selectedParcelToEdit.linkId,
+        linkType,
+        notes: linkNotes.trim() || undefined
+      });
+    } catch (error) {
+      console.error('Error updating link:', error);
     }
   };
   
@@ -204,6 +378,17 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
   
   const isParcelLinked = (parcelId: number) => {
     return linkedParcels.some(p => p.id === parcelId);
+  };
+  
+  const getLinkTypeBadge = (type?: string) => {
+    if (!type) return null;
+    
+    const linkTypeInfo = documentLinkTypes.find(t => t.value === type);
+    return (
+      <Badge variant="outline" className="whitespace-nowrap">
+        {linkTypeInfo?.label || type}
+      </Badge>
+    );
   };
   
   if (isLoadingLinkedParcels) {
@@ -253,33 +438,50 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
       </CardHeader>
       
       <CardContent>
-        {linkedParcels.length > 0 ? (
+        {enhancedParcels.length > 0 ? (
           <div className="border rounded-md overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Parcel Number</TableHead>
                   <TableHead>Address</TableHead>
+                  {showLinkTypeOptions && <TableHead>Relationship Type</TableHead>}
                   <TableHead>Owner</TableHead>
-                  <TableHead className="w-24 text-right">Actions</TableHead>
+                  <TableHead className="w-36 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {linkedParcels.map((parcel) => (
+                {enhancedParcels.map((parcel) => (
                   <TableRow key={parcel.id}>
                     <TableCell className="font-medium">{parcel.parcelNumber}</TableCell>
                     <TableCell>{parcel.address || 'No address'}</TableCell>
+                    {showLinkTypeOptions && (
+                      <TableCell>{getLinkTypeBadge(parcel.linkType)}</TableCell>
+                    )}
                     <TableCell>{parcel.owner || 'Unknown'}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => setSelectedParcelToUnlink(parcel)}
-                      >
-                        <Unlink className="h-3.5 w-3.5 mr-1" />
-                        Unlink
-                      </Button>
+                      <div className="flex justify-end space-x-1">
+                        {showLinkTypeOptions && parcel.linkId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => handleOpenEditLink(parcel)}
+                          >
+                            <Edit2 className="h-3.5 w-3.5 mr-1" />
+                            Edit Link
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setSelectedParcelToUnlink(parcel)}
+                        >
+                          <Unlink className="h-3.5 w-3.5 mr-1" />
+                          Unlink
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -370,13 +572,23 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
                             <TableCell className="text-right">
                               {isParcelLinked(parcel.id) ? (
                                 <Badge variant="secondary">Linked</Badge>
+                              ) : showLinkTypeOptions ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleOpenLinkOptions(parcel)}
+                                >
+                                  <Link2 className="h-3.5 w-3.5 mr-1" />
+                                  Link Options
+                                </Button>
                               ) : (
                                 <Button
                                   variant="default"
                                   size="sm"
                                   className="h-7 text-xs"
                                   onClick={() => handleLinkParcel(parcel.id)}
-                                  disabled={linkParcelMutation.isPending}
+                                  disabled={createLinkMutation.isPending}
                                 >
                                   <LinkIcon className="h-3.5 w-3.5 mr-1" />
                                   Link
@@ -414,6 +626,180 @@ export function DocumentParcelManager({ document }: DocumentParcelManagerProps) 
               }}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Link Options Dialog */}
+      <Dialog open={isLinkOptionsDialogOpen} onOpenChange={setIsLinkOptionsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Link Options</DialogTitle>
+            <DialogDescription>
+              Set the relationship type between document and parcel
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Document</h4>
+                  <p className="text-sm text-muted-foreground">{document.name}</p>
+                </div>
+                <FileText className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-px flex-1 bg-border"></div>
+              <Link2 className="h-4 w-4" />
+              <div className="h-px flex-1 bg-border"></div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Parcel</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedParcelToLink?.parcelNumber} 
+                    {selectedParcelToLink?.address && ` - ${selectedParcelToLink.address}`}
+                  </p>
+                </div>
+                <Map className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="link-type">Link Type</Label>
+                <Select value={linkType} onValueChange={setLinkType}>
+                  <SelectTrigger id="link-type">
+                    <SelectValue placeholder="Select relationship type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {documentLinkTypes.map(type => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="link-notes">Notes</Label>
+                <Textarea 
+                  id="link-notes"
+                  placeholder="Additional information about this relationship (optional)"
+                  value={linkNotes}
+                  onChange={(e) => setLinkNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsLinkOptionsDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitLinkWithOptions}
+              disabled={createLinkMutation.isPending}
+            >
+              {createLinkMutation.isPending ? 'Creating...' : 'Create Link'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Link Dialog */}
+      <Dialog open={isEditLinkDialogOpen} onOpenChange={setIsEditLinkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Document-Parcel Relationship</DialogTitle>
+            <DialogDescription>
+              Update the relationship details between this document and parcel
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Document</h4>
+                  <p className="text-sm text-muted-foreground">{document.name}</p>
+                </div>
+                <FileText className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-px flex-1 bg-border"></div>
+              <Link2 className="h-4 w-4" />
+              <div className="h-px flex-1 bg-border"></div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Parcel</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedParcelToEdit?.parcelNumber} 
+                    {selectedParcelToEdit?.address && ` - ${selectedParcelToEdit.address}`}
+                  </p>
+                </div>
+                <Map className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-link-type">Link Type</Label>
+                <Select value={linkType} onValueChange={setLinkType}>
+                  <SelectTrigger id="edit-link-type">
+                    <SelectValue placeholder="Select relationship type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {documentLinkTypes.map(type => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-link-notes">Notes</Label>
+                <Textarea 
+                  id="edit-link-notes"
+                  placeholder="Additional information about this relationship (optional)"
+                  value={linkNotes}
+                  onChange={(e) => setLinkNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditLinkDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitEditLink}
+              disabled={updateLinkMutation.isPending}
+            >
+              {updateLinkMutation.isPending ? 'Updating...' : 'Update Link'}
             </Button>
           </DialogFooter>
         </DialogContent>

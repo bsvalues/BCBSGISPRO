@@ -1,4 +1,5 @@
 import { storage } from '../storage';
+import { DocumentParcelLink } from '@shared/schema';
 
 /**
  * Service for managing the associations between documents and parcels
@@ -8,9 +9,16 @@ class DocumentParcelService {
    * Associates a document with one or more parcels
    * @param documentId The document ID
    * @param parcelIds Array of parcel IDs to associate with the document
+   * @param linkType Optional relationship type between document and parcel
+   * @param notes Optional notes about the relationship
    * @returns Array of created document-parcel links
    */
-  async associateDocumentWithParcels(documentId: number, parcelIds: number[]) {
+  async associateDocumentWithParcels(
+    documentId: number, 
+    parcelIds: number[], 
+    linkType?: string,
+    notes?: string
+  ) {
     // Ensure the document exists
     const document = await storage.getDocument(documentId);
     if (!document) {
@@ -36,7 +44,9 @@ class DocumentParcelService {
       // Create a new link
       const link = await storage.createDocumentParcelLink({
         documentId,
-        parcelId
+        parcelId,
+        linkType: linkType || "reference", // Default to reference if not specified
+        notes: notes || undefined
       });
       
       links.push(link);
@@ -65,12 +75,127 @@ class DocumentParcelService {
   }
   
   /**
+   * Gets all document-parcel links for a specific document
+   * @param documentId The document ID
+   * @returns Array of document-parcel links with metadata
+   */
+  async getDocumentParcelLinks(documentId: number) {
+    // Get all links involving this document
+    const links = await storage.getDocumentParcelLinksByDocumentId(documentId);
+    return links;
+  }
+  
+  /**
+   * Gets detailed relationship information for a document and its parcels
+   * @param documentId The document ID
+   * @returns Document with linked parcels array including relationship info
+   */
+  async getDocumentRelationships(documentId: number) {
+    const document = await storage.getDocument(documentId);
+    if (!document) {
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    // Get all parcels linked to this document
+    const parcels = await this.getParcelsForDocument(documentId);
+    
+    // Get all links for this document
+    const links = await this.getDocumentParcelLinks(documentId);
+    
+    // Enhance parcels with link information
+    const linkedParcels = parcels.map(parcel => {
+      const link = links.find(l => l.parcelId === parcel.id);
+      return {
+        ...parcel,
+        linkType: link?.linkType || "reference",
+        linkId: link?.id
+      };
+    });
+    
+    return {
+      ...document,
+      linkedParcels
+    };
+  }
+  
+  /**
    * Gets all documents associated with a parcel
    * @param parcelId The parcel ID
    * @returns Array of documents
    */
   async getDocumentsForParcel(parcelId: number) {
     return await storage.getDocumentsForParcel(parcelId);
+  }
+  
+  /**
+   * Gets all document-parcel links for a specific parcel
+   * @param parcelId The parcel ID
+   * @returns Array of document-parcel links with metadata
+   */
+  async getParcelDocumentLinks(parcelId: number) {
+    // Get all links involving this parcel
+    const links = await storage.getDocumentParcelLinksByParcelId(parcelId);
+    return links;
+  }
+  
+  /**
+   * Gets detailed relationship information for a parcel and its documents
+   * @param parcelId The parcel ID
+   * @returns Parcel with linked documents array including relationship info
+   */
+  async getParcelRelationships(parcelId: number) {
+    const parcel = await storage.getParcelById(parcelId);
+    if (!parcel) {
+      throw new Error(`Parcel with ID ${parcelId} not found`);
+    }
+    
+    // Get all documents linked to this parcel
+    const documents = await this.getDocumentsForParcel(parcelId);
+    
+    // Get all links for this parcel
+    const links = await this.getParcelDocumentLinks(parcelId);
+    
+    // Enhance documents with link information
+    const linkedDocuments = documents.map(document => {
+      const link = links.find(l => l.documentId === document.id);
+      return {
+        ...document,
+        linkType: link?.linkType || "reference",
+        linkId: link?.id
+      };
+    });
+    
+    return {
+      ...parcel,
+      linkedDocuments
+    };
+  }
+  
+  /**
+   * Updates a document-parcel link with new information
+   * @param linkId The link ID to update
+   * @param linkType New relationship type
+   * @param notes New notes
+   * @returns Updated document-parcel link
+   */
+  async updateDocumentParcelLink(
+    linkId: number,
+    linkType?: string,
+    notes?: string
+  ): Promise<DocumentParcelLink> {
+    // Get existing link to verify it exists
+    const link = await storage.getDocumentParcelLinkById(linkId);
+    if (!link) {
+      throw new Error(`Document-parcel link with ID ${linkId} not found`);
+    }
+    
+    // Update the link
+    const updatedLink = await storage.updateDocumentParcelLink(linkId, {
+      linkType,
+      notes
+    });
+    
+    return updatedLink;
   }
   
   /**
