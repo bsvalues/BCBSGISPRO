@@ -38,8 +38,8 @@ import { DocumentParcelManager } from './document-parcel-manager';
 import { DocumentClassificationResult } from './document-classification-result';
 import { DocumentGridView } from './document-grid-view';
 import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
+import { getDocumentTypeLabel, getDocumentTypeIcon } from '@/lib/document-utils';
 import { illustrations } from '@/lib/illustrations';
-import { getDocumentTypeLabel } from '@shared/document-types';
 import { formatDistanceToNow } from 'date-fns';
 import { 
   FileText, 
@@ -186,7 +186,7 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
               Workflow Documents
             </CardTitle>
             <CardDescription>
-              {documents.length} document{documents.length !== 1 ? 's' : ''} in this workflow
+              {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''} {searchQuery || filterType ? 'matching your filters' : 'in this workflow'}
             </CardDescription>
           </div>
           
@@ -200,6 +200,24 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+            </div>
+            
+            <div className="relative">
+              <select
+                className="h-9 pl-3 pr-8 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-1 focus:ring-primary focus:border-primary appearance-none"
+                value={filterType || ""}
+                onChange={(e) => setFilterType(e.target.value === "" ? null : e.target.value)}
+              >
+                <option value="">All Types</option>
+                <option value="deed">Deed</option>
+                <option value="plat">Plat</option>
+                <option value="survey">Survey</option>
+                <option value="boundary_line_adjustment">Boundary Line Adjustment</option>
+                <option value="legal_document">Legal Document</option>
+                <option value="report">Report</option>
+                <option value="image">Image</option>
+              </select>
+              <Tag className="h-4 w-4 absolute right-2.5 top-2.5 text-slate-500 pointer-events-none" />
             </div>
             
             <motion.div

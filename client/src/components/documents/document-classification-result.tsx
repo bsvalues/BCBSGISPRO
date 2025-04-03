@@ -1,162 +1,96 @@
-import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
-import { 
-  CheckCircle2, 
-  AlertTriangle, 
-  Tag, 
-  ChevronDown, 
-  ChevronUp 
-} from 'lucide-react';
-import { useState } from 'react';
-import { 
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ClassificationResult } from '@/hooks/use-document-classifier';
+import { Tag, CircleCheck } from 'lucide-react';
+
+interface ClassificationResult {
+  documentType: string;
+  documentTypeLabel: string;
+  confidence: number;
+  wasManuallyClassified: boolean;
+}
 
 interface DocumentClassificationResultProps {
   classification: ClassificationResult;
-  showAlternatives?: boolean;
 }
 
-export function DocumentClassificationResult({ 
-  classification, 
-  showAlternatives = true 
-}: DocumentClassificationResultProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  // Convert confidence percentage for display
-  const confidencePercent = Math.round(classification.confidence * 100);
-  
-  // Determine confidence level for visual indicators
-  const getConfidenceLevel = (confidence: number) => {
-    if (confidence >= 0.85) return 'high';
-    if (confidence >= 0.7) return 'medium';
-    return 'low';
+export function DocumentClassificationResult({ classification }: DocumentClassificationResultProps) {
+  // Progress bar fill animation
+  const progressVariants = {
+    initial: { width: 0 },
+    animate: { 
+      width: `${classification.confidence * 100}%`,
+      transition: { 
+        duration: 1.2,
+        ease: "easeOut"
+      }
+    }
   };
   
-  const confidenceLevel = getConfidenceLevel(classification.confidence);
+  // Get progress color based on confidence
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.85) return 'bg-green-500';
+    if (confidence >= 0.7) return 'bg-blue-500';
+    if (confidence >= 0.5) return 'bg-amber-500';
+    return 'bg-red-500';
+  };
   
-  // Alternative document types (would come from a more sophisticated classifier)
-  const alternativeTypes = [
-    {
-      documentType: 'deed',
-      documentTypeLabel: 'Deed',
-      confidence: 0.15
-    },
-    {
-      documentType: 'legal_description',
-      documentTypeLabel: 'Legal Description',
-      confidence: 0.08
-    },
-    {
-      documentType: 'plat_map',
-      documentTypeLabel: 'Plat Map',
-      confidence: 0.05
-    }
-  ].filter(alt => alt.documentType !== classification.documentType);
+  // Get confidence text
+  const getConfidenceText = (confidence: number) => {
+    if (confidence >= 0.85) return 'High Confidence';
+    if (confidence >= 0.7) return 'Medium Confidence';
+    if (confidence >= 0.5) return 'Low Confidence';
+    return 'Very Low Confidence';
+  };
   
   return (
     <div className="space-y-4">
-      <div className="p-4 border rounded-md">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <h3 className="font-semibold text-lg">
-              {classification.documentTypeLabel}
-            </h3>
-            <p className="text-sm text-slate-500">
-              Primary classification
-            </p>
-          </div>
-          
-          <Badge 
-            className={`
-              ${confidenceLevel === 'high' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : ''}
-              ${confidenceLevel === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' : ''}
-              ${confidenceLevel === 'low' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : ''}
-            `}
-            variant="secondary"
-          >
-            {confidenceLevel === 'high' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-            {confidenceLevel === 'medium' && <Tag className="h-3 w-3 mr-1" />}
-            {confidenceLevel === 'low' && <AlertTriangle className="h-3 w-3 mr-1" />}
-            {confidencePercent}% Confidence
-          </Badge>
-        </div>
-        
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
-            <span>Confidence</span>
-            <span className="font-medium">{confidencePercent}%</span>
-          </div>
-          
-          <Progress 
-            value={confidencePercent} 
-            className={`h-2 ${
-              confidenceLevel === 'high' ? 'bg-green-100 dark:bg-green-900' : 
-              confidenceLevel === 'medium' ? 'bg-amber-100 dark:bg-amber-900' : 
-              'bg-red-100 dark:bg-red-900'
-            }`}
-          />
-          
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center">
-              <Tag className="h-4 w-4 text-slate-400 mr-1.5" />
-              <span className="text-sm text-slate-500">Document Type</span>
-            </div>
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-base font-medium mb-1">Document Type</h3>
+          <div className="flex items-center space-x-2">
+            <Badge className="capitalize px-3 py-1">{classification.documentTypeLabel}</Badge>
             
             {classification.wasManuallyClassified && (
-              <Badge variant="outline" className="text-xs">
-                Manually Classified
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <CircleCheck className="h-3 w-3 text-green-500 mr-1" />
+                <span>Manually Classified</span>
               </Badge>
             )}
           </div>
         </div>
+        
+        {classification.wasManuallyClassified ? (
+          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+            <CircleCheck className="h-4 w-4 text-green-500 mr-1" />
+            Verified
+          </div>
+        ) : (
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            AI Classification
+          </div>
+        )}
       </div>
       
-      {showAlternatives && alternativeTypes.length > 0 && (
-        <Collapsible
-          open={isOpen}
-          onOpenChange={setIsOpen}
-          className="border rounded-md overflow-hidden"
-        >
-          <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
-            <div className="font-medium">Alternative Classifications</div>
-            <div>
-              {isOpen ? (
-                <ChevronUp className="h-4 w-4 text-slate-500" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-slate-500" />
-              )}
-            </div>
-          </CollapsibleTrigger>
-          
-          <CollapsibleContent>
-            <div className="p-4 pt-0 space-y-3">
-              {alternativeTypes.map((altType, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="font-medium">{altType.documentTypeLabel}</div>
-                  <div className="flex items-center gap-2">
-                    <Progress 
-                      value={Math.round(altType.confidence * 100)}
-                      className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800"
-                    />
-                    <span className="text-xs text-slate-500 w-10 text-right">
-                      {Math.round(altType.confidence * 100)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-              
-              <p className="text-xs text-slate-500 mt-3">
-                Alternative classifications represent other possible document types with lower confidence scores
-              </p>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium">Confidence Score</span>
+          <span className="text-sm font-medium">{Math.round(classification.confidence * 100)}%</span>
+        </div>
+        
+        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <motion.div 
+            className={`h-full ${getConfidenceColor(classification.confidence)}`}
+            initial="initial"
+            animate="animate"
+            variants={progressVariants}
+          />
+        </div>
+        
+        <div className="mt-1 text-xs text-slate-500 text-right">
+          {getConfidenceText(classification.confidence)}
+        </div>
+      </div>
     </div>
   );
 }

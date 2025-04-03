@@ -1,42 +1,29 @@
-import { 
-  FileText, 
-  Map, 
-  FileImage, 
-  FileSpreadsheet, 
-  FilePieChart, 
-  FileArchive,
-  File,
-  LucideIcon
-} from 'lucide-react';
+import { FileText, FileImage, FileArchive, Map, File, FileCog, FileCheck, FileHeart, BookCopy, Upload, FileCode } from 'lucide-react';
 
 /**
- * Returns the appropriate Lucide icon for a given document type
+ * Returns the appropriate icon component based on document type
  */
-export function getDocumentTypeIcon(type: string): LucideIcon {
-  switch (type.toLowerCase()) {
+export function getDocumentTypeIcon(documentType: string) {
+  switch (documentType) {
     case 'deed':
-    case 'contract':
-    case 'agreement':
-    case 'legal_document':
-      return FileText;
-    case 'map':
+      return FileCheck;
     case 'plat':
-    case 'survey':
-    case 'boundary_line_adjustment':
-    case 'bla':
       return Map;
-    case 'photo':
+    case 'survey':
+      return FileImage;
+    case 'boundary_line_adjustment':
+      return FileCog;
+    case 'legal_document':
+      return BookCopy;
+    case 'report':
+      return FileText;
     case 'image':
       return FileImage;
-    case 'spreadsheet':
-    case 'data':
-    case 'assessment':
-      return FileSpreadsheet;
-    case 'report':
-    case 'sm00_report':
-      return FilePieChart;
+    case 'application':
+      return FileCode;
+    case 'permit':
+      return FileHeart;
     case 'archive':
-    case 'collection':
       return FileArchive;
     default:
       return File;
@@ -44,44 +31,75 @@ export function getDocumentTypeIcon(type: string): LucideIcon {
 }
 
 /**
- * Returns a color class for a document type
+ * Returns a human-readable label for document type
  */
-export function getDocumentTypeColor(type: string): string {
-  switch (type.toLowerCase()) {
+export function getDocumentTypeLabel(documentType: string): string {
+  // Replace underscores with spaces and capitalize first letter of each word
+  return documentType
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/**
+ * Determines the color for a document type
+ */
+export function getDocumentTypeColor(documentType: string): string {
+  switch (documentType) {
     case 'deed':
-    case 'contract':
-    case 'agreement':
-    case 'legal_document':
-      return 'bg-blue-500';
-    case 'map':
+      return 'green';
     case 'plat':
+      return 'blue';
     case 'survey':
+      return 'purple';
     case 'boundary_line_adjustment':
-    case 'bla':
-      return 'bg-emerald-500';
-    case 'photo':
-    case 'image':
-      return 'bg-purple-500';
-    case 'spreadsheet':
-    case 'data':
-    case 'assessment':
-      return 'bg-amber-500';
+      return 'orange';
+    case 'legal_document':
+      return 'red';
     case 'report':
-    case 'sm00_report':
-      return 'bg-indigo-500';
+      return 'indigo';
+    case 'image':
+      return 'sky';
+    case 'application':
+      return 'amber';
+    case 'permit':
+      return 'pink';
     case 'archive':
-    case 'collection':
-      return 'bg-slate-500';
+      return 'gray';
     default:
-      return 'bg-slate-400';
+      return 'slate';
   }
 }
 
 /**
- * Returns a user-friendly label for a document type
+ * Formats document file size in human-readable format
  */
-export function getDocumentTypeLabel(type: string): string {
-  return type
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Determines if file is an image based on content type
+ */
+export function isImageFile(contentType: string): boolean {
+  return contentType.startsWith('image/');
+}
+
+/**
+ * Determines if file is a PDF based on content type
+ */
+export function isPdfFile(contentType: string): boolean {
+  return contentType === 'application/pdf';
+}
+
+/**
+ * Extracts file extension from filename
+ */
+export function getFileExtension(filename: string): string {
+  return filename.split('.').pop()?.toLowerCase() || '';
 }
