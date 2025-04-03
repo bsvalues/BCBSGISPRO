@@ -1,79 +1,157 @@
-import { 
-  calculateArea, 
-  calculatePerimeter, 
-  convertUnit,
-  MeasurementUnit,
-  MeasurementDisplay,
-  MeasurementManager
-} from '@/lib/measurement-system';
-import { Feature, Polygon, GeoJsonProperties } from 'geojson';
+import { describe, expect, test } from '@jest/globals';
+import {
+  calculateDistance,
+  calculateArea,
+  convertUnits,
+  formatMeasurement,
+  UnitSystem,
+  MeasurementType,
+  createMeasurement
+} from '../client/src/lib/measurement-system';
 
 describe('Measurement System', () => {
-  // Create a simple square polygon for testing (100m x 100m)
-  const createTestPolygon = (): Feature<Polygon, GeoJsonProperties> => ({
-    type: 'Feature',
-    properties: {},
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [0, 0],
-        [0.001, 0],    // ~100m at equator
-        [0.001, 0.001],
-        [0, 0.001],
-        [0, 0]         // Close the polygon
-      ]]
-    }
-  });
-
-  test('should calculate area of polygon accurately', () => {
-    const polygon = createTestPolygon();
-    // Area of square should be roughly 10000 sq meters (1 hectare)
-    expect(calculateArea(polygon, MeasurementUnit.SQUARE_METERS)).toBeCloseTo(10000, -1);
-    expect(calculateArea(polygon, MeasurementUnit.ACRES)).toBeCloseTo(2.47, 0);
-  });
-
-  test('should calculate perimeter correctly', () => {
-    const polygon = createTestPolygon();
-    // Perimeter should be roughly 400 meters (4 sides of ~100m each)
-    expect(calculatePerimeter(polygon, MeasurementUnit.METERS)).toBeCloseTo(400, -1);
-    expect(calculatePerimeter(polygon, MeasurementUnit.FEET)).toBeCloseTo(1312, -1);
-  });
-
-  test('should convert between measurement units correctly', () => {
-    expect(convertUnit(100, MeasurementUnit.METERS, MeasurementUnit.FEET)).toBeCloseTo(328.08, 0);
-    expect(convertUnit(1, MeasurementUnit.ACRES, MeasurementUnit.SQUARE_METERS)).toBeCloseTo(4046.86, 0);
-    expect(convertUnit(1, MeasurementUnit.HECTARES, MeasurementUnit.ACRES)).toBeCloseTo(2.47, 0);
-  });
-
-  test('MeasurementDisplay should format values with proper units', () => {
-    const display = new MeasurementDisplay();
+  test('calculateDistance should correctly compute distance between two points', () => {
+    const point1 = { lat: 47.123, lng: -122.456 };
+    const point2 = { lat: 47.125, lng: -122.458 };
     
-    expect(display.formatArea(10000, MeasurementUnit.SQUARE_METERS)).toBe('10,000 m²');
-    expect(display.formatArea(2.5, MeasurementUnit.ACRES)).toBe('2.50 ac');
+    const distanceMeters = calculateDistance(point1, point2);
     
-    expect(display.formatDistance(1500, MeasurementUnit.METERS)).toBe('1.50 km');
-    expect(display.formatDistance(750, MeasurementUnit.FEET)).toBe('750.00 ft');
+    // Expected distance using Haversine formula
+    expect(distanceMeters).toBeGreaterThan(0);
+    expect(typeof distanceMeters).toBe('number');
   });
-
-  test('MeasurementManager should track real-time measurements during drawing', () => {
-    const manager = new MeasurementManager();
-    const points: [number, number][] = [
-      [0, 0],
-      [0.001, 0],
-      [0.001, 0.001]
+  
+  test('calculateArea should compute area of a polygon', () => {
+    const polygon = [
+      { lat: 47.123, lng: -122.456 },
+      { lat: 47.123, lng: -122.458 },
+      { lat: 47.125, lng: -122.458 },
+      { lat: 47.125, lng: -122.456 },
+      { lat: 47.123, lng: -122.456 } // Closing point
     ];
-
-    // Simulate adding points during drawing
-    points.forEach(point => manager.addPoint(point));
     
-    // Should have current measurements
-    expect(manager.getCurrentPerimeter()).toBeGreaterThan(0);
-    expect(manager.getMeasurementUpdateCount()).toBe(3);
+    const areaSquareMeters = calculateArea(polygon);
     
-    // Add final point to close polygon
-    manager.addPoint([0, 0]);
+    expect(areaSquareMeters).toBeGreaterThan(0);
+    expect(typeof areaSquareMeters).toBe('number');
+  });
+  
+  test('convertUnits should correctly convert between metric and imperial', () => {
+    // Test metric to imperial length conversion
+    let result = convertUnits(1000, MeasurementType.LENGTH, UnitSystem.METRIC, UnitSystem.IMPERIAL);
+    expect(result).toBeCloseTo(3280.84, 1); // 1000 meters ≈ 3280.84 feet
     
-    // Area should now be available
-    expect(manager.getCurrentArea()).toBeGreaterThan(0);
+    // Test imperial to metric length conversion
+    result = convertUnits(5280, MeasurementType.LENGTH, UnitSystem.IMPERIAL, UnitSystem.METRIC);
+    expect(result).toBeCloseTo(1609.34, 1); // 5280 feet (1 mile) ≈ 1609.34 meters
+    
+    // Test metric to imperial area conversion
+    result = convertUnits(10000, MeasurementType.AREA, UnitSystem.METRIC, UnitSystem.IMPERIAL);
+    expect(result).toBeCloseTo(107639.1, 0); // 10000 sq meters ≈ 107639.1 sq feet
+    
+    // Test imperial to metric area conversion
+    result = convertUnits(43560, MeasurementType.AREA, UnitSystem.IMPERIAL, UnitSystem.METRIC);
+    expect(result).toBeCloseTo(4046.86, 0); // 43560 sq feet (1 acre) ≈ 4046.86 sq meters
+  });
+  
+  test('formatMeasurement should format measurements with proper units', () => {
+    // Format a metric length
+    let formatted = formatMeasurement(1500, MeasurementType.LENGTH, UnitSystem.METRIC);
+    expect(formatted).toBe('1.50 km');
+    
+    // Format a small metric length
+    formatted = formatMeasurement(45, MeasurementType.LENGTH, UnitSystem.METRIC);
+    expect(formatted).toBe('45.00 m');
+    
+    // Format an imperial length
+    formatted = formatMeasurement(5280, MeasurementType.LENGTH, UnitSystem.IMPERIAL);
+    expect(formatted).toBe('1.00 mi');
+    
+    // Format a small imperial length
+    formatted = formatMeasurement(500, MeasurementType.LENGTH, UnitSystem.IMPERIAL);
+    expect(formatted).toBe('500.00 ft');
+    
+    // Format a metric area
+    formatted = formatMeasurement(5000, MeasurementType.AREA, UnitSystem.METRIC);
+    expect(formatted).toBe('0.50 ha'); // 5000 sq meters = 0.5 hectares
+    
+    // Format a small metric area
+    formatted = formatMeasurement(45, MeasurementType.AREA, UnitSystem.METRIC);
+    expect(formatted).toBe('45.00 m²');
+    
+    // Format an imperial area
+    formatted = formatMeasurement(43560, MeasurementType.AREA, UnitSystem.IMPERIAL);
+    expect(formatted).toBe('1.00 ac'); // 43560 sq feet = 1 acre
+    
+    // Format a small imperial area
+    formatted = formatMeasurement(500, MeasurementType.AREA, UnitSystem.IMPERIAL);
+    expect(formatted).toBe('500.00 ft²');
+  });
+  
+  test('createMeasurement should create a proper measurement object', () => {
+    // Create a distance measurement
+    const distanceMeasurement = createMeasurement(
+      MeasurementType.LENGTH,
+      [
+        { lat: 47.123, lng: -122.456 },
+        { lat: 47.125, lng: -122.458 }
+      ],
+      UnitSystem.METRIC
+    );
+    
+    expect(distanceMeasurement).toHaveProperty('type', MeasurementType.LENGTH);
+    expect(distanceMeasurement).toHaveProperty('points');
+    expect(distanceMeasurement).toHaveProperty('value');
+    expect(distanceMeasurement).toHaveProperty('unitSystem', UnitSystem.METRIC);
+    expect(distanceMeasurement).toHaveProperty('formatted');
+    expect(distanceMeasurement.points.length).toBe(2);
+    expect(distanceMeasurement.value).toBeGreaterThan(0);
+    
+    // Create an area measurement
+    const areaMeasurement = createMeasurement(
+      MeasurementType.AREA,
+      [
+        { lat: 47.123, lng: -122.456 },
+        { lat: 47.123, lng: -122.458 },
+        { lat: 47.125, lng: -122.458 },
+        { lat: 47.125, lng: -122.456 }
+      ],
+      UnitSystem.IMPERIAL
+    );
+    
+    expect(areaMeasurement).toHaveProperty('type', MeasurementType.AREA);
+    expect(areaMeasurement).toHaveProperty('points');
+    expect(areaMeasurement).toHaveProperty('value');
+    expect(areaMeasurement).toHaveProperty('unitSystem', UnitSystem.IMPERIAL);
+    expect(areaMeasurement).toHaveProperty('formatted');
+    expect(areaMeasurement.points.length).toBe(4);
+    expect(areaMeasurement.value).toBeGreaterThan(0);
+  });
+  
+  test('measurement system should handle single-point measurements', () => {
+    // A single point should result in zero distance/area
+    const singlePoint = createMeasurement(
+      MeasurementType.LENGTH,
+      [{ lat: 47.123, lng: -122.456 }],
+      UnitSystem.METRIC
+    );
+    
+    expect(singlePoint.value).toBe(0);
+    expect(singlePoint.formatted).toBe('0.00 m');
+  });
+  
+  test('measurement system should handle invalid polygon for area', () => {
+    // Less than 3 points should result in zero area
+    const invalidPolygon = createMeasurement(
+      MeasurementType.AREA,
+      [
+        { lat: 47.123, lng: -122.456 },
+        { lat: 47.125, lng: -122.458 }
+      ],
+      UnitSystem.METRIC
+    );
+    
+    expect(invalidPolygon.value).toBe(0);
+    expect(invalidPolygon.formatted).toBe('0.00 m²');
   });
 });

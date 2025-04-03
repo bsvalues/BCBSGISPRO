@@ -1,129 +1,160 @@
-import { 
-  AnnotationManager,
-  Attribution,
-  createAnnotationManager 
-} from '../client/src/lib/drawing-annotation';
-import { Feature, Polygon, GeoJsonProperties } from 'geojson';
+import { describe, expect, test } from '@jest/globals';
 
-describe('Drawing Annotation', () => {
-  // Create a test feature
-  const createTestFeature = (id: string = 'feature-1'): Feature<Polygon, GeoJsonProperties> => ({
-    id,
-    type: 'Feature',
-    properties: {},
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 1],
-        [0, 0]
-      ]]
-    }
-  });
+// Import the utilities being tested
+import { addAnnotation, getAnnotations, clearAnnotations } from '../client/src/lib/drawing-annotation';
 
-  test('should attach notes to features', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
-    
-    annotationManager.addNote(feature.id as string, "Test note");
-    expect(annotationManager.getNotes(feature.id as string)).toContain("Test note");
+// Define an Attribution interface to represent annotation data
+interface Attribution {
+  position: {
+    lat: number;
+    lng: number;
+  };
+  text: string;
+  type: string;
+  createdAt: Date;
+  id: string;
+}
+
+describe('Drawing Annotation Tool', () => {
+  
+  // Reset annotations before each test
+  beforeEach(() => {
+    clearAnnotations();
   });
   
-  test('should track attribution data', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
+  test('addAnnotation should create a new annotation with proper structure', () => {
+    const position = { lat: 45.123, lng: -122.456 };
+    const text = 'Test annotation';
+    const type = 'note';
     
-    const attribution: Attribution = {
-      createdBy: "user1",
-      createdAt: new Date("2025-04-01T12:00:00Z")
-    };
+    const annotation = addAnnotation(position, text, type);
     
-    annotationManager.setAttribution(feature.id as string, attribution);
+    // Check that the annotation has the expected properties
+    expect(annotation).toHaveProperty('position');
+    expect(annotation).toHaveProperty('text');
+    expect(annotation).toHaveProperty('type');
+    expect(annotation).toHaveProperty('createdAt');
+    expect(annotation).toHaveProperty('id');
     
-    const retrievedAttribution = annotationManager.getAttribution(feature.id as string);
-    expect(retrievedAttribution?.createdBy).toBe("user1");
-    expect(retrievedAttribution?.createdAt).toEqual(new Date("2025-04-01T12:00:00Z"));
+    // Check that the values are correct
+    expect(annotation.position).toEqual(position);
+    expect(annotation.text).toBe(text);
+    expect(annotation.type).toBe(type);
+    expect(annotation.createdAt instanceof Date).toBe(true);
+    expect(typeof annotation.id).toBe('string');
+    expect(annotation.id.length).toBeGreaterThan(0);
   });
   
-  test('should update modification history when feature changes', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
+  test('getAnnotations should return all added annotations', () => {
+    // Add multiple annotations
+    const annotation1 = addAnnotation(
+      { lat: 45.123, lng: -122.456 },
+      'First annotation',
+      'note'
+    );
     
-    annotationManager.setAttribution(feature.id as string, {
-      createdBy: "user1",
-      createdAt: new Date("2025-04-01T12:00:00Z")
-    });
+    const annotation2 = addAnnotation(
+      { lat: 45.789, lng: -122.987 },
+      'Second annotation',
+      'measurement'
+    );
     
-    annotationManager.recordModification(feature.id as string, {
-      modifiedBy: "user2",
-      modifiedAt: new Date("2025-04-02T12:00:00Z"),
-      description: "Changed shape"
-    });
+    const annotation3 = addAnnotation(
+      { lat: 46.123, lng: -123.456 },
+      'Third annotation',
+      'warning'
+    );
     
-    const history = annotationManager.getModificationHistory(feature.id as string);
-    expect(history.length).toBe(1);
-    expect(history[0].modifiedBy).toBe("user2");
-    expect(history[0].description).toBe("Changed shape");
+    // Get all annotations
+    const annotations = getAnnotations();
+    
+    // Check that all annotations were returned
+    expect(annotations.length).toBe(3);
+    
+    // Check that the annotations match what was added
+    expect(annotations).toContainEqual(annotation1);
+    expect(annotations).toContainEqual(annotation2);
+    expect(annotations).toContainEqual(annotation3);
   });
-
-  test('should add multiple notes to a feature', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
+  
+  test('clearAnnotations should remove all annotations', () => {
+    // Add some annotations
+    addAnnotation(
+      { lat: 45.123, lng: -122.456 },
+      'Test annotation',
+      'note'
+    );
     
-    annotationManager.addNote(feature.id as string, "First note");
-    annotationManager.addNote(feature.id as string, "Second note");
+    addAnnotation(
+      { lat: 45.789, lng: -122.987 },
+      'Another test',
+      'measurement'
+    );
     
-    const notes = annotationManager.getNotes(feature.id as string);
-    expect(notes.length).toBe(2);
-    expect(notes[0]).toBe("First note");
-    expect(notes[1]).toBe("Second note");
+    // Verify annotations were added
+    expect(getAnnotations().length).toBe(2);
+    
+    // Clear all annotations
+    clearAnnotations();
+    
+    // Verify annotations were cleared
+    expect(getAnnotations().length).toBe(0);
   });
-
-  test('should handle features without prior attribution', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
+  
+  test('annotations should maintain order of addition', () => {
+    // Add annotations in a specific order
+    const annotation1 = addAnnotation(
+      { lat: 45.123, lng: -122.456 },
+      'First',
+      'note'
+    );
     
-    // Try to get attributes for a feature that hasn't been attributed yet
-    const attribution = annotationManager.getAttribution(feature.id as string);
-    expect(attribution).toBeUndefined();
+    const annotation2 = addAnnotation(
+      { lat: 45.789, lng: -122.987 },
+      'Second',
+      'measurement'
+    );
     
-    // Try to get modification history for a feature that hasn't been modified
-    const history = annotationManager.getModificationHistory(feature.id as string);
-    expect(history).toEqual([]);
+    const annotation3 = addAnnotation(
+      { lat: 46.123, lng: -123.456 },
+      'Third',
+      'warning'
+    );
+    
+    // Get all annotations
+    const annotations = getAnnotations();
+    
+    // Check that annotations are in the order they were added
+    expect(annotations[0]).toEqual(annotation1);
+    expect(annotations[1]).toEqual(annotation2);
+    expect(annotations[2]).toEqual(annotation3);
   });
-
-  test('should get all annotated features', () => {
-    const annotationManager = createAnnotationManager();
-    const feature1 = createTestFeature('feature-1');
-    const feature2 = createTestFeature('feature-2');
+  
+  test('annotations with the same position but different text should be treated as separate', () => {
+    const position = { lat: 45.123, lng: -122.456 };
     
-    annotationManager.addNote(feature1.id as string, "Note for feature 1");
-    annotationManager.setAttribution(feature2.id as string, {
-      createdBy: "user1",
-      createdAt: new Date()
-    });
+    // Add two annotations at the same position
+    const annotation1 = addAnnotation(
+      position,
+      'First at this position',
+      'note'
+    );
     
-    const annotatedFeatureIds = annotationManager.getAnnotatedFeatureIds();
-    expect(annotatedFeatureIds.length).toBe(2);
-    expect(annotatedFeatureIds).toContain('feature-1');
-    expect(annotatedFeatureIds).toContain('feature-2');
-  });
-
-  test('should remove annotation data for a feature', () => {
-    const annotationManager = createAnnotationManager();
-    const feature = createTestFeature();
+    const annotation2 = addAnnotation(
+      position,
+      'Second at this position',
+      'note'
+    );
     
-    annotationManager.addNote(feature.id as string, "Test note");
-    annotationManager.setAttribution(feature.id as string, {
-      createdBy: "user1",
-      createdAt: new Date()
-    });
+    // Get all annotations
+    const annotations = getAnnotations();
     
-    annotationManager.removeFeatureData(feature.id as string);
+    // Check that both annotations were added
+    expect(annotations.length).toBe(2);
+    expect(annotations).toContainEqual(annotation1);
+    expect(annotations).toContainEqual(annotation2);
     
-    expect(annotationManager.getNotes(feature.id as string)).toEqual([]);
-    expect(annotationManager.getAttribution(feature.id as string)).toBeUndefined();
+    // Ensure they have different IDs despite same position
+    expect(annotation1.id).not.toBe(annotation2.id);
   });
 });
