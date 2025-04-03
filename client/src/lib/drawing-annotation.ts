@@ -26,6 +26,18 @@ export interface Annotation {
 }
 
 /**
+ * Interface for feature attribution information
+ */
+export interface Attribution {
+  createdBy?: string;
+  createdAt?: Date;
+  modifiedBy?: string;
+  modifiedAt?: Date;
+  notes?: string[];
+  description?: string;
+}
+
+/**
  * Interface for the annotation manager
  */
 export interface AnnotationManager {
@@ -73,6 +85,26 @@ export interface AnnotationManager {
    * Import annotations from GeoJSON
    */
   importAnnotationsFromGeoJSON(geojson: any): Annotation[];
+  
+  /**
+   * Set attribution information for a feature
+   */
+  setAttribution(featureId: string, attribution: Partial<Attribution>): void;
+  
+  /**
+   * Record a modification to a feature
+   */
+  recordModification(featureId: string, modification: Partial<Attribution>): void;
+  
+  /**
+   * Add a note to a feature
+   */
+  addNote(featureId: string, note: string): void;
+  
+  /**
+   * Get attribution information for a feature
+   */
+  getAttribution(featureId: string): Attribution | undefined;
 }
 
 // In-memory storage for annotations
@@ -267,6 +299,62 @@ export function importAnnotationsFromGeoJSON(geojson: any): Annotation[] {
   return importedAnnotations;
 }
 
+// Storage for feature attributions
+const attributions: Map<string, Attribution> = new Map();
+
+/**
+ * Set attribution information for a feature
+ * 
+ * @param featureId ID of the feature
+ * @param attribution Attribution information to set
+ */
+export function setAttribution(featureId: string, attribution: Partial<Attribution>): void {
+  const existing = attributions.get(featureId) || {};
+  attributions.set(featureId, {
+    ...existing,
+    ...attribution
+  });
+}
+
+/**
+ * Record a modification to a feature
+ * 
+ * @param featureId ID of the feature
+ * @param modification Modification information
+ */
+export function recordModification(featureId: string, modification: Partial<Attribution>): void {
+  const existing = attributions.get(featureId) || {};
+  attributions.set(featureId, {
+    ...existing,
+    ...modification
+  });
+}
+
+/**
+ * Add a note to a feature
+ * 
+ * @param featureId ID of the feature
+ * @param note Note text to add
+ */
+export function addNote(featureId: string, note: string): void {
+  const existing = attributions.get(featureId) || {};
+  const notes = existing.notes || [];
+  attributions.set(featureId, {
+    ...existing,
+    notes: [...notes, note]
+  });
+}
+
+/**
+ * Get attribution information for a feature
+ * 
+ * @param featureId ID of the feature
+ * @returns Attribution information or undefined if not found
+ */
+export function getAttribution(featureId: string): Attribution | undefined {
+  return attributions.get(featureId);
+}
+
 /**
  * Create a new annotation manager instance
  * 
@@ -309,6 +397,22 @@ export function createAnnotationManager(): AnnotationManager {
     
     importAnnotationsFromGeoJSON(geojson) {
       return importAnnotationsFromGeoJSON(geojson);
+    },
+    
+    setAttribution(featureId, attribution) {
+      setAttribution(featureId, attribution);
+    },
+    
+    recordModification(featureId, modification) {
+      recordModification(featureId, modification);
+    },
+    
+    addNote(featureId, note) {
+      addNote(featureId, note);
+    },
+    
+    getAttribution(featureId) {
+      return getAttribution(featureId);
     }
   };
 }

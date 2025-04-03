@@ -5,6 +5,8 @@
  * converting between unit systems, and formatting measurement values.
  */
 
+import L from 'leaflet';
+
 /**
  * Supported measurement types
  */
@@ -394,6 +396,92 @@ export class MeasurementManager {
   private measurements: Map<string, Measurement> = new Map();
   private activeUnit: MeasurementUnit = MeasurementUnit.METERS;
   private listeners: Array<(measurements: Measurement[]) => void> = [];
+  private currentPoints: [number, number][] = [];
+  
+  /**
+   * Clear all current points
+   */
+  clear(): void {
+    this.currentPoints = [];
+    this.clearMeasurements();
+  }
+  
+  /**
+   * Add a point to the current measurement
+   * 
+   * @param point Point to add [lng, lat]
+   */
+  addPoint(point: [number, number]): void {
+    this.currentPoints.push(point);
+  }
+  
+  /**
+   * Get the perimeter of the current shape
+   * 
+   * @returns Perimeter in meters
+   */
+  getCurrentPerimeter(): number {
+    if (this.currentPoints.length < 2) return 0;
+    
+    let perimeter = 0;
+    
+    for (let i = 0; i < this.currentPoints.length - 1; i++) {
+      const p1 = this.currentPoints[i];
+      const p2 = this.currentPoints[i + 1];
+      
+      // Calculate distance between points using Haversine formula
+      const R = 6371000; // Earth radius in meters
+      const lat1 = p1[1] * Math.PI / 180;
+      const lat2 = p2[1] * Math.PI / 180;
+      const dLat = (p2[1] - p1[1]) * Math.PI / 180;
+      const dLon = (p2[0] - p1[0]) * Math.PI / 180;
+      
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1) * Math.cos(lat2) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      
+      perimeter += distance;
+    }
+    
+    return perimeter;
+  }
+  
+  /**
+   * Get the area of the current shape
+   * 
+   * @returns Area in square meters
+   */
+  getCurrentArea(): number {
+    if (this.currentPoints.length < 3) return 0;
+    
+    // Convert points to closed polygon if needed
+    const closedPolygon = [...this.currentPoints];
+    if (
+      closedPolygon[0][0] !== closedPolygon[closedPolygon.length - 1][0] ||
+      closedPolygon[0][1] !== closedPolygon[closedPolygon.length - 1][1]
+    ) {
+      closedPolygon.push(closedPolygon[0]);
+    }
+    
+    // Calculate area using Shoelace formula
+    let area = 0;
+    for (let i = 0; i < closedPolygon.length - 1; i++) {
+      area += closedPolygon[i][0] * closedPolygon[i + 1][1] - 
+              closedPolygon[i + 1][0] * closedPolygon[i][1];
+    }
+    
+    // Convert to square meters (rough approximation - not geodesically accurate)
+    area = Math.abs(area) / 2;
+    
+    // Convert to square meters using approximate scale factor
+    // This is a rough approximation and should be replaced with proper geodesic area calculation
+    const latMid = this.currentPoints.reduce((sum, p) => sum + p[1], 0) / this.currentPoints.length;
+    const scale = 111319.9 * Math.cos(latMid * Math.PI / 180);
+    return area * scale * scale;
+  }
   
   /**
    * Add a new measurement
@@ -524,6 +612,62 @@ export class MeasurementDisplay {
     fillColor: '#3388ff',
     fillOpacity: 0.2
   };
+  
+  /**
+   * Format a distance for display
+   * 
+   * @param distance Distance in meters
+   * @param unit Unit to display in
+   * @returns Formatted distance string
+   */
+  formatDistance(distance: number, unit: MeasurementUnit = MeasurementUnit.METERS): string {
+    if (unit === MeasurementUnit.METERS) {
+      if (distance >= 1000) {
+        return `${(distance / 1000).toFixed(2)} km`;
+      } else {
+        return `${distance.toFixed(2)} m`;
+      }
+    } else if (unit === MeasurementUnit.FEET) {
+      const feet = distance * 3.28084;
+      if (feet >= 5280) {
+        return `${(feet / 5280).toFixed(2)} mi`;
+      } else {
+        return `${feet.toFixed(2)} ft`;
+      }
+    } else {
+      return `${distance.toFixed(2)}`;
+    }
+  }
+  
+  /**
+   * Format an area for display
+   * 
+   * @param area Area in square meters
+   * @param unit Unit to display in
+   * @returns Formatted area string
+   */
+  formatArea(area: number, unit: MeasurementUnit = MeasurementUnit.SQUARE_METERS): string {
+    if (unit === MeasurementUnit.SQUARE_METERS) {
+      if (area >= 10000) {
+        return `${(area / 10000).toFixed(2)} hectares`;
+      } else {
+        return `${area.toFixed(2)} m²`;
+      }
+    } else if (unit === MeasurementUnit.SQUARE_FEET) {
+      const squareFeet = area * 10.7639;
+      if (squareFeet >= 43560) {
+        return `${(squareFeet / 43560).toFixed(2)} acres`;
+      } else {
+        return `${squareFeet.toFixed(2)} ft²`;
+      }
+    } else if (unit === MeasurementUnit.ACRES) {
+      return `${(area / 4046.86).toFixed(2)} acres`;
+    } else if (unit === MeasurementUnit.HECTARES) {
+      return `${(area / 10000).toFixed(2)} hectares`;
+    } else {
+      return `${area.toFixed(2)}`;
+    }
+  }
   
   /**
    * Set the map instance for displaying measurements
