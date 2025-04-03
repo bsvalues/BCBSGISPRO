@@ -1078,6 +1078,8 @@ export class DatabaseStorage implements IStorage {
       .values({
         documentId: link.documentId,
         parcelId: link.parcelId,
+        linkType: link.linkType || 'reference',
+        notes: link.notes || null,
         createdAt: new Date()
       })
       .returning();
