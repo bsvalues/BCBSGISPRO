@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { 
   Card, 
   CardContent, 
@@ -35,6 +36,7 @@ import { BatchDocumentProcessor } from './batch-document-processor';
 import { DocumentVersionControl } from './document-version-control';
 import { DocumentParcelManager } from './document-parcel-manager';
 import { DocumentClassificationResult } from './document-classification-result';
+import { DocumentGridView } from './document-grid-view';
 import { IllustratedTooltip } from '@/components/ui/illustrated-tooltip';
 import { illustrations } from '@/lib/illustrations';
 import { getDocumentTypeLabel } from '@shared/document-types';
@@ -49,9 +51,23 @@ import {
   History, 
   Map, 
   AlertTriangle, 
-  UploadCloud
+  UploadCloud,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { Document, Workflow } from '@shared/schema';
+
+// Extended Document type with optional classification
+interface DocumentWithClassification extends Document {
+  classification?: {
+    documentType: string;
+    confidence: number;
+    wasManuallyClassified: boolean;
+    classifiedAt: string;
+  };
+  updatedAt?: Date;
+  contentType?: string;
+}
 
 interface EnhancedDocumentManagementProps {
   workflow: Workflow;
@@ -59,16 +75,17 @@ interface EnhancedDocumentManagementProps {
 
 export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagementProps) {
   const [showBatchUploader, setShowBatchUploader] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentWithClassification | null>(null);
   const [activeTab, setActiveTab] = useState('details');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   
   // Fetch documents for the workflow
   const { 
-    data: documents = [],
+    data: documents = [] as DocumentWithClassification[],
     isLoading,
     error,
     refetch
-  } = useQuery({
+  } = useQuery<DocumentWithClassification[]>({
     queryKey: [`/api/workflows/${workflow.id}/documents`],
     enabled: !!workflow.id,
   });
@@ -78,7 +95,7 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
     refetch();
   };
   
-  const handleViewDocument = (document: Document) => {
+  const handleViewDocument = (document: DocumentWithClassification) => {
     setSelectedDocument(document);
   };
   
@@ -143,64 +160,105 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
       
       {/* Document List */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Workflow Documents
-          </CardTitle>
-          <CardDescription>
-            {documents.length} document{documents.length !== 1 ? 's' : ''} in this workflow
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Workflow Documents
+            </CardTitle>
+            <CardDescription>
+              {documents.length} document{documents.length !== 1 ? 's' : ''} in this workflow
+            </CardDescription>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <motion.div
+              className="bg-slate-100 dark:bg-slate-800 rounded-md p-1 flex"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Button
+                variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8"
+                onClick={() => setViewMode('cards')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </motion.div>
+          </div>
         </CardHeader>
         
         <CardContent>
           {documents.length > 0 ? (
-            <div className="border rounded-md overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Uploaded</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((document) => (
-                    <TableRow key={document.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
-                      <TableCell 
-                        className="font-medium"
-                        onClick={() => handleViewDocument(document)}
-                      >
-                        {document.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {document.type.replace(/_/g, ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center text-sm text-slate-500">
-                          <Clock className="h-3.5 w-3.5 mr-1.5" />
-                          {formatDistanceToNow(new Date(document.uploadedAt))} ago
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => handleViewDocument(document)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              {viewMode === 'table' ? (
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                        <TableHead className="w-24 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {documents.map((document) => (
+                        <TableRow key={document.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
+                          <TableCell 
+                            className="font-medium"
+                            onClick={() => handleViewDocument(document)}
+                          >
+                            {document.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {document.type.replace(/_/g, ' ')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center text-sm text-slate-500">
+                              <Clock className="h-3.5 w-3.5 mr-1.5" />
+                              {formatDistanceToNow(new Date(document.uploadedAt))} ago
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8"
+                              onClick={() => handleViewDocument(document)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <DocumentGridView
+                  documents={documents}
+                  onViewDocument={handleViewDocument}
+                />
+              )}
+            </motion.div>
           ) : (
             <div className="text-center py-12 border rounded-md">
               <FileText className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
@@ -311,7 +369,9 @@ export function EnhancedDocumentManagement({ workflow }: EnhancedDocumentManagem
                         <div>
                           <h4 className="text-sm font-medium mb-1">Last Updated</h4>
                           <p className="text-slate-600 dark:text-slate-400 text-sm">
-                            {new Date(selectedDocument.updatedAt).toLocaleString()}
+                            {selectedDocument.updatedAt 
+                              ? new Date(selectedDocument.updatedAt).toLocaleString() 
+                              : 'Not updated'}
                           </p>
                         </div>
                       </div>
