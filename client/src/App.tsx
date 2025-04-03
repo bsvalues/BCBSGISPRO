@@ -6,6 +6,7 @@ import ProgressTrackerDemo from "@/pages/progress-tracker-demo";
 import ErrorHandlingPage from "./pages/error-handling-page";
 import FullScreenMapPage from "@/pages/full-screen-map-page";
 import ToastTestPage from "@/pages/toast-test-page";
+import MapboxDemoPage from "@/pages/mapbox-demo-page";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -14,7 +15,8 @@ import {
   GitPullRequest, 
   AlertTriangle, 
   Maximize,
-  BellRing
+  BellRing,
+  Globe
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast-provider";
@@ -53,6 +55,16 @@ function App({ children }: { children?: React.ReactNode }) {
                 >
                   <MapPin className="mr-1 h-4 w-4" />
                   Map Viewer
+                </Button>
+              </Link>
+              
+              <Link href="/mapbox-demo">
+                <Button 
+                  variant={location === "/mapbox-demo" ? "secondary" : "outline"} 
+                  size="sm"
+                >
+                  <Globe className="mr-1 h-4 w-4" />
+                  Mapbox Demo
                 </Button>
               </Link>
               
@@ -115,6 +127,7 @@ function App({ children }: { children?: React.ReactNode }) {
               {/* Map-related tools - No authentication required */}
               <Route path="/" component={CartographerToolsPage} />
               <Route path="/map-viewer" component={MapViewerPage} />
+              <Route path="/mapbox-demo" component={MapboxDemoPage} />
               <Route path="/fullscreen-map" component={FullScreenMapPage} />
               <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
               <Route path="/cartographer-tools" component={CartographerToolsPage} />
