@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { errorHandler, notFoundHandler } from "./error-handler";
 
 // Create Express application
 const app = express();
@@ -100,29 +101,11 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    
-    // Log the error but only throw in development
-    console.error(`Error handling request: ${err.stack || err}`);
-    
-    // Don't include sensitive error details in production
-    const responseMessage = process.env.NODE_ENV === 'production' 
-      ? (status === 500 ? 'Internal Server Error' : message)
-      : message;
-    
-    // Respond with appropriate status and message
-    res.status(status).json({ 
-      message: responseMessage,
-      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-    });
-    
-    // Only throw in development to avoid crashing the server in production
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Non-fatal error in development mode:', err);
-    }
-  });
+  // Register the not found handler for undefined routes
+  app.use(notFoundHandler);
+  
+  // Register the global error handler
+  app.use(errorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

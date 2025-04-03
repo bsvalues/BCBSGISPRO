@@ -3,8 +3,10 @@ import MapViewerPage from "@/pages/map-viewer-page";
 import CartographerToolsPage from "@/pages/cartographer-tools-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
 import ProgressTrackerDemo from "@/pages/progress-tracker-demo";
+import ErrorHandlingPage from "@/pages/error-handling-page";
 import { Button } from "@/components/ui/button";
-import { MapPin, Map, Ruler, GitPullRequest } from "lucide-react";
+import { MapPin, Map, Ruler, GitPullRequest, AlertTriangle } from "lucide-react";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 /**
  * Simplified app that doesn't require authentication 
@@ -65,24 +67,38 @@ function App() {
                 Progress Tracker
               </Link>
             </Button>
+            
+            <Button 
+              variant={location === "/error-handling" ? "secondary" : "outline"} 
+              size="sm"
+              asChild
+            >
+              <Link href="/error-handling">
+                <AlertTriangle className="mr-1 h-4 w-4" />
+                Error Handling Demo
+              </Link>
+            </Button>
           </nav>
         </div>
       </header>
 
       <main className="container mx-auto p-4 flex-grow">
-        <Switch>
-          {/* Map-related tools - No authentication required */}
-          <Route path="/" component={CartographerToolsPage} />
-          <Route path="/map-viewer" component={MapViewerPage} />
-          <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
-          <Route path="/cartographer-tools" component={CartographerToolsPage} />
-          <Route path="/progress-tracker" component={ProgressTrackerDemo} />
-          
-          {/* Default to the cartographer tools */}
-          <Route>
-            <CartographerToolsPage />
-          </Route>
-        </Switch>
+        <ErrorBoundary>
+          <Switch>
+            {/* Map-related tools - No authentication required */}
+            <Route path="/" component={CartographerToolsPage} />
+            <Route path="/map-viewer" component={MapViewerPage} />
+            <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
+            <Route path="/cartographer-tools" component={CartographerToolsPage} />
+            <Route path="/progress-tracker" component={ProgressTrackerDemo} />
+            <Route path="/error-handling" component={ErrorHandlingPage} />
+            
+            {/* Default to the cartographer tools */}
+            <Route>
+              <CartographerToolsPage />
+            </Route>
+          </Switch>
+        </ErrorBoundary>
       </main>
       
       <footer className="bg-primary/10 p-4 text-center text-sm mt-auto">

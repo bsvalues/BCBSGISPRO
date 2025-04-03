@@ -1,157 +1,94 @@
-import { type ClassValue, clsx } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 /**
- * Combines class names with clsx and tailwind-merge
- * This is a utility function to properly merge Tailwind CSS classes
+ * Combines multiple class values into a single string using clsx and tailwind-merge
+ * This allows for conditional and dynamic class names with proper Tailwind CSS handling
+ * 
+ * @param inputs - Array of class values to merge
+ * @returns Merged class string
  */
-export function cn(...inputs: ClassValue[]) {
+export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Formats a date into a readable string format
- * @param date The date to format
- * @param options Formatting options
+ * Formats a date into a localized string
+ * 
+ * @param date - Date to format
+ * @param options - Intl.DateTimeFormat options
  * @returns Formatted date string
  */
 export function formatDate(
-  date: Date | string,
-  options: Intl.DateTimeFormatOptions = { 
-    year: "numeric", 
-    month: "long", 
-    day: "numeric" 
+  date: Date | string | number,
+  options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   }
 ): string {
-  const dateObj = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-US", options).format(dateObj);
+  return new Intl.DateTimeFormat('en-US', options).format(new Date(date));
 }
 
 /**
- * Creates a delay using promises
- * @param ms Milliseconds to wait
- * @returns Promise that resolves after specified time
+ * Creates a delay promise for the specified amount of time
+ * 
+ * @param ms - Milliseconds to delay
+ * @returns Promise that resolves after the specified delay
  */
-export function sleep(ms: number): Promise<void> {
+export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Truncates a string to a specified length and adds ellipsis
- * @param str String to truncate
- * @param length Maximum length before truncation
+ * Truncates a string to the specified length and adds an ellipsis
+ * 
+ * @param str - String to truncate
+ * @param length - Maximum length
  * @returns Truncated string
  */
-export function truncateString(str: string, length: number): string {
-  if (!str) return "";
-  return str.length > length ? str.substring(0, length) + "..." : str;
+export function truncate(str: string, length: number): string {
+  if (!str) return '';
+  return str.length > length ? `${str.substring(0, length)}...` : str;
 }
 
 /**
- * Formats a number as currency
- * @param amount Amount to format
- * @param currency Currency code
- * @returns Formatted currency string
+ * Formats a file size in bytes to a human-readable string
+ * 
+ * @param bytes - File size in bytes
+ * @param decimals - Number of decimal places
+ * @returns Formatted file size string
  */
-export function formatCurrency(
-  amount: number, 
-  currency = "USD", 
-  locale = "en-US"
-): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-  }).format(amount);
+export function formatFileSize(bytes: number, decimals = 2): string {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
 /**
- * Formats a number with commas
- * @param num Number to format
- * @returns Formatted number string
+ * Generates a unique ID
+ * 
+ * @returns Unique ID string
  */
-export function formatNumber(num: number): string {
-  return new Intl.NumberFormat().format(num);
+export function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
 }
 
 /**
- * Capitalizes the first letter of a string
- * @param str String to capitalize
- * @returns Capitalized string
+ * Converts a snake_case string to Title Case
+ * 
+ * @param str - Snake case string
+ * @returns Title case string
  */
-export function capitalizeFirstLetter(str: string): string {
-  if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-/**
- * Converts a string to title case
- * @param str String to convert
- * @returns Title cased string
- */
-export function toTitleCase(str: string): string {
-  if (!str) return "";
+export function snakeToTitleCase(str: string): string {
   return str
-    .toLowerCase()
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/**
- * Generates a random ID
- * @param length Length of the ID
- * @returns Random ID string
- */
-export function generateId(length = 8): string {
-  return Math.random()
-    .toString(36)
-    .substring(2, 2 + length);
-}
-
-/**
- * Safely access nested object properties
- * @param obj Object to access
- * @param path Path to property using dot notation
- * @param defaultValue Default value if path doesn't exist
- * @returns Value at path or default value
- */
-export function getNestedValue(
-  obj: Record<string, any>,
-  path: string,
-  defaultValue: any = undefined
-): any {
-  const keys = path.split(".");
-  let result = obj;
-  
-  for (const key of keys) {
-    if (result === undefined || result === null) {
-      return defaultValue;
-    }
-    result = result[key];
-  }
-  
-  return result === undefined ? defaultValue : result;
-}
-
-/**
- * Debounces a function
- * @param func Function to debounce
- * @param wait Wait time in ms
- * @returns Debounced function
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
-  
-  return function(...args: Parameters<T>): void {
-    const later = () => {
-      timeout = null;
-      func(...args);
-    };
-    
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }

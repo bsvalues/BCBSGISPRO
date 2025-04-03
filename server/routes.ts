@@ -5,6 +5,7 @@ import * as path from 'path';
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
+import { ApiError, asyncHandler } from "./error-handler";
 import { 
   workflows, 
   WorkflowState, 
@@ -2563,89 +2564,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Batch document-parcel linking endpoint (no authentication required)
-  app.post("/api/documents/batch/link-parcel", async (req, res) => {
-    try {
-      const { documentIds, parcelId } = req.body;
-      
-      if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
-        return res.status(400).json({ message: "Document IDs array is required" });
-      }
-      
-      if (!parcelId || isNaN(parseInt(parcelId))) {
-        return res.status(400).json({ message: "Valid parcel ID is required" });
-      }
-      
-      const parcelIdNum = parseInt(parcelId);
-      const results = [];
-      const errors = [];
-      
-      // Process each document
-      for (const documentId of documentIds) {
-        try {
-          // Check if link already exists
-          const existingLink = await storage.getDocumentParcelLink(documentId, parcelIdNum);
+  app.post("/api/documents/batch/link-parcel", asyncHandler(async (req, res) => {
+    const { documentIds, parcelId } = req.body;
+    
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      throw ApiError.badRequest("Document IDs array is required");
+    }
+    
+    if (!parcelId || isNaN(parseInt(parcelId))) {
+      throw ApiError.badRequest("Valid parcel ID is required");
+    }
+    
+    const parcelIdNum = parseInt(parcelId);
+    const results = [];
+    const errors = [];
+    
+    // Process each document
+    for (const documentId of documentIds) {
+      try {
+        // Check if link already exists
+        const existingLink = await storage.getDocumentParcelLink(documentId, parcelIdNum);
+        
+        if (!existingLink) {
+          // Create the link
+          const newLink = await storage.createDocumentParcelLink({
+            documentId,
+            parcelId: parcelIdNum,
+            linkType: "related", // Default link type
+          });
           
-          if (!existingLink) {
-            // Create the link
-            const newLink = await storage.createDocumentParcelLink({
-              documentId,
-              parcelId: parcelIdNum,
-              linkType: "related", // Default link type
-              createdAt: new Date()
-            });
-            
-            results.push(newLink);
-            
-            // Get document details and create workflow event
-            const document = await storage.getDocument(documentId);
-            const parcel = await storage.getParcelById(parcelIdNum);
-            
-            if (document && document.workflowId && parcel) {
-              await storage.createWorkflowEvent({
-                workflowId: document.workflowId,
-                eventType: "document_parcel_linked",
-                description: `Document "${document.name}" linked to parcel ${parcel.parcelNumber}`,
-                metadata: {
-                  documentId,
-                  parcelId: parcelIdNum,
-                  parcelNumber: parcel.parcelNumber
-                },
-                createdBy: 1 // System user
-              });
-            }
-          } else {
-            // Link already exists, count as success but note it
-            results.push({
-              ...existingLink,
-              alreadyExists: true
+          results.push(newLink);
+          
+          // Get document details and create workflow event
+          const document = await storage.getDocument(documentId);
+          const parcel = await storage.getParcelById(parcelIdNum);
+          
+          if (document && document.workflowId && parcel) {
+            await storage.createWorkflowEvent({
+              workflowId: document.workflowId,
+              eventType: "document_parcel_linked",
+              description: `Document "${document.name}" linked to parcel ${parcel.parcelNumber}`,
+              metadata: {
+                documentId,
+                parcelId: parcelIdNum,
+                parcelNumber: parcel.parcelNumber
+              },
+              createdBy: 1 // System user
             });
           }
-        } catch (error) {
-          console.error(`Error linking document ${documentId} to parcel ${parcelId}:`, error);
-          errors.push({
-            documentId,
-            error: error instanceof Error ? error.message : String(error)
+        } else {
+          // Link already exists, count as success but note it
+          results.push({
+            ...existingLink,
+            alreadyExists: true
           });
         }
+      } catch (error) {
+        console.error(`Error linking document ${documentId} to parcel ${parcelId}:`, error);
+        errors.push({
+          documentId,
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
-      
-      res.json({
-        success: true,
-        totalProcessed: documentIds.length,
-        successCount: results.length,
-        errorCount: errors.length,
-        newLinksCreated: results.filter(r => !r.alreadyExists).length,
-        existingLinks: results.filter(r => r.alreadyExists).length,
-        errors: errors.length > 0 ? errors : undefined
-      });
-    } catch (error) {
-      console.error("Error in batch parcel linking:", error);
-      res.status(500).json({ 
-        message: "Failed to process batch parcel linking",
-        error: error instanceof Error ? error.message : String(error)
-      });
     }
-  });
+    
+    res.json({
+      success: true,
+      totalProcessed: documentIds.length,
+      successCount: results.length,
+      errorCount: errors.length,
+      newLinksCreated: results.filter(r => r.alreadyExists === undefined).length,
+      existingLinks: results.filter(r => r.alreadyExists !== undefined).length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  }));
   
   // Get parcels referenced by a document (no authentication required)
   app.get("/api/test/documents/:id/parcels", async (req, res) => {
