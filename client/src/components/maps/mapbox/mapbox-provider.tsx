@@ -4,8 +4,13 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { toast } from '@/hooks/use-toast';
 
 // Initialize Mapbox with access token
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-mapboxgl.accessToken = MAPBOX_TOKEN;
+// Use the environment variable from Replit secrets
+const MAPBOX_TOKEN = import.meta.env.MAPBOX_ACCESS_TOKEN;
+if (MAPBOX_TOKEN) {
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+} else {
+  console.error('Mapbox access token not found. Map functionality will be limited.');
+}
 
 // Check for browser WebGL support
 const isSupported = mapboxgl.supported();

@@ -57,6 +57,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
   
+  // Mapbox token endpoint - serves the token securely to the frontend
+  app.get("/api/mapbox-token", (req, res) => {
+    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
+    
+    if (!mapboxToken) {
+      return res.status(500).json({ 
+        error: 'Mapbox token not configured',
+        message: 'The Mapbox access token is not available in the server environment'
+      });
+    }
+    
+    // Return the token to the client
+    return res.json({ token: mapboxToken });
+  });
+  
   // Public property information API
   app.get("/api/public/properties/search", async (req, res) => {
     try {
