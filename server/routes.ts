@@ -161,6 +161,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Enhanced health check endpoint with resilience
+  app.get("/api/health", async (req, res) => {
+    const { checkDatabaseConnection, getDatabaseStatus } = await import("./db-resilience");
+    
+    const healthStatus = {
+      service: "BentonGeoPro API",
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || "1.0.0",
+      database: {
+        status: "unknown",
+        details: {}
+      }
+    };
+    
+    try {
+      // Check database connection with resilience
+      const isConnected = await checkDatabaseConnection();
+      
+      if (isConnected) {
+        healthStatus.database.status = "connected";
+      } else {
+        healthStatus.database.status = "disconnected";
+        healthStatus.status = "degraded";
+        
+        // Get detailed status information
+        const dbStatus = getDatabaseStatus();
+        healthStatus.database.details = {
+          lastCheck: dbStatus.lastCheck,
+          failedAttempts: dbStatus.failedAttempts,
+          lastError: dbStatus.lastError
+        };
+      }
+    } catch (error) {
+      console.error("Health check - Database error:", error);
+      healthStatus.database.status = "disconnected";
+      healthStatus.status = "degraded";
+      healthStatus.database.details = {
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+    
+    // Return appropriate status code based on service health
+    const statusCode = healthStatus.status === "ok" ? 200 : 503;
+    res.status(statusCode).json(healthStatus);
+  });
+
   // Database test endpoint
   app.get("/api/db-test", async (req, res) => {
     try {
@@ -204,6 +251,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({
         success: false,
         message: "Failed to fetch map layers",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Testing endpoint for database resilience
+  app.get("/api/db-resilience", async (req, res) => {
+    try {
+      const { withRetry, checkDatabaseConnection, getDatabaseStatus, attemptReconnect } = await import("./db-resilience");
+      
+      const action = req.query.action as string;
+      
+      if (action === "check") {
+        // Just check the connection
+        const isConnected = await checkDatabaseConnection();
+        res.json({
+          action: "check",
+          isConnected,
+          status: getDatabaseStatus()
+        });
+      } else if (action === "retry") {
+        // Execute a database operation with retries
+        try {
+          const result = await withRetry(async () => {
+            const { db } = await import("./db");
+            return db.select().from(workflows).limit(5);
+          });
+          
+          res.json({
+            action: "retry",
+            success: true,
+            status: getDatabaseStatus(),
+            data: result
+          });
+        } catch (retryError) {
+          res.status(500).json({
+            action: "retry",
+            success: false,
+            status: getDatabaseStatus(),
+            error: retryError instanceof Error ? retryError.message : String(retryError)
+          });
+        }
+      } else if (action === "reconnect") {
+        // Attempt to reconnect to the database
+        const reconnected = await attemptReconnect();
+        res.json({
+          action: "reconnect",
+          success: reconnected,
+          status: getDatabaseStatus()
+        });
+      } else {
+        // Default: return status
+        res.json({
+          status: getDatabaseStatus()
+        });
+      }
+    } catch (error) {
+      console.error("Database resilience test error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to test database resilience",
         error: error instanceof Error ? error.message : String(error)
       });
     }

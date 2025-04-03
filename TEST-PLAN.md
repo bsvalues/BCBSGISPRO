@@ -1,164 +1,106 @@
 # BentonGeoPro Test Plan
 
-This document outlines the test strategy for the BentonGeoPro application.
+## Testing Goals
 
-## Testing Approach
-
-The BentonGeoPro application uses a combination of testing methodologies:
-
-1. **Unit Tests**: Testing individual functions and components in isolation
-2. **Integration Tests**: Testing how components interact with each other
-3. **API Tests**: Testing REST API endpoints
-4. **Database Tests**: Testing database operations and schema integrity
-
-## Test Environments
-
-- **Development**: Local developer machines, using in-memory storage or test database
-- **CI/CD**: Automated tests run in the CI pipeline using test databases
-- **Staging**: Tests against a full staging environment with realistic data
-- **Production**: Smoke tests to verify production deployment
-
-## Test Framework and Tools
-
-- **Jest**: Primary test runner and assertion library
-- **React Testing Library**: Testing React components
-- **Supertest**: Testing HTTP endpoints
-- **node-fetch**: Making HTTP requests in tests
+1. Ensure core application functionality works correctly
+2. Verify API endpoints return expected data
+3. Validate database interactions
+4. Test document classification accuracy
+5. Verify map visualization and drawing tools
+6. Confirm workflow management processes
 
 ## Test Categories
 
-### 1. Core Functionality Tests
+### 1. Health and Connectivity Tests
 
-These tests verify the core functionality of the application:
+- **API Health Check**: Verify the API is running and returns status information
+- **Database Connectivity**: Confirm database connection is active
+- **Client-Server Connectivity**: Verify client can communicate with API
 
-- Authentication and authorization
-- Workflow management
-- Map visualization and layer control
-- Document management
-- Parcel data handling
+### 2. Document Management Tests
 
-### 2. Component Tests
+- **Document Classification**: Test accuracy of document type identification
+- **Document-Parcel Linking**: Verify documents can be associated with parcels
+- **Document Version Control**: Test version tracking functionality
 
-These tests focus on React components and their behavior:
+### 3. Map Functionality Tests
 
-- Map viewer components
-- Layer control
-- Document classification UI
-- Workflow status displays
-- Form validations
+- **Map Layer Control**: Test layer visibility, ordering, and opacity
+- **Drawing Annotations**: Verify annotation creation, retrieval, and export
+- **Drawing History**: Test undo/redo functionality
+- **Measurement Tools**: Verify distance and area calculations
 
-### 3. API Tests
+### 4. Workflow Tests
 
-These tests verify API endpoints:
+- **Workflow Creation**: Test creating new workflows of different types
+- **Workflow State Management**: Verify state transitions
+- **Checklist Management**: Test adding and completing checklist items
 
-- Map layer endpoints
-- Document endpoints
-- Authentication endpoints
-- Workflow endpoints
-- Parcel data endpoints
+### 5. Security Tests
 
-### 4. Database Tests
+- **Authentication**: Verify login functionality
+- **Authorization**: Test permission controls for different user types
+- **Session Management**: Verify session persistence and expiration
 
-These tests verify database operations:
+## Test Scripts
 
-- Schema validation
-- CRUD operations
-- Data integrity
-- Foreign key relationships
+### 1. API Health Verification (`verify-api.sh`)
 
-## Testing Scripts
+This script checks essential API functionality:
+- API health endpoint returns "ok" status
+- Database connection is active
+- Document classification endpoint correctly identifies document types
+- Document-parcel link API returns expected data
 
-We've created several scripts to facilitate testing:
+### 2. Core Component Tests (`run-core-tests.sh`)
 
-- `./run-tests.sh`: Run all tests
-- `./run-focused-tests.sh <component>`: Run tests for a specific component
-- `./debug-test.sh <option>`: Debug specific test issues
-- `./check-all-tables.sh`: Verify database schema
+Tests core business logic components:
+- Document classification system
+- Drawing annotation functionality
+- Map measurement systems
 
-## Key Test Areas
+### 3. Integration Tests (`run-integration-tests.sh`)
 
-### 1. Map Layer Opacity
+Tests integration between components:
+- Workflow-document associations
+- Document-parcel relationships
+- Map-workflow interactions
 
-Tests in `__tests__/map-layer-opacity.test.ts` verify:
-- The API handles null opacity values correctly by using a default value
-- The opacity normalization from DB (0-100) to UI (0-1) works properly
-- The API properly updates opacity values
+## Test-Driven Development Process
 
-### 2. Document Classification
+1. **Define Test Requirements**: For each feature, define expected behavior
+2. **Write Tests First**: Create tests that validate the expected behavior
+3. **Implement Feature**: Develop the feature to satisfy the tests
+4. **Refactor**: Improve implementation while maintaining test success
+5. **Expand Test Coverage**: Add edge cases and error scenarios
 
-Tests in `__tests__/document-classification.test.ts` verify:
-- The document classification endpoint works properly
-- Different document types are correctly identified
-- Classification confidence scores are correctly calculated
+## Testing Schedule
 
-### 3. Drawing and Annotation
+1. **Pre-development**: Basic health checks and API validation
+2. **During Development**: Unit and component tests of individual features
+3. **Post-implementation**: Integration and end-to-end testing
+4. **Pre-release**: Comprehensive test suite with error scenarios
+5. **Post-release**: Ongoing regression testing
 
-Tests in `__tests__/drawing-annotation.test.ts` verify:
-- Annotations can be added, retrieved, and cleared
-- Annotations maintain proper structure and IDs
-- Annotations with the same position but different text are treated separately
+## Error Handling Approach
 
-### 4. Measurement System
+1. **Validation Errors**: Test with invalid input to verify proper validation
+2. **Network Errors**: Simulate connection issues to test resilience
+3. **Database Errors**: Test database failure scenarios
+4. **Permission Errors**: Verify proper handling of unauthorized access
 
-Tests in `__tests__/measurement-system.test.ts` verify:
-- Distance calculations between points
-- Area calculations for polygons
-- Unit conversions (metric to imperial and vice versa)
-- Proper formatting of measurements with units
+## Test Success Criteria
 
-### 5. Map Viewer
+A test is considered successful when:
+1. All assertions pass with expected values
+2. No unhandled exceptions occur
+3. Database state is consistent after test execution
+4. Test runs consistently across multiple executions
 
-Tests in `__tests__/client/map-viewer-page.test.tsx` verify:
-- The map viewer loads correctly with data from the API
-- Error handling works correctly
-- Layer styles are formatted correctly
+## Reporting and Documentation
 
-### 6. Layer Control
-
-Tests in `__tests__/client/enhanced-layer-control.test.tsx` verify:
-- Layer visibility can be toggled
-- Layer opacity can be adjusted
-- Layers are properly ordered
-- Error handling works correctly
-
-## Test Data Management
-
-Test data is managed through:
-
-1. **Mock Data**: For component and unit tests
-2. **Test Database Seeds**: For integration and API tests
-3. **DB Reset Scripts**: To ensure test isolation
-
-## Test Result Documentation
-
-Test results are documented in:
-
-- CI/CD pipeline logs
-- Test coverage reports
-- Issue tracking for test failures
-
-## Test Coverage Goals
-
-- **Unit Tests**: 80% coverage
-- **Integration Tests**: 70% coverage
-- **API Tests**: 90% coverage
-- **Component Tests**: 75% coverage
-
-## Troubleshooting Tests
-
-If tests are failing, follow these steps:
-
-1. Check the error message for specific failures
-2. Run the specific failing test in isolation using `./run-focused-tests.sh`
-3. For database-related issues, run `./debug-test.sh` with the appropriate option
-4. For schema issues, run `./check-all-tables.sh` to verify the database schema
-5. For missing tables, run SQL scripts in `fix-missing-tables.sql`
-
-## Regular Test Maintenance
-
-Tests should be maintained:
-
-1. When adding new features
-2. When fixing bugs
-3. During periodic code quality reviews
-4. When refactoring existing code
+For each test run:
+1. Record pass/fail status
+2. Document any failures with specific error details
+3. Maintain test history to identify regressions
+4. Link test failures to specific code changes

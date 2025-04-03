@@ -52,7 +52,8 @@ class RuleBasedClassifier {
     ],
     [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: [
       'boundary line adjustment', 'BLA', 'lot line adjustment', 'property line adjustment', 
-      'adjust boundary', 'modified boundary', 'boundary change', 'boundary revision'
+      'adjust boundary', 'modified boundary', 'boundary change', 'boundary revision',
+      'adjustment area', 'parcels after', 'original parcels', 'adjusted parcel'
     ],
     [DocumentType.TAX_FORM]: [
       'tax', 'assessment', 'excise tax', 'property tax', 'tax parcel', 'tax statement',
@@ -87,7 +88,20 @@ class RuleBasedClassifier {
         const regex = new RegExp('\\b' + keyword + '\\b', 'gi');
         const matches = normalizedText.match(regex);
         if (matches) {
-          const typeScore = matches.length * 0.1; // Adjust weight here
+          // Apply different weights for specific document types
+          let weight = 0.1; // Default weight
+          
+          // Boost boundary line adjustment keywords
+          if (docType === DocumentType.BOUNDARY_LINE_ADJUSTMENT) {
+            // Give more weight to the exact term 'boundary line adjustment'
+            if (keyword === 'boundary line adjustment' || keyword === 'BLA') {
+              weight = 0.3;
+            } else {
+              weight = 0.2;
+            }
+          }
+          
+          const typeScore = matches.length * weight;
           scores[docType as DocumentType] += typeScore;
           matchedKeywords.push(keyword);
         }
@@ -152,6 +166,57 @@ export async function classifyDocument(
   
   // Enhance classification based on file type
   let baseClassification = classifier.classify(combinedText);
+  
+  // Special handling for BLA documents
+  // If the text contains specific BLA-related phrases AND has BLA as a high alternative
+  const normalizedText = combinedText.toLowerCase();
+  
+  // Check for specific BLA-related patterns that strongly indicate BLA documents
+  const specificBLAPatterns = [
+    /\bboundary\s+line\s+adjustment\b/i,
+    /\bbla[-\s][0-9]+/i,
+    /\bparcel.+adjusted\b/i,
+    /\badjustment\s+area\b/i,
+    /\bparcels\s+after\s+boundary\s+line\s+adjustment\b/i,
+    /\badjusted\s+parcel\b/i
+  ];
+  
+  // Count how many specific BLA patterns match
+  const blaPatternMatches = specificBLAPatterns.filter(pattern => 
+    pattern.test(normalizedText)
+  ).length;
+  
+  // If we find multiple strong BLA indicators, override to BLA classification
+  if (blaPatternMatches >= 2) {
+    // Log for debugging
+    console.log(`Found ${blaPatternMatches} BLA pattern matches in text`);
+    
+    // Force override to BLA classification regardless of alternatives
+    baseClassification.documentType = DocumentType.BOUNDARY_LINE_ADJUSTMENT;
+    baseClassification.confidence = 0.75;
+    
+    // Keep the original classification as an alternative
+    const originalType = baseClassification.documentType;
+    const originalConfidence = baseClassification.confidence;
+    
+    // Update alternatives list
+    if (baseClassification.alternativeTypes && baseClassification.alternativeTypes.length > 0) {
+      const withoutBLA = baseClassification.alternativeTypes.filter(
+        alt => alt.documentType !== DocumentType.BOUNDARY_LINE_ADJUSTMENT
+      );
+      
+      // Add the original primary classification as an alternative if it's not BLA
+      if (originalType !== DocumentType.BOUNDARY_LINE_ADJUSTMENT) {
+        withoutBLA.unshift({
+          documentType: originalType,
+          confidence: originalConfidence
+        });
+      }
+      
+      // Update alternatives
+      baseClassification.alternativeTypes = withoutBLA.slice(0, 3);
+    }
+  }
   
   // Adjust confidence based on file type
   if (fileType) {

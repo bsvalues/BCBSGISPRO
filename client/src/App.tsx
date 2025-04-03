@@ -2,8 +2,9 @@ import { Switch, Route, Link, useLocation } from "wouter";
 import MapViewerPage from "@/pages/map-viewer-page";
 import CartographerToolsPage from "@/pages/cartographer-tools-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
+import ProgressTrackerDemo from "@/pages/progress-tracker-demo";
 import { Button } from "@/components/ui/button";
-import { MapPin, Map, Ruler } from "lucide-react";
+import { MapPin, Map, Ruler, GitPullRequest } from "lucide-react";
 
 /**
  * Simplified app that doesn't require authentication 
@@ -53,6 +54,17 @@ function App() {
                 Geospatial Analysis
               </Link>
             </Button>
+            
+            <Button 
+              variant={location === "/progress-tracker" ? "secondary" : "outline"} 
+              size="sm"
+              asChild
+            >
+              <Link href="/progress-tracker">
+                <GitPullRequest className="mr-1 h-4 w-4" />
+                Progress Tracker
+              </Link>
+            </Button>
           </nav>
         </div>
       </header>
@@ -64,6 +76,7 @@ function App() {
           <Route path="/map-viewer" component={MapViewerPage} />
           <Route path="/geospatial-analysis" component={GeospatialAnalysisPage} />
           <Route path="/cartographer-tools" component={CartographerToolsPage} />
+          <Route path="/progress-tracker" component={ProgressTrackerDemo} />
           
           {/* Default to the cartographer tools */}
           <Route>
