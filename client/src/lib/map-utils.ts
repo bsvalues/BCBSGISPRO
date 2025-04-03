@@ -39,9 +39,11 @@ export interface MapLayerStyle {
  * Map layer interface
  */
 export interface MapLayer {
+  id?: number;
   name: string;
   visible: boolean;
   style: MapLayerStyle;
+  source?: string;
 }
 
 /**
@@ -226,4 +228,91 @@ export function squareMetersToSquareFeet(squareMeters: number): number {
 export function squareFeetToSquareMeters(squareFeet: number): number {
   // 1 square foot = 0.092903 square meters
   return squareFeet * 0.092903;
+}
+
+/**
+ * Default map layers provided for basic map functionality
+ */
+export const DEFAULT_MAP_LAYERS: MapLayer[] = [
+  {
+    id: 1,
+    name: "Parcels",
+    visible: true,
+    style: {
+      color: "#3B82F6",
+      weight: 2,
+      fillOpacity: 0.2,
+      fillColor: "#93C5FD"
+    },
+    source: "county_gis"
+  },
+  {
+    id: 2,
+    name: "Roads",
+    visible: true,
+    style: {
+      color: "#6B7280",
+      weight: 1.5,
+      fillOpacity: 0
+    },
+    source: "county_gis"
+  },
+  {
+    id: 3,
+    name: "Buildings",
+    visible: true,
+    style: {
+      color: "#4B5563",
+      weight: 1,
+      fillOpacity: 0.4,
+      fillColor: "#9CA3AF"
+    },
+    source: "county_gis"
+  },
+  {
+    id: 4,
+    name: "Aerial Imagery",
+    visible: false,
+    style: {
+      color: "transparent",
+      weight: 0,
+      fillOpacity: 0
+    },
+    source: "satellite_imagery"
+  },
+  {
+    id: 5,
+    name: "Zoning",
+    visible: false,
+    style: {
+      color: "#10B981",
+      weight: 1,
+      fillOpacity: 0.3,
+      fillColor: "#6EE7B7"
+    },
+    source: "county_gis"
+  },
+  {
+    id: 6,
+    name: "Floodplains",
+    visible: false,
+    style: {
+      color: "#60A5FA",
+      weight: 1,
+      fillOpacity: 0.2,
+      fillColor: "#93C5FD"
+    },
+    source: "arcgis"
+  }
+];
+
+/**
+ * Validates if a string is a valid parcel number format
+ * @param parcelNumber - The parcel number to validate
+ * @returns Whether the parcel number is valid
+ */
+export function isValidParcelNumber(parcelNumber: string): boolean {
+  // Example validation for a parcel number format like "123-45-678"
+  const parcelRegex = /^\d{1,3}-\d{1,2}-\d{1,3}$/;
+  return parcelRegex.test(parcelNumber);
 }
