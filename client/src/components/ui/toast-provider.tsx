@@ -1,139 +1,97 @@
-import React, { createContext, ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { createContext, useState, useCallback } from 'react';
+import { Toast, ToastProps } from './toast';
 import { createPortal } from 'react-dom';
-import { Toast, ToastOptions, ToastPosition, ToastProps } from './toast';
 import { generateId } from '@/lib/utils';
 
-/**
- * The default duration for toast notifications in milliseconds
- */
-const DEFAULT_TOAST_DURATION = 5000;
+type ToastContextType = {
+  toast: (props: ToastProps) => void;
+  info: (props: Omit<ToastProps, 'variant'>) => void;
+  success: (props: Omit<ToastProps, 'variant'>) => void;
+  warning: (props: Omit<ToastProps, 'variant'>) => void;
+  error: (props: Omit<ToastProps, 'variant'>) => void;
+  dismiss: (id: string) => void;
+};
 
-/**
- * Interface for the ToastContext
- */
-interface ToastContextType {
-  /**
-   * Add a new toast notification
-   */
-  addToast: (toast: ToastProps) => void;
-  
-  /**
-   * Remove a toast by ID
-   */
-  removeToast: (id: string) => void;
-  
-  /**
-   * Remove all toast notifications
-   */
-  removeAllToasts: () => void;
-}
-
-/**
- * Create the ToastContext
- */
 export const ToastContext = createContext<ToastContextType | null>(null);
 
-/**
- * Properties for the ToastProvider component
- */
-interface ToastProviderProps {
-  /**
-   * Child components
-   */
-  children: ReactNode;
-  
-  /**
-   * Position for toast notifications
-   */
-  position?: ToastPosition;
-  
-  /**
-   * Default duration for toast notifications in milliseconds
-   */
-  defaultDuration?: number;
+interface ToastItem extends ToastProps {
+  id: string;
 }
 
-/**
- * ToastProvider component for managing toast notifications
- */
-export const ToastProvider: React.FC<ToastProviderProps> = ({
-  children,
-  position = 'top-right',
-  defaultDuration = DEFAULT_TOAST_DURATION,
-}) => {
-  // State to store all active toast notifications
-  const [toasts, setToasts] = useState<ToastProps[]>([]);
-  
-  // Add a new toast notification
-  const addToast = useCallback((toast: ToastProps) => {
-    const id = toast.id || generateId();
-    setToasts((prev) => [...prev, { ...toast, id }]);
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const toast = useCallback((props: ToastProps) => {
+    const id = generateId();
+    const toastItem: ToastItem = {
+      ...props,
+      id,
+      onClose: () => dismiss(id),
+    };
+    setToasts((prev) => [...prev, toastItem]);
+
+    // Auto-dismiss after duration
+    if (props.duration !== 0) {
+      setTimeout(() => {
+        dismiss(id);
+      }, props.duration || 5000);
+    }
+
+    return id;
   }, []);
-  
-  // Remove a toast by ID
-  const removeToast = useCallback((id: string) => {
+
+  const info = useCallback(
+    (props: Omit<ToastProps, 'variant'>) => toast({ ...props, variant: 'default' }),
+    [toast]
+  );
+
+  const success = useCallback(
+    (props: Omit<ToastProps, 'variant'>) => toast({ ...props, variant: 'success' }),
+    [toast]
+  );
+
+  const warning = useCallback(
+    (props: Omit<ToastProps, 'variant'>) =>
+      toast({ ...props, variant: 'destructive', title: `Warning: ${props.title || ''}` }),
+    [toast]
+  );
+
+  const error = useCallback(
+    (props: Omit<ToastProps, 'variant'>) => 
+      toast({ ...props, variant: 'destructive' }),
+    [toast]
+  );
+
+  const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
-  
-  // Remove all toast notifications
-  const removeAllToasts = useCallback(() => {
-    setToasts([]);
-  }, []);
-  
-  // Auto-dismiss toasts based on their duration
-  useEffect(() => {
-    const timers: NodeJS.Timeout[] = [];
-    
-    toasts.forEach((toast) => {
-      if (toast.duration !== 0) {
-        const timer = setTimeout(() => {
-          removeToast(toast.id);
-        }, toast.duration || defaultDuration);
-        
-        timers.push(timer);
-      }
-    });
-    
-    // Clean up timers on unmount or when toasts change
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-    };
-  }, [toasts, defaultDuration, removeToast]);
-  
-  // Position-based CSS classes
-  const positionClasses = {
-    'top-right': 'top-0 right-0',
-    'top-left': 'top-0 left-0',
-    'bottom-right': 'bottom-0 right-0',
-    'bottom-left': 'bottom-0 left-0',
-    'top-center': 'top-0 left-1/2 -translate-x-1/2',
-    'bottom-center': 'bottom-0 left-1/2 -translate-x-1/2',
+
+  const contextValue = {
+    toast,
+    info,
+    success,
+    warning,
+    error,
+    dismiss,
   };
-  
-  // Create portal for toast container
-  const toastContainer = typeof document !== 'undefined' && document.body
-    ? createPortal(
-        <div
-          aria-live="polite"
-          aria-atomic="true"
-          className={`fixed z-50 flex flex-col gap-2 p-4 max-h-screen overflow-hidden ${positionClasses[position]}`}
-        >
-          {toasts.map((toast) => (
-            <Toast
-              key={toast.id}
-              {...toast}
-              onDismiss={() => removeToast(toast.id)}
-            />
-          ))}
-        </div>,
-        document.body
-      )
-    : null;
-  
+
   return (
-    <ToastContext.Provider value={{ addToast, removeToast, removeAllToasts }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
-      {toastContainer}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed bottom-0 right-0 z-50 flex flex-col gap-2 p-4 max-h-screen overflow-hidden">
+            {toasts.map((toast) => (
+              <div
+                key={toast.id}
+                className="animate-in slide-in-from-bottom-5 duration-300"
+              >
+                <Toast {...toast} />
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
     </ToastContext.Provider>
   );
-};
+}

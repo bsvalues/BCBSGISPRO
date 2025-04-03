@@ -1,383 +1,229 @@
-import { Feature, Geometry, GeoJsonProperties } from 'geojson';
-
 /**
- * Common GeoJSON feature type used throughout the application
- */
-export type GeoJSONFeature = Feature<Geometry, GeoJsonProperties>;
-
-/**
- * Supported map tools for the user interface
+ * Map tool types
  */
 export enum MapTool {
   PAN = 'pan',
+  SELECT = 'select',
   MEASURE = 'measure',
   DRAW = 'draw',
-  EDIT = 'edit'
 }
 
 /**
- * Types of measurements available in the system
+ * Measurement types
  */
 export enum MeasurementType {
   DISTANCE = 'distance',
   AREA = 'area',
-  PERIMETER = 'perimeter'
 }
 
 /**
- * Units of measurement available in the system
+ * Measurement units
  */
 export enum MeasurementUnit {
-  // Distance units
-  METERS = 'meters',
-  KILOMETERS = 'kilometers',
   FEET = 'feet',
+  METERS = 'meters',
   MILES = 'miles',
-  
-  // Area units
-  SQUARE_METERS = 'square_meters',
-  HECTARES = 'hectares',
-  ACRES = 'acres',
-  SQUARE_FEET = 'square_feet'
 }
 
 /**
- * Types of map layers
+ * Map layer style interface
  */
-export enum MapLayerType {
-  BASE = 'base',
-  OVERLAY = 'overlay',
-  FEATURE = 'feature',
-  ANNOTATION = 'annotation'
+export interface MapLayerStyle {
+  color: string;
+  weight: number;
+  fillOpacity: number;
+  fillColor?: string;
 }
 
 /**
- * Configuration for a map layer
- */
-export interface MapLayerConfig {
-  id: string;
-  name: string;
-  type: MapLayerType;
-  url?: string;
-  opacity?: number;
-  visible?: boolean;
-  data?: GeoJSONFeature | GeoJSONFeature[];
-  style?: any;
-}
-
-/**
- * Map Layer definition for UI components
+ * Map layer interface
  */
 export interface MapLayer {
-  id: string;
   name: string;
-  type: MapLayerType;
-  url: string;
   visible: boolean;
-  opacity: number;
-  zindex: number;
-  style?: any;
+  style: MapLayerStyle;
 }
 
 /**
- * Map location with zoom level
+ * Converts measurement from one unit to another
+ * @param value - The measurement value
+ * @param fromUnit - The source unit
+ * @param toUnit - The target unit
+ * @param isArea - Whether the measurement is an area (square units)
+ * @returns The converted measurement value
  */
-export interface MapLocation {
-  lat: number;
-  lng: number;
-  zoom: number;
-}
-
-/**
- * Default map location (Benton County, Oregon)
- */
-export const DEFAULT_MAP_LOCATION: MapLocation = {
-  lat: 44.5638,
-  lng: -123.2794,
-  zoom: 12
-};
-
-/**
- * Default map layers for the application
- */
-export const DEFAULT_MAP_LAYERS: MapLayer[] = [
-  {
-    id: 'osm-base',
-    name: 'OpenStreetMap',
-    type: MapLayerType.BASE,
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    visible: true,
-    opacity: 1.0,
-    zindex: 0
-  },
-  {
-    id: 'county-boundary',
-    name: 'County Boundary',
-    type: MapLayerType.OVERLAY,
-    url: 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Counties/FeatureServer/0/query?where=NAME%3D%27Benton%27%20AND%20STATE_NAME%3D%27Oregon%27&outFields=*&outSR=4326&f=geojson',
-    visible: true,
-    opacity: 0.6,
-    zindex: 10,
-    style: {
-      color: '#0066cc',
-      weight: 3,
-      fillOpacity: 0.1
-    }
-  },
-  {
-    id: 'parcels',
-    name: 'Parcel Boundaries',
-    type: MapLayerType.FEATURE,
-    url: '/api/parcels/geojson',
-    visible: true,
-    opacity: 0.8,
-    zindex: 20,
-    style: {
-      color: '#ff6600',
-      weight: 2,
-      fillOpacity: 0.05
-    }
-  }
-];
-
-/**
- * Helper function to validate parcel number format
- */
-export function isValidParcelNumber(parcelNumber: string): boolean {
-  // Format should be like "12345-67-89000"
-  const parcelNumberRegex = /^\d{5}-\d{2}-\d{5}$/;
-  return parcelNumberRegex.test(parcelNumber);
-}
-
-/**
- * Calculates the distance between two geographic points using the Haversine formula
- * @param point1 [longitude, latitude] coordinate pair
- * @param point2 [longitude, latitude] coordinate pair
- * @param unit Optional unit of measurement (defaults to meters)
- * @returns Distance in the specified unit
- */
-export function calculateDistance(
-  point1: [number, number], 
-  point2: [number, number], 
-  unit: MeasurementUnit = MeasurementUnit.METERS
+export function convertMeasurement(
+  value: number,
+  fromUnit: MeasurementUnit,
+  toUnit: MeasurementUnit,
+  isArea: boolean = false
 ): number {
-  const [lon1, lat1] = point1;
-  const [lon2, lat2] = point2;
-  
-  // Convert to radians
-  const R = 6371000; // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-  
-  // Haversine formula
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) * 
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distanceInMeters = R * c;
+  // Define conversion factors to meters
+  const toMeters = {
+    [MeasurementUnit.FEET]: 0.3048,
+    [MeasurementUnit.METERS]: 1,
+    [MeasurementUnit.MILES]: 1609.34,
+  };
 
-  // Convert to requested unit
-  switch (unit) {
-    case MeasurementUnit.KILOMETERS:
-      return distanceInMeters / 1000;
-    case MeasurementUnit.FEET:
-      return distanceInMeters * 3.28084;
-    case MeasurementUnit.MILES:
-      return distanceInMeters / 1609.344;
-    case MeasurementUnit.METERS:
-    default:
-      return distanceInMeters;
+  // Convert to meters first
+  let meters = value * toMeters[fromUnit];
+  
+  // If it's an area, square the conversion factor
+  if (isArea) {
+    meters = value * (toMeters[fromUnit] ** 2);
   }
+  
+  // Convert from meters to target unit
+  let result: number;
+  if (isArea) {
+    result = meters / (toMeters[toUnit] ** 2);
+  } else {
+    result = meters / toMeters[toUnit];
+  }
+  
+  return result;
 }
 
 /**
- * Calculates the area of a GeoJSON polygon
- * @param coordinates Array of coordinate pairs that form the polygon
- * @param unit Optional unit of measurement (defaults to square meters)
- * @returns Area in the specified unit
+ * Formats a measurement value with appropriate units and precision
+ * @param value - The measurement value
+ * @param unit - The measurement unit
+ * @param isArea - Whether the measurement is an area (square units)
+ * @returns Formatted measurement string
  */
-export function calculateArea(
-  coordinates: number[][][],
-  unit: MeasurementUnit = MeasurementUnit.SQUARE_METERS
+export function formatMeasurement(
+  value: number,
+  unit: MeasurementUnit,
+  isArea: boolean = false
+): string {
+  const precision = value < 10 ? 2 : value < 100 ? 1 : 0;
+  const formatted = value.toFixed(precision);
+  
+  let unitStr: string;
+  switch (unit) {
+    case MeasurementUnit.FEET:
+      unitStr = isArea ? 'sq ft' : 'ft';
+      break;
+    case MeasurementUnit.METERS:
+      unitStr = isArea ? 'sq m' : 'm';
+      break;
+    case MeasurementUnit.MILES:
+      unitStr = isArea ? 'sq mi' : 'mi';
+      break;
+    default:
+      unitStr = '';
+  }
+  
+  return `${formatted} ${unitStr}`;
+}
+
+/**
+ * Formats a distance measurement with appropriate units and precision
+ * @param value - The distance value in the provided unit
+ * @param unit - The measurement unit
+ * @returns Formatted distance string
+ */
+export function formatDistance(value: number, unit: MeasurementUnit): string {
+  return formatMeasurement(value, unit, false);
+}
+
+/**
+ * Formats an area measurement with appropriate units and precision
+ * @param value - The area value in the provided unit
+ * @param unit - The measurement unit
+ * @returns Formatted area string
+ */
+export function formatArea(value: number, unit: MeasurementUnit): string {
+  return formatMeasurement(value, unit, true);
+}
+
+/**
+ * Get appropriate color for map features based on feature type
+ * @param featureType - The type of the feature
+ * @returns Color string (hex code)
+ */
+export function getFeatureColor(featureType: string): string {
+  const colorMap: Record<string, string> = {
+    parcel: '#3388ff',
+    road: '#666666',
+    building: '#cc4444',
+    water: '#3399cc',
+    boundary: '#884422',
+    zone: '#44bb33',
+    highlight: '#ffaa00',
+    selection: '#ff3300',
+    default: '#999999'
+  };
+  
+  return colorMap[featureType] || colorMap.default;
+}
+
+/**
+ * Calculates appropriate zoom level to fit a bounding box on the map
+ * @param bounds - The bounding box [minLat, minLng, maxLat, maxLng]
+ * @param mapWidth - Width of the map container in pixels
+ * @param mapHeight - Height of the map container in pixels
+ * @param paddingRatio - Padding ratio to apply (0 to 1)
+ * @returns Appropriate zoom level
+ */
+export function calculateZoomLevel(
+  bounds: [number, number, number, number],
+  mapWidth: number, 
+  mapHeight: number,
+  paddingRatio: number = 0.1
 ): number {
-  // Convert to meters (planar calculation for small areas)
-  let area = 0;
+  const [minLat, minLng, maxLat, maxLng] = bounds;
+  const latDiff = Math.abs(maxLat - minLat);
+  const lngDiff = Math.abs(maxLng - minLng);
   
-  // Use the first ring (outer ring)
-  const ring = coordinates[0];
+  // Apply padding
+  const effectiveWidth = mapWidth * (1 - paddingRatio * 2);
+  const effectiveHeight = mapHeight * (1 - paddingRatio * 2);
   
-  // Earth radius in meters
-  const R = 6371000;
+  // Calculate zoom level for width and height
+  const latZoom = Math.log2(360 / latDiff / (effectiveHeight / 256));
+  const lngZoom = Math.log2(360 / lngDiff / (effectiveWidth / 256));
   
-  for (let i = 0; i < ring.length - 1; i++) {
-    const [lon1, lat1] = ring[i];
-    const [lon2, lat2] = ring[i + 1];
-    
-    // Convert to radians
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const λ1 = (lon1 * Math.PI) / 180;
-    const λ2 = (lon2 * Math.PI) / 180;
-    
-    // Calculate area using shoelace formula mapped to spherical coordinates
-    area += (λ2 - λ1) * (2 + Math.sin(φ1) + Math.sin(φ2));
-  }
-  
-  // Finish calculation
-  area = Math.abs(area * Math.pow(R, 2) / 2);
-  
-  // Convert to requested unit
-  switch (unit) {
-    case MeasurementUnit.HECTARES:
-      return area / 10000;
-    case MeasurementUnit.ACRES:
-      return area / 4046.86;
-    case MeasurementUnit.SQUARE_FEET:
-      return area * 10.7639;
-    case MeasurementUnit.SQUARE_METERS:
-    default:
-      return area;
-  }
+  // Take the smaller zoom level to ensure the entire bounds fits
+  return Math.floor(Math.min(latZoom, lngZoom));
 }
 
 /**
- * Formats an area measurement with appropriate units and rounding
- * @param area Area value to format
- * @param unit Unit of measurement
- * @returns Formatted area string with unit
- */
-export function formatArea(area: number, unit: MeasurementUnit = MeasurementUnit.SQUARE_METERS): string {
-  switch (unit) {
-    case MeasurementUnit.HECTARES:
-      return `${area.toFixed(2)} ha`;
-    case MeasurementUnit.ACRES:
-      return `${area.toFixed(2)} ac`;
-    case MeasurementUnit.SQUARE_FEET:
-      return `${Math.round(area).toLocaleString()} ft²`;
-    case MeasurementUnit.SQUARE_METERS:
-      if (area >= 10000) {
-        // If over 10,000 square meters, convert to hectares
-        return formatArea(area / 10000, MeasurementUnit.HECTARES);
-      }
-      return `${Math.round(area).toLocaleString()} m²`;
-    default:
-      return `${Math.round(area).toLocaleString()} m²`;
-  }
-}
-
-/**
- * Formats a distance measurement with appropriate units and rounding
- * @param distance Distance value to format
- * @param unit Unit of measurement
- * @returns Formatted distance string with unit
- */
-export function formatDistance(distance: number, unit: MeasurementUnit = MeasurementUnit.METERS): string {
-  switch (unit) {
-    case MeasurementUnit.KILOMETERS:
-      return `${distance.toFixed(2)} km`;
-    case MeasurementUnit.MILES:
-      return `${distance.toFixed(2)} mi`;
-    case MeasurementUnit.FEET:
-      return `${Math.round(distance).toLocaleString()} ft`;
-    case MeasurementUnit.METERS:
-      if (distance >= 1000) {
-        // If over 1000 meters, convert to kilometers
-        return formatDistance(distance / 1000, MeasurementUnit.KILOMETERS);
-      }
-      return `${Math.round(distance).toLocaleString()} m`;
-    default:
-      return `${Math.round(distance).toLocaleString()} m`;
-  }
-}
-
-/**
- * Gets the attribution text for a base map
- * @param baseMapId The ID of the base map
- * @returns Attribution text for the specified base map
- */
-export function getBaseMapAttribution(baseMapId: string): string {
-  // Find the base map in the default map layers
-  const baseMap = DEFAULT_MAP_LAYERS.find(layer => layer.id === baseMapId);
-  
-  if (!baseMap) {
-    // Default attribution if base map not found
-    return '© OpenStreetMap contributors';
-  }
-  
-  // Return layer-specific attribution
-  switch (baseMapId) {
-    case 'osm-standard':
-      return '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-    case 'esri-imagery':
-      return '© <a href="https://www.esri.com">Esri</a> | Source: Esri, Maxar, GeoEye, Earthstar Geographics, USDA FSA, USGS, Aerogrid, IGN, IGP, and the GIS User Community';
-    case 'carto-light':
-      return '© <a href="https://carto.com/">CARTO</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-    case 'usgs-topo':
-      return '© <a href="https://www.usgs.gov/">USGS</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-    default:
-      return baseMap.name ? `© ${baseMap.name}` : '© Map data providers';
-  }
-}
-
-/**
- * Gets the URL for a base map
- * @param baseMapType The type of base map
- * @returns URL for the specified base map
- */
-export function getBaseMapUrl(baseMapType: string): string {
-  // Return URL based on base map type
-  switch (baseMapType) {
-    case 'street':
-    case 'osm-standard':
-      return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    case 'satellite':
-    case 'esri-imagery':
-      return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-    case 'topo':
-    case 'usgs-topo':
-      return 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}';
-    case 'light':
-    case 'carto-light':
-      return 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-    default:
-      // Default to OpenStreetMap if unknown base map type
-      return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  }
-}
-
-/**
- * Utility conversion functions for measurement units
+ * Converts square meters to acres
+ * @param squareMeters - Area in square meters
+ * @returns Area in acres
  */
 export function squareMetersToAcres(squareMeters: number): number {
+  // 1 acre = 4046.86 square meters
   return squareMeters / 4046.86;
 }
 
+/**
+ * Converts acres to square meters
+ * @param acres - Area in acres
+ * @returns Area in square meters
+ */
 export function acresToSquareMeters(acres: number): number {
+  // 1 acre = 4046.86 square meters
   return acres * 4046.86;
 }
 
+/**
+ * Converts square meters to square feet
+ * @param squareMeters - Area in square meters
+ * @returns Area in square feet
+ */
 export function squareMetersToSquareFeet(squareMeters: number): number {
+  // 1 square meter = 10.7639 square feet
   return squareMeters * 10.7639;
 }
 
+/**
+ * Converts square feet to square meters
+ * @param squareFeet - Area in square feet
+ * @returns Area in square meters
+ */
 export function squareFeetToSquareMeters(squareFeet: number): number {
-  return squareFeet / 10.7639;
-}
-
-export function metersToFeet(meters: number): number {
-  return meters * 3.28084;
-}
-
-export function feetToMeters(feet: number): number {
-  return feet / 3.28084;
-}
-
-export function metersToMiles(meters: number): number {
-  return meters / 1609.344;
-}
-
-export function milesToMeters(miles: number): number {
-  return miles * 1609.344;
+  // 1 square foot = 0.092903 square meters
+  return squareFeet * 0.092903;
 }

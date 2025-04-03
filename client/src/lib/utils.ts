@@ -1,120 +1,122 @@
-import { ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 /**
- * Combines multiple class names and merges Tailwind classes efficiently
- * @param inputs Class names to combine
- * @returns Merged class names string
+ * Combines class names using clsx and tailwind-merge
+ * for a clean, optimized approach to conditional styling
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Generates a unique ID with an optional prefix
- * @param prefix Optional prefix for the ID
- * @returns A unique string ID
+ * Generates a random numeric ID with a specified length
+ * @param length The length of the ID to generate
+ * @returns A string containing the randomly generated ID
  */
-export function generateId(prefix: string = 'id-'): string {
-  return `${prefix}${Math.random().toString(36).substring(2, 11)}`;
+export function generateId(length: number = 8): string {
+  return Math.random().toString().substring(2, 2 + length);
 }
 
 /**
- * Throttles a function to limit how often it can be called
- * @param func The function to throttle
- * @param limit Time in milliseconds between allowed calls
- * @returns Throttled function
- */
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): (...args: Parameters<T>) => ReturnType<T> | undefined {
-  let lastCall = 0;
-  let lastResult: ReturnType<T>;
-  
-  return (...args: Parameters<T>): ReturnType<T> | undefined => {
-    const now = Date.now();
-    
-    if (now - lastCall >= limit) {
-      lastCall = now;
-      lastResult = func(...args);
-      return lastResult;
-    }
-    
-    return lastResult;
-  };
-}
-
-/**
- * Debounces a function to delay its execution until after a specified timeout
+ * Debounces a function call, useful for expensive operations
+ * that shouldn't be called too frequently (e.g., searches)
  * @param func The function to debounce
- * @param delay Delay in milliseconds
- * @returns Debounced function
+ * @param wait The wait time in milliseconds
+ * @returns A debounced version of the function
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
-  delay: number
+  wait: number
 ): (...args: Parameters<T>) => void {
-  let timer: NodeJS.Timeout;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
   
   return (...args: Parameters<T>): void => {
-    clearTimeout(timer);
-    timer = setTimeout(() => func(...args), delay);
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(later, wait);
   };
 }
 
 /**
- * Formats a date with optional formatting options
- * @param date Date to format
- * @param options Date formatting options
- * @returns Formatted date string
+ * Standard button variants for consistency across the app
  */
-export function formatDate(
-  date: Date | string | number,
-  options: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }
-): string {
-  const dateObj = date instanceof Date ? date : new Date(date);
-  return new Intl.DateTimeFormat('en-US', options).format(dateObj);
-}
+export const ButtonVariant = {
+  DEFAULT: "default",
+  DESTRUCTIVE: "destructive",
+  OUTLINE: "outline",
+  SECONDARY: "secondary",
+  GHOST: "ghost",
+  LINK: "link",
+} as const;
 
 /**
- * Truncates a string to a specified length with ellipsis
- * @param str String to truncate
- * @param length Maximum length before truncation
- * @returns Truncated string
+ * Define button sizes for consistency across the app
  */
-export function truncateString(str: string, length: number = 50): string {
-  if (str.length <= length) return str;
-  return str.substring(0, length - 3) + '...';
-}
+export const ButtonSize = {
+  DEFAULT: "default",
+  SM: "sm",
+  LG: "lg",
+  ICON: "icon",
+} as const;
 
 /**
- * Safely access nested object properties without errors
- * @param obj Object to access
- * @param path Path to the property as string or array
- * @param defaultValue Default value if property doesn't exist
- * @returns The value at path or defaultValue
+ * Format a date in a localized, human-readable format
+ * @param date The date to format
+ * @param format The format to use (short, medium, long)
+ * @returns A formatted date string
  */
-export function getNestedValue<T = any>(
-  obj: Record<string, any> | null | undefined,
-  path: string | string[],
-  defaultValue: T | null = null
-): T | null {
-  if (!obj) return defaultValue;
-  
-  const keys = Array.isArray(path) ? path : path.split('.');
-  let result = obj;
-  
-  for (const key of keys) {
-    if (result === null || result === undefined || typeof result !== 'object') {
-      return defaultValue;
+export function formatDate(date: Date, format: 'short' | 'medium' | 'long' = 'medium'): string {
+  try {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      return 'Invalid date';
     }
-    result = result[key];
+    
+    switch (format) {
+      case 'short':
+        return date.toLocaleDateString();
+      case 'medium':
+        return date.toLocaleDateString(undefined, { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      case 'long':
+        return date.toLocaleDateString(undefined, { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          weekday: 'long'
+        });
+      default:
+        return date.toLocaleDateString();
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid date';
   }
-  
-  return (result as unknown as T) ?? defaultValue;
+}
+
+/**
+ * Formats a number as currency
+ * @param value The number to format
+ * @param currencyCode The currency code (default: USD)
+ * @returns Formatted currency string
+ */
+export function formatCurrency(value: number, currencyCode: string = 'USD'): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(value);
+  } catch (error) {
+    console.error('Error formatting currency:', error);
+    return `${value}`;
+  }
 }

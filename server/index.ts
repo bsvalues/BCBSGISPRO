@@ -101,12 +101,6 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Register the not found handler for undefined routes
-  app.use(notFoundHandler);
-  
-  // Register the global error handler
-  app.use(errorHandler);
-
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
@@ -115,6 +109,12 @@ app.use((req, res, next) => {
   } else {
     serveStatic(app);
   }
+  
+  // Register the not found handler for undefined routes - must be after Vite setup
+  app.use(notFoundHandler);
+  
+  // Register the global error handler - must be after Vite setup
+  app.use(errorHandler);
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
