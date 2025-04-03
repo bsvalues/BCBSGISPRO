@@ -460,6 +460,8 @@ export class MemStorage implements IStorage {
       id,
       documentId: link.documentId,
       parcelId: link.parcelId,
+      linkType: link.linkType || 'reference',
+      notes: link.notes || null,
       createdAt: new Date()
     };
     

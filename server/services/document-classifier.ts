@@ -133,10 +133,53 @@ class RuleBasedClassifier {
 const classifier = new RuleBasedClassifier();
 
 /**
- * Classifies a document based on its text content
- * @param text The text content of the document
+ * Classifies a document based on its text content and metadata
+ * @param content The text content of the document
+ * @param fileType The MIME type or file extension of the document
+ * @param fileName Optional file name which may contain clues about document type
  * @returns Classification result with document type and confidence score
  */
-export function classifyDocument(text: string): ClassificationResult {
-  return classifier.classify(text);
+export async function classifyDocument(
+  content: string,
+  fileType?: string,
+  fileName?: string
+): Promise<ClassificationResult & { wasManuallyClassified: boolean, classifiedAt: string }> {
+  // Combine content with filename for better classification
+  let combinedText = content;
+  if (fileName) {
+    combinedText += ` ${fileName}`;
+  }
+  
+  // Enhance classification based on file type
+  let baseClassification = classifier.classify(combinedText);
+  
+  // Adjust confidence based on file type
+  if (fileType) {
+    const lowerFileType = fileType.toLowerCase();
+    
+    // PDFs are more likely to be official documents
+    if (lowerFileType.includes('pdf')) {
+      if (baseClassification.documentType !== DocumentType.UNCLASSIFIED) {
+        baseClassification.confidence = Math.min(baseClassification.confidence * 1.2, 1.0);
+      }
+    }
+    
+    // Image files are more likely to be plat maps or surveys
+    if (lowerFileType.includes('image') || 
+        lowerFileType.includes('jpg') || 
+        lowerFileType.includes('png') || 
+        lowerFileType.includes('tiff')) {
+      if (baseClassification.documentType === DocumentType.PLAT_MAP ||
+          baseClassification.documentType === DocumentType.SURVEY) {
+        baseClassification.confidence = Math.min(baseClassification.confidence * 1.2, 1.0);
+      }
+    }
+  }
+  
+  // Add additional metadata for the API response
+  return {
+    ...baseClassification,
+    wasManuallyClassified: false,
+    classifiedAt: new Date().toISOString()
+  };
 }

@@ -98,6 +98,10 @@ export const workflowEventTypeEnum = pgEnum("workflow_event_type", [
   "status_changed",
   "priority_changed",
   "document_added",
+  "document_auto_classified",
+  "document_manually_classified",
+  "document_parcel_linked",
+  "document_parcel_unlinked",
   "parcel_added"
 ]);
 
@@ -188,11 +192,23 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   content: z.string(), // Base64 encoded file content
 });
 
+// Document-Parcel Link Types
+export const documentParcelLinkTypeEnum = pgEnum("document_parcel_link_type", [
+  "reference", // General reference
+  "legal_description", // Document contains legal description for parcel
+  "ownership", // Document shows ownership of parcel
+  "subdivision", // Document is a subdivision that created parcel
+  "transaction", // Document is a transaction involving parcel
+  "other" // Other relationship
+]);
+
 // Document-Parcel Links
 export const documentParcelLinks = pgTable("document_parcel_links", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   parcelId: integer("parcel_id").references(() => parcels.id, { onDelete: "cascade" }).notNull(),
+  linkType: documentParcelLinkTypeEnum("link_type").default("reference"),
+  notes: text("notes"), // Optional notes about the relationship
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
