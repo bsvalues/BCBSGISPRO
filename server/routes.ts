@@ -2416,6 +2416,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Batch document classification endpoint (no authentication required)
+  app.post("/api/documents/batch/classify", async (req, res) => {
+    try {
+      const { documentIds, documentType, wasManuallyClassified = true } = req.body;
+      
+      if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+        return res.status(400).json({ message: "Document IDs array is required" });
+      }
+      
+      if (!documentType) {
+        return res.status(400).json({ message: "Document type is required" });
+      }
+      
+      const results = [];
+      const errors = [];
+      const classificationData = {
+        documentType,
+        confidence: 1.0, // Manual classifications are 100% confident by default
+        wasManuallyClassified,
+        classifiedAt: new Date().toISOString()
+      };
+      
+      // Process each document
+      for (const documentId of documentIds) {
+        try {
+          const updatedDocument = await storage.updateDocumentClassification(
+            documentId,
+            classificationData
+          );
+          
+          results.push(updatedDocument);
+          
+          // Get workflow ID from document (if available) and create event
+          const document = await storage.getDocument(documentId);
+          if (document && document.workflowId) {
+            // Create workflow event for document classification
+            await storage.createWorkflowEvent({
+              workflowId: document.workflowId,
+              eventType: "document_batch_classified",
+              description: `Document "${document.name}" batch classified as ${documentType}`,
+              metadata: {
+                documentId,
+                documentType,
+                wasManuallyClassified
+              },
+              createdBy: 1 // System user
+            });
+          }
+        } catch (error) {
+          console.error(`Error classifying document ${documentId}:`, error);
+          errors.push({
+            documentId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        totalProcessed: documentIds.length,
+        successCount: results.length,
+        errorCount: errors.length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error in batch classification:", error);
+      res.status(500).json({ 
+        message: "Failed to process batch classification",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Batch document-parcel linking endpoint (no authentication required)
+  app.post("/api/documents/batch/link-parcel", async (req, res) => {
+    try {
+      const { documentIds, parcelId } = req.body;
+      
+      if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+        return res.status(400).json({ message: "Document IDs array is required" });
+      }
+      
+      if (!parcelId || isNaN(parseInt(parcelId))) {
+        return res.status(400).json({ message: "Valid parcel ID is required" });
+      }
+      
+      const parcelIdNum = parseInt(parcelId);
+      const results = [];
+      const errors = [];
+      
+      // Process each document
+      for (const documentId of documentIds) {
+        try {
+          // Check if link already exists
+          const existingLink = await storage.getDocumentParcelLink(documentId, parcelIdNum);
+          
+          if (!existingLink) {
+            // Create the link
+            const newLink = await storage.createDocumentParcelLink({
+              documentId,
+              parcelId: parcelIdNum,
+              linkType: "related", // Default link type
+              createdAt: new Date()
+            });
+            
+            results.push(newLink);
+            
+            // Get document details and create workflow event
+            const document = await storage.getDocument(documentId);
+            const parcel = await storage.getParcelById(parcelIdNum);
+            
+            if (document && document.workflowId && parcel) {
+              await storage.createWorkflowEvent({
+                workflowId: document.workflowId,
+                eventType: "document_parcel_linked",
+                description: `Document "${document.name}" linked to parcel ${parcel.parcelNumber}`,
+                metadata: {
+                  documentId,
+                  parcelId: parcelIdNum,
+                  parcelNumber: parcel.parcelNumber
+                },
+                createdBy: 1 // System user
+              });
+            }
+          } else {
+            // Link already exists, count as success but note it
+            results.push({
+              ...existingLink,
+              alreadyExists: true
+            });
+          }
+        } catch (error) {
+          console.error(`Error linking document ${documentId} to parcel ${parcelId}:`, error);
+          errors.push({
+            documentId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        totalProcessed: documentIds.length,
+        successCount: results.length,
+        errorCount: errors.length,
+        newLinksCreated: results.filter(r => !r.alreadyExists).length,
+        existingLinks: results.filter(r => r.alreadyExists).length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error in batch parcel linking:", error);
+      res.status(500).json({ 
+        message: "Failed to process batch parcel linking",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
   // Get parcels referenced by a document (no authentication required)
   app.get("/api/test/documents/:id/parcels", async (req, res) => {
     try {

@@ -35,9 +35,10 @@ export function DocumentClassificationResult({
   if (variant === 'card') {
     return (
       <ClassificationConfidenceCard 
-        classification={classification}
-        onUpdateClassification={onUpdateClassification}
-        onReprocessDocument={onReprocessDocument}
+        documentType={classification.documentType}
+        documentTypeLabel={classification.documentTypeLabel}
+        confidence={classification.confidence}
+        onReclassify={onUpdateClassification || onReprocessDocument}
       />
     );
   }
@@ -121,7 +122,7 @@ export function DocumentClassificationResult({
           <span className="text-sm font-medium">Confidence Score</span>
           <DocumentConfidenceIndicator 
             confidence={classification.confidence} 
-            showLabel
+            showPercentage={true}
           />
         </div>
         

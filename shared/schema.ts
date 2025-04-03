@@ -100,6 +100,7 @@ export const workflowEventTypeEnum = pgEnum("workflow_event_type", [
   "document_added",
   "document_auto_classified",
   "document_manually_classified",
+  "document_batch_classified",
   "document_parcel_linked",
   "document_parcel_unlinked",
   "parcel_added"
@@ -191,6 +192,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
 // Document-Parcel Link Types
 export const documentParcelLinkTypeEnum = pgEnum("document_parcel_link_type", [
   "reference", // General reference
+  "related", // Generic relationship (for batch operations)
   "legal_description", // Document contains legal description for parcel
   "ownership", // Document shows ownership of parcel
   "subdivision", // Document is a subdivision that created parcel
