@@ -1,83 +1,96 @@
-import { useCallback } from 'react';
-import { useToastContext, createToast, ToastItem } from '@/components/ui/toast-provider';
+import { useContext, useCallback } from 'react';
+import { ToastContext } from '@/components/ui/toast-provider';
+import { ToastOptions, ToastProps } from '@/components/ui/toast';
+import { generateId } from '@/lib/utils';
 
 /**
- * Hook that provides methods for displaying toast notifications
- * 
- * @returns Methods for displaying and managing toast notifications
- * 
- * @example
- * ```tsx
- * const { toast, dismiss } = useToast();
- * 
- * // Show a success toast
- * toast.success({
- *   title: 'Success!',
- *   description: 'Your action was completed successfully.'
- * });
- * 
- * // Show an error toast
- * toast.error({
- *   title: 'Error',
- *   description: 'Something went wrong. Please try again.'
- * });
- * ```
+ * Return value from the useToast hook
  */
-export function useToast() {
-  const { addToast, removeToast, updateToast } = useToastContext();
-
-  // Create a toast with default variant
-  const toast = useCallback(
-    (props: Omit<ToastItem, 'id'>) => {
-      return addToast(props);
-    },
-    [addToast]
-  );
-
-  // Dismiss a toast by ID
-  const dismiss = useCallback(
-    (toastId: string) => {
-      removeToast(toastId);
-    },
-    [removeToast]
-  );
-
-  // Update a toast by ID
-  const update = useCallback(
-    (toastId: string, props: Partial<Omit<ToastItem, 'id'>>) => {
-      updateToast(toastId, props);
-    },
-    [updateToast]
-  );
-
-  // Create helper methods for different toast variants
-  return {
-    toast: Object.assign(toast, {
-      // Show a default toast
-      default: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.default(props)),
-      
-      // Show a success toast
-      success: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.success(props)),
-      
-      // Show an error toast
-      error: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.error(props)),
-      
-      // Show a warning toast
-      warning: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.warning(props)),
-      
-      // Show an info toast
-      info: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.info(props)),
-      
-      // Show a loading toast
-      loading: (props: Omit<ToastItem, 'id' | 'variant'>) => 
-        addToast(createToast.loading(props)),
-    }),
-    dismiss,
-    update,
-  };
+interface UseToastReturn {
+  /**
+   * Show a toast notification
+   */
+  toast: (options: ToastOptions) => void;
+  
+  /**
+   * Show an info toast notification
+   */
+  info: (options: Omit<ToastOptions, 'variant'>) => void;
+  
+  /**
+   * Show a success toast notification
+   */
+  success: (options: Omit<ToastOptions, 'variant'>) => void;
+  
+  /**
+   * Show a warning toast notification
+   */
+  warning: (options: Omit<ToastOptions, 'variant'>) => void;
+  
+  /**
+   * Show an error toast notification
+   */
+  error: (options: Omit<ToastOptions, 'variant'>) => void;
+  
+  /**
+   * Dismiss a toast notification by ID
+   */
+  dismiss: (id: string) => void;
+  
+  /**
+   * Dismiss all toast notifications
+   */
+  dismissAll: () => void;
 }
+
+/**
+ * Hook for showing toast notifications
+ * 
+ * Must be used within a ToastProvider component
+ */
+export const useToast = (): UseToastReturn => {
+  const context = useContext(ToastContext);
+  
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  
+  const { addToast, removeToast, removeAllToasts } = context;
+  
+  // Show a toast notification
+  const toast = useCallback((options: ToastOptions) => {
+    const id = generateId();
+    addToast({ ...options, id } as ToastProps);
+    return id;
+  }, [addToast]);
+  
+  // Show an info toast notification
+  const info = useCallback((options: Omit<ToastOptions, 'variant'>) => {
+    return toast({ ...options, variant: 'info' });
+  }, [toast]);
+  
+  // Show a success toast notification
+  const success = useCallback((options: Omit<ToastOptions, 'variant'>) => {
+    return toast({ ...options, variant: 'success' });
+  }, [toast]);
+  
+  // Show a warning toast notification
+  const warning = useCallback((options: Omit<ToastOptions, 'variant'>) => {
+    return toast({ ...options, variant: 'warning' });
+  }, [toast]);
+  
+  // Show an error toast notification
+  const error = useCallback((options: Omit<ToastOptions, 'variant'>) => {
+    return toast({ ...options, variant: 'error' });
+  }, [toast]);
+  
+  return {
+    toast,
+    info,
+    success,
+    warning,
+    error,
+    dismiss: removeToast,
+    dismissAll: removeAllToasts,
+  };
+};

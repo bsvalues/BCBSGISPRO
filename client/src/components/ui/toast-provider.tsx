@@ -1,189 +1,139 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { Toast, toastVariants } from './toast';
-import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { createContext, ReactNode, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Toast, ToastOptions, ToastPosition, ToastProps } from './toast';
 import { generateId } from '@/lib/utils';
 
-// =============================
-// Context and Types
-// =============================
+/**
+ * The default duration for toast notifications in milliseconds
+ */
+const DEFAULT_TOAST_DURATION = 5000;
 
-export interface ToastItem {
-  id: string;
-  variant?: React.ComponentProps<typeof Toast>['variant'];
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  action?: React.ReactNode;
-  icon?: React.ReactNode;
-  duration?: number;
-  onClose?: () => void;
-}
-
+/**
+ * Interface for the ToastContext
+ */
 interface ToastContextType {
-  toasts: ToastItem[];
-  addToast: (toast: Omit<ToastItem, 'id'>) => string;
+  /**
+   * Add a new toast notification
+   */
+  addToast: (toast: ToastProps) => void;
+  
+  /**
+   * Remove a toast by ID
+   */
   removeToast: (id: string) => void;
-  updateToast: (id: string, toast: Partial<ToastItem>) => void;
+  
+  /**
+   * Remove all toast notifications
+   */
+  removeAllToasts: () => void;
 }
 
-const ToastContext = createContext<ToastContextType>({
-  toasts: [],
-  addToast: () => '',
-  removeToast: () => {},
-  updateToast: () => {},
-});
+/**
+ * Create the ToastContext
+ */
+export const ToastContext = createContext<ToastContextType | null>(null);
 
-// =============================
-// Toast Provider Component
-// =============================
-
+/**
+ * Properties for the ToastProvider component
+ */
 interface ToastProviderProps {
-  children: React.ReactNode;
   /**
-   * Default duration for toasts in milliseconds
-   * @default 5000 (5 seconds)
+   * Child components
+   */
+  children: ReactNode;
+  
+  /**
+   * Position for toast notifications
+   */
+  position?: ToastPosition;
+  
+  /**
+   * Default duration for toast notifications in milliseconds
    */
   defaultDuration?: number;
-  /**
-   * Maximum number of toasts to show at once
-   * @default 5
-   */
-  maxToasts?: number;
 }
 
-export function ToastProvider({
+/**
+ * ToastProvider component for managing toast notifications
+ */
+export const ToastProvider: React.FC<ToastProviderProps> = ({
   children,
-  defaultDuration = 5000,
-  maxToasts = 5,
-}: ToastProviderProps) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  const addToast = useCallback((toast: Omit<ToastItem, 'id'>) => {
-    const id = generateId();
-    
-    setToasts((prev) => {
-      // If we've reached max toasts, remove the oldest one
-      const filteredToasts = prev.length >= maxToasts
-        ? prev.slice(1)
-        : prev;
-      
-      // Add new toast with default duration if not specified
-      return [...filteredToasts, {
-        id,
-        ...toast,
-        duration: toast.duration ?? defaultDuration,
-      }];
-    });
-    
-    return id;
-  }, [defaultDuration, maxToasts]);
-
+  position = 'top-right',
+  defaultDuration = DEFAULT_TOAST_DURATION,
+}) => {
+  // State to store all active toast notifications
+  const [toasts, setToasts] = useState<ToastProps[]>([]);
+  
+  // Add a new toast notification
+  const addToast = useCallback((toast: ToastProps) => {
+    const id = toast.id || generateId();
+    setToasts((prev) => [...prev, { ...toast, id }]);
+  }, []);
+  
+  // Remove a toast by ID
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
-
-  const updateToast = useCallback((id: string, toast: Partial<ToastItem>) => {
-    setToasts((prev) => 
-      prev.map((t) => (t.id === id ? { ...t, ...toast } : t))
-    );
+  
+  // Remove all toast notifications
+  const removeAllToasts = useCallback(() => {
+    setToasts([]);
   }, []);
-
-  // Automatically remove toasts after their duration expires
+  
+  // Auto-dismiss toasts based on their duration
   useEffect(() => {
-    const timers = toasts.map((toast) => {
-      if (toast.duration === Infinity) return undefined;
-      
-      const timer = setTimeout(() => {
-        removeToast(toast.id);
-      }, toast.duration);
-      
-      return timer;
+    const timers: NodeJS.Timeout[] = [];
+    
+    toasts.forEach((toast) => {
+      if (toast.duration !== 0) {
+        const timer = setTimeout(() => {
+          removeToast(toast.id);
+        }, toast.duration || defaultDuration);
+        
+        timers.push(timer);
+      }
     });
     
+    // Clean up timers on unmount or when toasts change
     return () => {
-      timers.forEach((timer) => {
-        if (timer) clearTimeout(timer);
-      });
+      timers.forEach((timer) => clearTimeout(timer));
     };
-  }, [toasts, removeToast]);
-
+  }, [toasts, defaultDuration, removeToast]);
+  
+  // Position-based CSS classes
+  const positionClasses = {
+    'top-right': 'top-0 right-0',
+    'top-left': 'top-0 left-0',
+    'bottom-right': 'bottom-0 right-0',
+    'bottom-left': 'bottom-0 left-0',
+    'top-center': 'top-0 left-1/2 -translate-x-1/2',
+    'bottom-center': 'bottom-0 left-1/2 -translate-x-1/2',
+  };
+  
+  // Create portal for toast container
+  const toastContainer = typeof document !== 'undefined' && document.body
+    ? createPortal(
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className={`fixed z-50 flex flex-col gap-2 p-4 max-h-screen overflow-hidden ${positionClasses[position]}`}
+        >
+          {toasts.map((toast) => (
+            <Toast
+              key={toast.id}
+              {...toast}
+              onDismiss={() => removeToast(toast.id)}
+            />
+          ))}
+        </div>,
+        document.body
+      )
+    : null;
+  
   return (
-    <ToastContext.Provider
-      value={{
-        toasts,
-        addToast,
-        removeToast,
-        updateToast,
-      }}
-    >
+    <ToastContext.Provider value={{ addToast, removeToast, removeAllToasts }}>
       {children}
-      <ToastContainer />
+      {toastContainer}
     </ToastContext.Provider>
   );
-}
-
-// =============================
-// Toast Container Component
-// =============================
-
-function ToastContainer() {
-  const { toasts, removeToast } = useContext(ToastContext);
-  
-  return (
-    <div
-      className="fixed bottom-0 right-0 z-50 flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col-reverse md:max-w-[420px]"
-      aria-live="polite"
-      role="region"
-    >
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={cn(
-            'group relative flex transform-gpu animate-in slide-in-from-right duration-300',
-            'data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]'
-          )}
-        >
-          <Toast
-            variant={toast.variant}
-            className="w-full"
-            onClose={() => {
-              toast.onClose?.();
-              removeToast(toast.id);
-            }}
-            title={toast.title}
-            description={toast.description}
-            action={toast.action}
-            icon={toast.icon}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// =============================
-// Helper function to create different toast types
-// =============================
-
-export const createToast = {
-  default: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'default', ...props }),
-  success: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'success', ...props }),
-  error: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'error', ...props }),
-  warning: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'warning', ...props }),
-  info: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'info', ...props }),
-  loading: (props: Omit<ToastItem, 'id' | 'variant'>) => ({ variant: 'loading', ...props }),
 };
-
-// =============================
-// Hook to use toast
-// =============================
-
-export function useToastContext() {
-  const context = useContext(ToastContext);
-  
-  if (!context) {
-    throw new Error('useToastContext must be used within a ToastProvider');
-  }
-  
-  return context;
-}

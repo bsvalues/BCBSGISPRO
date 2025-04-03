@@ -2,143 +2,119 @@ import { ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 /**
- * Combines multiple class names using clsx and tailwind-merge
- * This utility helps prevent class name conflicts and enables 
- * conditional class application.
- *
- * @param inputs - Class values to be merged
- * @returns Merged class string
- *
- * @example
- * // Basic usage:
- * <div className={cn('text-red-500', 'bg-blue-500')}>
- *
- * // With conditionals:
- * <div className={cn('base-class', isActive && 'active-class')}>
+ * Combines multiple class names and merges Tailwind classes efficiently
+ * @param inputs Class names to combine
+ * @returns Merged class names string
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Generates a unique ID
- * 
- * @returns A string ID
+ * Generates a unique ID with an optional prefix
+ * @param prefix Optional prefix for the ID
+ * @returns A unique string ID
  */
-export function generateId(): string {
-  // Implementation uses a combination of timestamp and random numbers
-  return Math.random().toString(36).substring(2, 9) + 
-         '_' + 
-         Date.now().toString(36);
+export function generateId(prefix: string = 'id-'): string {
+  return `${prefix}${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
- * Formats a date string or Date object into a human-readable format
- * 
- * @param date - Date string or Date object
- * @param options - Intl.DateTimeFormatOptions for formatting
- * @returns Formatted date string
+ * Throttles a function to limit how often it can be called
+ * @param func The function to throttle
+ * @param limit Time in milliseconds between allowed calls
+ * @returns Throttled function
  */
-export function formatDate(
-  date: string | Date,
-  options: Intl.DateTimeFormatOptions = { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  }
-): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-US', options).format(d);
-}
-
-/**
- * Safely truncates a string to a given length and adds an ellipsis
- * 
- * @param str - The string to truncate
- * @param length - Maximum length before truncation
- * @returns Truncated string with ellipsis if needed
- */
-export function truncateString(str: string, length: number): string {
-  if (!str) return '';
-  return str.length > length ? str.substring(0, length) + '...' : str;
-}
-
-/**
- * Debounces a function call
- * 
- * @param fn - Function to debounce
- * @param delay - Delay in milliseconds
- * @returns Debounced function
- */
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: ReturnType<typeof setTimeout>;
+export function throttle<T extends (...args: any[]) => any>(
+  func: T,
+  limit: number
+): (...args: Parameters<T>) => ReturnType<T> | undefined {
+  let lastCall = 0;
+  let lastResult: ReturnType<T>;
   
-  return function(this: any, ...args: Parameters<T>): void {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  return (...args: Parameters<T>): ReturnType<T> | undefined => {
+    const now = Date.now();
+    
+    if (now - lastCall >= limit) {
+      lastCall = now;
+      lastResult = func(...args);
+      return lastResult;
+    }
+    
+    return lastResult;
   };
 }
 
 /**
- * Makes the first letter of a string uppercase
- * 
- * @param str - String to capitalize
- * @returns Capitalized string
+ * Debounces a function to delay its execution until after a specified timeout
+ * @param func The function to debounce
+ * @param delay Delay in milliseconds
+ * @returns Debounced function
  */
-export function capitalize(str: string): string {
-  if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1);
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timer: NodeJS.Timeout;
+  
+  return (...args: Parameters<T>): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => func(...args), delay);
+  };
 }
 
 /**
- * Formats a number with commas as thousands separators
- * 
- * @param num - Number to format
- * @returns Formatted number string
+ * Formats a date with optional formatting options
+ * @param date Date to format
+ * @param options Date formatting options
+ * @returns Formatted date string
  */
-export function formatNumber(num: number): string {
-  return new Intl.NumberFormat('en-US').format(num);
+export function formatDate(
+  date: Date | string | number,
+  options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }
+): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return new Intl.DateTimeFormat('en-US', options).format(dateObj);
 }
 
 /**
- * Safely access nested object properties without throwing errors
- * 
- * @param obj - Object to access
- * @param path - Path to the property (e.g., 'user.address.city')
- * @param defaultValue - Default value if property doesn't exist
- * @returns The property value or defaultValue
+ * Truncates a string to a specified length with ellipsis
+ * @param str String to truncate
+ * @param length Maximum length before truncation
+ * @returns Truncated string
  */
-export function getNestedValue<T>(
-  obj: Record<string, any>,
-  path: string,
-  defaultValue: T
-): T {
-  const keys = path.split('.');
+export function truncateString(str: string, length: number = 50): string {
+  if (str.length <= length) return str;
+  return str.substring(0, length - 3) + '...';
+}
+
+/**
+ * Safely access nested object properties without errors
+ * @param obj Object to access
+ * @param path Path to the property as string or array
+ * @param defaultValue Default value if property doesn't exist
+ * @returns The value at path or defaultValue
+ */
+export function getNestedValue<T = any>(
+  obj: Record<string, any> | null | undefined,
+  path: string | string[],
+  defaultValue: T | null = null
+): T | null {
+  if (!obj) return defaultValue;
+  
+  const keys = Array.isArray(path) ? path : path.split('.');
   let result = obj;
   
   for (const key of keys) {
-    if (result === undefined || result === null || !Object.prototype.hasOwnProperty.call(result, key)) {
+    if (result === null || result === undefined || typeof result !== 'object') {
       return defaultValue;
     }
     result = result[key];
   }
   
-  return (result === undefined) ? defaultValue : result as T;
-}
-
-/**
- * Checks if a value is empty (null, undefined, empty string, empty array, or empty object)
- * 
- * @param value - Value to check
- * @returns True if empty, false otherwise
- */
-export function isEmpty(value: any): boolean {
-  if (value === null || value === undefined) return true;
-  if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
-  return false;
+  return (result as unknown as T) ?? defaultValue;
 }
