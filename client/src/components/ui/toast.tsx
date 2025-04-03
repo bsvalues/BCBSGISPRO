@@ -61,4 +61,67 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
 
 Toast.displayName = "Toast";
 
-export { Toast };
+// Toast Close button component
+const ToastClose = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ className, ...props }, ref) => (
+    <button
+      ref={ref}
+      className={cn(
+        "absolute right-2 top-2 rounded-md p-1 text-foreground/70 opacity-70 transition-opacity hover:text-foreground hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring",
+        className
+      )}
+      toast-close=""
+      {...props}
+    >
+      <X className="h-4 w-4" />
+      <span className="sr-only">Close</span>
+    </button>
+  )
+);
+
+ToastClose.displayName = "ToastClose";
+
+// Toast Title component
+const ToastTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
+  ({ className, ...props }, ref) => (
+    <h2 ref={ref} className={cn("text-sm font-semibold", className)} {...props} />
+  )
+);
+
+ToastTitle.displayName = "ToastTitle";
+
+// Toast Description component
+const ToastDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
+  ({ className, ...props }, ref) => (
+    <p ref={ref} className={cn("text-sm opacity-90", className)} {...props} />
+  )
+);
+
+ToastDescription.displayName = "ToastDescription";
+
+// Toast Provider component
+interface ToastProviderProps {
+  children: React.ReactNode;
+}
+
+const ToastProvider = ({ children }: ToastProviderProps) => {
+  return <>{children}</>;
+};
+
+// Toast Viewport component
+const ToastViewport = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+
+ToastViewport.displayName = "ToastViewport";
+
+export { Toast, ToastClose, ToastTitle, ToastDescription, ToastProvider, ToastViewport };

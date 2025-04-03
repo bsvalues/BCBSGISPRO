@@ -47,6 +47,19 @@ export interface MapLayer {
 }
 
 /**
+ * GeoJSON Feature interface
+ */
+export interface GeoJSONFeature {
+  type: 'Feature';
+  geometry: {
+    type: string;
+    coordinates: number[] | number[][] | number[][][] | number[][][][];
+  };
+  properties?: Record<string, any>;
+  id?: string | number;
+}
+
+/**
  * Converts measurement from one unit to another
  * @param value - The measurement value
  * @param fromUnit - The source unit

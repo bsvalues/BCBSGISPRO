@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, CheckCircle, XCircle, Info, Zap } from 'lucide-react';
 
@@ -11,7 +11,6 @@ import { AlertTriangle, CheckCircle, XCircle, Info, Zap } from 'lucide-react';
  * available in the application.
  */
 export default function ErrorHandlingPage() {
-  const { toast, success, error, warning, info } = useToast();
   const [counter, setCounter] = useState(0);
 
   // Intentionally throw an error to demonstrate error boundary
@@ -34,9 +33,10 @@ export default function ErrorHandlingPage() {
         <CardContent className="flex flex-wrap gap-3">
           <Button
             onClick={() => 
-              info({
+              toast({
                 title: 'Information',
-                description: 'This is an informational message.'
+                description: 'This is an informational message.',
+                variant: 'default'
               })
             }
             variant="outline"
@@ -48,9 +48,10 @@ export default function ErrorHandlingPage() {
           
           <Button
             onClick={() => 
-              success({
+              toast({
                 title: 'Success!',
-                description: 'Operation completed successfully.'
+                description: 'Operation completed successfully.',
+                variant: 'success'
               })
             }
             variant="outline"
@@ -62,9 +63,10 @@ export default function ErrorHandlingPage() {
           
           <Button
             onClick={() => 
-              warning({
-                title: 'Warning',
-                description: 'This action might be problematic.'
+              toast({
+                title: 'Warning: Warning',
+                description: 'This action might be problematic.',
+                variant: 'destructive'
               })
             }
             variant="outline"
@@ -76,9 +78,10 @@ export default function ErrorHandlingPage() {
           
           <Button
             onClick={() => 
-              error({
+              toast({
                 title: 'Error',
-                description: 'An error occurred during the operation.'
+                description: 'An error occurred during the operation.',
+                variant: 'destructive'
               })
             }
             variant="outline"
@@ -93,6 +96,7 @@ export default function ErrorHandlingPage() {
               toast({
                 title: 'Custom Toast',
                 description: 'This is a custom toast with an action.',
+                variant: 'default',
                 action: (
                   <Button size="sm" variant="outline" onClick={() => alert('Custom action')}>
                     Action
@@ -150,14 +154,16 @@ export default function ErrorHandlingPage() {
               onClick={() => {
                 try {
                   setCounter((prev) => prev + 1);
-                  success({
+                  toast({
                     title: 'Counter Incremented',
-                    description: `New value: ${counter + 1}`
+                    description: `New value: ${counter + 1}`,
+                    variant: 'success'
                   });
                 } catch (err) {
-                  error({
+                  toast({
                     title: 'State Update Failed',
-                    description: 'Failed to increment counter.'
+                    description: 'Failed to increment counter.',
+                    variant: 'destructive'
                   });
                 }
               }}
@@ -169,22 +175,25 @@ export default function ErrorHandlingPage() {
               variant="outline"
               onClick={() => {
                 if (counter <= 0) {
-                  warning({
-                    title: 'Operation Blocked',
-                    description: 'Counter cannot go below zero.'
+                  toast({
+                    title: 'Warning: Operation Blocked',
+                    description: 'Counter cannot go below zero.',
+                    variant: 'destructive'
                   });
                   return;
                 }
                 try {
                   setCounter((prev) => prev - 1);
-                  info({
+                  toast({
                     title: 'Counter Decremented',
-                    description: `New value: ${counter - 1}`
+                    description: `New value: ${counter - 1}`,
+                    variant: 'default'
                   });
                 } catch (err) {
-                  error({
+                  toast({
                     title: 'State Update Failed',
-                    description: 'Failed to decrement counter.'
+                    description: 'Failed to decrement counter.',
+                    variant: 'destructive'
                   });
                 }
               }}
@@ -197,14 +206,16 @@ export default function ErrorHandlingPage() {
               onClick={() => {
                 try {
                   setCounter(0);
-                  success({
+                  toast({
                     title: 'Counter Reset',
-                    description: 'Counter has been reset to zero.'
+                    description: 'Counter has been reset to zero.',
+                    variant: 'success'
                   });
                 } catch (err) {
-                  error({
+                  toast({
                     title: 'Reset Failed',
-                    description: 'Failed to reset counter.'
+                    description: 'Failed to reset counter.',
+                    variant: 'destructive'
                   });
                 }
               }}

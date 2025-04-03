@@ -21,7 +21,7 @@ import { ToastProvider } from "@/components/ui/toast-provider";
  * Simplified app that doesn't require authentication 
  * This directly renders the pages with mapping functionality
  */
-function App() {
+function App({ children }: { children?: React.ReactNode }) {
   const [location] = useLocation();
   
   return (
@@ -124,6 +124,7 @@ function App() {
           </div>
         </footer>
       </div>
+      {children}
     </ToastProvider>
   );
 }

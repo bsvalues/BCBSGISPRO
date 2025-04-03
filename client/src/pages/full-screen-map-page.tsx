@@ -25,7 +25,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * Full screen map page with sleek controls and beautiful framing.
@@ -42,7 +42,7 @@ export default function FullScreenMapPage() {
   const [showParcelInfo, setShowParcelInfo] = useState(true);
   const [showLayers, setShowLayers] = useState(true);
   const mapRef = useRef<any>(null);
-  const { success } = useToast();
+  // Using toast directly from import
 
   // Define map layers
   const mapLayers = [
@@ -90,9 +90,10 @@ export default function FullScreenMapPage() {
   // Handle parcel selection
   const handleParcelSelect = (parcelId: string) => {
     setSelectedParcelId(parcelId);
-    success({
+    toast({
       title: 'Parcel Selected',
-      description: `Selected parcel ID: ${parcelId}`
+      description: `Selected parcel ID: ${parcelId}`,
+      variant: 'success'
     });
   };
 
