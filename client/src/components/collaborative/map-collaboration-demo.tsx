@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useEnhancedWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/hooks/use-enhanced-websocket';
+import { useEnhancedWebSocket, MessageTypeEnum, ConnectionStatusEnum, WebSocketMessage } from '@/hooks/use-enhanced-websocket';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -197,15 +197,15 @@ export default function MapCollaborationDemo() {
 
   // Process incoming messages for cursor position, drawings, etc.
   useEffect(() => {
-    const handleMessage = (message: any) => {
+    const handleMessage = (message: WebSocketMessage) => {
       if (message.type === MessageTypeEnum.CURSOR_POSITION && message.userId !== userId) {
         setUserCursors(prev => ({
           ...prev,
-          [message.userId]: {
-            userId: message.userId,
+          [message.userId || 'unknown']: {
+            userId: message.userId || 'unknown',
             username: message.username || 'Unknown user',
-            position: message.payload.position,
-            timestamp: message.payload.timestamp
+            position: message.payload?.position || { x: 0, y: 0 },
+            timestamp: message.payload?.timestamp || Date.now()
           }
         }));
       } else if (message.type === MessageTypeEnum.DRAWING && message.userId !== userId) {

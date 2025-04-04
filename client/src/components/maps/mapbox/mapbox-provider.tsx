@@ -1,172 +1,140 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { toast } from '@/hooks/use-toast';
+import { useMapboxToken } from '@/hooks/use-mapbox-token';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
-// We will fetch the token from the API instead of using env vars directly
-let tokenInitialized = false;
-
-// Check for browser WebGL support
-const isSupported = mapboxgl.supported();
-
-// Context to provide map instance to child components
-export const MapboxContext = React.createContext<{
-  map: mapboxgl.Map | null;
-  isLoaded: boolean;
-}>({
-  map: null,
-  isLoaded: false
-});
-
-export interface MapboxProviderProps {
-  children?: React.ReactNode;
-  mapContainerId: string;
+// Define prop types for MapboxProvider
+interface MapboxProviderProps {
   initialViewState?: {
     longitude: number;
     latitude: number;
     zoom: number;
   };
+  style?: React.CSSProperties;
   mapStyle?: string;
-  onMapLoad?: (map: mapboxgl.Map) => void;
+  children?: React.ReactNode;
+  onMapLoaded?: (map: mapboxgl.Map) => void;
+  interactive?: boolean;
 }
 
 /**
- * MapboxProvider component - initializes the Mapbox GL JS map and provides it to child components
+ * Mapbox Provider Component
+ * 
+ * This component initializes a Mapbox GL JS map and provides it to child components
  */
-export function MapboxProvider({
-  children,
-  mapContainerId,
-  initialViewState = {
-    longitude: -119.16,  // Benton County, WA
-    latitude: 46.23,
-    zoom: 11
-  },
+export const MapboxProvider: React.FC<MapboxProviderProps> = ({
+  initialViewState = { longitude: -121.3153, latitude: 44.0582, zoom: 13 },
+  style = { width: '100%', height: '100%' },
   mapStyle = 'mapbox://styles/mapbox/streets-v12',
-  onMapLoad
-}: MapboxProviderProps) {
-  const [map, setMap] = useState<mapboxgl.Map | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+  children,
+  onMapLoaded,
+  interactive = true
+}) => {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const { token, isLoading, error } = useMapboxToken();
+  const [mapInitialized, setMapInitialized] = useState(false);
 
+  // Initialize the map when token is available
   useEffect(() => {
-    if (!isSupported) {
-      toast({
-        title: 'Browser not supported',
-        description: 'Your browser does not support WebGL, which is required for the map to display.',
-        variant: 'destructive'
-      });
+    if (!token || !mapContainerRef.current || mapRef.current) {
       return;
     }
 
-    // First, check if we need to get the Mapbox token
-    const initializeMapbox = async () => {
-      // Only fetch token if not already initialized
-      if (!tokenInitialized) {
-        try {
-          const response = await fetch('/api/mapbox-token');
-          const data = await response.json();
-          
-          if (data.token) {
-            mapboxgl.accessToken = data.token;
-            tokenInitialized = true;
-            console.log('Mapbox token initialized successfully');
-          } else {
-            throw new Error('Token not found in response');
-          }
-        } catch (err) {
-          console.error('Failed to fetch Mapbox token:', err);
-          toast({
-            title: 'Mapbox token error',
-            description: 'Could not retrieve Mapbox access token. Map features may be limited.',
-            variant: 'destructive'
-          });
-          return false;
-        }
+    // Set the token for mapbox-gl
+    mapboxgl.accessToken = token;
+
+    // Initialize the map
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: mapStyle,
+      center: [initialViewState.longitude, initialViewState.latitude],
+      zoom: initialViewState.zoom,
+      interactive
+    });
+
+    // Store map instance in ref
+    mapRef.current = map;
+
+    // Set up event handlers
+    map.on('load', () => {
+      setMapInitialized(true);
+      if (onMapLoaded) {
+        onMapLoaded(map);
       }
-      return true;
-    };
+    });
 
-    // Initialize Mapbox and create map
-    const setupMap = async () => {
-      // Only proceed if token is initialized successfully
-      const tokenSuccess = await initializeMapbox();
-      if (!tokenSuccess) return;
-
-      // Only create a new map if one doesn't already exist
-      if (!map) {
-        try {
-          const newMap = new mapboxgl.Map({
-            container: mapContainerId,
-            style: mapStyle,
-            center: [initialViewState.longitude, initialViewState.latitude],
-            zoom: initialViewState.zoom,
-            attributionControl: true
-          });
-
-          // Add navigation controls
-          newMap.addControl(new mapboxgl.NavigationControl(), 'top-right');
-          
-          // Add scale control
-          newMap.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
-
-          // Wait for map to load
-          newMap.on('load', () => {
-            setIsLoaded(true);
-            if (onMapLoad) {
-              onMapLoad(newMap);
-            }
-          });
-
-          // Add error handler
-          newMap.on('error', (e) => {
-            console.error('Mapbox error:', e);
-            toast({
-              title: 'Map error',
-              description: 'An error occurred with the map. Please try again later.',
-              variant: 'destructive'
-            });
-          });
-
-          // Set the map instance
-          setMap(newMap);
-        } catch (error) {
-          console.error('Error initializing Mapbox:', error);
-          toast({
-            title: 'Map initialization failed',
-            description: 'Failed to initialize the map. Please try again.',
-            variant: 'destructive'
-          });
-        }
-      }
-    };
-
-    // Call the setup function
-    setupMap();
-
-    // Cleanup function to remove the map instance
+    // Cleanup function
     return () => {
-      if (map) {
-        map.remove();
-        setMap(null);
-        setIsLoaded(false);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
       }
     };
-  }, [mapContainerId, mapStyle]); // Recreate map if container or style changes
+  }, [
+    token, 
+    initialViewState.latitude, 
+    initialViewState.longitude, 
+    initialViewState.zoom, 
+    mapStyle, 
+    onMapLoaded, 
+    interactive
+  ]);
 
-  // Return provider with current map instance and loaded state
+  // Create a context value with map instance
+  const contextValue = {
+    map: mapRef.current,
+    isLoaded: mapInitialized
+  };
+
   return (
-    <MapboxContext.Provider value={{ map, isLoaded }}>
-      {children}
-    </MapboxContext.Provider>
+    <div style={{ ...style, position: 'relative' }}>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading map...</p>
+          </div>
+        </div>
+      )}
+      
+      {error && (
+        <Alert variant="destructive" className="absolute top-2 left-2 right-2 z-10">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      
+      {mapInitialized && children && (
+        <MapboxContext.Provider value={contextValue}>
+          {children}
+        </MapboxContext.Provider>
+      )}
+    </div>
   );
+};
+
+// Create a context for Mapbox map
+interface MapboxContextValue {
+  map: mapboxgl.Map | null;
+  isLoaded: boolean;
 }
 
-// Hook to use the Mapbox map instance
+export const MapboxContext = React.createContext<MapboxContextValue>({
+  map: null,
+  isLoaded: false
+});
+
+// Custom hook to use Mapbox context
 export function useMapbox() {
-  const context = React.useContext(MapboxContext);
-  if (context === undefined) {
-    throw new Error('useMapbox must be used within a MapboxProvider');
-  }
-  return context;
+  return React.useContext(MapboxContext);
 }
 
 export default MapboxProvider;
