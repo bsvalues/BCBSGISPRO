@@ -1,643 +1,429 @@
+import { Server, IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
-import { v4 as uuidv4 } from 'uuid';
+import { parse } from 'url';
 
-// Client information tracking
-interface WebSocketClient {
-  id: string;
-  userId: string;
-  sessionId: string;
-  rooms: Set<string>;
-  lastActivity: Date;
-}
+/**
+ * WebSocket message type
+ */
+type MessageType = 
+  | 'join_room' 
+  | 'leave_room' 
+  | 'cursor_move' 
+  | 'feature_add' 
+  | 'feature_update' 
+  | 'feature_delete'
+  | 'annotation_add'
+  | 'annotation_update'
+  | 'annotation_delete'
+  | 'heartbeat'
+  | 'chat_message';
 
-// Message structure
+/**
+ * WebSocket message interface
+ */
 interface WebSocketMessage {
-  id?: string;
-  type: string;
+  type: MessageType;
   roomId?: string;
-  source?: string;
-  timestamp?: string;
-  data?: any;
+  userId?: string;
+  username?: string;
+  payload?: any;
+  timestamp?: number;
 }
 
-// Room tracking
+/**
+ * Extended WebSocket interface with additional metadata
+ */
+interface ExtendedWebSocket extends WebSocket {
+  isAlive: boolean;
+  userId: string;
+  username: string;
+  rooms: Set<string>;
+  lastActivity: number;
+}
+
+/**
+ * Room information including connected clients and data
+ */
 interface Room {
   id: string;
-  clients: Set<WebSocket>;
-  features: any[];
-  annotations: any[];
-  lastActivity: Date;
+  clients: Set<ExtendedWebSocket>;
+  features: Record<string, any>; // GeoJSON features
+  annotations: Record<string, any>; // Annotation data
+  createdAt: number;
+  lastActivity: number;
 }
 
-export class WebSocketHandler {
+/**
+ * WebSocket server manager
+ */
+export class WebSocketManager {
   private wss: WebSocketServer;
-  private clients: Map<WebSocket, WebSocketClient> = new Map();
   private rooms: Map<string, Room> = new Map();
+  private pingInterval: NodeJS.Timeout | null = null;
   
-  // Heartbeat interval in ms (30 seconds)
-  private readonly HEARTBEAT_INTERVAL = 30000;
-  
-  // Client timeout in ms (90 seconds)
-  private readonly CLIENT_TIMEOUT = 90000;
-  
+  /**
+   * Initialize the WebSocket server
+   */
   constructor(server: Server) {
-    // Create WebSocket server on dedicated path to avoid conflicts with Vite
-    this.wss = new WebSocketServer({ server, path: '/ws' });
-    
-    // Set up event handlers
-    this.setupEventHandlers();
-    
-    // Start heartbeat interval
-    setInterval(() => this.checkConnections(), this.HEARTBEAT_INTERVAL);
+    // Initialize WebSocket server on the existing HTTP server
+    this.wss = new WebSocketServer({ 
+      server,
+      path: '/ws',
+      clientTracking: true
+    });
     
     console.log('WebSocket server initialized on path /ws');
+    
+    // Set up event handlers
+    this.wss.on('connection', this.handleConnection.bind(this));
+    
+    // Start the interval to check for dead connections every 30 seconds
+    this.pingInterval = setInterval(this.pingClients.bind(this), 30000);
   }
   
-  private setupEventHandlers() {
-    this.wss.on('connection', (ws: WebSocket) => {
-      // Initialize client
-      const clientId = uuidv4();
-      this.clients.set(ws, {
-        id: clientId,
-        userId: '',
-        sessionId: '',
-        rooms: new Set(),
-        lastActivity: new Date()
-      });
+  /**
+   * Handle new WebSocket connections
+   */
+  private handleConnection(ws: WebSocket, request: IncomingMessage) {
+    // Initialize extended properties
+    const extWs = ws as ExtendedWebSocket;
+    extWs.isAlive = true;
+    extWs.userId = Math.random().toString(36).substring(2, 15);
+    extWs.username = 'User_' + extWs.userId.substring(0, 5);
+    extWs.rooms = new Set();
+    extWs.lastActivity = Date.now();
+    
+    // Parse any query parameters
+    if (request.url) {
+      const { query } = parse(request.url, true);
       
-      console.log(`Client connected: ${clientId}`);
+      if (query.userId && typeof query.userId === 'string') {
+        extWs.userId = query.userId;
+      }
       
-      // Set up ping/pong for heartbeat
-      ws.on('pong', () => {
-        const client = this.clients.get(ws);
-        if (client) {
-          client.lastActivity = new Date();
-        }
-      });
+      if (query.username && typeof query.username === 'string') {
+        extWs.username = query.username;
+      }
       
-      // Handle messages
-      ws.on('message', (data: string) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(data);
-          const client = this.clients.get(ws);
-          
-          if (!client) {
-            console.error('Message received from unknown client');
-            return;
-          }
-          
-          // Update client activity
-          client.lastActivity = new Date();
-          
-          // Handle message based on type
-          this.handleMessage(ws, client, message);
-        } catch (err) {
-          console.error('Error processing WebSocket message:', err);
-        }
-      });
-      
-      // Handle disconnections
-      ws.on('close', () => {
-        this.handleClientDisconnect(ws);
-      });
-      
-      // Handle errors
-      ws.on('error', (err) => {
-        console.error('WebSocket error:', err);
-        this.handleClientDisconnect(ws);
-      });
+      // Auto-join room if specified
+      if (query.roomId && typeof query.roomId === 'string') {
+        this.joinRoom(extWs, query.roomId);
+      }
+    }
+    
+    // Set up WebSocket event handlers
+    extWs.on('pong', () => {
+      extWs.isAlive = true;
     });
+    
+    extWs.on('message', (data) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(data.toString());
+        this.handleMessage(extWs, message);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    });
+    
+    extWs.on('close', () => {
+      this.handleDisconnect(extWs);
+    });
+    
+    extWs.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      extWs.terminate();
+    });
+    
+    // Send an initial welcome message
+    const message: WebSocketMessage = {
+      type: 'heartbeat',
+      userId: 'server',
+      username: 'Server',
+      timestamp: Date.now(),
+      payload: {
+        message: 'Connected to BentonGeoPro WebSocket server',
+        userId: extWs.userId
+      }
+    };
+    
+    extWs.send(JSON.stringify(message));
   }
   
-  private handleMessage(ws: WebSocket, client: WebSocketClient, message: WebSocketMessage) {
-    // Ensure message has an ID
-    const messageId = message.id || uuidv4();
+  /**
+   * Handle messages received from clients
+   */
+  private handleMessage(ws: ExtendedWebSocket, message: WebSocketMessage) {
+    // Update last activity timestamp
+    ws.lastActivity = Date.now();
     
-    // Generate timestamp if not provided
-    const timestamp = message.timestamp || new Date().toISOString();
+    // Update user information if provided
+    if (message.userId) {
+      ws.userId = message.userId;
+    }
     
-    // Handle by message type
+    if (message.username) {
+      ws.username = message.username;
+    }
+    
+    // Process message based on type
     switch (message.type) {
-      case 'connect':
-        this.handleConnectMessage(ws, client, message);
+      case 'join_room':
+        if (message.roomId) {
+          this.joinRoom(ws, message.roomId);
+        }
         break;
         
-      case 'disconnect':
-        this.handleDisconnectMessage(ws, client, message);
+      case 'leave_room':
+        if (message.roomId) {
+          this.leaveRoom(ws, message.roomId);
+        }
         break;
         
-      case 'chat':
-        this.handleChatMessage(client, message);
+      case 'heartbeat':
+        // Just keep the connection alive, no need to broadcast
+        ws.isAlive = true;
         break;
         
-      case 'drawing':
-      case 'drawing_update':
-        this.handleDrawingMessage(client, message);
+      case 'cursor_move':
+      case 'chat_message':
+        // Forward these messages to everyone in the room
+        if (message.roomId) {
+          this.broadcastToRoom(message.roomId, message, ws);
+        }
         break;
         
-      case 'presence':
-        this.handlePresenceMessage(client, message);
+      case 'feature_add':
+      case 'feature_update':
+      case 'feature_delete':
+        // Update the feature collection and broadcast
+        if (message.roomId && message.payload?.featureId) {
+          this.updateFeature(message.roomId, message.payload.featureId, message);
+          this.broadcastToRoom(message.roomId, message, ws);
+        }
         break;
         
-      case 'cursor':
-        this.handleCursorMessage(client, message);
-        break;
-        
-      case 'session_save':
-        this.handleSessionSaveMessage(client, message);
-        break;
-        
-      case 'session_load':
-        this.handleSessionLoadMessage(client, message);
+      case 'annotation_add':
+      case 'annotation_update':
+      case 'annotation_delete':
+        // Update the annotations collection and broadcast
+        if (message.roomId && message.payload?.annotationId) {
+          this.updateAnnotation(message.roomId, message.payload.annotationId, message);
+          this.broadcastToRoom(message.roomId, message, ws);
+        }
         break;
         
       default:
-        console.warn(`Unknown message type: ${message.type}`);
+        console.warn('Unhandled message type:', message.type);
     }
   }
   
-  private handleConnectMessage(ws: WebSocket, client: WebSocketClient, message: WebSocketMessage) {
-    // Extract user and session info
-    if (message.data && message.data.userId) {
-      client.userId = message.data.userId;
-    }
-    
-    if (message.data && message.data.sessionId) {
-      client.sessionId = message.data.sessionId;
-    }
-    
-    // Join room if specified
-    if (message.roomId) {
-      this.joinRoom(ws, client, message.roomId);
-      
-      // Send presence update to room
-      this.broadcastPresence(message.roomId);
-      
-      // Send current room state to client
-      this.sendRoomState(ws, client, message.roomId);
-    }
-    
-    console.log(`Client ${client.id} identified as user ${client.userId}`);
-  }
-  
-  private handleDisconnectMessage(ws: WebSocket, client: WebSocketClient, message: WebSocketMessage) {
-    // Leave room if specified
-    if (message.roomId && client.rooms.has(message.roomId)) {
-      this.leaveRoom(ws, client, message.roomId);
-      
-      // Broadcast presence update
-      this.broadcastPresence(message.roomId);
-    }
-    
-    // Close connection
-    ws.close();
-  }
-  
-  private handleChatMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Broadcast chat message to room
-    if (message.roomId) {
-      const room = this.rooms.get(message.roomId);
-      
-      if (room) {
-        this.broadcast(message, room.clients, client);
-      }
-    }
-  }
-  
-  private handleDrawingMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Validate room
-    if (!message.roomId) return;
-    
-    const room = this.rooms.get(message.roomId);
-    if (!room) return;
-    
-    // Update room activity timestamp
-    room.lastActivity = new Date();
-    
-    try {
-      // Handle drawing messages (for features)
-      if (message.type === 'drawing') {
-        if (message.data && message.data.feature) {
-          // Direct feature object
-          const feature = message.data.feature;
-          if (feature && feature.id) {
-            // Store for new clients, replacing any with same ID
-            const existingIndex = room.features.findIndex(f => f.id === feature.id);
-            if (existingIndex >= 0) {
-              room.features[existingIndex] = feature;
-            } else {
-              room.features.push(feature);
-            }
-          }
-        } else if (message.data && message.data.action) {
-          // Action-based message
-          const { action, feature, featureId } = message.data;
-          
-          if (action === 'create' && feature) {
-            room.features.push(feature);
-          } else if (action === 'update' && feature && feature.id) {
-            const index = room.features.findIndex(f => f.id === feature.id);
-            if (index >= 0) {
-              room.features[index] = feature;
-            }
-          } else if (action === 'delete' && (feature?.id || featureId)) {
-            const id = feature?.id || featureId;
-            room.features = room.features.filter(f => f.id !== id);
-          }
-        }
-      }
-      
-      // Handle drawing update messages (for annotations or feature updates)
-      if (message.type === 'drawing_update') {
-        if (message.data && message.data.action) {
-          const { action, featureId, feature, annotation } = message.data;
-          
-          // Handle feature updates
-          if (action === 'delete' && featureId) {
-            room.features = room.features.filter(f => f.id !== featureId);
-          }
-          
-          // Handle annotation operations
-          if (annotation) {
-            if (action === 'create') {
-              room.annotations.push(annotation);
-            } else if (action === 'update' && annotation.id) {
-              const index = room.annotations.findIndex(a => a.id === annotation.id);
-              if (index >= 0) {
-                room.annotations[index] = annotation;
-              }
-            } else if (action === 'delete' && annotation.id) {
-              room.annotations = room.annotations.filter(a => a.id !== annotation.id);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error processing drawing message:', err);
-    }
-    
-    // Log the updated feature counts
-    console.log(`Room ${message.roomId} state: ${room.features.length} features, ${room.annotations.length} annotations`);
-    
-    // Broadcast to all clients in the room except the sender
-    this.broadcast(message, room.clients, client);
-  }
-  
-  private handlePresenceMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Update presence for room
-    if (message.roomId) {
-      this.broadcastPresence(message.roomId);
-    }
-  }
-  
-  private joinRoom(ws: WebSocket, client: WebSocketClient, roomId: string) {
+  /**
+   * Join a collaboration room
+   */
+  private joinRoom(ws: ExtendedWebSocket, roomId: string) {
     // Create room if it doesn't exist
     if (!this.rooms.has(roomId)) {
       this.rooms.set(roomId, {
         id: roomId,
-        clients: new Set(),
-        features: [],
-        annotations: [],
-        lastActivity: new Date()
+        clients: new Set<ExtendedWebSocket>(),
+        features: {},
+        annotations: {},
+        createdAt: Date.now(),
+        lastActivity: Date.now()
       });
     }
     
-    // Get room
-    const room = this.rooms.get(roomId);
-    
-    if (!room) return;
-    
-    // Add client to room
+    const room = this.rooms.get(roomId)!;
     room.clients.add(ws);
-    client.rooms.add(roomId);
+    room.lastActivity = Date.now();
+    ws.rooms.add(roomId);
     
-    // Update room activity
-    room.lastActivity = new Date();
+    // Notify all clients in the room about the new connection
+    const joinMessage: WebSocketMessage = {
+      type: 'join_room',
+      roomId,
+      userId: ws.userId,
+      username: ws.username,
+      timestamp: Date.now(),
+      payload: {
+        userCount: room.clients.size,
+        userId: ws.userId,
+        username: ws.username
+      }
+    };
     
-    console.log(`Client ${client.id} joined room ${roomId}`);
+    this.broadcastToRoom(roomId, joinMessage);
+    
+    // Send the current state of the room to the new client
+    const stateMessage: WebSocketMessage = {
+      type: 'join_room',
+      roomId,
+      userId: 'server',
+      username: 'Server',
+      timestamp: Date.now(),
+      payload: {
+        features: room.features,
+        annotations: room.annotations,
+        userCount: room.clients.size,
+        roomState: 'active'
+      }
+    };
+    
+    ws.send(JSON.stringify(stateMessage));
   }
   
-  private leaveRoom(ws: WebSocket, client: WebSocketClient, roomId: string) {
-    // Get room
-    const room = this.rooms.get(roomId);
+  /**
+   * Leave a collaboration room
+   */
+  private leaveRoom(ws: ExtendedWebSocket, roomId: string) {
+    if (!this.rooms.has(roomId)) return;
     
-    if (!room) return;
-    
-    // Remove client from room
+    const room = this.rooms.get(roomId)!;
     room.clients.delete(ws);
-    client.rooms.delete(roomId);
+    room.lastActivity = Date.now();
+    ws.rooms.delete(roomId);
     
-    console.log(`Client ${client.id} left room ${roomId}`);
+    // Notify all clients in the room about the disconnection
+    const leaveMessage: WebSocketMessage = {
+      type: 'leave_room',
+      roomId,
+      userId: ws.userId,
+      username: ws.username,
+      timestamp: Date.now(),
+      payload: {
+        userCount: room.clients.size,
+        userId: ws.userId,
+        username: ws.username
+      }
+    };
+    
+    this.broadcastToRoom(roomId, leaveMessage);
     
     // Clean up empty rooms
     if (room.clients.size === 0) {
-      this.rooms.delete(roomId);
-      console.log(`Room ${roomId} deleted (empty)`);
+      this.cleanupRoom(roomId);
     }
   }
   
-  private sendRoomState(ws: WebSocket, client: WebSocketClient, roomId: string) {
-    const room = this.rooms.get(roomId);
+  /**
+   * Update a feature in a room
+   */
+  private updateFeature(roomId: string, featureId: string, message: WebSocketMessage) {
+    if (!this.rooms.has(roomId)) return;
     
-    if (!room) return;
+    const room = this.rooms.get(roomId)!;
+    room.lastActivity = Date.now();
     
-    // Send initial feature state
-    if (room.features.length > 0) {
-      const featuresMessage: WebSocketMessage = {
-        id: uuidv4(),
-        type: 'drawing',
-        roomId,
-        source: 'server',
-        timestamp: new Date().toISOString(),
-        data: {
-          action: 'init',
-          features: room.features
-        }
-      };
-      
-      this.sendMessage(ws, featuresMessage);
-    }
-    
-    // Send initial annotation state
-    if (room.annotations.length > 0) {
-      const annotationsMessage: WebSocketMessage = {
-        id: uuidv4(),
-        type: 'drawing_update',
-        roomId,
-        source: 'server',
-        timestamp: new Date().toISOString(),
-        data: {
-          action: 'init',
-          annotations: room.annotations
-        }
-      };
-      
-      this.sendMessage(ws, annotationsMessage);
-    }
-    
-    // Send presence information
-    const presenceMessage = this.createPresenceMessage(roomId);
-    this.sendMessage(ws, presenceMessage);
-  }
-  
-  private broadcastPresence(roomId: string) {
-    const room = this.rooms.get(roomId);
-    
-    if (!room) return;
-    
-    const message = this.createPresenceMessage(roomId);
-    
-    // Broadcast to all clients in room
-    for (const client of room.clients) {
-      this.sendMessage(client, message);
+    if (message.type === 'feature_delete') {
+      delete room.features[featureId];
+    } else if (message.payload?.feature) {
+      room.features[featureId] = message.payload.feature;
     }
   }
   
-  private createPresenceMessage(roomId: string): WebSocketMessage {
-    const room = this.rooms.get(roomId);
+  /**
+   * Update an annotation in a room
+   */
+  private updateAnnotation(roomId: string, annotationId: string, message: WebSocketMessage) {
+    if (!this.rooms.has(roomId)) return;
     
-    if (!room) {
-      return {
-        id: uuidv4(),
-        type: 'presence',
-        roomId,
-        source: 'server',
-        timestamp: new Date().toISOString(),
-        data: {
-          users: []
-        }
-      };
+    const room = this.rooms.get(roomId)!;
+    room.lastActivity = Date.now();
+    
+    if (message.type === 'annotation_delete') {
+      delete room.annotations[annotationId];
+    } else if (message.payload?.annotation) {
+      room.annotations[annotationId] = message.payload.annotation;
     }
+  }
+  
+  /**
+   * Broadcast a message to all clients in a room
+   */
+  private broadcastToRoom(roomId: string, message: WebSocketMessage, exclude?: ExtendedWebSocket) {
+    if (!this.rooms.has(roomId)) return;
     
-    // Collect user IDs in room
-    const users: string[] = [];
+    const room = this.rooms.get(roomId)!;
+    const messageStr = JSON.stringify(message);
     
-    for (const client of room.clients) {
-      const clientInfo = this.clients.get(client);
-      if (clientInfo && clientInfo.userId && !users.includes(clientInfo.userId)) {
-        users.push(clientInfo.userId);
+    room.clients.forEach(client => {
+      if (client !== exclude && client.readyState === WebSocket.OPEN) {
+        client.send(messageStr);
       }
-    }
-    
-    return {
-      id: uuidv4(),
-      type: 'presence',
-      roomId,
-      source: 'server',
-      timestamp: new Date().toISOString(),
-      data: {
-        users
-      }
-    };
+    });
   }
   
-  private broadcast(
-    message: WebSocketMessage,
-    clients: Set<WebSocket>,
-    sourceClient?: WebSocketClient
-  ) {
-    // Add server fields if not present
-    const broadcastMessage: WebSocketMessage = {
-      id: message.id || uuidv4(),
-      timestamp: message.timestamp || new Date().toISOString(),
-      ...message
-    };
-    
-    // Broadcast to all clients except source
-    for (const client of clients) {
-      const clientInfo = this.clients.get(client);
+  /**
+   * Handle client disconnection
+   */
+  private handleDisconnect(ws: ExtendedWebSocket) {
+    // Leave all rooms
+    for (const roomId of ws.rooms) {
+      this.leaveRoom(ws, roomId);
+    }
+  }
+  
+  /**
+   * Ping all clients to check if they're still alive
+   */
+  private pingClients() {
+    this.wss.clients.forEach((ws) => {
+      const extWs = ws as ExtendedWebSocket;
       
-      // Skip source client
-      if (sourceClient && clientInfo && clientInfo.id === sourceClient.id) {
-        continue;
+      if (extWs.isAlive === false) {
+        return extWs.terminate();
       }
       
-      this.sendMessage(client, broadcastMessage);
-    }
-  }
-  
-  private sendMessage(ws: WebSocket, message: WebSocketMessage) {
-    if (ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.send(JSON.stringify(message));
-      } catch (err) {
-        console.error('Error sending WebSocket message:', err);
+      extWs.isAlive = false;
+      extWs.ping();
+      
+      // Check for inactive clients (no activity for more than 10 minutes)
+      const inactiveTime = Date.now() - extWs.lastActivity;
+      if (inactiveTime > 10 * 60 * 1000) {
+        console.log(`Terminating inactive connection for user ${extWs.userId}`);
+        extWs.terminate();
       }
-    }
+    });
   }
   
-  private handleClientDisconnect(ws: WebSocket) {
-    const client = this.clients.get(ws);
+  /**
+   * Clean up an empty room
+   */
+  private cleanupRoom(roomId: string) {
+    if (!this.rooms.has(roomId)) return;
     
-    if (client) {
-      console.log(`Client disconnected: ${client.id}`);
-      
-      // Leave all rooms
-      for (const roomId of client.rooms) {
-        this.leaveRoom(ws, client, roomId);
+    const room = this.rooms.get(roomId)!;
+    
+    // If there are still clients, don't clean up
+    if (room.clients.size > 0) return;
+    
+    // After 1 hour of inactivity, remove the room
+    setTimeout(() => {
+      if (this.rooms.has(roomId)) {
+        const room = this.rooms.get(roomId)!;
         
-        // Broadcast presence update
-        this.broadcastPresence(roomId);
-      }
-      
-      // Remove client
-      this.clients.delete(ws);
-    }
-  }
-  
-  private handleCursorMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Simply broadcast cursor position to all clients in the room
-    if (message.roomId) {
-      const room = this.rooms.get(message.roomId);
-      
-      if (room) {
-        // Update client activity timestamp
-        client.lastActivity = new Date();
-        
-        // Broadcast to all clients except sender
-        this.broadcast(message, room.clients, client);
-      }
-    }
-  }
-  
-  private handleSessionSaveMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Just broadcast the save event to other clients
-    if (message.roomId) {
-      const room = this.rooms.get(message.roomId);
-      
-      if (room) {
-        // Update client activity timestamp
-        client.lastActivity = new Date();
-        
-        // Broadcast to all clients except sender
-        this.broadcast(message, room.clients, client);
-      }
-    }
-  }
-  
-  private handleSessionLoadMessage(client: WebSocketClient, message: WebSocketMessage) {
-    // Session load - broadcast to let others know a user loaded a session
-    if (message.roomId) {
-      const room = this.rooms.get(message.roomId);
-      
-      if (room) {
-        // Update client activity timestamp
-        client.lastActivity = new Date();
-        
-        // Check if we should update room features/annotations
-        if (message.data && message.data.features) {
-          // If this is a full session load, we might want to merge features
-          if (message.data.replaceAll) {
-            // Replace all features if requested
-            room.features = message.data.features;
-          } else {
-            // Otherwise merge with existing features
-            message.data.features.forEach((feature: any) => {
-              if (feature && feature.id) {
-                const existingIndex = room.features.findIndex((f: any) => f.id === feature.id);
-                if (existingIndex >= 0) {
-                  room.features[existingIndex] = feature;
-                } else {
-                  room.features.push(feature);
-                }
-              }
-            });
-          }
-        }
-        
-        // Similar for annotations
-        if (message.data && message.data.annotations) {
-          if (message.data.replaceAll) {
-            room.annotations = message.data.annotations;
-          } else {
-            message.data.annotations.forEach((annotation: any) => {
-              if (annotation && annotation.id) {
-                const existingIndex = room.annotations.findIndex((a: any) => a.id === annotation.id);
-                if (existingIndex >= 0) {
-                  room.annotations[existingIndex] = annotation;
-                } else {
-                  room.annotations.push(annotation);
-                }
-              }
-            });
-          }
-        }
-        
-        // Broadcast session load to other clients
-        this.broadcast(message, room.clients, client);
-        
-        // If features or annotations were updated, notify all clients of the new state
-        if ((message.data && message.data.features) || (message.data && message.data.annotations)) {
-          this.broadcastRoomState(message.roomId);
+        // Only delete if still empty
+        if (room.clients.size === 0) {
+          this.rooms.delete(roomId);
+          console.log(`Room ${roomId} cleaned up due to inactivity`);
         }
       }
-    }
+    }, 60 * 60 * 1000);
   }
   
-  private broadcastRoomState(roomId: string) {
-    const room = this.rooms.get(roomId);
-    
-    if (!room) return;
-    
-    // Create features message
-    const featuresMessage: WebSocketMessage = {
-      id: uuidv4(),
-      type: 'drawing',
-      roomId,
-      source: 'server',
-      timestamp: new Date().toISOString(),
-      data: {
-        action: 'init',
-        features: room.features
-      }
-    };
-    
-    // Create annotations message
-    const annotationsMessage: WebSocketMessage = {
-      id: uuidv4(),
-      type: 'drawing_update',
-      roomId,
-      source: 'server',
-      timestamp: new Date().toISOString(),
-      data: {
-        action: 'init',
-        annotations: room.annotations
-      }
-    };
-    
-    // Broadcast to all clients in room
-    for (const client of room.clients) {
-      this.sendMessage(client, featuresMessage);
-      this.sendMessage(client, annotationsMessage);
+  /**
+   * Clean up resources when the server is shutting down
+   */
+  public shutdown() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
     }
-  }
-  
-  private checkConnections() {
-    const now = new Date();
     
-    // Send ping to all clients
-    for (const [ws, client] of this.clients.entries()) {
-      // Check if client has timed out
-      const timeSinceActivity = now.getTime() - client.lastActivity.getTime();
-      
-      if (timeSinceActivity > this.CLIENT_TIMEOUT) {
-        console.log(`Client ${client.id} timed out`);
-        ws.terminate();
-        this.handleClientDisconnect(ws);
-      } else {
-        // Send ping
-        try {
-          ws.ping();
-        } catch (err) {
-          console.error('Error sending ping:', err);
-          this.handleClientDisconnect(ws);
-        }
-      }
-    }
+    // Close all connections
+    this.wss.clients.forEach((ws) => {
+      ws.terminate();
+    });
+    
+    this.wss.close();
   }
-}
-
-export function setupWebSocketServer(server: Server): WebSocketHandler {
-  return new WebSocketHandler(server);
 }

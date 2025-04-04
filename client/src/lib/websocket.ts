@@ -1,343 +1,298 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-// WebSocket connection status
-export enum ConnectionStatus {
-  CONNECTED = 'connected',
-  CONNECTING = 'connecting',
-  DISCONNECTED = 'disconnected',
-  RECONNECTING = 'reconnecting',
-  ERROR = 'error'
-}
+/**
+ * Connection status for the WebSocket
+ */
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-// WebSocket message types
-export enum MessageType {
-  CONNECT = 'connect',
-  DISCONNECT = 'disconnect',
-  CHAT = 'chat',
-  DRAWING = 'drawing',
-  DRAWING_UPDATE = 'drawing_update',
-  PRESENCE = 'presence',
-  ERROR = 'error',
-  CURSOR = 'cursor',
-  SESSION_SAVE = 'session_save',
-  SESSION_LOAD = 'session_load'
-}
+/**
+ * Message types that can be sent/received over WebSocket
+ */
+export type MessageType = 
+  | 'join_room' 
+  | 'leave_room' 
+  | 'cursor_move' 
+  | 'feature_add' 
+  | 'feature_update'
+  | 'feature_delete'
+  | 'annotation_add'
+  | 'annotation_update'
+  | 'annotation_delete'
+  | 'heartbeat'
+  | 'chat_message';
 
-// WebSocket message interface
+/**
+ * WebSocket message structure
+ */
 export interface WebSocketMessage {
-  id?: string;
   type: MessageType;
   roomId?: string;
-  source?: string;
-  timestamp?: string;
-  data?: any;
+  userId?: string;
+  username?: string;
+  payload?: any;
+  timestamp?: number;
 }
 
 /**
- * Create a chat message to send via WebSocket
- * 
- * @param content The message content
- * @param userId The user ID sending the message
- * @param roomId The room ID where the message should be sent
- * @returns A WebSocketMessage formatted for chat
+ * Configuration options for the WebSocket hook
  */
-export function createChatMessage(content: string, userId: string, roomId: string): WebSocketMessage {
-  return {
-    id: uuidv4(),
-    type: MessageType.CHAT,
-    roomId,
-    source: userId,
-    timestamp: new Date().toISOString(),
-    data: {
-      message: content
-    }
-  };
+interface WebSocketOptions {
+  /** Automatic reconnection */
+  autoReconnect?: boolean;
+  /** Initial retry delay in ms */
+  initialRetryDelay?: number;
+  /** Maximum retry delay in ms */
+  maxRetryDelay?: number;
+  /** Reconnection backoff factor */
+  backoffFactor?: number;
+  /** Maximum number of reconnection attempts (0 for unlimited) */
+  maxRetries?: number;
+  /** Room ID to join automatically when connected */
+  autoJoinRoom?: string;
+  /** User identity information */
+  userId?: string;
+  username?: string;
 }
 
-// Max reconnection attempts
-const MAX_RECONNECT_ATTEMPTS = 10;
-// Initial reconnection delay in ms
-const INITIAL_RECONNECT_DELAY = 1000;
+/**
+ * Default options for WebSocket connection
+ */
+const defaultOptions: Required<WebSocketOptions> = {
+  autoReconnect: true,
+  initialRetryDelay: 1000,
+  maxRetryDelay: 30000,
+  backoffFactor: 1.5,
+  maxRetries: 0, // 0 means unlimited
+  autoJoinRoom: '',
+  userId: '',
+  username: 'Anonymous',
+};
 
 /**
- * React hook for WebSocket connections with auto-reconnect and room management
- * 
- * @param roomId The room ID to join
- * @returns WebSocket connection utilities
+ * Hook for managing WebSocket connections with robust reconnection logic
  */
-export function useWebSocket(roomId: string = 'default') {
-  // Connection status
-  const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+export function useWebSocket(options: WebSocketOptions = {}) {
+  const opts = { ...defaultOptions, ...options };
   
-  // Last received message
-  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  // WebSocket instance reference
+  const socketRef = useRef<WebSocket | null>(null);
   
-  // Error state
-  const [error, setError] = useState<Error | null>(null);
+  // Connection state
+  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const [messages, setMessages] = useState<WebSocketMessage[]>([]);
+  const retries = useRef(0);
+  const retryTimeoutRef = useRef<number | null>(null);
+  const currentRoomRef = useRef<string>('');
   
-  // Collaborators in the room
-  const [collaborators, setCollaborators] = useState<string[]>([]);
-  
-  // WebSocket reference
-  const wsRef = useRef<WebSocket | null>(null);
-  
-  // Reconnection attempts counter
-  const reconnectAttemptsRef = useRef(0);
-  
-  // Reconnection timeout reference
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // User ID (generated once per session)
-  const userIdRef = useRef<string>(localStorage.getItem('bentonGisUserId') || uuidv4());
-  
-  // Generate a random session ID for this connection
-  const sessionIdRef = useRef<string>(uuidv4());
-  
-  // Pending messages queue for when connection is lost
-  const pendingMessagesRef = useRef<WebSocketMessage[]>([]);
-  
-  // Save user ID to localStorage
-  useEffect(() => {
-    localStorage.setItem('bentonGisUserId', userIdRef.current);
-  }, []);
-  
-  // Create WebSocket connection
+  /**
+   * Establishes a WebSocket connection
+   */
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    // Clean up any existing connection
+    if (socketRef.current) {
+      socketRef.current.close();
+    }
     
     try {
-      // Determine WebSocket protocol (ws or wss)
+      // Determine the WebSocket URL based on the current protocol (ws or wss)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/ws`;
       
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      setStatus('connecting');
+      const socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
       
-      // Set status to connecting
-      setStatus(ConnectionStatus.CONNECTING);
-      
-      // Handle WebSocket open event
-      ws.onopen = () => {
-        // Reset reconnection attempts
-        reconnectAttemptsRef.current = 0;
+      socket.onopen = () => {
+        setStatus('connected');
+        retries.current = 0;
         
-        // Set status to connected
-        setStatus(ConnectionStatus.CONNECTED);
-        
-        // Send connection message
-        const connectMessage: WebSocketMessage = {
-          id: uuidv4(),
-          type: MessageType.CONNECT,
-          roomId,
-          source: userIdRef.current,
-          timestamp: new Date().toISOString(),
-          data: {
-            sessionId: sessionIdRef.current,
-            userId: userIdRef.current
-          }
-        };
-        
-        ws.send(JSON.stringify(connectMessage));
-        
-        // Send any pending messages
-        if (pendingMessagesRef.current.length > 0) {
-          pendingMessagesRef.current.forEach(message => {
-            ws.send(JSON.stringify(message));
-          });
-          pendingMessagesRef.current = [];
+        // Automatically join room if specified
+        if (opts.autoJoinRoom) {
+          joinRoom(opts.autoJoinRoom);
         }
       };
       
-      // Handle WebSocket message event
-      ws.onmessage = (event) => {
+      socket.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          setLastMessage(message);
-          
-          // Track collaborators when receiving presence messages
-          if (message.type === MessageType.PRESENCE && message.roomId === roomId) {
-            if (message.data && Array.isArray(message.data.users)) {
-              // Filter out current user from collaborators list
-              const otherUsers = message.data.users.filter(
-                (userId: string) => userId !== userIdRef.current
-              );
-              setCollaborators(otherUsers);
-            }
-          }
+          const message = JSON.parse(event.data) as WebSocketMessage;
+          setMessages((prev) => [...prev, message]);
         } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
+          console.error('Failed to parse WebSocket message:', err);
         }
       };
       
-      // Handle WebSocket close event
-      ws.onclose = () => {
-        // Skip if closing was intentional
-        if (status === ConnectionStatus.DISCONNECTED) return;
+      socket.onclose = (event) => {
+        setStatus('disconnected');
         
-        // Set status to disconnected
-        setStatus(ConnectionStatus.DISCONNECTED);
-        
-        // Attempt to reconnect
-        attemptReconnect();
+        // Attempt to reconnect if enabled
+        if (opts.autoReconnect && !event.wasClean) {
+          scheduleReconnect();
+        }
       };
       
-      // Handle WebSocket error event
-      ws.onerror = (e) => {
-        setError(new Error('WebSocket error'));
-        setStatus(ConnectionStatus.ERROR);
+      socket.onerror = () => {
+        setStatus('error');
         
-        console.error('WebSocket error:', e);
+        // We don't close the socket here as the onclose handler will be called
       };
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Unknown WebSocket error'));
-      setStatus(ConnectionStatus.ERROR);
+      console.error('WebSocket connection error:', err);
+      setStatus('error');
       
-      // Attempt to reconnect
-      attemptReconnect();
+      if (opts.autoReconnect) {
+        scheduleReconnect();
+      }
     }
-  }, [roomId, status]);
+  }, [opts.autoReconnect, opts.autoJoinRoom]);
   
-  // Attempt to reconnect with exponential backoff
-  const attemptReconnect = useCallback(() => {
-    // Clean up any existing reconnection timeout
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+  /**
+   * Schedules a reconnection attempt with exponential backoff
+   */
+  const scheduleReconnect = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current);
     }
     
-    // Check if max reconnection attempts reached
-    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnection attempts reached');
-      setStatus(ConnectionStatus.ERROR);
-      
-      // Reset reconnection count after a longer delay and try again
-      // This helps if the server was temporarily down but is back up
-      setTimeout(() => {
-        console.log('Resetting reconnection attempts and trying again...');
-        reconnectAttemptsRef.current = 0;
-        connect();
-      }, INITIAL_RECONNECT_DELAY * 10);
-      
+    // Check if max retries has been reached
+    if (opts.maxRetries > 0 && retries.current >= opts.maxRetries) {
+      console.log('Maximum WebSocket reconnection attempts reached');
       return;
     }
     
-    // Increment reconnection attempts
-    reconnectAttemptsRef.current++;
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      opts.initialRetryDelay * Math.pow(opts.backoffFactor, retries.current),
+      opts.maxRetryDelay
+    );
     
-    // Calculate backoff delay: initial * (2^attempts) with some randomization
-    // to prevent thundering herd
-    const backoffDelay = 
-      INITIAL_RECONNECT_DELAY * 
-      Math.pow(1.5, reconnectAttemptsRef.current - 1) * // Use 1.5 instead of 2 for a gentler curve
-      (0.75 + Math.random() * 0.5);
+    console.log(`Reconnecting WebSocket in ${delay}ms (attempt ${retries.current + 1})`);
     
-    // Cap the maximum delay at 15 seconds
-    const cappedDelay = Math.min(backoffDelay, 15000);
-    
-    // Set status to reconnecting
-    setStatus(ConnectionStatus.RECONNECTING);
-    
-    // Schedule reconnection
-    reconnectTimeoutRef.current = setTimeout(() => {
-      console.log(`Attempting to reconnect (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+    retryTimeoutRef.current = window.setTimeout(() => {
+      retries.current += 1;
       connect();
-    }, cappedDelay);
-  }, [connect]);
+    }, delay);
+  }, [
+    connect, 
+    opts.initialRetryDelay, 
+    opts.backoffFactor, 
+    opts.maxRetryDelay, 
+    opts.maxRetries
+  ]);
   
-  // Send a message through the WebSocket
-  const send = useCallback((message: WebSocketMessage): boolean => {
-    // Add ID and timestamp if not provided
-    const completeMessage: WebSocketMessage = {
-      id: message.id || uuidv4(),
-      timestamp: message.timestamp || new Date().toISOString(),
-      source: message.source || userIdRef.current,
-      ...message
-    };
-    
-    // Check if WebSocket is open
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(completeMessage));
+  /**
+   * Sends a message through the WebSocket
+   */
+  const sendMessage = useCallback((message: WebSocketMessage) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      // Add timestamp and user info if not present
+      const fullMessage: WebSocketMessage = {
+        ...message,
+        timestamp: message.timestamp || Date.now(),
+        userId: message.userId || opts.userId,
+        username: message.username || opts.username,
+        roomId: message.roomId || currentRoomRef.current,
+      };
+      
+      socketRef.current.send(JSON.stringify(fullMessage));
       return true;
-    } else {
-      // Queue message for later
-      pendingMessagesRef.current.push(completeMessage);
+    }
+    return false;
+  }, [opts.userId, opts.username]);
+  
+  /**
+   * Joins a specific collaboration room
+   */
+  const joinRoom = useCallback((roomId: string) => {
+    if (roomId) {
+      currentRoomRef.current = roomId;
       
-      // Try to reconnect if not already reconnecting
-      if (status !== ConnectionStatus.CONNECTING && status !== ConnectionStatus.RECONNECTING) {
-        connect();
+      return sendMessage({
+        type: 'join_room',
+        roomId,
+        userId: opts.userId,
+        username: opts.username,
+      });
+    }
+    return false;
+  }, [sendMessage, opts.userId, opts.username]);
+  
+  /**
+   * Leaves the current collaboration room
+   */
+  const leaveRoom = useCallback(() => {
+    if (currentRoomRef.current) {
+      const result = sendMessage({
+        type: 'leave_room',
+        roomId: currentRoomRef.current,
+        userId: opts.userId,
+        username: opts.username,
+      });
+      
+      if (result) {
+        currentRoomRef.current = '';
       }
       
-      return false;
+      return result;
     }
-  }, [status, connect]);
+    return false;
+  }, [sendMessage, opts.userId, opts.username]);
   
-  // Close the WebSocket connection
+  /**
+   * Manually disconnect the WebSocket connection
+   */
   const disconnect = useCallback(() => {
-    // Clean up any existing reconnection timeout
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
     }
     
-    // Set status to disconnected
-    setStatus(ConnectionStatus.DISCONNECTED);
-    
-    // Close WebSocket if it exists
-    if (wsRef.current) {
-      // Send disconnect message if WebSocket is open
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        const disconnectMessage: WebSocketMessage = {
-          id: uuidv4(),
-          type: MessageType.DISCONNECT,
-          roomId,
-          source: userIdRef.current,
-          timestamp: new Date().toISOString(),
-          data: {
-            sessionId: sessionIdRef.current,
-            userId: userIdRef.current
-          }
-        };
-        
-        wsRef.current.send(JSON.stringify(disconnectMessage));
-      }
-      
-      wsRef.current.close();
-      wsRef.current = null;
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
     }
-  }, [roomId]);
+    
+    setStatus('disconnected');
+  }, []);
   
-  // Connect on mount
+  // Clear messages state
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+  
+  // Connect on mount, disconnect on unmount
   useEffect(() => {
     connect();
     
-    // Disconnect on unmount
     return () => {
       disconnect();
     };
   }, [connect, disconnect]);
   
-  // Create an effect to handle status changes and notify through callbacks
+  // Set up heartbeat interval to keep connection alive
   useEffect(() => {
-    // Set up status change callback
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-      // Create and dispatch a custom event for connection status changes
-      const event = new CustomEvent('websocket-status-change', { 
-        detail: { status, roomId } 
+    if (status !== 'connected') return;
+    
+    const heartbeatInterval = window.setInterval(() => {
+      sendMessage({
+        type: 'heartbeat',
+        timestamp: Date.now(),
       });
-      window.dispatchEvent(event);
-    }
-  }, [status, roomId]);
+    }, 30000); // Send heartbeat every 30 seconds
+    
+    return () => {
+      window.clearInterval(heartbeatInterval);
+    };
+  }, [status, sendMessage]);
   
-  // Return hook values
   return {
     status,
-    lastMessage,
-    error,
-    send,
+    messages,
+    sendMessage,
+    joinRoom,
+    leaveRoom,
     connect,
     disconnect,
-    userId: userIdRef.current,
-    collaborators
+    clearMessages,
+    currentRoom: currentRoomRef.current,
   };
 }

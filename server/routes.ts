@@ -1,9 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
 import * as fs from 'fs';
 import * as path from 'path';
-import { setupWebSocketServer } from "./websocket-server";
+import { WebSocketManager } from "./websocket-server";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
@@ -26,6 +25,7 @@ import { classifyDocument, getDocumentTypeLabel } from "./services/document-clas
 import { DocumentType } from "@shared/document-types";
 import { documentService } from "./services/document-service";
 import { documentParcelService } from "./services/document-parcel-service";
+import { parseLegalDescription, ParsedLegalDescription } from "./services/legal-description-parser";
 import { 
   runGeospatialAnalysis, 
   GeospatialOperationType, 
@@ -111,6 +111,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const analysis = analyzeLegalDescription(text);
     
     return res.json(analysis);
+  }));
+  
+  // Legal description parsing using our enhanced parser
+  app.post("/api/legal-description/parse", asyncHandler(async (req, res) => {
+    const { text } = req.body;
+    
+    if (!text) {
+      throw ApiError.badRequest('Legal description text is required');
+    }
+    
+    try {
+      // Parse the legal description using our service
+      const result: ParsedLegalDescription = parseLegalDescription(text);
+      
+      return res.json(result);
+    } catch (error) {
+      console.error('Error parsing legal description:', error);
+      throw ApiError.internal('Failed to parse legal description', 'PARSER_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
+  // Create a new parcel from legal description
+  app.post("/api/parcels", asyncHandler(async (req, res) => {
+    const { 
+      parcelNumber, 
+      legalDescription, 
+      geometry, 
+      owner, 
+      address, 
+      city, 
+      zip, 
+      propertyType,
+      assessedValue,
+      acres
+    } = req.body;
+    
+    if (!parcelNumber) {
+      throw ApiError.badRequest('Parcel number is required');
+    }
+    
+    try {
+      // Check if parcel with this number already exists
+      const existingParcel = await storage.getParcelByNumber(parcelNumber);
+      
+      if (existingParcel) {
+        throw ApiError.conflict('A parcel with this number already exists');
+      }
+      
+      // Create the new parcel
+      const newParcel = await storage.createParcel({
+        parcelNumber,
+        legalDescription,
+        geometry: geometry ? JSON.stringify(geometry) : null,
+        owner,
+        address,
+        city,
+        zip,
+        propertyType,
+        assessedValue,
+        acres
+      });
+      
+      return res.status(201).json(newParcel);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      console.error('Error creating parcel:', error);
+      throw ApiError.internal('Failed to create parcel', 'PARCEL_CREATE_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   }));
   
   // Public property information API
@@ -2999,7 +3074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server using the HTTP server for real-time collaboration
-  setupWebSocketServer(httpServer);
+  new WebSocketManager(httpServer);
   
   return httpServer;
 }

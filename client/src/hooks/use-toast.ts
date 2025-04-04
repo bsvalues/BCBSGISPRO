@@ -50,7 +50,8 @@ export function useToast() {
   
   return {
     toasts,
-    dismiss: (id: string) => toastStore.dismiss(id)
+    dismiss: (id: string) => toastStore.dismiss(id),
+    toast: toast
   };
 }
 

@@ -1,350 +1,328 @@
-import { useState, useEffect, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useState, useEffect, useRef } from 'react';
+import { Layout } from '@/components/layout';
+import { useWebSocket, ConnectionStatus, WebSocketMessage } from '@/lib/websocket';
 import { 
-  useWebSocket, 
-  MessageType, 
-  ConnectionStatus,
-  createChatMessage,
-  WebSocketMessage
-} from '@/lib/websocket';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { 
+  Button, 
   Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
   CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Label } from '@/components/ui/label';
-import { 
-  CheckCircle, 
-  AlertCircle, 
-  Loader2, 
-  WifiOff, 
-  Send, 
-  User, 
-  Users, 
-  Globe 
-} from 'lucide-react';
-import { CollaborativeMapContainer } from '@/components/maps/collaborative-map-container';
+  CardTitle, 
+  CardContent, 
+  CardFooter,
+  Input,
+  Badge,
+  Textarea
+} from '@/components/ui';
+import { Loader2, Send, User, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
-interface ChatMessage {
-  id: string;
-  sender: string;
-  content: string;
-  timestamp: Date;
-  isMe: boolean;
-}
+const ROOM_ID = 'test-room';
 
-export default function WebSocketDemoPage() {
-  // Generate a user ID for this session
-  const [userId] = useState(() => {
-    const storedId = localStorage.getItem('bentonGisUserId');
-    if (storedId) return storedId;
-    
-    const newId = uuidv4();
-    localStorage.setItem('bentonGisUserId', newId);
-    return newId;
-  });
-  
-  // User nickname
-  const [nickname, setNickname] = useState(() => {
-    const storedNickname = localStorage.getItem('bentonGisNickname');
-    return storedNickname || `User_${userId.substring(0, 5)}`;
-  });
-  
-  // Chat message and room
+/**
+ * WebSocket Demo Page
+ * 
+ * This page demonstrates the WebSocket functionality by creating a simple
+ * real-time chat application using our WebSocket hook.
+ */
+const WebSocketDemoPage: React.FC = () => {
   const [message, setMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [roomId, setRoomId] = useState('demo-room');
-  const [joinedRoom, setJoinedRoom] = useState('demo-room');
-  const [connectedUsers, setConnectedUsers] = useState<string[]>([]);
+  const [username, setUsername] = useState(`User_${Math.floor(Math.random() * 1000)}`);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   
-  // Message area ref for auto-scrolling
-  const messageEndRef = useRef<HTMLDivElement>(null);
+  // Initialize WebSocket connection with auto-join to test room
+  const ws = useWebSocket({
+    autoJoinRoom: ROOM_ID,
+    username: username
+  });
   
-  // Connect to WebSocket
-  const { status, lastMessage, send } = useWebSocket(joinedRoom);
-  
-  // Handle incoming chat messages
+  // Scroll to bottom of messages when new messages arrive
   useEffect(() => {
-    if (!lastMessage || lastMessage.type !== MessageType.CHAT) return;
-    
-    const { data, source, timestamp } = lastMessage;
-    
-    if (data?.message && source) {
-      const isMe = source === userId;
-      
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: uuidv4(),
-          sender: isMe ? nickname : data.sender || 'Unknown',
-          content: data.message,
-          timestamp: timestamp ? new Date(timestamp) : new Date(),
-          isMe
-        }
-      ]);
-      
-      // Scroll to bottom
-      messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-    
-    // Update connected users if present
-    if (data?.connectedUsers) {
-      setConnectedUsers(data.connectedUsers);
-    }
-  }, [lastMessage, userId, nickname]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [ws.messages]);
   
-  // Save nickname when it changes
-  useEffect(() => {
-    localStorage.setItem('bentonGisNickname', nickname);
-  }, [nickname]);
-  
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
-  
-  // Send a chat message
-  const sendChatMessage = () => {
+  // Handle form submission to send a message
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!message.trim()) return;
     
-    const messageObj = createChatMessage(message, userId, joinedRoom);
-    // Add sender nickname to data
-    messageObj.data = {
-      ...messageObj.data,
-      sender: nickname
-    };
-    
-    const success = send(messageObj);
+    // Send chat message via WebSocket
+    const success = ws.sendMessage({
+      type: 'chat_message',
+      roomId: ROOM_ID,
+      username: username,
+      payload: {
+        message: message.trim()
+      }
+    });
     
     if (success) {
       setMessage('');
+    } else {
+      toast({
+        title: 'Failed to send message',
+        description: 'Please check your connection and try again.',
+        variant: 'destructive'
+      });
     }
   };
   
-  // Join a room
-  const joinRoom = () => {
-    if (!roomId.trim()) return;
-    setJoinedRoom(roomId);
-    setChatMessages([]);
+  // Get unique users from messages
+  const getActiveUsers = () => {
+    const userIds = new Set<string>();
+    const users: { userId: string; username: string }[] = [];
     
-    // Add system message
-    setChatMessages([{
-      id: uuidv4(),
-      sender: 'System',
-      content: `You joined room: ${roomId}`,
-      timestamp: new Date(),
-      isMe: false
-    }]);
+    ws.messages
+      .filter(msg => msg.userId && msg.username)
+      .forEach(msg => {
+        if (msg.userId && !userIds.has(msg.userId)) {
+          userIds.add(msg.userId);
+          users.push({ userId: msg.userId, username: msg.username || 'Anonymous' });
+        }
+      });
+    
+    return users;
   };
   
-  // Connection status indicator
-  const ConnectionStatusIndicator = () => {
-    let Icon;
-    let label;
-    let color;
-    
-    switch (status) {
-      case ConnectionStatus.CONNECTED:
-        Icon = CheckCircle;
-        label = 'Connected';
-        color = 'bg-green-500';
-        break;
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
-        Icon = Loader2;
-        label = status === ConnectionStatus.CONNECTING ? 'Connecting' : 'Reconnecting';
-        color = 'bg-yellow-500';
-        break;
-      case ConnectionStatus.ERROR:
-        Icon = AlertCircle;
-        label = 'Connection Error';
-        color = 'bg-red-500';
-        break;
+  // Get connection status display info
+  const getConnectionInfo = () => {
+    switch (ws.status) {
+      case 'connecting':
+        return {
+          label: 'Connecting',
+          color: 'bg-yellow-500',
+          icon: <Loader2 className="animate-spin h-4 w-4" />
+        };
+      case 'connected':
+        return {
+          label: 'Connected',
+          color: 'bg-green-500',
+          icon: null
+        };
+      case 'disconnected':
+        return {
+          label: 'Disconnected',
+          color: 'bg-gray-500',
+          icon: null
+        };
+      case 'error':
+        return {
+          label: 'Error',
+          color: 'bg-red-500',
+          icon: <AlertCircle className="h-4 w-4" />
+        };
       default:
-        Icon = WifiOff;
-        label = 'Disconnected';
-        color = 'bg-gray-500';
+        return {
+          label: 'Unknown',
+          color: 'bg-gray-500',
+          icon: null
+        };
     }
-    
-    return (
-      <Badge className={`${color} gap-1`}>
-        <Icon className="h-3 w-3" />
-        <span>{label}</span>
-      </Badge>
-    );
   };
   
-  // Format timestamp
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const connectionInfo = getConnectionInfo();
+  const activeUsers = getActiveUsers();
   
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <h1 className="text-3xl font-bold mb-2">WebSocket Demo</h1>
-      <p className="text-muted-foreground mb-6">
-        Test real-time communication using WebSockets
-      </p>
-      
-      <Tabs defaultValue="chat" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="chat">Chat Demo</TabsTrigger>
-          <TabsTrigger value="map">Collaborative Map</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="chat" className="space-y-6">
-          <Card className="shadow-lg">
-            <CardHeader className="pb-4">
+    <Layout title="WebSocket Demo">
+      <div className="container mx-auto max-w-4xl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Connection Status Card */}
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Real-time Chat</CardTitle>
-                  <CardDescription>
-                    Connect with others in room: <strong>{joinedRoom}</strong>
-                  </CardDescription>
-                </div>
-                <ConnectionStatusIndicator />
+                <CardTitle>WebSocket Connection</CardTitle>
+                <Badge 
+                  variant="outline" 
+                  className={`text-white ${connectionInfo.color}`}
+                >
+                  {connectionInfo.icon && <span className="mr-1">{connectionInfo.icon}</span>}
+                  {connectionInfo.label}
+                </Badge>
               </div>
             </CardHeader>
-            
-            <CardContent className="p-0">
-              <div className="flex flex-col gap-4">
-                {/* Room controls */}
-                <div className="px-6 pt-2 flex items-end gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="nickname">Your Nickname</Label>
-                    <Input 
-                      id="nickname" 
-                      placeholder="Enter your nickname" 
-                      value={nickname} 
-                      onChange={(e) => setNickname(e.target.value)} 
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <Label htmlFor="room-id">Room ID</Label>
-                    <Input 
-                      id="room-id" 
-                      placeholder="Enter room ID" 
-                      value={roomId}
-                      onChange={(e) => setRoomId(e.target.value)}
-                    />
-                  </div>
-                  <Button onClick={joinRoom} disabled={status !== ConnectionStatus.CONNECTED}>
-                    Join Room
-                  </Button>
-                </div>
-                
-                {/* Connected users */}
-                <div className="px-6 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>{connectedUsers.length || 1} user{(connectedUsers.length || 1) !== 1 ? 's' : ''} connected</span>
-                </div>
-                
-                {/* Messages */}
-                <ScrollArea className="h-[400px] px-6">
-                  {chatMessages.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-muted-foreground">
-                      <div className="text-center space-y-2">
-                        <Globe className="h-10 w-10 mx-auto opacity-20" />
-                        <p>No messages yet</p>
-                        <p className="text-xs">Start chatting to see messages appear here</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 pt-4">
-                      {chatMessages.map((msg) => (
-                        <div 
-                          key={msg.id} 
-                          className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div 
-                            className={`
-                              max-w-[80%] rounded-lg px-4 py-2
-                              ${msg.isMe 
-                                ? 'bg-primary text-primary-foreground' 
-                                : 'bg-muted'
-                              }
-                            `}
-                          >
-                            {!msg.isMe && (
-                              <div className="flex items-center gap-1 mb-1">
-                                <User className="h-3 w-3" />
-                                <span className="text-xs font-medium">{msg.sender}</span>
-                              </div>
-                            )}
-                            <p className="break-words">{msg.content}</p>
-                            <p className="text-xs text-right mt-1 opacity-70">
-                              {formatTime(msg.timestamp)}
-                            </p>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  size="sm" 
+                  variant={ws.status === 'connected' ? 'outline' : 'default'}
+                  onClick={() => ws.connect()}
+                  disabled={ws.status === 'connecting' || ws.status === 'connected'}
+                >
+                  Connect
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => ws.disconnect()}
+                  disabled={ws.status !== 'connected'}
+                >
+                  Disconnect
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={ws.currentRoom ? 'outline' : 'default'}
+                  onClick={() => ws.joinRoom(ROOM_ID)}
+                  disabled={ws.status !== 'connected' || ws.currentRoom === ROOM_ID}
+                >
+                  Join Room
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => ws.leaveRoom()}
+                  disabled={ws.status !== 'connected' || !ws.currentRoom}
+                >
+                  Leave Room
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => ws.clearMessages()}
+                >
+                  Clear Messages
+                </Button>
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                <p>
+                  Current Room: <span className="font-medium">{ws.currentRoom || 'None'}</span> 
+                </p>
+                <p>
+                  Messages: <span className="font-medium">{ws.messages.length}</span>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Active Users Card */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Active Users ({activeUsers.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-[400px] overflow-y-auto">
+                {activeUsers.length > 0 ? (
+                  <ul className="space-y-2">
+                    {activeUsers.map((user) => (
+                      <li key={user.userId} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{user.username}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No active users
+                  </p>
+                )}
+              </div>
+              <div className="mt-4">
+                <label className="text-sm font-medium mb-1 block">Your Username</label>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  className="w-full"
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Chat Card */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Real-time Chat
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px] overflow-y-auto border rounded-md p-3 mb-3">
+                {ws.messages.filter(msg => msg.type === 'chat_message').length > 0 ? (
+                  <div className="space-y-3">
+                    {ws.messages
+                      .filter(msg => msg.type === 'chat_message')
+                      .map((msg, index) => (
+                        <div key={index} className="flex flex-col">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline">
+                              {msg.username || 'Anonymous'}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}
+                            </span>
+                          </div>
+                          <div className="bg-muted/50 p-2 rounded-md text-sm">
+                            {msg.payload?.message}
                           </div>
                         </div>
                       ))}
-                      <div ref={messageEndRef} />
-                    </div>
-                  )}
-                </ScrollArea>
+                    <div ref={messagesEndRef} />
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                    <MessageSquare className="h-10 w-10 mb-2 opacity-20" />
+                    <p>No messages yet</p>
+                    <p className="text-sm">Be the first to send a message!</p>
+                  </div>
+                )}
               </div>
-            </CardContent>
-            
-            <CardFooter className="pt-6">
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  sendChatMessage();
-                }}
-                className="w-full flex gap-2"
-              >
-                <Input 
-                  placeholder="Type a message..." 
+              
+              {/* Message Input */}
+              <form onSubmit={handleSubmit} className="flex gap-2">
+                <Input
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  disabled={status !== ConnectionStatus.CONNECTED}
+                  placeholder="Type your message..."
+                  disabled={ws.status !== 'connected' || !ws.currentRoom}
+                  className="flex-1"
                 />
                 <Button 
                   type="submit" 
-                  disabled={!message.trim() || status !== ConnectionStatus.CONNECTED}
+                  disabled={ws.status !== 'connected' || !ws.currentRoom || !message.trim()}
                 >
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-4 w-4 mr-1" />
                   Send
                 </Button>
               </form>
+            </CardContent>
+            <CardFooter className="text-xs text-muted-foreground border-t pt-3">
+              {ws.status === 'connected' && ws.currentRoom ? (
+                <p>
+                  Connected to <span className="font-medium">{ws.currentRoom}</span> - Start chatting!
+                </p>
+              ) : (
+                <p>
+                  {ws.status === 'connected' 
+                    ? 'Connected but not in a room. Join a room to start chatting.' 
+                    : 'Connect to the WebSocket server to start chatting.'}
+                </p>
+              )}
             </CardFooter>
           </Card>
           
-          <div className="bg-muted rounded-md p-4">
-            <h3 className="font-medium mb-2">How This Works</h3>
-            <p className="text-sm text-muted-foreground">
-              This demo uses WebSockets to enable real-time communication. When you send a message, 
-              it's transmitted to the server and then broadcasted to all clients in the same room.
-              The connection automatically reconnects if interrupted.
-            </p>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="map">
-          <div className="space-y-6">
-            <div style={{ height: '600px' }}>
-              <CollaborativeMapContainer roomId="demo-map" height={600} />
-            </div>
-            
-            <div className="bg-muted rounded-md p-4">
-              <h3 className="font-medium mb-2">How Collaborative Mapping Works</h3>
-              <p className="text-sm text-muted-foreground">
-                The collaborative map uses WebSockets to synchronize drawing actions between users.
-                When you create, update, or delete features, these changes are sent to all users in the same room.
-                Different colors indicate which user created each feature.
-              </p>
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+          {/* Raw Messages Log */}
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle>Message Log</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                readOnly
+                className="font-mono text-xs h-48"
+                value={ws.messages
+                  .map((msg) => JSON.stringify(msg, null, 2))
+                  .join('\n\n')}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </Layout>
   );
-}
+};
+
+export default WebSocketDemoPage;

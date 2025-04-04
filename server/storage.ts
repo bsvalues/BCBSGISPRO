@@ -104,6 +104,8 @@ export interface IStorage {
   generateParcelNumbers(parentParcelId: string, count: number): Promise<string[]>;
   getParcelInfo(parcelId: string): Promise<any | undefined>;
   searchParcelsByAddress(address: string, city?: string, zip?: string): Promise<any[]>;
+  getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined>;
+  createParcel(parcel: Omit<InsertParcel, 'id'>): Promise<Parcel>;
   
   // Map operations
   getMapLayers(): Promise<MapLayer[]>;
@@ -615,6 +617,36 @@ export class MemStorage implements IStorage {
     }
     
     return results;
+  }
+  
+  async getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined> {
+    return Array.from(this.parcels.values())
+      .find(parcel => parcel.parcelNumber === parcelNumber);
+  }
+  
+  async createParcel(parcel: Omit<InsertParcel, 'id'>): Promise<Parcel> {
+    const id = this.parcelId++;
+    const newParcel: Parcel = {
+      id,
+      parcelNumber: parcel.parcelNumber,
+      workflowId: parcel.workflowId || null,
+      parentParcelId: parcel.parentParcelId || null,
+      legalDescription: parcel.legalDescription || null,
+      acreage: parcel.acreage || null,
+      acres: parcel.acres || null,
+      address: parcel.address || null,
+      city: parcel.city || null,
+      zip: parcel.zip || null,
+      propertyType: parcel.propertyType || null,
+      owner: parcel.owner || null,
+      zoning: parcel.zoning || null,
+      assessedValue: parcel.assessedValue || null,
+      geometry: parcel.geometry || null,
+      isActive: parcel.isActive !== undefined ? parcel.isActive : true,
+      createdAt: new Date()
+    };
+    this.parcels.set(id, newParcel);
+    return newParcel;
   }
   
   // Map operations
@@ -1139,6 +1171,36 @@ export class DatabaseStorage implements IStorage {
     return db.select()
       .from(parcels)
       .where(sql`${parcels.parcelNumber} LIKE ${`%${parcelNumber}%`}`);
+  }
+  
+  async getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined> {
+    const [parcel] = await db.select()
+      .from(parcels)
+      .where(eq(parcels.parcelNumber, parcelNumber));
+    return parcel;
+  }
+  
+  async createParcel(parcel: Omit<InsertParcel, 'id'>): Promise<Parcel> {
+    const [newParcel] = await db.insert(parcels)
+      .values({
+        parcelNumber: parcel.parcelNumber,
+        workflowId: parcel.workflowId || null,
+        parentParcelId: parcel.parentParcelId || null,
+        legalDescription: parcel.legalDescription || null,
+        acreage: parcel.acreage || null,
+        acres: parcel.acres || null,
+        address: parcel.address || null,
+        city: parcel.city || null,
+        zip: parcel.zip || null,
+        propertyType: parcel.propertyType || null,
+        owner: parcel.owner || null,
+        zoning: parcel.zoning || null,
+        assessedValue: parcel.assessedValue || null,
+        geometry: parcel.geometry || null,
+        isActive: parcel.isActive !== undefined ? parcel.isActive : true
+      })
+      .returning();
+    return newParcel;
   }
 
   // Parcel operations
