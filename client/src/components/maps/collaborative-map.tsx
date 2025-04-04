@@ -28,7 +28,7 @@ import {
   Move
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { useWebSocket, ConnectionStatus, type MessageType } from '@/lib/websocket';
+import { useWebSocket, ConnectionStatusEnum, type MessageType } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -70,7 +70,7 @@ export interface CollaborativeFeature {
 export interface CollaborativeMapProps {
   map: mapboxgl.Map;
   roomId: string;
-  onConnectionStatusChange?: (status: ConnectionStatus) => void;
+  onConnectionStatusChange?: (status: ConnectionStatusEnum) => void;
   onCollaboratorsChange?: (users: string[]) => void;
   onFeaturesUpdate?: (features: CollaborativeFeature[]) => void;
   onAnnotationsUpdate?: (annotations: any[]) => void;
@@ -115,7 +115,8 @@ export function CollaborativeMap({
   // Pass connection status to parent component
   useEffect(() => {
     if (onConnectionStatusChange) {
-      onConnectionStatusChange(status);
+      // Convert string status to enum value
+      onConnectionStatusChange(status as unknown as ConnectionStatusEnum);
     }
   }, [status, onConnectionStatusChange]);
   

@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Map as MapboxMap } from 'mapbox-gl';
 import { 
   useCollaborativeAnnotations, 
-  AnnotationType, 
-  ConnectionStatus 
+  AnnotationType
 } from '@/hooks/use-collaborative-annotations';
+import { ConnectionStatusEnum } from '@/lib/websocket';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
   
   // Clear creation mode if connection is lost
   useEffect(() => {
-    if (connectionStatus !== ConnectionStatus.CONNECTED && isCreating) {
+    if (connectionStatus !== ConnectionStatusEnum.CONNECTED && isCreating) {
       setIsCreating(false);
       mapListenerActive.current = false;
       
@@ -81,7 +81,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
   
   // Handle starting annotation creation
   const startCreatingAnnotation = (type: AnnotationType) => {
-    if (connectionStatus !== ConnectionStatus.CONNECTED) {
+    if (connectionStatus !== ConnectionStatusEnum.CONNECTED) {
       toast({
         title: "Cannot create annotation",
         description: "No connection to collaboration server",
@@ -312,15 +312,15 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
   // Get connection status display
   const getConnectionStatus = () => {
     switch (connectionStatus) {
-      case ConnectionStatus.CONNECTED:
+      case ConnectionStatusEnum.CONNECTED:
         return (
           <Badge variant="outline" className="flex items-center gap-1">
             <CheckCircle className="h-3 w-3 text-green-500" />
             <span>Connected</span>
           </Badge>
         );
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
+      case ConnectionStatusEnum.CONNECTING:
+      case ConnectionStatusEnum.RECONNECTING:
         return (
           <Badge variant="outline" className="flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
@@ -356,7 +356,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
               onClick={() => startCreatingAnnotation(AnnotationType.TEXT)} 
               variant="outline" 
               size="sm"
-              disabled={isCreating || connectionStatus !== ConnectionStatus.CONNECTED}
+              disabled={isCreating || connectionStatus !== ConnectionStatusEnum.CONNECTED}
               className="flex items-center gap-1"
             >
               <MessageSquare className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
               onClick={() => startCreatingAnnotation(AnnotationType.MARKER)} 
               variant="outline" 
               size="sm"
-              disabled={isCreating || connectionStatus !== ConnectionStatus.CONNECTED}
+              disabled={isCreating || connectionStatus !== ConnectionStatusEnum.CONNECTED}
               className="flex items-center gap-1"
             >
               <MapPin className="h-4 w-4" />
@@ -378,7 +378,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
               onClick={() => startCreatingAnnotation(AnnotationType.MEASUREMENT)} 
               variant="outline" 
               size="sm"
-              disabled={isCreating || connectionStatus !== ConnectionStatus.CONNECTED}
+              disabled={isCreating || connectionStatus !== ConnectionStatusEnum.CONNECTED}
               className="flex items-center gap-1"
             >
               <Ruler className="h-4 w-4" />
@@ -389,7 +389,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
               onClick={() => startCreatingAnnotation(AnnotationType.IMAGE)} 
               variant="outline" 
               size="sm"
-              disabled={isCreating || connectionStatus !== ConnectionStatus.CONNECTED}
+              disabled={isCreating || connectionStatus !== ConnectionStatusEnum.CONNECTED}
               className="flex items-center gap-1"
             >
               <ImageIcon className="h-4 w-4" />
@@ -484,7 +484,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
                         onClick={saveEditedAnnotation} 
                         variant="default" 
                         size="sm"
-                        disabled={!editingContent.trim() || connectionStatus !== ConnectionStatus.CONNECTED}
+                        disabled={!editingContent.trim() || connectionStatus !== ConnectionStatusEnum.CONNECTED}
                       >
                         Save
                       </Button>
@@ -522,7 +522,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
                           variant="ghost" 
                           size="icon" 
                           className="h-6 w-6" 
-                          disabled={connectionStatus !== ConnectionStatus.CONNECTED}
+                          disabled={connectionStatus !== ConnectionStatusEnum.CONNECTED}
                         >
                           <Edit2 className="h-3 w-3" />
                         </Button>
@@ -531,7 +531,7 @@ export function CollaborativeAnnotations({ map, roomId, className = '' }: Collab
                           variant="ghost" 
                           size="icon" 
                           className="h-6 w-6"
-                          disabled={connectionStatus !== ConnectionStatus.CONNECTED}
+                          disabled={connectionStatus !== ConnectionStatusEnum.CONNECTED}
                         >
                           <Trash2 className="h-3 w-3 text-destructive" />
                         </Button>

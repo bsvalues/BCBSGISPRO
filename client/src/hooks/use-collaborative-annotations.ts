@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { useWebSocket, MessageType, ConnectionStatus } from '@/lib/websocket';
+import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
 
 // Annotation types
 export enum AnnotationType {
@@ -18,7 +18,7 @@ export enum AnnotationActionType {
 }
 
 // Re-export connection status
-export { ConnectionStatus } from '@/lib/websocket';
+export { ConnectionStatusEnum } from '@/lib/websocket';
 
 // Annotation interface
 export interface Annotation {
@@ -80,7 +80,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
     if (!lastMessage) return;
     
     // Only process DRAWING_UPDATE messages
-    if (lastMessage.type !== MessageType.DRAWING_UPDATE) return;
+    if (lastMessage.type !== MessageTypeEnum.FEATURE_UPDATE) return;
     
     try {
       // Parse the change
@@ -140,7 +140,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
     
     // Send to server
     send({
-      type: MessageType.DRAWING_UPDATE,
+      type: MessageTypeEnum.FEATURE_UPDATE,
       data: {
         action: AnnotationActionType.CREATE,
         annotation: newAnnotation,
@@ -186,7 +186,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
       
       // Send to server
       send({
-        type: MessageType.DRAWING_UPDATE,
+        type: MessageTypeEnum.FEATURE_UPDATE,
         data: {
           action: AnnotationActionType.UPDATE,
           annotation: updatedAnnotation,
@@ -222,7 +222,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
       
       // Send to server
       send({
-        type: MessageType.DRAWING_UPDATE,
+        type: MessageTypeEnum.FEATURE_UPDATE,
         data: {
           action: AnnotationActionType.DELETE,
           annotation: deletedAnnotation,

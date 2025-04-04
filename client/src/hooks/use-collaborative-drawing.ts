@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { useWebSocket, MessageType, ConnectionStatus } from '@/lib/websocket';
+import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
 
 // Drawing modes that match MapboxDraw
 export enum DrawMode {
@@ -21,7 +21,7 @@ export enum DrawActionType {
 }
 
 // Re-export the ConnectionStatus enum from websocket
-export { ConnectionStatus } from '@/lib/websocket';
+export { ConnectionStatusEnum } from '@/lib/websocket';
 
 // Basic GeoJSON types
 type Point = {
@@ -88,7 +88,7 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     if (!lastMessage) return;
     
     // Only process DRAWING messages
-    if (lastMessage.type !== MessageType.DRAWING && lastMessage.type !== MessageType.DRAWING_UPDATE) return;
+    if (lastMessage.type !== MessageTypeEnum.FEATURE && lastMessage.type !== MessageTypeEnum.FEATURE_UPDATE) return;
     
     try {
       // Check if this is a change we initiated to prevent echoing

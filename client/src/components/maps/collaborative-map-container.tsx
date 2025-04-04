@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { CollaborativeMap, CollaborativeFeature } from './collaborative-map';
 import { MapboxMap } from './mapbox/mapbox-map';
 import mapboxgl from 'mapbox-gl';
-import { ConnectionStatus } from '@/lib/websocket';
+import { ConnectionStatus, ConnectionStatusEnum } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
@@ -22,7 +22,7 @@ export function CollaborativeMapContainer({
   onMapUpdated 
 }: CollaborativeMapContainerProps) {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatusEnum>(ConnectionStatusEnum.DISCONNECTED);
   const [collaborators, setCollaborators] = useState<string[]>([]);
   const [features, setFeatures] = useState<CollaborativeFeature[]>([]);
   const [annotations, setAnnotations] = useState<any[]>([]);
@@ -39,17 +39,17 @@ export function CollaborativeMapContainer({
   }, [onMapUpdated]);
 
   // Handle connection status change
-  const handleConnectionStatusChange = useCallback((status: ConnectionStatus) => {
+  const handleConnectionStatusChange = useCallback((status: ConnectionStatusEnum) => {
     setConnectionStatus(status);
     
     // Show toast notification for connection changes
-    if (status === ConnectionStatus.CONNECTED) {
+    if (status === ConnectionStatusEnum.CONNECTED) {
       toast({
         title: "Connected to collaboration server",
         description: "You can now draw and collaborate with others",
         variant: "default",
       });
-    } else if (status === ConnectionStatus.DISCONNECTED || status === ConnectionStatus.ERROR) {
+    } else if (status === ConnectionStatusEnum.DISCONNECTED || status === ConnectionStatusEnum.ERROR) {
       toast({
         title: "Disconnected from collaboration server",
         description: "Attempting to reconnect automatically",
@@ -141,13 +141,13 @@ export function CollaborativeMapContainer({
   // Get connection status icon
   const getStatusIcon = () => {
     switch (connectionStatus) {
-      case ConnectionStatus.CONNECTED:
+      case ConnectionStatusEnum.CONNECTED:
         return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
+      case ConnectionStatusEnum.CONNECTING:
+      case ConnectionStatusEnum.RECONNECTING:
         return <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />;
-      case ConnectionStatus.DISCONNECTED:
-      case ConnectionStatus.ERROR:
+      case ConnectionStatusEnum.DISCONNECTED:
+      case ConnectionStatusEnum.ERROR:
         return <WifiOff className="h-4 w-4 text-red-500" />;
       default:
         return <AlertCircle className="h-4 w-4" />;
@@ -157,13 +157,13 @@ export function CollaborativeMapContainer({
   // Connection status badge variant
   const getStatusVariant = () => {
     switch (connectionStatus) {
-      case ConnectionStatus.CONNECTED:
+      case ConnectionStatusEnum.CONNECTED:
         return "outline";
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
+      case ConnectionStatusEnum.CONNECTING:
+      case ConnectionStatusEnum.RECONNECTING:
         return "secondary";
-      case ConnectionStatus.DISCONNECTED:
-      case ConnectionStatus.ERROR:
+      case ConnectionStatusEnum.DISCONNECTED:
+      case ConnectionStatusEnum.ERROR:
         return "destructive";
       default:
         return "outline";
@@ -173,15 +173,15 @@ export function CollaborativeMapContainer({
   // Connection status text
   const getStatusText = () => {
     switch (connectionStatus) {
-      case ConnectionStatus.CONNECTED:
+      case ConnectionStatusEnum.CONNECTED:
         return "Connected";
-      case ConnectionStatus.CONNECTING:
+      case ConnectionStatusEnum.CONNECTING:
         return "Connecting";
-      case ConnectionStatus.RECONNECTING:
+      case ConnectionStatusEnum.RECONNECTING:
         return "Reconnecting";
-      case ConnectionStatus.DISCONNECTED:
+      case ConnectionStatusEnum.DISCONNECTED:
         return "Disconnected";
-      case ConnectionStatus.ERROR:
+      case ConnectionStatusEnum.ERROR:
         return "Connection Error";
       default:
         return "Unknown";

@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Send, Info } from 'lucide-react';
-import { useWebSocket, MessageType, ConnectionStatus, createChatMessage } from '@/lib/websocket';
+import { useWebSocket, MessageType, MessageTypeEnum, ConnectionStatus, ConnectionStatusEnum, createChatMessage } from '@/lib/websocket';
 
 export interface ChatMessage {
   id: string;
@@ -42,8 +42,14 @@ function getUserColor(userId: string): string {
 }
 
 export function CollaborativeChat({ roomId, height = 400, className = '' }: CollaborativeChatProps) {
+  // Generate a unique ID for this user if not provided
+  const [localUserId] = useState(() => crypto.randomUUID().substring(0, 8));
+  
   // WebSocket connection
-  const { send, lastMessage, status, userId } = useWebSocket(roomId);
+  const { send, lastMessage, status, userId = localUserId } = useWebSocket({
+    autoJoinRoom: roomId,
+    userId: localUserId
+  });
   
   // Chat messages state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -62,15 +68,15 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
     if (!lastMessage) return;
     
     // Only process chat messages
-    if (lastMessage.type !== MessageType.CHAT) return;
+    if (lastMessage.type !== MessageTypeEnum.CHAT) return;
     
     try {
       // Create ChatMessage from the WebSocket message
       const newMessage: ChatMessage = {
-        id: lastMessage.id || crypto.randomUUID(),
-        content: lastMessage.data?.message || '',
-        sender: lastMessage.source || 'unknown',
-        timestamp: lastMessage.timestamp || new Date().toISOString()
+        id: crypto.randomUUID(),
+        content: lastMessage.payload?.message || '',
+        sender: lastMessage.userId || 'unknown',
+        timestamp: lastMessage.timestamp ? new Date(lastMessage.timestamp).toISOString() : new Date().toISOString()
       };
       
       // Add to messages state
@@ -95,7 +101,7 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
     const timestamp = new Date().toISOString();
     let systemMessage: ChatMessage | null = null;
     
-    if (status === ConnectionStatus.CONNECTED) {
+    if (status === ConnectionStatusEnum.CONNECTED) {
       systemMessage = {
         id: crypto.randomUUID(),
         content: 'Connected to chat',
@@ -103,7 +109,7 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
         timestamp,
         isSystem: true
       };
-    } else if (status === ConnectionStatus.DISCONNECTED || status === ConnectionStatus.ERROR) {
+    } else if (status === ConnectionStatusEnum.DISCONNECTED || status === ConnectionStatusEnum.ERROR) {
       systemMessage = {
         id: crypto.randomUUID(),
         content: 'Disconnected from chat',
@@ -136,8 +142,10 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
     if (!messageInput.trim()) return;
     
     // Create and send the message
-    const chatMessage = createChatMessage(messageInput, userId, roomId);
-    send(chatMessage);
+    if (messageInput && userId) {
+      const chatMessage = createChatMessage(messageInput, userId, roomId);
+      send(chatMessage);
+    }
     
     // Clear input
     setMessageInput('');
@@ -175,10 +183,10 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
         <CardTitle className="text-base flex items-center justify-between">
           <span>Collaboration Chat</span>
           <Badge 
-            variant={status === ConnectionStatus.CONNECTED ? "outline" : "destructive"} 
+            variant={status === ConnectionStatusEnum.CONNECTED ? "outline" : "destructive"} 
             className="text-xs"
           >
-            {status === ConnectionStatus.CONNECTED ? 'Connected' : 'Disconnected'}
+            {status === ConnectionStatusEnum.CONNECTED ? 'Connected' : 'Disconnected'}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -256,11 +264,11 @@ export function CollaborativeChat({ roomId, height = 400, className = '' }: Coll
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={status !== ConnectionStatus.CONNECTED}
+            disabled={status !== ConnectionStatusEnum.CONNECTED}
           />
           <Button 
             onClick={handleSendMessage} 
-            disabled={status !== ConnectionStatus.CONNECTED || !messageInput.trim()}
+            disabled={status !== ConnectionStatusEnum.CONNECTED || !messageInput.trim()}
           >
             <Send className="h-4 w-4" />
           </Button>

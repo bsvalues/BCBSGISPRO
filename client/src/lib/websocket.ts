@@ -2,8 +2,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * Connection status for the WebSocket
+ * @deprecated Use ConnectionStatusEnum instead
  */
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error' | 'reconnecting';
+
+/**
+ * Connection status enum for components that need to reference status values
+ */
+export enum ConnectionStatusEnum {
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  DISCONNECTED = 'disconnected',
+  ERROR = 'error',
+  RECONNECTING = 'reconnecting'
+}
 
 /**
  * Message types that can be sent/received over WebSocket
@@ -20,6 +32,23 @@ export type MessageType =
   | 'annotation_delete'
   | 'heartbeat'
   | 'chat_message';
+
+/**
+ * Message type enum for components that need to reference message types
+ */
+export enum MessageTypeEnum {
+  JOIN_ROOM = 'join_room',
+  LEAVE_ROOM = 'leave_room',
+  CURSOR_MOVE = 'cursor_move',
+  FEATURE_ADD = 'feature_add',
+  FEATURE_UPDATE = 'feature_update',
+  FEATURE_DELETE = 'feature_delete',
+  ANNOTATION_ADD = 'annotation_add',
+  ANNOTATION_UPDATE = 'annotation_update',
+  ANNOTATION_DELETE = 'annotation_delete',
+  HEARTBEAT = 'heartbeat',
+  CHAT = 'chat_message'
+}
 
 /**
  * WebSocket message structure
@@ -76,7 +105,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   const opts = { ...defaultOptions, ...options };
   
   // State for connection status and messages
-  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const [status, setStatus] = useState<ConnectionStatusEnum>(ConnectionStatusEnum.DISCONNECTED);
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
   const [currentRoom, setCurrentRoom] = useState<string>('');
   
@@ -109,7 +138,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     try {
-      setStatus('connecting');
+      setStatus(ConnectionStatusEnum.CONNECTING);
       
       // Determine WebSocket URL based on current protocol (ws or wss)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -123,7 +152,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         if (!isMountedRef.current) return;
         
         console.log('WebSocket connection established');
-        setStatus('connected');
+        setStatus(ConnectionStatusEnum.CONNECTED);
         reconnectAttemptsRef.current = 0;
         
         // Auto-join room if specified
@@ -154,7 +183,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         
         console.log(`WebSocket connection closed (code: ${event.code}, clean: ${event.wasClean})`);
         socketRef.current = null;
-        setStatus('disconnected');
+        setStatus(ConnectionStatusEnum.DISCONNECTED);
         
         // Attempt reconnection if enabled and not a clean closure
         if (opts.autoReconnect && !event.wasClean) {
@@ -166,7 +195,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         if (!isMountedRef.current) return;
         
         console.error('WebSocket error:', error);
-        setStatus('error');
+        setStatus(ConnectionStatusEnum.ERROR);
         
         // Socket will close itself after an error
       };
@@ -174,7 +203,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       if (!isMountedRef.current) return;
       
       console.error('Failed to create WebSocket connection:', error);
-      setStatus('error');
+      setStatus(ConnectionStatusEnum.ERROR);
       
       if (opts.autoReconnect) {
         scheduleReconnect();
@@ -299,7 +328,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     if (socketRef.current) {
       socketRef.current.close(1000, 'User-initiated disconnection');
       socketRef.current = null;
-      setStatus('disconnected');
+      setStatus(ConnectionStatusEnum.DISCONNECTED);
     }
   }, []);
   
@@ -320,6 +349,26 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     connect,
     disconnect,
     clearMessages,
-    currentRoom
+    currentRoom,
+    userId: opts.userId,
+    lastMessage: messages.length > 0 ? messages[messages.length - 1] : null,
+    send: sendMessage
+  };
+}
+
+/**
+ * Helper function to create a formatted chat message
+ */
+export function createChatMessage(
+  message: string, 
+  userId: string, 
+  roomId: string
+): WebSocketMessage {
+  return {
+    type: 'chat_message',
+    roomId,
+    userId,
+    payload: { message },
+    timestamp: Date.now()
   };
 }
