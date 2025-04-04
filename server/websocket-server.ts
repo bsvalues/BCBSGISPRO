@@ -6,17 +6,40 @@ import { IncomingMessage } from 'http';
  * WebSocket message type enum
  */
 export enum MessageTypeEnum {
+  // Room management
   JOIN_ROOM = 'join_room',
   LEAVE_ROOM = 'leave_room',
+  JOIN = 'join',       // Client-side format
+  LEAVE = 'leave',     // Client-side format
+  
+  // Cursor tracking
   CURSOR_MOVE = 'cursor_move',
+  
+  // Feature management (server-side format)
   FEATURE_ADD = 'feature_add',
   FEATURE_UPDATE = 'feature_update',
   FEATURE_DELETE = 'feature_delete',
+  
+  // Feature management (client-side format)
+  FEATURE_CREATED = 'feature_created',
+  FEATURE_UPDATED = 'feature_updated',
+  FEATURE_DELETED = 'feature_deleted',
+  
+  // Annotation management (server-side format)
   ANNOTATION_ADD = 'annotation_add',
   ANNOTATION_UPDATE = 'annotation_update',
   ANNOTATION_DELETE = 'annotation_delete',
+  
+  // Annotation management (client-side format)
+  ANNOTATION_CREATED = 'annotation_created',
+  ANNOTATION_UPDATED = 'annotation_updated',
+  ANNOTATION_DELETED = 'annotation_deleted',
+  
+  // System messages
   HEARTBEAT = 'heartbeat',
-  CHAT = 'chat_message'
+  CHAT_MESSAGE = 'chat_message',
+  CHAT = 'chat',       // Client-side format
+  STATUS = 'status'
 }
 
 /**
@@ -44,7 +67,9 @@ export interface WebSocketMessage {
   roomId?: string;
   userId?: string;
   username?: string;
-  payload?: any;
+  payload?: any;        // Server-side format
+  data?: any;           // Client-side format
+  source?: string;      // Source ID for client-side messaging
   timestamp?: number;
 }
 
@@ -198,9 +223,15 @@ export class WebSocketManager {
     if (!message.username) message.username = ws.username;
     if (!message.timestamp) message.timestamp = Date.now();
     
+    // Support both payload and data formats (client-side uses data)
+    const payload = message.payload || message.data;
+    const feature = payload?.feature || payload;
+    
     // Handle different message types
     switch (message.type) {
+      // Handle room management (both formats)
       case MessageTypeEnum.JOIN_ROOM:
+      case MessageTypeEnum.JOIN:
         if (message.roomId) {
           if (message.username) ws.username = message.username;
           this.joinRoom(ws, message.roomId);
@@ -208,79 +239,245 @@ export class WebSocketManager {
         break;
         
       case MessageTypeEnum.LEAVE_ROOM:
+      case MessageTypeEnum.LEAVE:
         if (message.roomId) {
           this.leaveRoom(ws, message.roomId);
         }
         break;
         
+      // Handle cursor movement
       case MessageTypeEnum.CURSOR_MOVE:
-        if (message.roomId && message.payload) {
+        if (message.roomId && payload) {
           this.broadcastToRoom(message.roomId, message, ws);
         }
         break;
         
+      // Handle feature management (server-side format)
       case MessageTypeEnum.FEATURE_ADD:
-        if (message.roomId && message.payload && message.payload.id) {
+        if (message.roomId && payload && payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room) {
-            room.features[message.payload.id] = message.payload;
+            room.features[payload.id] = payload;
             room.lastActivity = Date.now();
             this.broadcastToRoom(message.roomId, message);
           }
         }
         break;
         
+      // Handle feature management (client-side format)
+      case MessageTypeEnum.FEATURE_CREATED:
+        if (message.roomId && feature && feature.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room) {
+            room.features[feature.id] = feature;
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.FEATURE_ADD,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: feature
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle feature updates (server-side format)
       case MessageTypeEnum.FEATURE_UPDATE:
-        if (message.roomId && message.payload && message.payload.id) {
-          this.updateFeature(message.roomId, message.payload.id, message);
+        if (message.roomId && payload && payload.id) {
+          this.updateFeature(message.roomId, payload.id, message);
         }
         break;
         
-      case MessageTypeEnum.FEATURE_DELETE:
-        if (message.roomId && message.payload && message.payload.id) {
+      // Handle feature updates (client-side format)
+      case MessageTypeEnum.FEATURE_UPDATED:
+        if (message.roomId && feature && feature.id) {
           const room = this.rooms.get(message.roomId);
-          if (room && room.features[message.payload.id]) {
-            delete room.features[message.payload.id];
+          if (room && room.features[feature.id]) {
+            room.features[feature.id] = {
+              ...room.features[feature.id],
+              ...feature
+            };
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.FEATURE_UPDATE,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: room.features[feature.id]
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle feature deletion (server-side format)
+      case MessageTypeEnum.FEATURE_DELETE:
+        if (message.roomId && payload && payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room && room.features[payload.id]) {
+            delete room.features[payload.id];
             room.lastActivity = Date.now();
             this.broadcastToRoom(message.roomId, message);
           }
         }
         break;
         
+      // Handle feature deletion (client-side format)
+      case MessageTypeEnum.FEATURE_DELETED:
+        if (message.roomId && feature && feature.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room && room.features[feature.id]) {
+            // Save a copy of the feature before deletion for the broadcast
+            const deletedFeature = room.features[feature.id];
+            
+            // Delete the feature
+            delete room.features[feature.id];
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.FEATURE_DELETE,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: deletedFeature
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle annotation management (server-side format)
       case MessageTypeEnum.ANNOTATION_ADD:
-        if (message.roomId && message.payload && message.payload.id) {
+        if (message.roomId && payload && payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room) {
-            room.annotations[message.payload.id] = message.payload;
+            room.annotations[payload.id] = payload;
             room.lastActivity = Date.now();
             this.broadcastToRoom(message.roomId, message);
           }
         }
         break;
         
-      case MessageTypeEnum.ANNOTATION_UPDATE:
-        if (message.roomId && message.payload && message.payload.id) {
-          this.updateAnnotation(message.roomId, message.payload.id, message);
-        }
-        break;
-        
-      case MessageTypeEnum.ANNOTATION_DELETE:
-        if (message.roomId && message.payload && message.payload.id) {
+      // Handle annotation management (client-side format)
+      case MessageTypeEnum.ANNOTATION_CREATED:
+        if (message.roomId && payload?.annotation && payload.annotation.id) {
           const room = this.rooms.get(message.roomId);
-          if (room && room.annotations[message.payload.id]) {
-            delete room.annotations[message.payload.id];
+          if (room) {
+            const annotation = payload.annotation;
+            room.annotations[annotation.id] = annotation;
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.ANNOTATION_ADD,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: annotation
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle annotation updates (server-side format)
+      case MessageTypeEnum.ANNOTATION_UPDATE:
+        if (message.roomId && payload && payload.id) {
+          this.updateAnnotation(message.roomId, payload.id, message);
+        }
+        break;
+        
+      // Handle annotation updates (client-side format)
+      case MessageTypeEnum.ANNOTATION_UPDATED:
+        if (message.roomId && payload?.annotation && payload.annotation.id) {
+          const room = this.rooms.get(message.roomId);
+          const annotation = payload.annotation;
+          if (room && room.annotations[annotation.id]) {
+            room.annotations[annotation.id] = {
+              ...room.annotations[annotation.id],
+              ...annotation
+            };
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.ANNOTATION_UPDATE,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: room.annotations[annotation.id]
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle annotation deletion (server-side format)
+      case MessageTypeEnum.ANNOTATION_DELETE:
+        if (message.roomId && payload && payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room && room.annotations[payload.id]) {
+            delete room.annotations[payload.id];
             room.lastActivity = Date.now();
             this.broadcastToRoom(message.roomId, message);
           }
         }
         break;
         
+      // Handle annotation deletion (client-side format)
+      case MessageTypeEnum.ANNOTATION_DELETED:
+        if (message.roomId && payload?.annotationId) {
+          const room = this.rooms.get(message.roomId);
+          const annotationId = payload.annotationId;
+          if (room && room.annotations[annotationId]) {
+            // Save a copy of the annotation before deletion for the broadcast
+            const deletedAnnotation = room.annotations[annotationId];
+            
+            // Delete the annotation
+            delete room.annotations[annotationId];
+            room.lastActivity = Date.now();
+            
+            // Convert to server format for broadcasting
+            const serverMessage: WebSocketMessage = {
+              type: MessageTypeEnum.ANNOTATION_DELETE,
+              roomId: message.roomId,
+              userId: message.userId,
+              username: message.username,
+              timestamp: message.timestamp,
+              payload: deletedAnnotation
+            };
+            
+            this.broadcastToRoom(message.roomId, serverMessage);
+          }
+        }
+        break;
+        
+      // Handle chat messages (both formats)
       case MessageTypeEnum.CHAT:
-        if (message.roomId && message.payload) {
+      case MessageTypeEnum.CHAT_MESSAGE:
+        if (message.roomId && payload) {
           this.broadcastToRoom(message.roomId, message);
         }
         break;
         
+      // Handle heartbeat messages
       case MessageTypeEnum.HEARTBEAT:
         // Respond with a heartbeat message
         ws.send(JSON.stringify({
@@ -289,6 +486,7 @@ export class WebSocketManager {
         }));
         break;
         
+      // Handle unknown message types
       default:
         console.warn(`Unknown message type: ${message.type}`);
     }
@@ -436,6 +634,23 @@ export class WebSocketManager {
   private broadcastToRoom(roomId: string, message: WebSocketMessage, exclude?: ExtendedWebSocket) {
     const room = this.rooms.get(roomId);
     if (!room) return;
+    
+    // Make sure there's at least a payload or data property
+    if (!message.payload && !message.data) {
+      // Extract from one field to the other if needed
+      if (message.data) {
+        message.payload = message.data;
+      } else if (message.payload) {
+        message.data = message.payload;
+      } else {
+        // Initialize with empty object if neither exists
+        message.payload = {};
+        message.data = {};
+      }
+    }
+
+    // Add metadata to ensure client compatibility
+    message.timestamp = message.timestamp || Date.now();
     
     const messageStr = JSON.stringify(message);
     

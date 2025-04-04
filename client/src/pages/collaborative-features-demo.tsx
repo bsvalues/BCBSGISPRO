@@ -1,322 +1,214 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { UserPresence } from '@/components/collaborative/user-presence';
-import { RoomActivity } from '@/components/collaborative/room-activity';
-import { CollaborativeCursors } from '@/components/collaborative/collaborative-cursors';
+import React from 'react';
+import { CollaborativeWorkspace } from '@/components/collaborative/collaborative-workspace';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { generateId } from '@/lib/utils';
-import { ConnectionStatusEnum } from '@/lib/websocket';
-import { useEnhancedWebSocket } from '@/hooks/use-enhanced-websocket';
-import { useSessionManager, CollaborativeUser } from '@/lib/websocket-session-manager';
-import { useToast } from '@/hooks/use-toast';
+import { InfoIcon, Wrench, MessageSquare, Share2 } from 'lucide-react';
 
-/**
- * Collaborative Features Demo Page
- */
 export default function CollaborativeFeaturesDemo() {
-  // Use refs for stable IDs
-  const userIdRef = useRef<string>(generateId(8));
-  const usernameRef = useRef<string>(`User_${generateId(4)}`);
-  // State for UI and user inputs
-  const [username, setUsername] = useState<string>(usernameRef.current);
-  const [roomId, setRoomId] = useState<string>('demo-room');
-  const [currentTab, setCurrentTab] = useState<string>('user-presence');
-  
-  // Reference for cursor container
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Access toast
-  const { toast } = useToast();
-  
-  // Use session manager - get a reference to avoid recreating on each render
-  const sessionManagerRef = useRef(useSessionManager());
-  const sessionManager = sessionManagerRef.current;
-  
-  // Use enhanced WebSocket
-  const websocket = useEnhancedWebSocket({
-    roomId,
-    userId: userIdRef.current,
-    username: usernameRef.current,
-    autoJoin: false,
-    onRoomJoined: (joinedRoomId) => {
-      toast({
-        title: 'Room Joined',
-        description: `You've joined room: ${joinedRoomId}`,
-      });
-    },
-    onUserJoined: (user) => {
-      toast({
-        title: 'User Joined',
-        description: `${user.username} has joined the room`,
-        variant: 'default',
-      });
-    },
-    onUserLeft: (user) => {
-      toast({
-        title: 'User Left',
-        description: `${user.username} has left the room`,
-        variant: 'destructive',
-      });
-    },
-    onStatusChange: (status) => {
-      if (status === ConnectionStatusEnum.CONNECTED) {
-        toast({
-          title: 'Connected',
-          description: 'WebSocket connection established',
-          variant: 'default',
-        });
-      } else if (status === ConnectionStatusEnum.DISCONNECTED || status === ConnectionStatusEnum.ERROR) {
-        toast({
-          title: 'Disconnected',
-          description: 'WebSocket connection lost',
-          variant: 'destructive',
-        });
-      }
-    }
-  });
-  
-  // Connect the WebSocket when the component mounts - using ref to stabilize
-  const websocketRef = useRef(websocket);
-  
-  useEffect(() => {
-    websocketRef.current = websocket;
-  }, [websocket]);
-  
-  useEffect(() => {
-    websocketRef.current.connect();
-  }, []);
-  
-  // Handle user selection
-  const handleUserSelected = useCallback((user: CollaborativeUser) => {
-    toast({
-      title: 'User Selected',
-      description: `You selected ${user.username}`,
-    });
-  }, [toast]);
-  
-  // Handle joining room manually
-  const handleJoinRoom = useCallback(() => {
-    websocket.joinRoom(roomId);
-  }, [websocket, roomId]);
-  
-  // Handle leaving room manually
-  const handleLeaveRoom = useCallback(() => {
-    websocket.leaveRoom();
-  }, [websocket]);
-  
-  // Handle username change
-  const handleUsernameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newUsername = e.target.value;
-    setUsername(newUsername);
-    sessionManager.setCurrentUser(userIdRef.current, newUsername);
-  }, [sessionManager]);
-  
-  // Handle room ID change
-  const handleRoomIdChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setRoomId(e.target.value);
-  }, []);
-  
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
-      <div className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Collaborative Features Demo</CardTitle>
-            <CardDescription>
-              Explore real-time collaboration capabilities with WebSocket-based components
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Your Username</Label>
-                  <Input 
-                    id="username" 
-                    value={username} 
-                    onChange={handleUsernameChange} 
-                    placeholder="Enter your username" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="roomId">Room ID</Label>
-                  <Input 
-                    id="roomId" 
-                    value={roomId} 
-                    onChange={handleRoomIdChange} 
-                    placeholder="Enter room ID" 
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 justify-end">
-                <div className="flex items-center gap-2 text-sm">
-                  <span>Connection Status:</span>
-                  <Badge 
-                    variant={websocket.status === ConnectionStatusEnum.CONNECTED ? 'default' : 'outline'}
-                    className="capitalize"
-                  >
-                    {websocket.status}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span>Current Room:</span>
-                  {websocket.currentRoom ? (
-                    <Badge variant="secondary">{websocket.currentRoom}</Badge>
-                  ) : (
-                    <Badge variant="outline">None</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-4">
-                  <Button 
-                    onClick={handleJoinRoom} 
-                    disabled={
-                      websocket.status !== ConnectionStatusEnum.CONNECTED || 
-                      websocket.currentRoom === roomId
-                    }
-                  >
-                    Join Room
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleLeaveRoom} 
-                    disabled={!websocket.currentRoom}
-                  >
-                    Leave Room
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <div className="text-sm text-muted-foreground">
-              User ID: <code className="bg-muted px-1 py-0.5 rounded">{userIdRef.current}</code>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Connected Users:
-              </span>
-              <UserPresence 
-                roomId={roomId} 
-                userId={userIdRef.current} 
-                username={username}
-                compact 
-              />
-            </div>
-          </CardFooter>
-        </Card>
+    <div className="container mx-auto py-8 max-w-6xl">
+      <Card className="mb-8">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-2xl">Collaborative Features Demo</CardTitle>
+          <CardDescription>
+            Explore the real-time collaboration capabilities of BentonGeoPro
+          </CardDescription>
+        </CardHeader>
         
-        <Tabs value={currentTab} onValueChange={setCurrentTab}>
-          <TabsList className="grid grid-cols-3">
-            <TabsTrigger value="user-presence">User Presence</TabsTrigger>
-            <TabsTrigger value="room-activity">Room Activity</TabsTrigger>
-            <TabsTrigger value="collaborative-cursors">Collaborative Cursors</TabsTrigger>
-          </TabsList>
+        <CardContent>
+          <Alert className="flex gap-2 items-start">
+            <InfoIcon className="h-4 w-4 mt-1" />
+            <div>
+              <div className="font-medium mb-1">How to use this demo</div>
+              <div className="text-sm">
+                Open this page in multiple browser windows to simulate multiple users collaborating in real-time.
+                Each window will need to join the same room ID for collaboration.
+              </div>
+            </div>
+          </Alert>
+        </CardContent>
+      </Card>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Collaboration Workspace</CardTitle>
+              <CardDescription>
+                A unified environment for map collaboration, chat, and user presence
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              <CollaborativeWorkspace />
+            </CardContent>
+          </Card>
           
-          <TabsContent value="user-presence" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Presence Component</CardTitle>
-                <CardDescription>
-                  Track and visualize users in your collaborative workspace
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <UserPresence 
-                  roomId={roomId} 
-                  userId={userIdRef.current} 
-                  username={username} 
-                  onUserSelected={handleUserSelected}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="room-activity" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Room Activity Component</CardTitle>
-                <CardDescription>
-                  Monitor collaboration activity and metrics for rooms
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RoomActivity 
-                    roomId={roomId} 
-                    onJoinRoom={handleJoinRoom}
-                  />
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">List View Example</h3>
-                    <Separator />
-                    <RoomActivity 
-                      roomId={roomId} 
-                      displayMode="list-item"
-                      onJoinRoom={handleJoinRoom}
-                    />
-                    <RoomActivity 
-                      roomId={`${roomId}-2`} 
-                      displayMode="list-item"
-                      onJoinRoom={(newRoomId) => setRoomId(newRoomId)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="collaborative-cursors" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Collaborative Cursors Component</CardTitle>
-                <CardDescription>
-                  See and interact with other users' cursors in real-time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  ref={containerRef}
-                  className="relative border-2 border-dashed border-muted-foreground/25 rounded-md h-96 overflow-hidden" 
-                >
-                  <div className="absolute inset-0 p-4 flex flex-col items-center justify-center">
-                    <p className="text-center text-muted-foreground">
-                      Move your cursor around this area to see real-time cursor sharing.
-                      <br />
-                      The position will be broadcast to other users in the same room.
-                    </p>
-                    
-                    {websocket.status === ConnectionStatusEnum.CONNECTED && websocket.currentRoom ? (
-                      <Badge className="mt-4" variant="default">
-                        Active - Try moving your cursor
-                      </Badge>
-                    ) : (
-                      <Badge className="mt-4" variant="outline">
-                        Join a room to see cursors
-                      </Badge>
-                    )}
-                  </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Technical Details</CardTitle>
+              <CardDescription>
+                How the collaboration system is implemented
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              <Tabs defaultValue="architecture">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="architecture">
+                    <Wrench className="h-4 w-4 mr-2" />
+                    Architecture
+                  </TabsTrigger>
+                  <TabsTrigger value="messaging">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Messaging
+                  </TabsTrigger>
+                  <TabsTrigger value="syncing">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    State Syncing
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="architecture" className="space-y-4">
+                  <h3 className="text-lg font-medium">WebSocket Architecture</h3>
+                  <p>
+                    The collaboration system uses a WebSocket server built with the native 'ws' library in Node.js.
+                    The server maintains a list of collaboration rooms, each with its own set of connected clients,
+                    features, and annotations.
+                  </p>
                   
-                  {containerRef.current && (
-                    <CollaborativeCursors 
-                      roomId={roomId}
-                      containerRef={containerRef}
-                      showUsernames
-                    />
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <div className="text-sm text-muted-foreground">
-                  Cursor positions are throttled to minimize network traffic
-                </div>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  <p>
+                    The server implements a room-based collaboration model, where users can join specific rooms
+                    and only receive updates relevant to those rooms. This allows multiple collaboration sessions
+                    to run simultaneously without interference.
+                  </p>
+                  
+                  <p>
+                    We use ping/pong heartbeat messages to maintain connection status, and include reconnection
+                    logic on the client to handle temporary disconnections.
+                  </p>
+                </TabsContent>
+                
+                <TabsContent value="messaging" className="space-y-4">
+                  <h3 className="text-lg font-medium">Message Protocol</h3>
+                  <p>
+                    Messages between clients and server follow a standard JSON format with fields for:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 pl-4">
+                    <li><span className="font-mono">type</span>: The message type (e.g., 'chat', 'cursor_move')</li>
+                    <li><span className="font-mono">roomId</span>: The collaboration room identifier</li>
+                    <li><span className="font-mono">userId</span>: The sender's user ID</li>
+                    <li><span className="font-mono">username</span>: The display name of the sender</li>
+                    <li><span className="font-mono">payload</span>: The actual message data</li>
+                    <li><span className="font-mono">timestamp</span>: When the message was sent</li>
+                  </ul>
+                  
+                  <p>
+                    The system supports both client-side and server-side message formats for backward compatibility,
+                    handling field name differences and format variations transparently.
+                  </p>
+                </TabsContent>
+                
+                <TabsContent value="syncing" className="space-y-4">
+                  <h3 className="text-lg font-medium">State Synchronization</h3>
+                  <p>
+                    When a user joins a collaboration room, they receive the current state including:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 pl-4">
+                    <li>All existing GeoJSON features</li>
+                    <li>All text annotations and notes</li>
+                    <li>List of currently connected users</li>
+                  </ul>
+                  
+                  <p>
+                    Changes to features and annotations are immediately broadcast to all connected clients in the room.
+                    This includes add, update, and delete operations. The server maintains the authoritative state and
+                    ensures all clients stay synchronized.
+                  </p>
+                  
+                  <p>
+                    We use WebSocket instead of HTTP polling to enable true real-time updates with minimal latency,
+                    critical for collaborative mapping and drawing.
+                  </p>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>WebSocket Health</CardTitle>
+              <CardDescription>
+                Check the status of the WebSocket server
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <span>Server Status: Online</span>
+              </div>
+              
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Connected to:</div>
+                <code className="text-xs bg-muted p-1 rounded">wss://[your-domain]/ws</code>
+              </div>
+              
+              <Separator />
+              
+              <div>
+                <div className="text-sm font-medium mb-1">Room Information</div>
+                <p className="text-sm text-muted-foreground">
+                  Active Rooms: <span className="font-mono">2</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Connected Users: <span className="font-mono">5</span>
+                </p>
+              </div>
+              
+              <Button size="sm" className="w-full">Refresh Status</Button>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Usage Instructions</CardTitle>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-1">Joining a Room</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enter a room ID and click "Join Room" to enter a collaboration space.
+                  Share the room ID with others to collaborate together.
+                </p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium mb-1">Chat Features</h3>
+                <p className="text-sm text-muted-foreground">
+                  The chat system allows real-time messaging between all users in the same room.
+                  Messages include sender information and timestamps.
+                </p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium mb-1">Coming Soon</h3>
+                <ul className="text-sm text-muted-foreground list-disc list-inside pl-2 space-y-1">
+                  <li>User presence indicators</li>
+                  <li>Real-time cursor position sharing</li>
+                  <li>Collaborative drawing and annotations</li>
+                  <li>Feature editing history and undo/redo</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -3321,15 +3321,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server using the HTTP server for real-time collaboration
   const wsManager = new WebSocketManager(httpServer);
   
-  // Health check endpoint for WebSocket server (use direct reference)
+  // Health check endpoint for WebSocket server
   app.get("/api/websocket/health", (req, res) => {
-    const status = {
-      isRunning: !!wsManager,
-      rooms: wsManager.getRoomsStatus(),
-      activeConnections: wsManager.getActiveConnectionsCount()
-    };
-    
-    res.json(status);
+    try {
+      const status = {
+        status: 'healthy',
+        isRunning: !!wsManager,
+        rooms: wsManager.getRoomsStatus(),
+        activeConnections: wsManager.getActiveConnectionsCount(),
+        timestamp: Date.now()
+      };
+      
+      res.json(status);
+    } catch (error) {
+      console.error('Error retrieving WebSocket health status:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to retrieve WebSocket server health status',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Endpoint to get details about a specific room
+  app.get("/api/websocket/rooms/:roomId", (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const rooms = wsManager.getRoomsStatus();
+      const room = rooms.find(r => r.id === roomId);
+      
+      if (!room) {
+        return res.status(404).json({
+          status: 'error',
+          message: `Room with ID ${roomId} not found`
+        });
+      }
+      
+      res.json({
+        status: 'success',
+        room,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error(`Error retrieving room ${req.params.roomId}:`, error);
+      res.status(500).json({
+        status: 'error',
+        message: `Failed to retrieve room ${req.params.roomId}`,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   });
   
   return httpServer;
