@@ -36,8 +36,13 @@ import { cn } from '@/lib/utils';
 export default function WebSocketDemoPage() {
   // Room ID and user info
   const [roomId, setRoomId] = useState("demo-room");
-  const [username, setUsername] = useState(`User_${Math.floor(Math.random() * 1000)}`);
+  // Use useRef for initial username to prevent recreation on re-renders
+  const usernameRef = useRef<string>(`User_${Math.floor(Math.random() * 1000)}`);
+  const [username, setUsername] = useState(usernameRef.current);
   const [messageText, setMessageText] = useState("");
+  
+  // Generate a stable user ID that won't change on re-renders
+  const userIdRef = useRef<string>(`user_${Math.floor(Math.random() * 10000)}`);
   
   // WebSocket connection
   const {
@@ -52,7 +57,7 @@ export default function WebSocketDemoPage() {
     currentRoom
   } = useWebSocket({
     autoReconnect: true,
-    userId: `user_${Math.floor(Math.random() * 10000)}`,
+    userId: userIdRef.current,
     username
   });
   
