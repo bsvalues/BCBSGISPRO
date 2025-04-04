@@ -69,7 +69,17 @@ export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
     return unsubscribe;
   }, [roomId, sessionManager]);
   
-  // Process user updates
+  // Process user updates with stable callback refs to prevent infinite loops
+  const userJoinedRef = useRef(onUserJoined);
+  const userLeftRef = useRef(onUserLeft);
+  
+  // Update callback refs when they change
+  useEffect(() => {
+    userJoinedRef.current = onUserJoined;
+    userLeftRef.current = onUserLeft;
+  }, [onUserJoined, onUserLeft]);
+  
+  // Process user updates with stable dependencies
   useEffect(() => {
     const unsubscribe = sessionManager.onUserUpdated((updatedUserId, user) => {
       if (roomId && user.rooms.has(roomId)) {
@@ -83,7 +93,7 @@ export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
             return newUsers;
           } else {
             // Add new user
-            if (onUserJoined) onUserJoined(user);
+            if (userJoinedRef.current) userJoinedRef.current(user);
             return [...prev, user];
           }
         });
@@ -91,14 +101,14 @@ export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
         // User left current room, remove from list
         setRoomUsers(prev => {
           const existingUser = prev.find(u => u.id === updatedUserId);
-          if (existingUser && onUserLeft) onUserLeft(existingUser);
+          if (existingUser && userLeftRef.current) userLeftRef.current(existingUser);
           return prev.filter(u => u.id !== updatedUserId);
         });
       }
     });
     
     return unsubscribe;
-  }, [roomId, onUserJoined, onUserLeft, sessionManager]);
+  }, [roomId, sessionManager]);
   
   // Update session manager with incoming messages
   useEffect(() => {
@@ -121,22 +131,38 @@ export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
     }
   }, [autoJoin, roomId, websocket, websocket.status]);
   
-  // Track room membership
+  // Track room membership with stable callback refs
+  const roomJoinedRef = useRef(onRoomJoined);
+  
+  // Update room callback ref when it changes
+  useEffect(() => {
+    roomJoinedRef.current = onRoomJoined;
+  }, [onRoomJoined]);
+  
+  // Track room membership with stable dependencies
   useEffect(() => {
     if (websocket.currentRoom) {
       if (!joinedRooms.includes(websocket.currentRoom)) {
         setJoinedRooms(prev => [...prev, websocket.currentRoom]);
-        if (onRoomJoined) onRoomJoined(websocket.currentRoom);
+        if (roomJoinedRef.current) roomJoinedRef.current(websocket.currentRoom);
       }
     }
-  }, [websocket.currentRoom, joinedRooms, onRoomJoined]);
+  }, [websocket.currentRoom, joinedRooms]);
   
-  // Update status change callback
+  // Status change callback ref
+  const statusChangeRef = useRef(onStatusChange);
+  
+  // Update status change callback ref when it changes
   useEffect(() => {
-    if (onStatusChange) {
-      onStatusChange(websocket.status);
+    statusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+  
+  // Update status change with stable callback
+  useEffect(() => {
+    if (statusChangeRef.current) {
+      statusChangeRef.current(websocket.status);
     }
-  }, [websocket.status, onStatusChange]);
+  }, [websocket.status]);
   
   // Join a room
   const joinRoom = useCallback((roomToJoin: string) => {
@@ -144,18 +170,26 @@ export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
     return websocket.joinRoom(roomToJoin);
   }, [websocket]);
   
-  // Leave current room
+  // Room left callback ref
+  const roomLeftRef = useRef(onRoomLeft);
+  
+  // Update room left callback ref when it changes
+  useEffect(() => {
+    roomLeftRef.current = onRoomLeft;
+  }, [onRoomLeft]);
+  
+  // Leave current room with stable callback
   const leaveRoom = useCallback(() => {
     hasJoinedRef.current = false;
     const result = websocket.leaveRoom();
     
-    if (result && websocket.currentRoom && onRoomLeft) {
-      onRoomLeft(websocket.currentRoom);
+    if (result && websocket.currentRoom && roomLeftRef.current) {
+      roomLeftRef.current(websocket.currentRoom);
       setJoinedRooms(prev => prev.filter(room => room !== websocket.currentRoom));
     }
     
     return result;
-  }, [websocket, onRoomLeft]);
+  }, [websocket]);
   
   // Send a cursor position update
   const sendCursorPosition = useCallback((x: number, y: number) => {
