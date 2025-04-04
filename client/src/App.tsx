@@ -11,6 +11,7 @@ import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
 import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page";
 import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
+import WebSocketTestPage from "@/pages/websocket-test";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -154,6 +155,16 @@ function App() {
               </Button>
             </Link>
             
+            <Link href="/websocket-test">
+              <Button 
+                variant={location === "/websocket-test" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <MessagesSquare className="mr-1 h-4 w-4" />
+                WebSocket Test
+              </Button>
+            </Link>
+            
             <Link href="/collaborative-features">
               <Button 
                 variant={location === "/collaborative-features" ? "secondary" : "outline"} 
@@ -182,6 +193,7 @@ function App() {
             <Route path="/toast-test" component={ToastTestPage} />
             <Route path="/legal-description-agent" component={LegalDescriptionAgentPage} />
             <Route path="/websocket-demo" component={WebSocketDemoPage} />
+            <Route path="/websocket-test" component={WebSocketTestPage} />
             <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
             <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
             

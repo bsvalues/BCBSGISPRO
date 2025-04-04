@@ -1,65 +1,94 @@
 import { useState, useEffect } from 'react';
 
+/**
+ * User information interface
+ */
 export interface User {
   id: string;
   username: string;
-  email?: string;
   displayName?: string;
+  email?: string;
   avatar?: string;
   isLoggedIn: boolean;
 }
 
-// Simple hook to manage the current user
+/**
+ * Hook for accessing the current user
+ */
 export function useUser() {
-  const [user, setUser] = useState<User | null>(() => {
-    // Try to load from session storage
-    const storedUser = sessionStorage.getItem('bg_user');
-    if (storedUser) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
       try {
-        return JSON.parse(storedUser);
-      } catch (e) {
-        console.error('Error parsing stored user:', e);
+        setLoading(true);
+        
+        // TODO: Replace with actual API call
+        // For now, we'll use a consistent user for testing
+        setTimeout(() => {
+          const mockUser: User = {
+            id: 'user_123456',
+            username: 'testuser',
+            displayName: 'Test User',
+            isLoggedIn: true
+          };
+          
+          setUser(mockUser);
+          setLoading(false);
+        }, 300);
+      } catch (err) {
+        setError('Failed to fetch user information');
+        setLoading(false);
+        console.error('Error fetching user:', err);
       }
     }
     
-    // If no user in session, generate a temporary one
-    return {
-      id: `user_${Math.random().toString(36).substring(2, 9)}`,
-      username: `Guest_${Math.floor(Math.random() * 1000)}`,
-      isLoggedIn: false
-    };
-  });
-  
-  // Save user to session storage when it changes
-  useEffect(() => {
-    if (user) {
-      sessionStorage.setItem('bg_user', JSON.stringify(user));
+    fetchUser();
+  }, []);
+
+  /**
+   * Updates user information
+   */
+  const updateUser = async (userData: Partial<User>) => {
+    if (!user) return false;
+    
+    try {
+      // TODO: Replace with actual API call
+      setTimeout(() => {
+        setUser({ ...user, ...userData });
+      }, 300);
+      
+      return true;
+    } catch (err) {
+      console.error('Error updating user:', err);
+      return false;
     }
-  }, [user]);
-  
-  // Function to update user information
-  const updateUser = (updates: Partial<User>) => {
-    setUser(prev => prev ? { ...prev, ...updates } : null);
   };
-  
-  // Function to log out
-  const logout = () => {
-    sessionStorage.removeItem('bg_user');
-    // Set a new guest user
-    setUser({
-      id: `user_${Math.random().toString(36).substring(2, 9)}`,
-      username: `Guest_${Math.floor(Math.random() * 1000)}`,
-      isLoggedIn: false
-    });
+
+  /**
+   * Logs out the current user
+   */
+  const logout = async () => {
+    try {
+      // TODO: Replace with actual API call
+      setTimeout(() => {
+        setUser(null);
+      }, 300);
+      
+      return true;
+    } catch (err) {
+      console.error('Error logging out:', err);
+      return false;
+    }
   };
-  
-  // Check if user is authenticated
-  const isAuthenticated = !!user?.isLoggedIn;
-  
-  return { 
-    user, 
-    updateUser, 
-    logout, 
-    isAuthenticated 
+
+  return {
+    user,
+    loading,
+    error,
+    updateUser,
+    logout,
   };
 }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useWebSocket } from './use-websocket';
+import { useWebSocket } from '@/hooks/use-websocket';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@/hooks/use-user';
+import { useUser } from './use-user';
 
 export type ChatMessage = {
   id: string;
