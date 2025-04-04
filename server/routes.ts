@@ -3001,19 +3001,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server using the HTTP server for real-time collaboration
   setupWebSocketServer(httpServer);
   
-  // Mapbox token API endpoint - serves the token securely from environment variables
-  app.get("/api/mapbox-token", (req, res) => {
-    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
-    
-    if (!mapboxToken) {
-      return res.status(500).json({ 
-        error: "Mapbox token not configured",
-        message: "Mapbox access token is not available. Please contact system administrator."
-      });
-    }
-    
-    res.json({ token: mapboxToken });
-  });
-  
   return httpServer;
 }

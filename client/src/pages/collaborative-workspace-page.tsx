@@ -24,7 +24,7 @@ import mapboxgl from 'mapbox-gl';
 import { CollaborativeMap } from '@/components/maps/collaborative-map';
 import { useWebSocket, ConnectionStatus, MessageType } from '@/lib/websocket';
 import { v4 as uuidv4 } from 'uuid';
-import { useToast } from '@/hooks/use-toast';
+import { useToast, toast } from '@/hooks/use-toast';
 
 // Message types for chat
 interface ChatMessage {
@@ -70,7 +70,7 @@ export function CollaborativeWorkspacePage() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   
   // Toast notifications
-  const { toast } = useToast();
+  const { dismiss } = useToast(); // We'll use the imported toast function directly
   
   // Handle incoming messages
   useEffect(() => {
@@ -122,7 +122,7 @@ export function CollaborativeWorkspacePage() {
         variant: "destructive"
       });
     }
-  }, [connectionStatus, toast]);
+  }, [connectionStatus]);
   
   // Send a chat message
   const sendChatMessage = useCallback(() => {
