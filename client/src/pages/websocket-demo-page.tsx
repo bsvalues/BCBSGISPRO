@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/layout';
-import { useWebSocket, WebSocketMessage, ConnectionStatus } from '@/lib/websocket';
+import { useWebSocket, WebSocketMessage, ConnectionStatus, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
 import { 
   Send, 
   Users, 
@@ -57,9 +57,9 @@ export default function WebSocketDemoPage() {
   });
   
   // Filter messages by type
-  const chatMessages = messages.filter(msg => msg.type === 'chat_message');
+  const chatMessages = messages.filter(msg => msg.type === MessageTypeEnum.CHAT);
   const joinLeaveMessages = messages.filter(
-    msg => msg.type === 'join_room' || msg.type === 'leave_room'
+    msg => msg.type === MessageTypeEnum.JOIN_ROOM || msg.type === MessageTypeEnum.LEAVE_ROOM
   );
   
   // User list derived from join/leave messages
@@ -78,15 +78,15 @@ export default function WebSocketDemoPage() {
     const usernames = new Set<string>();
     
     joinLeaveMessages.forEach(msg => {
-      if (msg.type === 'join_room' && msg.username) {
+      if (msg.type === MessageTypeEnum.JOIN_ROOM && msg.username) {
         usernames.add(msg.username);
-      } else if (msg.type === 'leave_room' && msg.username) {
+      } else if (msg.type === MessageTypeEnum.LEAVE_ROOM && msg.username) {
         usernames.delete(msg.username);
       }
     });
     
     // Add current user
-    if (status === 'connected' && currentRoom) {
+    if (status === ConnectionStatusEnum.CONNECTED && currentRoom) {
       usernames.add(username);
     }
     
@@ -96,13 +96,13 @@ export default function WebSocketDemoPage() {
   // Function to get connection status badge color
   const getStatusColor = (status: ConnectionStatus): string => {
     switch (status) {
-      case 'connected':
+      case ConnectionStatusEnum.CONNECTED:
         return 'bg-green-500';
-      case 'connecting':
+      case ConnectionStatusEnum.CONNECTING:
         return 'bg-yellow-500';
-      case 'disconnected':
+      case ConnectionStatusEnum.DISCONNECTED:
         return 'bg-gray-500';
-      case 'error':
+      case ConnectionStatusEnum.ERROR:
         return 'bg-red-500';
       default:
         return 'bg-gray-500';
@@ -112,25 +112,25 @@ export default function WebSocketDemoPage() {
   // Render status text with icon
   const renderStatusWithIcon = () => {
     switch (status) {
-      case 'connected':
+      case ConnectionStatusEnum.CONNECTED:
         return (
           <span className="flex items-center gap-2">
             <Wifi className="h-4 w-4" /> Connected
           </span>
         );
-      case 'connecting':
+      case ConnectionStatusEnum.CONNECTING:
         return (
           <span className="flex items-center gap-2">
             <Wifi className="h-4 w-4 animate-pulse" /> Connecting
           </span>
         );
-      case 'disconnected':
+      case ConnectionStatusEnum.DISCONNECTED:
         return (
           <span className="flex items-center gap-2">
             <WifiOff className="h-4 w-4" /> Disconnected
           </span>
         );
-      case 'error':
+      case ConnectionStatusEnum.ERROR:
         return (
           <span className="flex items-center gap-2">
             <WifiOff className="h-4 w-4 text-red-500" /> Connection Error
@@ -147,10 +147,10 @@ export default function WebSocketDemoPage() {
   
   // Handle sending a chat message
   const handleSendMessage = () => {
-    if (!messageText.trim() || status !== 'connected' || !currentRoom) return;
+    if (!messageText.trim() || status !== ConnectionStatusEnum.CONNECTED || !currentRoom) return;
     
     sendMessage({
-      type: 'chat_message',
+      type: MessageTypeEnum.CHAT,
       roomId: currentRoom,
       payload: {
         text: messageText.trim()
@@ -179,11 +179,11 @@ export default function WebSocketDemoPage() {
   
   // Connect and join room
   const handleConnectAndJoin = () => {
-    if (status === 'disconnected' || status === 'error') {
+    if (status === ConnectionStatusEnum.DISCONNECTED || status === ConnectionStatusEnum.ERROR) {
       connect();
     }
     
-    if (status === 'connected' && !currentRoom && roomId) {
+    if (status === ConnectionStatusEnum.CONNECTED && !currentRoom && roomId) {
       joinRoom(roomId);
     }
   };
@@ -233,7 +233,7 @@ export default function WebSocketDemoPage() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
                   placeholder="Your username"
                   className="max-w-xs"
-                  disabled={status === 'connected'}
+                  disabled={status === ConnectionStatusEnum.CONNECTED}
                 />
               </div>
               <div className="grid w-full max-w-sm items-center gap-1.5">
@@ -248,14 +248,14 @@ export default function WebSocketDemoPage() {
                 />
               </div>
               <div className="flex gap-2">
-                {(!currentRoom || status !== 'connected') ? (
+                {(!currentRoom || status !== ConnectionStatusEnum.CONNECTED) ? (
                   <Button 
                     onClick={handleConnectAndJoin}
-                    disabled={!roomId || !username || status === 'connecting' || currentRoom !== ''}
+                    disabled={!roomId || !username || status === ConnectionStatusEnum.CONNECTING || currentRoom !== ''}
                     className="flex gap-2 items-center"
                   >
                     <Play className="h-4 w-4" />
-                    {status !== 'connected' ? 'Connect' : 'Join Room'}
+                    {status !== ConnectionStatusEnum.CONNECTED ? 'Connect' : 'Join Room'}
                   </Button>
                 ) : (
                   <Button 
@@ -358,11 +358,11 @@ export default function WebSocketDemoPage() {
                         onKeyDown={handleKeyPress}
                         placeholder="Type a message..."
                         className="resize-none min-h-[80px]"
-                        disabled={status !== 'connected' || !currentRoom}
+                        disabled={status !== ConnectionStatusEnum.CONNECTED || !currentRoom}
                       />
                       <Button 
                         className="self-end"
-                        disabled={!messageText.trim() || status !== 'connected' || !currentRoom}
+                        disabled={!messageText.trim() || status !== ConnectionStatusEnum.CONNECTED || !currentRoom}
                         onClick={handleSendMessage}
                       >
                         <Send className="h-4 w-4" />
@@ -384,7 +384,7 @@ export default function WebSocketDemoPage() {
                         <div className="text-sm flex justify-between">
                           <span>
                             <span className="font-semibold">{msg.username}</span>
-                            <span> {msg.type === 'join_room' ? 'joined' : 'left'} the room</span>
+                            <span> {msg.type === MessageTypeEnum.JOIN_ROOM ? 'joined' : 'left'} the room</span>
                           </span>
                           <span className="text-xs opacity-70">
                             {msg.timestamp ? formatTime(msg.timestamp) : ""}
