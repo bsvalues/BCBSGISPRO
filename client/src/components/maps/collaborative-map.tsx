@@ -28,8 +28,8 @@ import {
   Move
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useWebSocket, MessageType, ConnectionStatus } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
-import { useWebSocket, MessageType } from '@/lib/websocket';
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import * as turf from '@turf/turf';
@@ -69,10 +69,17 @@ export interface CollaborativeFeature {
 export interface CollaborativeMapProps {
   map: mapboxgl.Map;
   roomId: string;
+  onConnectionStatusChange?: (status: ConnectionStatus) => void;
+  onCollaboratorsChange?: (users: string[]) => void;
 }
 
 // Main component
-export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
+export function CollaborativeMap({ 
+  map, 
+  roomId,
+  onConnectionStatusChange,
+  onCollaboratorsChange
+}: CollaborativeMapProps) {
   // Drawing state
   const [drawMode, setDrawMode] = useState<DrawMode>(DrawMode.NONE);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -84,7 +91,21 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   
   // WebSocket connection
-  const { send, lastMessage, userId } = useWebSocket(roomId);
+  const { send, lastMessage, userId, status, collaborators } = useWebSocket(roomId);
+  
+  // Pass connection status to parent component
+  useEffect(() => {
+    if (onConnectionStatusChange) {
+      onConnectionStatusChange(status);
+    }
+  }, [status, onConnectionStatusChange]);
+  
+  // Pass collaborators to parent component
+  useEffect(() => {
+    if (onCollaboratorsChange) {
+      onCollaboratorsChange(collaborators);
+    }
+  }, [collaborators, onCollaboratorsChange]);
   
   // Feature source and layer names
   const sourceName = 'collaborative-features';

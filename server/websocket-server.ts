@@ -200,41 +200,75 @@ export class WebSocketHandler {
     const room = this.rooms.get(message.roomId);
     if (!room) return;
     
-    // Store feature in room state for new clients
-    if (message.type === 'drawing' && message.data && message.data.action) {
-      const action = message.data.action;
-      const feature = message.data.feature;
-      
-      if (action === 'create' && feature) {
-        room.features.push(feature);
-      } else if (action === 'update' && feature && feature.id) {
-        const index = room.features.findIndex(f => f.id === feature.id);
-        if (index >= 0) {
-          room.features[index] = feature;
+    // Update room activity timestamp
+    room.lastActivity = new Date();
+    
+    try {
+      // Handle drawing messages (for features)
+      if (message.type === 'drawing') {
+        if (message.data && message.data.feature) {
+          // Direct feature object
+          const feature = message.data.feature;
+          if (feature && feature.id) {
+            // Store for new clients, replacing any with same ID
+            const existingIndex = room.features.findIndex(f => f.id === feature.id);
+            if (existingIndex >= 0) {
+              room.features[existingIndex] = feature;
+            } else {
+              room.features.push(feature);
+            }
+          }
+        } else if (message.data && message.data.action) {
+          // Action-based message
+          const { action, feature, featureId } = message.data;
+          
+          if (action === 'create' && feature) {
+            room.features.push(feature);
+          } else if (action === 'update' && feature && feature.id) {
+            const index = room.features.findIndex(f => f.id === feature.id);
+            if (index >= 0) {
+              room.features[index] = feature;
+            }
+          } else if (action === 'delete' && (feature?.id || featureId)) {
+            const id = feature?.id || featureId;
+            room.features = room.features.filter(f => f.id !== id);
+          }
         }
-      } else if (action === 'delete' && feature && feature.id) {
-        room.features = room.features.filter(f => f.id !== feature.id);
       }
+      
+      // Handle drawing update messages (for annotations or feature updates)
+      if (message.type === 'drawing_update') {
+        if (message.data && message.data.action) {
+          const { action, featureId, feature, annotation } = message.data;
+          
+          // Handle feature updates
+          if (action === 'delete' && featureId) {
+            room.features = room.features.filter(f => f.id !== featureId);
+          }
+          
+          // Handle annotation operations
+          if (annotation) {
+            if (action === 'create') {
+              room.annotations.push(annotation);
+            } else if (action === 'update' && annotation.id) {
+              const index = room.annotations.findIndex(a => a.id === annotation.id);
+              if (index >= 0) {
+                room.annotations[index] = annotation;
+              }
+            } else if (action === 'delete' && annotation.id) {
+              room.annotations = room.annotations.filter(a => a.id !== annotation.id);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error processing drawing message:', err);
     }
     
-    // Store annotation in room state
-    if (message.type === 'drawing_update' && message.data && message.data.action) {
-      const action = message.data.action;
-      const annotation = message.data.annotation;
-      
-      if (action === 'create' && annotation) {
-        room.annotations.push(annotation);
-      } else if (action === 'update' && annotation && annotation.id) {
-        const index = room.annotations.findIndex(a => a.id === annotation.id);
-        if (index >= 0) {
-          room.annotations[index] = annotation;
-        }
-      } else if (action === 'delete' && annotation && annotation.id) {
-        room.annotations = room.annotations.filter(a => a.id !== annotation.id);
-      }
-    }
+    // Log the updated feature counts
+    console.log(`Room ${message.roomId} state: ${room.features.length} features, ${room.annotations.length} annotations`);
     
-    // Broadcast to room
+    // Broadcast to all clients in the room except the sender
     this.broadcast(message, room.clients, client);
   }
   

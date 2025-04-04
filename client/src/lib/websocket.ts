@@ -73,6 +73,9 @@ export function useWebSocket(roomId: string = 'default') {
   // Error state
   const [error, setError] = useState<Error | null>(null);
   
+  // Collaborators in the room
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  
   // WebSocket reference
   const wsRef = useRef<WebSocket | null>(null);
   
@@ -148,6 +151,17 @@ export function useWebSocket(roomId: string = 'default') {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
           setLastMessage(message);
+          
+          // Track collaborators when receiving presence messages
+          if (message.type === MessageType.PRESENCE && message.roomId === roomId) {
+            if (message.data && Array.isArray(message.data.users)) {
+              // Filter out current user from collaborators list
+              const otherUsers = message.data.users.filter(
+                (userId: string) => userId !== userIdRef.current
+              );
+              setCollaborators(otherUsers);
+            }
+          }
         } catch (err) {
           console.error('Error parsing WebSocket message:', err);
         }
@@ -186,12 +200,22 @@ export function useWebSocket(roomId: string = 'default') {
     // Clean up any existing reconnection timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
     
     // Check if max reconnection attempts reached
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
       setStatus(ConnectionStatus.ERROR);
+      
+      // Reset reconnection count after a longer delay and try again
+      // This helps if the server was temporarily down but is back up
+      setTimeout(() => {
+        console.log('Resetting reconnection attempts and trying again...');
+        reconnectAttemptsRef.current = 0;
+        connect();
+      }, INITIAL_RECONNECT_DELAY * 10);
+      
       return;
     }
     
@@ -202,8 +226,11 @@ export function useWebSocket(roomId: string = 'default') {
     // to prevent thundering herd
     const backoffDelay = 
       INITIAL_RECONNECT_DELAY * 
-      Math.pow(2, reconnectAttemptsRef.current - 1) * 
+      Math.pow(1.5, reconnectAttemptsRef.current - 1) * // Use 1.5 instead of 2 for a gentler curve
       (0.75 + Math.random() * 0.5);
+    
+    // Cap the maximum delay at 15 seconds
+    const cappedDelay = Math.min(backoffDelay, 15000);
     
     // Set status to reconnecting
     setStatus(ConnectionStatus.RECONNECTING);
@@ -212,7 +239,7 @@ export function useWebSocket(roomId: string = 'default') {
     reconnectTimeoutRef.current = setTimeout(() => {
       console.log(`Attempting to reconnect (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
       connect();
-    }, backoffDelay);
+    }, cappedDelay);
   }, [connect]);
   
   // Send a message through the WebSocket
@@ -287,6 +314,18 @@ export function useWebSocket(roomId: string = 'default') {
     };
   }, [connect, disconnect]);
   
+  // Create an effect to handle status changes and notify through callbacks
+  useEffect(() => {
+    // Set up status change callback
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      // Create and dispatch a custom event for connection status changes
+      const event = new CustomEvent('websocket-status-change', { 
+        detail: { status, roomId } 
+      });
+      window.dispatchEvent(event);
+    }
+  }, [status, roomId]);
+  
   // Return hook values
   return {
     status,
@@ -295,6 +334,7 @@ export function useWebSocket(roomId: string = 'default') {
     send,
     connect,
     disconnect,
-    userId: userIdRef.current
+    userId: userIdRef.current,
+    collaborators
   };
 }
