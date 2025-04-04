@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketManager } from "./websocket-server";
+import { WebSocketServerManager } from "./websocket-server";
 import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from "./storage";
@@ -3337,7 +3337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server using the HTTP server for real-time collaboration
-  const wsManager = new WebSocketManager(httpServer);
+  const wsManager = new WebSocketServerManager(httpServer);
   
   // Health check endpoint for WebSocket server
   app.get("/api/websocket/health", (req, res) => {

@@ -1,726 +1,549 @@
-import { Server } from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
+import { WebSocketServer, WebSocket, RawData } from 'ws';
+import { Server as HttpServer } from 'http';
+import { v4 as uuidv4 } from 'uuid';
+import { logger } from './logger';
 
 /**
- * WebSocket message type enum
+ * Enum for WebSocket connection status
  */
-export enum MessageTypeEnum {
-  // Room management
-  JOIN_ROOM = 'join_room',
-  LEAVE_ROOM = 'leave_room',
-  JOIN = 'join',       // Client-side format
-  LEAVE = 'leave',     // Client-side format
-  
-  // Cursor tracking
-  CURSOR_MOVE = 'cursor_move',
-  
-  // Feature management (server-side format)
-  FEATURE_ADD = 'feature_add',
-  FEATURE_UPDATE = 'feature_update',
-  FEATURE_DELETE = 'feature_delete',
-  
-  // Feature management (client-side format)
-  FEATURE_CREATED = 'feature_created',
-  FEATURE_UPDATED = 'feature_updated',
-  FEATURE_DELETED = 'feature_deleted',
-  
-  // Annotation management (server-side format)
-  ANNOTATION_ADD = 'annotation_add',
-  ANNOTATION_UPDATE = 'annotation_update',
-  ANNOTATION_DELETE = 'annotation_delete',
-  
-  // Annotation management (client-side format)
-  ANNOTATION_CREATED = 'annotation_created',
-  ANNOTATION_UPDATED = 'annotation_updated',
-  ANNOTATION_DELETED = 'annotation_deleted',
-  
-  // System messages
-  HEARTBEAT = 'heartbeat',
-  CHAT_MESSAGE = 'chat_message',
-  CHAT = 'chat',       // Client-side format
-  STATUS = 'status'
+export enum ConnectionStatusEnum {
+  CONNECTED = 'connected',
+  DISCONNECTED = 'disconnected',
+  ERROR = 'error'
 }
 
 /**
- * WebSocket message type
- * @deprecated Use MessageTypeEnum instead
+ * Enum for WebSocket message types
  */
-export type MessageType = 
-  | 'join_room' 
-  | 'leave_room' 
-  | 'cursor_move' 
-  | 'feature_add' 
-  | 'feature_update' 
-  | 'feature_delete'
-  | 'annotation_add'
-  | 'annotation_update'
-  | 'annotation_delete'
-  | 'heartbeat'
-  | 'chat_message';
+export enum MessageTypeEnum {
+  JOIN_ROOM = 'join_room',
+  LEAVE_ROOM = 'leave_room',
+  CHAT = 'chat',
+  CURSOR_POSITION = 'cursor_position',
+  DRAWING = 'drawing',
+  FEATURE_EDIT = 'feature_edit',
+  ANNOTATION = 'annotation',
+  USER_PRESENCE = 'user_presence',
+  SYSTEM = 'system',
+  ERROR = 'error'
+}
 
 /**
- * WebSocket message interface
+ * Interface for WebSocket message structure
  */
 export interface WebSocketMessage {
   type: MessageTypeEnum;
   roomId?: string;
   userId?: string;
   username?: string;
-  payload?: any;        // Server-side format
-  data?: any;           // Client-side format
-  source?: string;      // Source ID for client-side messaging
   timestamp?: number;
+  payload?: any;
 }
 
 /**
- * Extended WebSocket interface with additional metadata
+ * Interface for WebSocket client with additional metadata
  */
-interface ExtendedWebSocket extends WebSocket {
+interface EnhancedWebSocket extends WebSocket {
+  id: string;
   isAlive: boolean;
-  userId: string;
-  username: string;
+  userId?: string;
+  username?: string;
   rooms: Set<string>;
   lastActivity: number;
 }
 
 /**
- * Room information including connected clients and data
+ * Interface for a collaborative room
  */
-interface Room {
+export interface CollaborativeRoom {
   id: string;
-  clients: Set<ExtendedWebSocket>;
-  features: Record<string, any>; // GeoJSON features
-  annotations: Record<string, any>; // Annotation data
-  createdAt: number;
-  lastActivity: number;
+  name: string;
+  createdAt: Date;
+  createdBy?: string;
+  users: Set<string>;
+  type: 'map' | 'document' | 'chat' | 'general';
+  metadata?: any;
 }
 
 /**
- * Room status information for health check
+ * WebSocket Server Manager
+ * Handles WebSocket connections, rooms, and message routing
  */
-export interface RoomStatus {
-  id: string;
-  clientCount: number;
-  featureCount: number;
-  annotationCount: number;
-  lastActivity: number;
-}
-
-/**
- * WebSocket server manager
- */
-export class WebSocketManager {
+export class WebSocketServerManager {
   private wss: WebSocketServer;
-  private rooms: Map<string, Room> = new Map();
-  private pingInterval: NodeJS.Timeout | null = null;
+  private clients: Map<string, EnhancedWebSocket> = new Map();
+  private rooms: Map<string, CollaborativeRoom> = new Map();
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private HEARTBEAT_INTERVAL = 30000; // 30 seconds
   
-  // Singleton instance - accessible directly
-  public static instance: WebSocketManager | null = null;
-  
-  /**
-   * Initialize the WebSocket server
-   */
-  constructor(server: Server) {
-    // Create WebSocket server attached to the HTTP server
+  constructor(server: HttpServer) {
+    logger.info('Initializing WebSocket server');
     this.wss = new WebSocketServer({ 
-      server,
-      path: '/ws'
+      server, 
+      path: '/ws',
+      clientTracking: true 
     });
     
-    // Set up event handlers
-    this.wss.on('connection', this.handleConnection.bind(this));
+    this.setupConnectionHandlers();
+    this.startHeartbeat();
     
-    // Set up ping interval (30 seconds)
-    this.pingInterval = setInterval(this.pingClients.bind(this), 30000);
-    
-    // Set singleton instance
-    WebSocketManager.instance = this;
-    
-    console.log('WebSocket server initialized');
+    logger.info('WebSocket server initialized');
   }
   
   /**
-   * Get active connections count
+   * Set up connection handlers for the WebSocket server
    */
-  public getActiveConnectionsCount(): number {
-    return this.wss.clients.size;
-  }
-  
-  /**
-   * Get status information about all rooms
-   */
-  public getRoomsStatus(): RoomStatus[] {
-    const roomStatus: RoomStatus[] = [];
-    
-    this.rooms.forEach((room) => {
-      roomStatus.push({
-        id: room.id,
-        clientCount: room.clients.size,
-        featureCount: Object.keys(room.features).length,
-        annotationCount: Object.keys(room.annotations).length,
-        lastActivity: room.lastActivity
+  private setupConnectionHandlers(): void {
+    this.wss.on('connection', (ws: WebSocket) => {
+      const enhancedWs = this.enhanceWebSocket(ws);
+      this.clients.set(enhancedWs.id, enhancedWs);
+      
+      logger.info(`Client connected: ${enhancedWs.id}`);
+      
+      // Send welcome message
+      this.sendToClient(enhancedWs, {
+        type: MessageTypeEnum.SYSTEM,
+        timestamp: Date.now(),
+        payload: {
+          message: 'Connected to WebSocket server',
+          clientId: enhancedWs.id
+        }
+      });
+      
+      // Set up message handler
+      enhancedWs.on('message', (data: RawData) => {
+        enhancedWs.lastActivity = Date.now();
+        this.handleMessage(enhancedWs, data);
+      });
+      
+      // Set up pong handler for heartbeat
+      enhancedWs.on('pong', () => {
+        enhancedWs.isAlive = true;
+      });
+      
+      // Handle client disconnection
+      enhancedWs.on('close', () => {
+        this.handleClose(enhancedWs);
+      });
+      
+      // Handle errors
+      enhancedWs.on('error', (error) => {
+        logger.error(`WebSocket error for client ${enhancedWs.id}: ${error.message || 'Unknown error'}`);
+        
+        // Notify client about the error
+        try {
+          this.sendToClient(enhancedWs, {
+            type: MessageTypeEnum.ERROR,
+            timestamp: Date.now(),
+            payload: {
+              message: 'An error occurred with your connection'
+            }
+          });
+        } catch (e) {
+          // Ignore errors that might occur when trying to send to a broken connection
+        }
       });
     });
     
-    return roomStatus;
+    // Handle server errors
+    this.wss.on('error', (error) => {
+      logger.error(`WebSocket server error: ${error.message || 'Unknown error'}`);
+    });
+    
+    logger.info('WebSocket connection handlers set up');
   }
   
   /**
-   * Handle new WebSocket connections
+   * Enhance a WebSocket with additional properties
    */
-  private handleConnection(ws: WebSocket, request: IncomingMessage) {
-    console.log('New WebSocket connection established');
+  private enhanceWebSocket(ws: WebSocket): EnhancedWebSocket {
+    const enhancedWs = ws as EnhancedWebSocket;
+    enhancedWs.id = uuidv4();
+    enhancedWs.isAlive = true;
+    enhancedWs.rooms = new Set();
+    enhancedWs.lastActivity = Date.now();
+    return enhancedWs;
+  }
+  
+  /**
+   * Handle incoming WebSocket messages
+   */
+  private handleMessage(ws: EnhancedWebSocket, data: RawData): void {
+    let message: WebSocketMessage;
     
-    // Extend the WebSocket with custom properties
-    const extWs = ws as ExtendedWebSocket;
-    extWs.isAlive = true;
-    extWs.userId = Math.random().toString(36).substring(2, 15); // Generate random ID 
-    extWs.username = `User_${extWs.userId.substring(0, 5)}`;   // Generate default username
-    extWs.rooms = new Set();
-    extWs.lastActivity = Date.now();
-    
-    // Handle pong messages (keep-alive)
-    extWs.on('pong', () => {
-      extWs.isAlive = true;
-    });
-    
-    // Handle incoming messages
-    extWs.on('message', (data) => {
-      try {
-        const message: WebSocketMessage = JSON.parse(data.toString());
-        this.handleMessage(extWs, message);
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+    try {
+      message = JSON.parse(data.toString());
+      
+      // Store user information from the message
+      if (message.userId && !ws.userId) {
+        ws.userId = message.userId;
       }
-    });
-    
-    // Handle client disconnection
-    extWs.on('close', () => {
-      this.handleDisconnect(extWs);
-    });
-    
-    // Send welcome message to client
-    const message: WebSocketMessage = {
-      type: MessageTypeEnum.HEARTBEAT,
-      userId: extWs.userId,
-      username: extWs.username,
-      timestamp: Date.now(),
-      payload: { message: 'Welcome to the BentonGeoPro WebSocket server' }
-    };
-    
-    extWs.send(JSON.stringify(message));
-  }
-  
-  /**
-   * Handle messages received from clients
-   */
-  private handleMessage(ws: ExtendedWebSocket, message: WebSocketMessage) {
-    ws.lastActivity = Date.now();
-    
-    // Add user ID and timestamp if not provided
-    if (!message.userId) message.userId = ws.userId;
-    if (!message.username) message.username = ws.username;
-    if (!message.timestamp) message.timestamp = Date.now();
-    
-    // Support both payload and data formats (client-side uses data)
-    const payload = message.payload || message.data;
-    const feature = payload?.feature || payload;
-    
-    // Handle different message types
-    switch (message.type) {
-      // Handle room management (both formats)
-      case MessageTypeEnum.JOIN_ROOM:
-      case MessageTypeEnum.JOIN:
-        if (message.roomId) {
-          if (message.username) ws.username = message.username;
-          this.joinRoom(ws, message.roomId);
-        }
-        break;
-        
-      case MessageTypeEnum.LEAVE_ROOM:
-      case MessageTypeEnum.LEAVE:
-        if (message.roomId) {
-          this.leaveRoom(ws, message.roomId);
-        }
-        break;
-        
-      // Handle cursor movement
-      case MessageTypeEnum.CURSOR_MOVE:
-        if (message.roomId && payload) {
-          this.broadcastToRoom(message.roomId, message, ws);
-        }
-        break;
-        
-      // Handle feature management (server-side format)
-      case MessageTypeEnum.FEATURE_ADD:
-        if (message.roomId && payload && payload.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room) {
-            room.features[payload.id] = payload;
-            room.lastActivity = Date.now();
-            this.broadcastToRoom(message.roomId, message);
+      
+      if (message.username && !ws.username) {
+        ws.username = message.username;
+      }
+      
+      // Route the message based on type
+      switch (message.type) {
+        case MessageTypeEnum.JOIN_ROOM:
+          this.handleJoinRoom(ws, message);
+          break;
+          
+        case MessageTypeEnum.LEAVE_ROOM:
+          this.handleLeaveRoom(ws, message);
+          break;
+          
+        case MessageTypeEnum.USER_PRESENCE:
+          this.updateUserPresence(ws, message);
+          break;
+          
+        case MessageTypeEnum.CHAT:
+        case MessageTypeEnum.CURSOR_POSITION:
+        case MessageTypeEnum.DRAWING:
+        case MessageTypeEnum.FEATURE_EDIT:
+        case MessageTypeEnum.ANNOTATION:
+          // For these message types, broadcast to the room
+          if (message.roomId && ws.rooms.has(message.roomId)) {
+            this.broadcastToRoom(message.roomId, message, ws.id);
+          } else {
+            this.sendToClient(ws, {
+              type: MessageTypeEnum.ERROR,
+              timestamp: Date.now(),
+              payload: {
+                message: 'You must join a room before sending messages to it',
+                originalType: message.type
+              }
+            });
           }
+          break;
+          
+        default:
+          logger.warn(`Unknown message type received: ${message.type}`);
+          this.sendToClient(ws, {
+            type: MessageTypeEnum.ERROR,
+            timestamp: Date.now(),
+            payload: {
+              message: `Unknown message type: ${message.type}`
+            }
+          });
+      }
+    } catch (error) {
+      logger.error(`Error handling WebSocket message: ${String(error)}`);
+      this.sendToClient(ws, {
+        type: MessageTypeEnum.ERROR,
+        timestamp: Date.now(),
+        payload: {
+          message: 'Failed to process message: invalid format'
         }
-        break;
-        
-      // Handle feature management (client-side format)
-      case MessageTypeEnum.FEATURE_CREATED:
-        if (message.roomId && feature && feature.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room) {
-            room.features[feature.id] = feature;
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.FEATURE_ADD,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: feature
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle feature updates (server-side format)
-      case MessageTypeEnum.FEATURE_UPDATE:
-        if (message.roomId && payload && payload.id) {
-          this.updateFeature(message.roomId, payload.id, message);
-        }
-        break;
-        
-      // Handle feature updates (client-side format)
-      case MessageTypeEnum.FEATURE_UPDATED:
-        if (message.roomId && feature && feature.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room && room.features[feature.id]) {
-            room.features[feature.id] = {
-              ...room.features[feature.id],
-              ...feature
-            };
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.FEATURE_UPDATE,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: room.features[feature.id]
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle feature deletion (server-side format)
-      case MessageTypeEnum.FEATURE_DELETE:
-        if (message.roomId && payload && payload.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room && room.features[payload.id]) {
-            delete room.features[payload.id];
-            room.lastActivity = Date.now();
-            this.broadcastToRoom(message.roomId, message);
-          }
-        }
-        break;
-        
-      // Handle feature deletion (client-side format)
-      case MessageTypeEnum.FEATURE_DELETED:
-        if (message.roomId && feature && feature.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room && room.features[feature.id]) {
-            // Save a copy of the feature before deletion for the broadcast
-            const deletedFeature = room.features[feature.id];
-            
-            // Delete the feature
-            delete room.features[feature.id];
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.FEATURE_DELETE,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: deletedFeature
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle annotation management (server-side format)
-      case MessageTypeEnum.ANNOTATION_ADD:
-        if (message.roomId && payload && payload.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room) {
-            room.annotations[payload.id] = payload;
-            room.lastActivity = Date.now();
-            this.broadcastToRoom(message.roomId, message);
-          }
-        }
-        break;
-        
-      // Handle annotation management (client-side format)
-      case MessageTypeEnum.ANNOTATION_CREATED:
-        if (message.roomId && payload?.annotation && payload.annotation.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room) {
-            const annotation = payload.annotation;
-            room.annotations[annotation.id] = annotation;
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.ANNOTATION_ADD,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: annotation
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle annotation updates (server-side format)
-      case MessageTypeEnum.ANNOTATION_UPDATE:
-        if (message.roomId && payload && payload.id) {
-          this.updateAnnotation(message.roomId, payload.id, message);
-        }
-        break;
-        
-      // Handle annotation updates (client-side format)
-      case MessageTypeEnum.ANNOTATION_UPDATED:
-        if (message.roomId && payload?.annotation && payload.annotation.id) {
-          const room = this.rooms.get(message.roomId);
-          const annotation = payload.annotation;
-          if (room && room.annotations[annotation.id]) {
-            room.annotations[annotation.id] = {
-              ...room.annotations[annotation.id],
-              ...annotation
-            };
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.ANNOTATION_UPDATE,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: room.annotations[annotation.id]
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle annotation deletion (server-side format)
-      case MessageTypeEnum.ANNOTATION_DELETE:
-        if (message.roomId && payload && payload.id) {
-          const room = this.rooms.get(message.roomId);
-          if (room && room.annotations[payload.id]) {
-            delete room.annotations[payload.id];
-            room.lastActivity = Date.now();
-            this.broadcastToRoom(message.roomId, message);
-          }
-        }
-        break;
-        
-      // Handle annotation deletion (client-side format)
-      case MessageTypeEnum.ANNOTATION_DELETED:
-        if (message.roomId && payload?.annotationId) {
-          const room = this.rooms.get(message.roomId);
-          const annotationId = payload.annotationId;
-          if (room && room.annotations[annotationId]) {
-            // Save a copy of the annotation before deletion for the broadcast
-            const deletedAnnotation = room.annotations[annotationId];
-            
-            // Delete the annotation
-            delete room.annotations[annotationId];
-            room.lastActivity = Date.now();
-            
-            // Convert to server format for broadcasting
-            const serverMessage: WebSocketMessage = {
-              type: MessageTypeEnum.ANNOTATION_DELETE,
-              roomId: message.roomId,
-              userId: message.userId,
-              username: message.username,
-              timestamp: message.timestamp,
-              payload: deletedAnnotation
-            };
-            
-            this.broadcastToRoom(message.roomId, serverMessage);
-          }
-        }
-        break;
-        
-      // Handle chat messages (both formats)
-      case MessageTypeEnum.CHAT:
-      case MessageTypeEnum.CHAT_MESSAGE:
-        if (message.roomId && payload) {
-          this.broadcastToRoom(message.roomId, message);
-        }
-        break;
-        
-      // Handle heartbeat messages
-      case MessageTypeEnum.HEARTBEAT:
-        // Respond with a heartbeat message
-        ws.send(JSON.stringify({
-          type: MessageTypeEnum.HEARTBEAT,
-          timestamp: Date.now()
-        }));
-        break;
-        
-      // Handle unknown message types
-      default:
-        console.warn(`Unknown message type: ${message.type}`);
+      });
     }
   }
   
   /**
-   * Join a collaboration room
+   * Handle client joining a room
    */
-  private joinRoom(ws: ExtendedWebSocket, roomId: string) {
+  private handleJoinRoom(ws: EnhancedWebSocket, message: WebSocketMessage): void {
+    if (!message.roomId) {
+      this.sendToClient(ws, {
+        type: MessageTypeEnum.ERROR,
+        timestamp: Date.now(),
+        payload: {
+          message: 'Room ID is required to join a room'
+        }
+      });
+      return;
+    }
+    
+    const roomId = message.roomId;
+    const roomName = message.payload?.roomName || `Room-${roomId}`;
+    const roomType = message.payload?.roomType || 'general';
+    
     // Create room if it doesn't exist
     if (!this.rooms.has(roomId)) {
-      this.rooms.set(roomId, {
-        id: roomId,
-        clients: new Set(),
-        features: {},
-        annotations: {},
-        createdAt: Date.now(),
-        lastActivity: Date.now()
-      });
+      this.createRoom(roomId, roomName, roomType, ws.userId);
     }
     
     const room = this.rooms.get(roomId)!;
     
     // Add client to room
-    room.clients.add(ws);
     ws.rooms.add(roomId);
+    room.users.add(ws.id);
     
-    // Update room activity
-    room.lastActivity = Date.now();
+    logger.info(`Client ${ws.id} joined room ${roomId} (${roomName})`);
     
-    console.log(`User ${ws.username} (${ws.userId}) joined room ${roomId}`);
+    // Notify client they joined
+    this.sendToClient(ws, {
+      type: MessageTypeEnum.SYSTEM,
+      roomId,
+      timestamp: Date.now(),
+      payload: {
+        action: 'joined',
+        roomId,
+        roomName: room.name,
+        roomType: room.type,
+        userCount: room.users.size
+      }
+    });
     
-    // Notify other clients in the room
-    const joinMessage: WebSocketMessage = {
-      type: MessageTypeEnum.JOIN_ROOM,
+    // Notify other room users
+    this.broadcastToRoom(roomId, {
+      type: MessageTypeEnum.USER_PRESENCE,
       roomId,
       userId: ws.userId,
       username: ws.username,
       timestamp: Date.now(),
       payload: {
-        userCount: room.clients.size
+        action: 'joined',
+        userId: ws.userId,
+        username: ws.username
       }
-    };
-    
-    this.broadcastToRoom(roomId, joinMessage, ws);
-    
-    // Send current room state to the client
-    const stateMessage: WebSocketMessage = {
-      type: MessageTypeEnum.JOIN_ROOM,
-      roomId,
-      timestamp: Date.now(),
-      payload: {
-        features: room.features,
-        annotations: room.annotations,
-        userCount: room.clients.size
-      }
-    };
-    
-    ws.send(JSON.stringify(stateMessage));
+    }, ws.id);
   }
   
   /**
-   * Leave a collaboration room
+   * Handle client leaving a room
    */
-  private leaveRoom(ws: ExtendedWebSocket, roomId: string) {
-    const room = this.rooms.get(roomId);
-    if (!room) return;
+  private handleLeaveRoom(ws: EnhancedWebSocket, message: WebSocketMessage): void {
+    if (!message.roomId) {
+      this.sendToClient(ws, {
+        type: MessageTypeEnum.ERROR,
+        timestamp: Date.now(),
+        payload: {
+          message: 'Room ID is required to leave a room'
+        }
+      });
+      return;
+    }
     
-    // Remove client from room
-    room.clients.delete(ws);
+    const roomId = message.roomId;
+    
+    this.removeClientFromRoom(ws, roomId);
+  }
+  
+  /**
+   * Update user presence information
+   */
+  private updateUserPresence(ws: EnhancedWebSocket, message: WebSocketMessage): void {
+    if (!message.roomId) {
+      this.sendToClient(ws, {
+        type: MessageTypeEnum.ERROR,
+        timestamp: Date.now(),
+        payload: {
+          message: 'Room ID is required for presence updates'
+        }
+      });
+      return;
+    }
+    
+    const roomId = message.roomId;
+    
+    if (!ws.rooms.has(roomId)) {
+      this.sendToClient(ws, {
+        type: MessageTypeEnum.ERROR,
+        timestamp: Date.now(),
+        payload: {
+          message: 'You must join a room before sending presence updates to it'
+        }
+      });
+      return;
+    }
+    
+    // Broadcast presence update to room
+    this.broadcastToRoom(roomId, message, ws.id);
+  }
+  
+  /**
+   * Handle client disconnection
+   */
+  private handleClose(ws: EnhancedWebSocket): void {
+    logger.info(`Client disconnected: ${ws.id}`);
+    
+    // Remove client from all rooms
+    for (const roomId of ws.rooms) {
+      this.removeClientFromRoom(ws, roomId);
+    }
+    
+    // Remove client from tracked clients
+    this.clients.delete(ws.id);
+  }
+  
+  /**
+   * Remove a client from a room and notify others
+   */
+  private removeClientFromRoom(ws: EnhancedWebSocket, roomId: string): void {
+    const room = this.rooms.get(roomId);
+    
+    if (!room) {
+      return;
+    }
+    
+    // Remove from room
     ws.rooms.delete(roomId);
+    room.users.delete(ws.id);
     
-    // Update room activity
-    room.lastActivity = Date.now();
+    logger.info(`Client ${ws.id} left room ${roomId}`);
     
-    console.log(`User ${ws.username} (${ws.userId}) left room ${roomId}`);
-    
-    // Notify other clients in the room
-    const leaveMessage: WebSocketMessage = {
-      type: MessageTypeEnum.LEAVE_ROOM,
+    // Notify other room users
+    this.broadcastToRoom(roomId, {
+      type: MessageTypeEnum.USER_PRESENCE,
       roomId,
       userId: ws.userId,
       username: ws.username,
       timestamp: Date.now(),
       payload: {
-        userCount: room.clients.size
+        action: 'left',
+        userId: ws.userId,
+        username: ws.username
       }
+    }, ws.id);
+    
+    // If room is empty, remove it
+    if (room.users.size === 0) {
+      this.rooms.delete(roomId);
+      logger.info(`Room ${roomId} removed (empty)`);
+    }
+  }
+  
+  /**
+   * Create a new collaborative room
+   */
+  private createRoom(
+    roomId: string,
+    roomName: string,
+    roomType: 'map' | 'document' | 'chat' | 'general' = 'general',
+    createdBy?: string
+  ): void {
+    const room: CollaborativeRoom = {
+      id: roomId,
+      name: roomName,
+      createdAt: new Date(),
+      createdBy,
+      users: new Set(),
+      type: roomType
     };
     
-    this.broadcastToRoom(roomId, leaveMessage);
-    
-    // Clean up empty room after a delay
-    if (room.clients.size === 0) {
-      setTimeout(() => this.cleanupRoom(roomId), 300000); // 5 minutes
-    }
+    this.rooms.set(roomId, room);
+    logger.info(`Room created: ${roomId} (${roomName})`);
   }
   
   /**
-   * Update a feature in a room
+   * Send a message to a specific client
    */
-  private updateFeature(roomId: string, featureId: string, message: WebSocketMessage) {
-    const room = this.rooms.get(roomId);
-    if (!room) return;
-    
-    // Update feature if it exists
-    if (room.features[featureId]) {
-      room.features[featureId] = {
-        ...room.features[featureId],
-        ...message.payload
-      };
-      
-      // Update room activity
-      room.lastActivity = Date.now();
-      
-      // Broadcast the update
-      this.broadcastToRoom(roomId, message);
-    }
-  }
-  
-  /**
-   * Update an annotation in a room
-   */
-  private updateAnnotation(roomId: string, annotationId: string, message: WebSocketMessage) {
-    const room = this.rooms.get(roomId);
-    if (!room) return;
-    
-    // Update annotation if it exists
-    if (room.annotations[annotationId]) {
-      room.annotations[annotationId] = {
-        ...room.annotations[annotationId],
-        ...message.payload
-      };
-      
-      // Update room activity
-      room.lastActivity = Date.now();
-      
-      // Broadcast the update
-      this.broadcastToRoom(roomId, message);
+  private sendToClient(ws: EnhancedWebSocket, message: WebSocketMessage): void {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(message));
+      } catch (error) {
+        logger.error(`Error sending message to client ${ws.id}: ${String(error)}`);
+      }
     }
   }
   
   /**
    * Broadcast a message to all clients in a room
    */
-  private broadcastToRoom(roomId: string, message: WebSocketMessage, exclude?: ExtendedWebSocket) {
+  private broadcastToRoom(roomId: string, message: WebSocketMessage, excludeClientId?: string): void {
     const room = this.rooms.get(roomId);
-    if (!room) return;
     
-    // Make sure there's at least a payload or data property
-    if (!message.payload && !message.data) {
-      // Extract from one field to the other if needed
-      if (message.data) {
-        message.payload = message.data;
-      } else if (message.payload) {
-        message.data = message.payload;
-      } else {
-        // Initialize with empty object if neither exists
-        message.payload = {};
-        message.data = {};
+    if (!room) {
+      logger.warn(`Attempted to broadcast to non-existent room: ${roomId}`);
+      return;
+    }
+    
+    for (const clientId of room.users) {
+      if (excludeClientId && clientId === excludeClientId) {
+        continue;
+      }
+      
+      const client = this.clients.get(clientId);
+      
+      if (client) {
+        this.sendToClient(client, message);
       }
     }
+  }
+  
+  /**
+   * Broadcast a message to all connected clients
+   */
+  private broadcastToAll(message: WebSocketMessage, excludeClientId?: string): void {
+    for (const [clientId, client] of this.clients.entries()) {
+      if (excludeClientId && clientId === excludeClientId) {
+        continue;
+      }
+      
+      this.sendToClient(client, message);
+    }
+  }
+  
+  /**
+   * Start the heartbeat interval to detect dead connections
+   */
+  private startHeartbeat(): void {
+    this.heartbeatInterval = setInterval(() => {
+      this.clients.forEach((client, id) => {
+        if (!client.isAlive) {
+          logger.warn(`Client ${id} failed heartbeat, terminating connection`);
+          client.terminate();
+          return;
+        }
+        
+        client.isAlive = false;
+        client.ping();
+      });
+    }, this.HEARTBEAT_INTERVAL);
+  }
 
-    // Add metadata to ensure client compatibility
-    message.timestamp = message.timestamp || Date.now();
-    
-    const messageStr = JSON.stringify(message);
-    
-    room.clients.forEach(client => {
-      if (client !== exclude && client.readyState === WebSocket.OPEN) {
-        client.send(messageStr);
-      }
-    });
+  /**
+   * Get statistics about the WebSocket server
+   */
+  public getStats(): any {
+    return {
+      clients: this.clients.size,
+      rooms: Array.from(this.rooms.entries()).map(([id, room]) => ({
+        id,
+        name: room.name,
+        users: room.users.size,
+        type: room.type
+      }))
+    };
   }
   
   /**
-   * Handle client disconnection
+   * Get information about all rooms
    */
-  private handleDisconnect(ws: ExtendedWebSocket) {
-    console.log(`WebSocket disconnected: ${ws.username} (${ws.userId})`);
-    
-    // Leave all rooms
-    for (const roomId of ws.rooms) {
-      this.leaveRoom(ws, roomId);
-    }
+  public getRoomsStatus(): any[] {
+    return Array.from(this.rooms.entries()).map(([id, room]) => ({
+      id,
+      name: room.name,
+      userCount: room.users.size,
+      type: room.type,
+      createdAt: room.createdAt,
+      createdBy: room.createdBy
+    }));
   }
   
   /**
-   * Ping all clients to check if they're still alive
+   * Get the count of active connections
    */
-  private pingClients() {
-    this.wss.clients.forEach((ws) => {
-      const extWs = ws as ExtendedWebSocket;
-      
-      if (extWs.isAlive === false) {
-        console.log(`Terminating inactive connection: ${extWs.username} (${extWs.userId})`);
-        return extWs.terminate();
-      }
-      
-      extWs.isAlive = false;
-      extWs.ping();
-    });
+  public getActiveConnectionsCount(): number {
+    return this.clients.size;
   }
-  
+
   /**
-   * Clean up an empty room
+   * Clean up resources when shutting down
    */
-  private cleanupRoom(roomId: string) {
-    const room = this.rooms.get(roomId);
-    
-    // Only delete the room if it's still empty
-    if (room && room.clients.size === 0) {
-      console.log(`Cleaning up empty room: ${roomId}`);
-      this.rooms.delete(roomId);
-    }
-  }
-  
-  /**
-   * Clean up resources when the server is shutting down
-   */
-  public shutdown() {
-    console.log('Shutting down WebSocket server');
-    
-    // Clear ping interval
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
+  public shutdown(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
     }
     
-    // Close all connections
-    this.wss.clients.forEach((ws) => {
-      ws.terminate();
+    // Close all connections gracefully
+    this.clients.forEach(client => {
+      client.close();
     });
     
-    // Close the server
     this.wss.close();
+    logger.info('WebSocket server shut down');
   }
 }
