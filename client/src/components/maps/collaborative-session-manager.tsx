@@ -69,7 +69,6 @@ export function CollaborativeSessionManager({
   const [sessionDetails, setSessionDetails] = useState<SessionData | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState<boolean>(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState<boolean>(false);
-  // Toast notifications are imported directly
   
   // Load list of saved sessions on component mount
   useEffect(() => {

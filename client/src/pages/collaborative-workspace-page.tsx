@@ -39,7 +39,6 @@ export function CollaborativeWorkspacePage() {
       return [];
     }
   });
-  // Toast notifications are imported directly
   
   // Handle creating a new room
   const handleCreateRoom = () => {
