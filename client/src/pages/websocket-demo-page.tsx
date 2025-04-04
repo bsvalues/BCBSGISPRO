@@ -43,7 +43,7 @@ export default function WebSocketDemoPage() {
   
   // Generate a stable user ID that won't change on re-renders
   const userIdRef = useRef<string>(`user_${Math.floor(Math.random() * 10000)}`);
-  
+
   // WebSocket connection
   const {
     status,
@@ -58,7 +58,7 @@ export default function WebSocketDemoPage() {
   } = useWebSocket({
     autoReconnect: true,
     userId: userIdRef.current,
-    username
+    username: username
   });
   
   // Filter messages by type
@@ -80,6 +80,7 @@ export default function WebSocketDemoPage() {
   
   // Update users list when join/leave messages are received
   useEffect(() => {
+    // Only update if messages have changed
     const usernames = new Set<string>();
     
     joinLeaveMessages.forEach(msg => {
