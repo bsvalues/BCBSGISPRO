@@ -16,6 +16,7 @@ import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
 import WebSocketTestPage from "@/pages/websocket-test";
 import CollaborativeMapDemoPage from "@/pages/collaborative-map-demo";
 import MapCollaborationDemoPage from "@/pages/map-collaboration-demo-page";
+import EnhancedMapCollaborationPage from "@/pages/enhanced-map-collaboration-page";
 import DocumentParcelManagementPage from "@/pages/document-parcel-management";
 import { Button } from "@/components/ui/button";
 import { 
@@ -220,6 +221,16 @@ function App() {
                 Map Collaboration Demo
               </Button>
             </Link>
+
+            <Link href="/enhanced-map-collaboration">
+              <Button 
+                variant={location === "/enhanced-map-collaboration" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <Share2 className="mr-1 h-4 w-4" />
+                Enhanced Map Collab
+              </Button>
+            </Link>
             
             <Link href="/document-parcel-management">
               <Button 
@@ -255,6 +266,7 @@ function App() {
             <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
             <Route path="/collaborative-map" component={CollaborativeMapDemoPage} />
             <Route path="/map-collaboration-demo" component={MapCollaborationDemoPage} />
+            <Route path="/enhanced-map-collaboration" component={EnhancedMapCollaborationPage} />
             <Route path="/document-parcel-management" component={DocumentParcelManagementPage} />
             <Route path="/project-progress" component={ProjectProgressPage} />
             
