@@ -72,6 +72,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ token: mapboxToken });
   });
   
+  // Legal description parsing endpoints
+  app.post("/api/legal-description/parse", asyncHandler(async (req, res) => {
+    const { text, referencePoint, parcelId } = req.body;
+    
+    if (!text) {
+      throw ApiError.badRequest('Legal description text is required');
+    }
+    
+    const { parseDescription } = await import('./services/legal-description-service');
+    const result = await parseDescription(text, referencePoint, parcelId);
+    
+    return res.json(result);
+  }));
+  
+  app.get("/api/legal-description/examples", asyncHandler(async (req, res) => {
+    const { getExampleDescriptions } = await import('./services/legal-description-service');
+    const examples = getExampleDescriptions();
+    
+    return res.json(examples);
+  }));
+  
+  app.post("/api/legal-description/analyze", asyncHandler(async (req, res) => {
+    const { text } = req.body;
+    
+    if (!text) {
+      throw ApiError.badRequest('Legal description text is required');
+    }
+    
+    const { analyzeLegalDescription } = await import('./services/legal-description-service');
+    const analysis = analyzeLegalDescription(text);
+    
+    return res.json(analysis);
+  }));
+  
   // Public property information API
   app.get("/api/public/properties/search", async (req, res) => {
     try {

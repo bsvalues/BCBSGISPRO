@@ -7,6 +7,7 @@ import ErrorHandlingPage from "./pages/error-handling-page";
 import FullScreenMapPage from "@/pages/full-screen-map-page";
 import ToastTestPage from "@/pages/toast-test-page";
 import MapboxDemoPage from "@/pages/mapbox-demo-page";
+import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -16,7 +17,8 @@ import {
   AlertTriangle, 
   Maximize,
   BellRing,
-  Globe
+  Globe,
+  FileText
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast-provider";
@@ -117,6 +119,16 @@ function App({ children }: { children?: React.ReactNode }) {
                   Toast Test
                 </Button>
               </Link>
+              
+              <Link href="/legal-description-agent">
+                <Button 
+                  variant={location === "/legal-description-agent" ? "secondary" : "outline"} 
+                  size="sm"
+                >
+                  <FileText className="mr-1 h-4 w-4" />
+                  Legal Description Agent
+                </Button>
+              </Link>
             </nav>
           </div>
         </header>
@@ -134,6 +146,7 @@ function App({ children }: { children?: React.ReactNode }) {
               <Route path="/progress-tracker" component={ProgressTrackerDemo} />
               <Route path="/error-handling" component={ErrorHandlingPage} />
               <Route path="/toast-test" component={ToastTestPage} />
+              <Route path="/legal-description-agent" component={LegalDescriptionAgentPage} />
               
               {/* Default to the toast test page for testing */}
               <Route>
