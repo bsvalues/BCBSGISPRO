@@ -3,6 +3,7 @@ import MapViewerPage from "@/pages/map-viewer-page";
 import CartographerToolsPage from "@/pages/cartographer-tools-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
 import ProgressTrackerDemo from "@/pages/progress-tracker-demo";
+import ProjectProgressPage from "@/pages/project-progress";
 import ErrorHandlingPage from "./pages/error-handling-page";
 import FullScreenMapPage from "@/pages/full-screen-map-page";
 import ToastTestPage from "@/pages/toast-test-page";
@@ -28,7 +29,8 @@ import {
   FileText,
   MessagesSquare,
   Users,
-  Share2
+  Share2,
+  BarChart
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -115,6 +117,16 @@ function App() {
               >
                 <GitPullRequest className="mr-1 h-4 w-4" />
                 Progress Tracker
+              </Button>
+            </Link>
+            
+            <Link href="/project-progress">
+              <Button 
+                variant={location === "/project-progress" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <BarChart className="mr-1 h-4 w-4" />
+                Project Progress
               </Button>
             </Link>
             
@@ -232,6 +244,7 @@ function App() {
             <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
             <Route path="/collaborative-map" component={CollaborativeMapDemoPage} />
             <Route path="/document-parcel-management" component={DocumentParcelManagementPage} />
+            <Route path="/project-progress" component={ProjectProgressPage} />
             
             {/* Default to the Collaborative Workspace page for testing */}
             <Route>
