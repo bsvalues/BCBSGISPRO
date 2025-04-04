@@ -109,15 +109,20 @@ interface DocumentWithParcels extends Document {
 }
 
 // Helper functions
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
+const formatDate = (dateString: string | Date) => {
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  } catch (error) {
+    console.error("Error formatting date:", error, dateString);
+    return "Invalid date";
+  }
 };
 
 const getLinkTypeBadge = (linkType: string | null) => {
@@ -227,10 +232,7 @@ export default function DocumentParcelManagementPage() {
   // Mutations
   const createLinkMutation = useMutation({
     mutationFn: (linkData: { documentId: number, parcelId: number, linkType: string, notes: string }) => {
-      return apiRequest('/api/document-parcel-links', {
-        method: 'POST',
-        body: linkData,
-      });
+      return apiRequest('/api/document-parcel-links', 'POST', linkData);
     },
     onSuccess: () => {
       toast({
@@ -257,10 +259,7 @@ export default function DocumentParcelManagementPage() {
   
   const removeLinkMutation = useMutation({
     mutationFn: (linkData: { documentId: number, parcelId: number }) => {
-      return apiRequest('/api/document-parcel-links', {
-        method: 'DELETE',
-        body: linkData,
-      });
+      return apiRequest('/api/document-parcel-links', 'DELETE', linkData);
     },
     onSuccess: () => {
       toast({
