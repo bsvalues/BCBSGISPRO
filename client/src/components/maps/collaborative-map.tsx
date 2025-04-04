@@ -28,7 +28,7 @@ import {
   Move
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { useWebSocket, ConnectionStatusEnum, type MessageType } from '@/lib/websocket';
+import { useWebSocket, ConnectionStatusEnum, MessageTypeEnum } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -368,7 +368,7 @@ export function CollaborativeMap({
     if (!lastMessage || !map) return;
     
     try {
-      if (lastMessage.type === 'feature_add') {
+      if (lastMessage.type === MessageTypeEnum.FEATURE_ADD) {
         const feature = lastMessage.payload;
         
         // Add the received feature to our state if it doesn't already exist
@@ -378,7 +378,7 @@ export function CollaborativeMap({
           }
           return [...prev, feature];
         });
-      } else if (lastMessage.type === 'feature_update') {
+      } else if (lastMessage.type === MessageTypeEnum.FEATURE_UPDATE) {
         // Handle feature updates/deletes
         const { action, featureId } = lastMessage.payload;
         
@@ -475,7 +475,7 @@ export function CollaborativeMap({
       
       // Send via WebSocket
       send({
-        type: 'feature_add',
+        type: MessageTypeEnum.FEATURE_ADD,
         roomId,
         userId,
         payload: feature
@@ -605,7 +605,7 @@ export function CollaborativeMap({
         
         // Send via WebSocket
         send({
-          type: 'feature_add',
+          type: MessageTypeEnum.FEATURE_ADD,
           roomId,
           userId,
           payload: currentFeature
@@ -654,7 +654,7 @@ export function CollaborativeMap({
     
     // Send delete message via WebSocket
     send({
-      type: 'feature_update',
+      type: MessageTypeEnum.FEATURE_UPDATE,
       roomId,
       userId,
       payload: {

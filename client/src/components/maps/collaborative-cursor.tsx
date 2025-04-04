@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as mapboxgl from 'mapbox-gl';
-import { useWebSocket } from '@/lib/websocket';
+import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
 
 interface CursorPosition {
   userId: string;
@@ -103,7 +103,7 @@ export function CollaborativeCursor({
   
   // Handle map mouse move to send cursor position
   useEffect(() => {
-    if (!map || !enabled || status !== 'connected') return;
+    if (!map || !enabled || status !== ConnectionStatusEnum.CONNECTED) return;
     
     const handleMouseMove = (e: mapboxgl.MapMouseEvent) => {
       const now = Date.now();
@@ -117,7 +117,7 @@ export function CollaborativeCursor({
       
       // Send cursor position
       send({
-        type: 'cursor_move',
+        type: MessageTypeEnum.CURSOR_MOVE,
         roomId,
         userId,
         payload: {
@@ -141,7 +141,7 @@ export function CollaborativeCursor({
     
     // Only process cursor messages from other users
     if (
-      lastMessage.type === 'cursor_move' && 
+      lastMessage.type === MessageTypeEnum.CURSOR_MOVE && 
       lastMessage.roomId === roomId &&
       lastMessage.userId !== userId && 
       lastMessage.payload?.position

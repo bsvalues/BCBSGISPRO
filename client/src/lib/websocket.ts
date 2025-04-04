@@ -54,11 +54,13 @@ export enum MessageTypeEnum {
  * WebSocket message structure
  */
 export interface WebSocketMessage {
-  type: MessageType;
+  type: MessageTypeEnum;
   roomId?: string;
   userId?: string;
   username?: string;
   payload?: any;
+  data?: any;  // Support for data field used in collaborative features
+  source?: string; // Source ID for the message
   timestamp?: number;
 }
 
@@ -168,7 +170,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
           const message = JSON.parse(event.data) as WebSocketMessage;
           
           // Handle heartbeat separately (don't add to message list)
-          if (message.type === 'heartbeat') {
+          if (message.type === MessageTypeEnum.HEARTBEAT) {
             return;
           }
           
@@ -284,7 +286,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     const success = sendMessage({
-      type: 'join_room',
+      type: MessageTypeEnum.JOIN_ROOM,
       roomId,
       username: opts.username
     });
@@ -305,7 +307,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     const success = sendMessage({
-      type: 'leave_room',
+      type: MessageTypeEnum.LEAVE_ROOM,
       roomId: currentRoom
     });
     
@@ -365,7 +367,7 @@ export function createChatMessage(
   roomId: string
 ): WebSocketMessage {
   return {
-    type: 'chat_message',
+    type: MessageTypeEnum.CHAT,
     roomId,
     userId,
     payload: { message },

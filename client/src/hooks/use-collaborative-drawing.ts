@@ -88,7 +88,7 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     if (!lastMessage) return;
     
     // Only process DRAWING messages
-    if (lastMessage.type !== MessageTypeEnum.FEATURE && lastMessage.type !== MessageTypeEnum.FEATURE_UPDATE) return;
+    if (lastMessage.type !== MessageTypeEnum.FEATURE_ADD && lastMessage.type !== MessageTypeEnum.FEATURE_UPDATE) return;
     
     try {
       // Check if this is a change we initiated to prevent echoing
@@ -180,7 +180,7 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     
     // Send to server
     send({
-      type: MessageType.DRAWING,
+      type: MessageTypeEnum.FEATURE_ADD,
       data: {
         action: DrawActionType.CREATE,
         feature: featureWithId,
@@ -225,7 +225,7 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     
     // Send to server
     send({
-      type: MessageType.DRAWING,
+      type: MessageTypeEnum.FEATURE_UPDATE,
       data: {
         action: DrawActionType.UPDATE,
         feature: updatedFeature,
@@ -261,7 +261,7 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     
     // Send to server
     send({
-      type: MessageType.DRAWING,
+      type: MessageTypeEnum.FEATURE_DELETE,
       data: {
         action: DrawActionType.DELETE,
         feature,
