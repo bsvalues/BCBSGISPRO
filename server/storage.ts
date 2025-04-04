@@ -106,6 +106,7 @@ export interface IStorage {
   searchParcelsByAddress(address: string, city?: string, zip?: string): Promise<any[]>;
   getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined>;
   createParcel(parcel: Omit<InsertParcel, 'id'>): Promise<Parcel>;
+  getAllParcels(): Promise<Parcel[]>;
   
   // Map operations
   getMapLayers(): Promise<MapLayer[]>;
@@ -510,6 +511,11 @@ export class MemStorage implements IStorage {
   async searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]> {
     return Array.from(this.parcels.values())
       .filter(parcel => parcel.parcelNumber.includes(parcelNumber));
+  }
+  
+  async getAllParcels(): Promise<Parcel[]> {
+    return Array.from(this.parcels.values())
+      .sort((a, b) => a.parcelNumber.localeCompare(b.parcelNumber));
   }
   
   // Parcel operations
@@ -1171,6 +1177,12 @@ export class DatabaseStorage implements IStorage {
     return db.select()
       .from(parcels)
       .where(sql`${parcels.parcelNumber} LIKE ${`%${parcelNumber}%`}`);
+  }
+  
+  async getAllParcels(): Promise<Parcel[]> {
+    return db.select()
+      .from(parcels)
+      .orderBy(parcels.parcelNumber);
   }
   
   async getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined> {

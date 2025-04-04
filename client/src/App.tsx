@@ -14,6 +14,7 @@ import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page
 import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
 import WebSocketTestPage from "@/pages/websocket-test";
 import CollaborativeMapDemoPage from "@/pages/collaborative-map-demo";
+import DocumentParcelManagementPage from "@/pages/document-parcel-management";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -196,6 +197,16 @@ function App() {
                 Collaborative Map
               </Button>
             </Link>
+            
+            <Link href="/document-parcel-management">
+              <Button 
+                variant={location === "/document-parcel-management" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <FileText className="mr-1 h-4 w-4" />
+                Document-Parcel Management
+              </Button>
+            </Link>
           </nav>
         </div>
       </header>
@@ -220,6 +231,7 @@ function App() {
             <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
             <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
             <Route path="/collaborative-map" component={CollaborativeMapDemoPage} />
+            <Route path="/document-parcel-management" component={DocumentParcelManagementPage} />
             
             {/* Default to the Collaborative Workspace page for testing */}
             <Route>

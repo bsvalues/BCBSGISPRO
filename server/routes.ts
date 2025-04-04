@@ -3390,5 +3390,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ================================================================
+  // Document-Parcel Management API Endpoints
+  // ================================================================
+  
+  // Get all documents with basic information
+  app.get("/api/documents", asyncHandler(async (req, res) => {
+    const documents = await storage.getDocuments();
+    res.json(documents);
+  }));
+  
+  // Get specific document with its linked parcels
+  app.get("/api/documents/:id/parcels", asyncHandler(async (req, res) => {
+    const documentId = parseInt(req.params.id);
+    
+    if (isNaN(documentId)) {
+      throw ApiError.badRequest("Invalid document ID");
+    }
+    
+    const document = await storage.getDocument(documentId);
+    
+    if (!document) {
+      throw ApiError.notFound(`Document with ID ${documentId} not found`);
+    }
+    
+    // Get all parcels linked to this document
+    const parcels = await storage.getParcelsForDocument(documentId);
+    
+    // Return document with its parcels
+    const documentWithParcels = {
+      ...document,
+      parcels
+    };
+    
+    res.json(documentWithParcels);
+  }));
+  
+  // Get all parcels with basic information
+  app.get("/api/parcels", asyncHandler(async (req, res) => {
+    // Extract query parameters for searching
+    const { parcelNumber, address, owner } = req.query;
+    
+    // If search parameters are provided, use them to search
+    if (parcelNumber && typeof parcelNumber === 'string') {
+      const results = await storage.searchParcelsByNumber(parcelNumber);
+      return res.json(results);
+    }
+    
+    if (address && typeof address === 'string') {
+      const city = typeof req.query.city === 'string' ? req.query.city : undefined;
+      const zip = typeof req.query.zip === 'string' ? req.query.zip : undefined;
+      const results = await storage.searchParcelsByAddress(address, city, zip);
+      return res.json(results);
+    }
+    
+    // Otherwise, return all parcels
+    const parcels = await storage.getAllParcels();
+    res.json(parcels);
+  }));
+  
+  // Get specific parcel with its linked documents
+  app.get("/api/parcels/:id/documents", asyncHandler(async (req, res) => {
+    const parcelId = parseInt(req.params.id);
+    
+    if (isNaN(parcelId)) {
+      throw ApiError.badRequest("Invalid parcel ID");
+    }
+    
+    const parcel = await storage.getParcelById(parcelId);
+    
+    if (!parcel) {
+      throw ApiError.notFound(`Parcel with ID ${parcelId} not found`);
+    }
+    
+    // Get all documents linked to this parcel
+    const documents = await storage.getDocumentsForParcel(parcelId);
+    
+    // Return parcel with its documents
+    const parcelWithDocuments = {
+      ...parcel,
+      documents
+    };
+    
+    res.json(parcelWithDocuments);
+  }));
+  
+  // Create a new document-parcel link
+  app.post("/api/document-parcel-links", asyncHandler(async (req, res) => {
+    const { documentId, parcelId, linkType, notes } = req.body;
+    
+    if (!documentId || !parcelId) {
+      throw ApiError.badRequest("Document ID and Parcel ID are required");
+    }
+    
+    // Check if document exists
+    const document = await storage.getDocument(documentId);
+    if (!document) {
+      throw ApiError.notFound(`Document with ID ${documentId} not found`);
+    }
+    
+    // Check if parcel exists
+    const parcel = await storage.getParcelById(parcelId);
+    if (!parcel) {
+      throw ApiError.notFound(`Parcel with ID ${parcelId} not found`);
+    }
+    
+    // Check if link already exists
+    const existingLink = await storage.getDocumentParcelLink(documentId, parcelId);
+    if (existingLink) {
+      throw ApiError.conflict("Link between this document and parcel already exists");
+    }
+    
+    // Create the link
+    const link = await storage.createDocumentParcelLink({
+      documentId,
+      parcelId,
+      linkType: linkType || "reference",
+      notes: notes || null
+    });
+    
+    res.status(201).json(link);
+  }));
+  
+  // Delete a document-parcel link
+  app.delete("/api/document-parcel-links", asyncHandler(async (req, res) => {
+    const { documentId, parcelId } = req.body;
+    
+    if (!documentId || !parcelId) {
+      throw ApiError.badRequest("Document ID and Parcel ID are required");
+    }
+    
+    // Check if link exists
+    const existingLink = await storage.getDocumentParcelLink(documentId, parcelId);
+    if (!existingLink) {
+      throw ApiError.notFound("Link between this document and parcel does not exist");
+    }
+    
+    // Remove the link
+    const removed = await storage.removeDocumentParcelLinks(documentId, [parcelId]);
+    
+    res.json({ success: true, removed });
+  }));
+  
   return httpServer;
 }
