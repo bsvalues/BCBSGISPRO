@@ -10,26 +10,44 @@ import { getMapboxToken, getMapboxTokenAsync } from '@/lib/env';
  * 3. Manage loading and error states
  */
 export function useMapboxToken() {
-  const [token, setToken] = useState<string>(getMapboxToken());
-  const [isLoading, setIsLoading] = useState<boolean>(token === '');
+  const initialToken = getMapboxToken();
+  const [token, setToken] = useState<string>(initialToken);
+  const [isLoading, setIsLoading] = useState<boolean>(initialToken === '');
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
   useEffect(() => {
     async function fetchToken() {
       if (token) return; // Already have token
       
+      // Skip if we've reached max retries
+      if (retryCount >= MAX_RETRIES) {
+        setError(`Failed to get Mapbox token after ${MAX_RETRIES} attempts`);
+        setIsLoading(false);
+        return;
+      }
+      
       setIsLoading(true);
       setError(null);
       
       try {
+        console.log(`Attempting to fetch Mapbox token (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
         const fetchedToken = await getMapboxTokenAsync();
+        
         if (fetchedToken) {
+          console.log('Successfully retrieved Mapbox token');
           setToken(fetchedToken);
         } else {
-          setError('Could not retrieve Mapbox token');
+          throw new Error('Empty token returned from API');
         }
       } catch (err) {
+        console.error('Error fetching Mapbox token:', err);
         setError(err instanceof Error ? err.message : 'Unknown error fetching Mapbox token');
+        // Increment retry count and try again after a delay
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+        }, 1000); // 1 second delay between retries
       } finally {
         setIsLoading(false);
       }
@@ -38,7 +56,7 @@ export function useMapboxToken() {
     if (!token) {
       fetchToken();
     }
-  }, [token]);
+  }, [token, retryCount]);
 
   return { token, isLoading, error };
 }

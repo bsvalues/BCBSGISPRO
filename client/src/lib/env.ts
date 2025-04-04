@@ -3,14 +3,25 @@
  */
 
 /**
+ * Cache for the Mapbox token to avoid repeated API calls
+ */
+let cachedMapboxToken: string = '';
+
+/**
  * Get the Mapbox access token from environment or API
  */
 export async function getMapboxTokenAsync(): Promise<string> {
+  // Return cached token if available
+  if (cachedMapboxToken) {
+    return cachedMapboxToken;
+  }
+  
   // First try to get from environment variable
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   
   if (token) {
-    return token as string;
+    cachedMapboxToken = token as string;
+    return cachedMapboxToken;
   }
   
   // If not in environment, try to fetch from API
@@ -23,8 +34,9 @@ export async function getMapboxTokenAsync(): Promise<string> {
     }
     
     const data = await response.json();
-    if (data.token) {
-      return data.token;
+    if (data && typeof data.token === 'string') {
+      cachedMapboxToken = data.token as string;
+      return cachedMapboxToken;
     } else {
       throw new Error('No token found in API response');
     }
@@ -39,13 +51,20 @@ export async function getMapboxTokenAsync(): Promise<string> {
  * This is used for initial setup where async isn't possible
  */
 export function getMapboxToken(): string {
+  // Return cached token if available
+  if (cachedMapboxToken) {
+    return cachedMapboxToken;
+  }
+  
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   if (!token) {
     console.warn('Mapbox access token not found in environment');
     // Return empty string, the component should handle token fetching via API
     return '';
   }
-  return token as string;
+  
+  cachedMapboxToken = token as string;
+  return cachedMapboxToken;
 }
 
 /**
