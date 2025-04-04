@@ -299,11 +299,21 @@ export function CollaborativeWorkspacePage() {
             initialZoom={13}
           />
           
-          {map && (
-            <div className="absolute top-2 left-2 z-10">
-              <CollaborativeMap map={map} roomId={roomId} />
-            </div>
-          )}
+          <div className="absolute inset-0">
+            {map && (
+              <CollaborativeMap 
+                map={map} 
+                roomId={roomId}
+                onConnectionStatusChange={(status) => {
+                  // The connection status is already handled at the page level
+                  // Additional handling if needed
+                }}
+                onCollaboratorsChange={(users) => {
+                  setConnectedUsers(users);
+                }}
+              />
+            )}
+          </div>
         </div>
         
         <div className="w-80 border-l flex flex-col">

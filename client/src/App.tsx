@@ -174,9 +174,9 @@ function App({ children }: { children?: React.ReactNode }) {
               <Route path="/websocket-demo" component={WebSocketDemoPage} />
               <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
               
-              {/* Default to the toast test page for testing */}
+              {/* Default to the Collaborative Workspace page for testing */}
               <Route>
-                <ToastTestPage />
+                <CollaborativeWorkspacePage />
               </Route>
             </Switch>
           </ErrorBoundary>
