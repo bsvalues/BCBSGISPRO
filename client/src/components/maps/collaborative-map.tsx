@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
 import { Users, MapPin, Layers, Edit3, Ruler, Hand, PenTool, MousePointer } from 'lucide-react';
-import { useEnhancedWebSocket } from '@/hooks/use-enhanced-websocket';
-import { CollaborativeUser } from '@/lib/websocket-session-manager';
-import { MessageTypeEnum } from '@/lib/websocket';
-import { useMapbox } from '@/hooks/use-mapbox';
-import { cn } from '@/lib/utils';
+import { useEnhancedWebSocket } from '../../hooks/use-enhanced-websocket';
+import { CollaborativeUser } from '../../lib/websocket-session-manager';
+import { MessageTypeEnum } from '../../lib/websocket';
+import { useMapbox } from '../../hooks/use-mapbox';
+import { cn } from '../../lib/utils';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 

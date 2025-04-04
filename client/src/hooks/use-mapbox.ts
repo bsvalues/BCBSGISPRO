@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { getMapboxToken } from '@/lib/env';
+import { getMapboxToken, getMapboxTokenAsync } from '../lib/env';
 
-// Set Mapbox access token from environment
+// Initially set Mapbox access token from environment
+// This might be empty, but will be updated in the hook
 mapboxgl.accessToken = getMapboxToken();
 
 export interface UseMapboxOptions {
@@ -92,123 +93,146 @@ export function useMapbox({
   
   // Initialize map when component mounts
   useEffect(() => {
-    if (!mapboxgl.accessToken) {
-      console.error('Mapbox access token is required. Please set it in the environment.');
-      return;
-    }
+    let mapInstance: mapboxgl.Map | null = null;
     
-    if (!mapContainer.current) return;
-    
-    const mapInstance = new mapboxgl.Map({
-      container: mapContainer.current,
-      style,
-      center,
-      zoom,
-      attributionControl: false,
-      antialias: true
-    });
-    
-    // Add navigation controls if requested
-    if (controls) {
-      mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      mapInstance.addControl(new mapboxgl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
-        trackUserLocation: true
-      }), 'top-right');
-      mapInstance.addControl(new mapboxgl.ScaleControl({
-        maxWidth: 150,
-        unit: 'imperial'
-      }), 'bottom-right');
-      mapInstance.addControl(new mapboxgl.AttributionControl({
-        compact: true
-      }), 'bottom-left');
-    }
-    
-    // Handle map load event
-    mapInstance.on('load', () => {
-      setLoaded(true);
-      
-      // Add initial data source if provided
-      if (initialData) {
-        mapInstance.addSource('initial-data', {
-          type: 'geojson',
-          data: initialData
-        });
-        
-        // Add a layer for points
-        mapInstance.addLayer({
-          id: 'initial-points',
-          type: 'circle',
-          source: 'initial-data',
-          filter: ['==', ['geometry-type'], 'Point'],
-          paint: {
-            'circle-radius': 6,
-            'circle-color': '#ff0000'
+    const initializeMap = async () => {
+      // If token not already set, try to fetch it
+      if (!mapboxgl.accessToken) {
+        try {
+          const token = await getMapboxTokenAsync();
+          if (token) {
+            mapboxgl.accessToken = token;
+            console.log('Initializing Mapbox map with token:', token.substring(0, 10) + '...');
+          } else {
+            console.error('Mapbox access token is required but could not be retrieved.');
+            return;
           }
-        });
-        
-        // Add a layer for lines
-        mapInstance.addLayer({
-          id: 'initial-lines',
-          type: 'line',
-          source: 'initial-data',
-          filter: ['==', ['geometry-type'], 'LineString'],
-          paint: {
-            'line-color': '#ff0000',
-            'line-width': 2
-          }
-        });
-        
-        // Add a layer for polygons
-        mapInstance.addLayer({
-          id: 'initial-polygons',
-          type: 'fill',
-          source: 'initial-data',
-          filter: ['==', ['geometry-type'], 'Polygon'],
-          paint: {
-            'fill-color': '#ff0000',
-            'fill-opacity': 0.4,
-            'fill-outline-color': '#ff0000'
-          }
-        });
+        } catch (error) {
+          console.error('Failed to get Mapbox token:', error);
+          return;
+        }
       }
       
-      // Call onMapLoaded callback if provided
-      if (onMapLoaded) {
-        onMapLoaded(mapInstance);
-      }
-    });
-    
-    // Track viewport changes
-    mapInstance.on('moveend', () => {
-      if (!mapInstance) return;
+      if (!mapContainer.current) return;
       
-      const center = mapInstance.getCenter();
-      const newCenter: [number, number] = [center.lng, center.lat];
-      const newZoom = mapInstance.getZoom();
-      
-      setViewport({
-        center: newCenter,
-        zoom: newZoom
+      // Create the map instance
+      mapInstance = new mapboxgl.Map({
+        container: mapContainer.current,
+        style,
+        center,
+        zoom,
+        attributionControl: false,
+        antialias: true
       });
       
-      // Call onViewportChange callback if provided
-      if (onViewportChange) {
-        onViewportChange({
+      // Add navigation controls if requested
+      if (controls) {
+        mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        mapInstance.addControl(new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true
+        }), 'top-right');
+        mapInstance.addControl(new mapboxgl.ScaleControl({
+          maxWidth: 150,
+          unit: 'imperial'
+        }), 'bottom-right');
+        mapInstance.addControl(new mapboxgl.AttributionControl({
+          compact: true
+        }), 'bottom-left');
+      }
+      
+      // Handle map load event
+      mapInstance.on('load', () => {
+        console.log('Map loaded successfully');
+        setLoaded(true);
+        
+        // Add initial data source if provided
+        if (initialData) {
+          mapInstance?.addSource('initial-data', {
+            type: 'geojson',
+            data: initialData
+          });
+          
+          // Add a layer for points
+          mapInstance?.addLayer({
+            id: 'initial-points',
+            type: 'circle',
+            source: 'initial-data',
+            filter: ['==', ['geometry-type'], 'Point'],
+            paint: {
+              'circle-radius': 6,
+              'circle-color': '#ff0000'
+            }
+          });
+          
+          // Add a layer for lines
+          mapInstance?.addLayer({
+            id: 'initial-lines',
+            type: 'line',
+            source: 'initial-data',
+            filter: ['==', ['geometry-type'], 'LineString'],
+            paint: {
+              'line-color': '#ff0000',
+              'line-width': 2
+            }
+          });
+          
+          // Add a layer for polygons
+          mapInstance?.addLayer({
+            id: 'initial-polygons',
+            type: 'fill',
+            source: 'initial-data',
+            filter: ['==', ['geometry-type'], 'Polygon'],
+            paint: {
+              'fill-color': '#ff0000',
+              'fill-opacity': 0.4,
+              'fill-outline-color': '#ff0000'
+            }
+          });
+        }
+        
+        // Call onMapLoaded callback if provided
+        if (onMapLoaded && mapInstance) {
+          onMapLoaded(mapInstance);
+        }
+      });
+      
+      // Track viewport changes
+      mapInstance.on('moveend', () => {
+        if (!mapInstance) return;
+        
+        const mapCenter = mapInstance.getCenter();
+        const newCenter: [number, number] = [mapCenter.lng, mapCenter.lat];
+        const newZoom = mapInstance.getZoom();
+        
+        setViewport({
           center: newCenter,
           zoom: newZoom
         });
-      }
-    });
+        
+        // Call onViewportChange callback if provided
+        if (onViewportChange) {
+          onViewportChange({
+            center: newCenter,
+            zoom: newZoom
+          });
+        }
+      });
+      
+      // Store map instance
+      setMap(mapInstance);
+    };
     
-    // Store map instance
-    setMap(mapInstance);
+    // Call the async initialization function
+    initializeMap();
     
     // Clean up map on unmount
     return () => {
-      mapInstance.remove();
-      setMap(null);
-      setLoaded(false);
+      if (mapInstance) {
+        mapInstance.remove();
+        setMap(null);
+        setLoaded(false);
+      }
     };
   }, [center, zoom, style, controls, initialData, onMapLoaded, onViewportChange]);
   
