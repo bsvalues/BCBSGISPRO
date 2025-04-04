@@ -118,15 +118,15 @@ class WebSocketSessionManager {
       // Update user's last activity
       user.lastActivity = Date.now();
       
-      // User joining room
-      if (type === MessageTypeEnum.JOIN) {
+      // User joining room (handle both client and server formats)
+      if (type === MessageTypeEnum.JOIN || type === MessageTypeEnum.JOIN_ROOM) {
         user.rooms.add(roomId);
         room.users.set(userId, user);
         this.notifyRoomUpdated(roomId, room);
         this.notifyUserUpdated(userId, user);
       }
-      // User leaving room
-      else if (type === MessageTypeEnum.LEAVE) {
+      // User leaving room (handle both client and server formats)
+      else if (type === MessageTypeEnum.LEAVE || type === MessageTypeEnum.LEAVE_ROOM) {
         user.rooms.delete(roomId);
         room.users.delete(userId);
         this.notifyRoomUpdated(roomId, room);
@@ -137,31 +137,63 @@ class WebSocketSessionManager {
         user.cursorPosition = payload.position;
         this.notifyUserUpdated(userId, user);
       }
-      // Feature created/updated
-      else if (type === MessageTypeEnum.FEATURE_CREATED || type === MessageTypeEnum.FEATURE_UPDATED) {
-        if (payload?.featureId && payload?.feature) {
-          room.features.set(payload.featureId, payload.feature);
+      // Feature created/updated (both legacy and new types)
+      else if (
+        type === MessageTypeEnum.FEATURE_CREATED || 
+        type === MessageTypeEnum.FEATURE_UPDATED ||
+        type === MessageTypeEnum.FEATURE_ADD ||
+        type === MessageTypeEnum.FEATURE_UPDATE
+      ) {
+        // Support both payload formats
+        const feature = payload?.feature || message.data?.feature;
+        const featureId = payload?.featureId || (feature?.id || '');
+        
+        if (featureId && feature) {
+          room.features.set(featureId, feature);
           this.notifyRoomUpdated(roomId, room);
         }
       }
-      // Feature deleted
-      else if (type === MessageTypeEnum.FEATURE_DELETED) {
-        if (payload?.featureId) {
-          room.features.delete(payload.featureId);
+      // Feature deleted (both legacy and new types)
+      else if (
+        type === MessageTypeEnum.FEATURE_DELETED ||
+        type === MessageTypeEnum.FEATURE_DELETE
+      ) {
+        // Support both payload formats
+        const feature = payload?.feature || message.data?.feature;
+        const featureId = payload?.featureId || (feature?.id || '');
+        
+        if (featureId) {
+          room.features.delete(featureId);
           this.notifyRoomUpdated(roomId, room);
         }
       }
-      // Annotation created/updated
-      else if (type === MessageTypeEnum.ANNOTATION_CREATED || type === MessageTypeEnum.ANNOTATION_UPDATED) {
-        if (payload?.annotationId && payload?.annotation) {
-          room.annotations.set(payload.annotationId, payload.annotation);
+      // Annotation created/updated (handle both client and server formats)
+      else if (
+        type === MessageTypeEnum.ANNOTATION_CREATED || 
+        type === MessageTypeEnum.ANNOTATION_UPDATED ||
+        type === MessageTypeEnum.ANNOTATION_ADD ||
+        type === MessageTypeEnum.ANNOTATION_UPDATE
+      ) {
+        // Support both payload formats
+        const annotation = payload?.annotation || message.data?.annotation;
+        const annotationId = payload?.annotationId || (annotation?.id || '');
+        
+        if (annotationId && annotation) {
+          room.annotations.set(annotationId, annotation);
           this.notifyRoomUpdated(roomId, room);
         }
       }
-      // Annotation deleted
-      else if (type === MessageTypeEnum.ANNOTATION_DELETED) {
-        if (payload?.annotationId) {
-          room.annotations.delete(payload.annotationId);
+      // Annotation deleted (handle both client and server formats)
+      else if (
+        type === MessageTypeEnum.ANNOTATION_DELETED ||
+        type === MessageTypeEnum.ANNOTATION_DELETE
+      ) {
+        // Support both payload formats
+        const annotation = payload?.annotation || message.data?.annotation;
+        const annotationId = payload?.annotationId || (annotation?.id || '');
+        
+        if (annotationId) {
+          room.annotations.delete(annotationId);
           this.notifyRoomUpdated(roomId, room);
         }
       }
@@ -171,6 +203,11 @@ class WebSocketSessionManager {
           user.status = payload.status as ConnectionStatusEnum;
           this.notifyUserUpdated(userId, user);
         }
+      }
+      // Chat message (handle both client and server formats)
+      else if (type === MessageTypeEnum.CHAT || type === MessageTypeEnum.CHAT_MESSAGE) {
+        // Just passing through chat messages
+        // No special handling needed as they don't affect room state
       }
       
       // Notify message listeners

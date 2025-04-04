@@ -41,12 +41,14 @@ export type MessageType =
 export enum MessageTypeEnum {
   JOIN = 'join',
   LEAVE = 'leave',
+  JOIN_ROOM = 'join_room',  // Server-side format
+  LEAVE_ROOM = 'leave_room', // Server-side format
   CURSOR_MOVE = 'cursor_move',
-  // Feature events (legacy)
+  // Feature events (legacy client format)
   FEATURE_CREATED = 'feature_created',
   FEATURE_UPDATED = 'feature_updated',
   FEATURE_DELETED = 'feature_deleted',
-  // Feature events (new format)
+  // Feature events (new client format)
   FEATURE_ADD = 'feature_add',
   FEATURE_UPDATE = 'feature_update',
   FEATURE_DELETE = 'feature_delete',
@@ -54,9 +56,13 @@ export enum MessageTypeEnum {
   ANNOTATION_CREATED = 'annotation_created',
   ANNOTATION_UPDATED = 'annotation_updated',
   ANNOTATION_DELETED = 'annotation_deleted',
+  ANNOTATION_ADD = 'annotation_add',    // Server-side format
+  ANNOTATION_UPDATE = 'annotation_update', // Server-side format
+  ANNOTATION_DELETE = 'annotation_delete', // Server-side format
   // System events
   HEARTBEAT = 'heartbeat',
   CHAT = 'chat',
+  CHAT_MESSAGE = 'chat_message', // Server-side format
   STATUS = 'status'
 }
 
@@ -304,6 +310,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   
   /**
    * Joins a specific collaboration room with stable references
+   * Supports both client-side (JOIN) and server-side (JOIN_ROOM) message types
    */
   const joinRoom = useCallback((roomId: string): boolean => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -316,9 +323,12 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       return false;
     }
     
+    // Try both client and server message types (server should respond to both)
+    // The server-side format (JOIN_ROOM) is more reliable for the backend
     const success = sendMessage({
-      type: MessageTypeEnum.JOIN,
+      type: MessageTypeEnum.JOIN_ROOM,
       roomId,
+      userId: optionsRef.current.userId,
       username: optionsRef.current.username
     });
     
@@ -344,6 +354,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   
   /**
    * Leaves the current collaboration room with stable references
+   * Supports both client-side (LEAVE) and server-side (LEAVE_ROOM) message types
    */
   const leaveRoom = useCallback((): boolean => {
     // Get currentRoom from ref to avoid stale closure issues
@@ -352,9 +363,11 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       return false;
     }
     
+    // Use server-side format (LEAVE_ROOM) for better compatibility
     const success = sendMessage({
-      type: MessageTypeEnum.LEAVE,
-      roomId: roomToLeave
+      type: MessageTypeEnum.LEAVE_ROOM,
+      roomId: roomToLeave,
+      userId: optionsRef.current.userId
     });
     
     if (success) {
@@ -406,17 +419,20 @@ export function useWebSocket(options: WebSocketOptions = {}) {
 
 /**
  * Helper function to create a formatted chat message
+ * Uses server-compatible CHAT_MESSAGE type
  */
 export function createChatMessage(
   message: string, 
   userId: string, 
-  roomId: string
+  roomId: string,
+  username?: string
 ): WebSocketMessage {
   return {
-    type: MessageTypeEnum.CHAT,
+    type: MessageTypeEnum.CHAT_MESSAGE,
     roomId,
     userId,
-    payload: { message },
+    username,
+    payload: { message, text: message }, // Support both payload formats
     timestamp: Date.now()
   };
 }
