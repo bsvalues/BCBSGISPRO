@@ -133,8 +133,24 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     };
   }, []);
   
+  // Store options in refs to avoid dependency changes triggering reconnects
+  const optionsRef = useRef(opts);
+  
+  // Update options ref when options change
+  useEffect(() => {
+    optionsRef.current = opts;
+  }, [opts]);
+  
   /**
-   * Establishes a WebSocket connection
+   * Join room function reference - needed because connect references joinRoom
+   * but joinRoom is defined after connect creating a circular dependency issue
+   */
+  const joinRoomRef = useRef((roomId: string): boolean => {
+    return false; // Will be properly initialized later
+  });
+  
+  /**
+   * Establishes a WebSocket connection with stable option references
    */
   const connect = useCallback(() => {
     if (socketRef.current && (socketRef.current.readyState === WebSocket.CONNECTING || 
@@ -160,9 +176,9 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         setStatus(ConnectionStatusEnum.CONNECTED);
         reconnectAttemptsRef.current = 0;
         
-        // Auto-join room if specified
-        if (opts.autoJoinRoom) {
-          joinRoom(opts.autoJoinRoom);
+        // Auto-join room if specified, using the ref to access current value
+        if (optionsRef.current.autoJoinRoom) {
+          joinRoomRef.current(optionsRef.current.autoJoinRoom);
         }
       };
       
@@ -191,7 +207,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         setStatus(ConnectionStatusEnum.DISCONNECTED);
         
         // Attempt reconnection if enabled and not a clean closure
-        if (opts.autoReconnect && !event.wasClean) {
+        if (optionsRef.current.autoReconnect && !event.wasClean) {
           scheduleReconnect();
         }
       };
@@ -210,28 +226,31 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       console.error('Failed to create WebSocket connection:', error);
       setStatus(ConnectionStatusEnum.ERROR);
       
-      if (opts.autoReconnect) {
+      if (optionsRef.current.autoReconnect) {
         scheduleReconnect();
       }
     }
-  }, [opts.autoJoinRoom, opts.autoReconnect]);
+  }, []); // No dependencies needed now since we use refs
   
   /**
    * Schedules a reconnection attempt with exponential backoff
    */
   const scheduleReconnect = useCallback(() => {
-    if (!isMountedRef.current || !opts.autoReconnect) return;
+    if (!isMountedRef.current || !optionsRef.current.autoReconnect) return;
     
-    // Check if max retries reached
-    if (opts.maxRetries && opts.maxRetries > 0 && reconnectAttemptsRef.current >= opts.maxRetries) {
-      console.log(`Max reconnection attempts (${opts.maxRetries}) reached. Giving up.`);
+    // Check if max retries reached using the options ref
+    if (optionsRef.current.maxRetries && 
+        optionsRef.current.maxRetries > 0 && 
+        reconnectAttemptsRef.current >= optionsRef.current.maxRetries) {
+      console.log(`Max reconnection attempts (${optionsRef.current.maxRetries}) reached. Giving up.`);
       return;
     }
     
-    // Calculate delay with exponential backoff
+    // Calculate delay with exponential backoff using the options ref
     const delay = Math.min(
-      opts.initialRetryDelay! * Math.pow(opts.backoffFactor!, reconnectAttemptsRef.current),
-      opts.maxRetryDelay!
+      optionsRef.current.initialRetryDelay! * 
+      Math.pow(optionsRef.current.backoffFactor!, reconnectAttemptsRef.current),
+      optionsRef.current.maxRetryDelay!
     );
     
     console.log(`Scheduling reconnection attempt #${reconnectAttemptsRef.current + 1} in ${delay}ms`);
@@ -246,10 +265,10 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       reconnectAttemptsRef.current++;
       connect();
     }, delay);
-  }, [connect, opts.autoReconnect, opts.backoffFactor, opts.initialRetryDelay, opts.maxRetries, opts.maxRetryDelay]);
+  }, [connect]); // Only depend on connect function
   
   /**
-   * Sends a message through the WebSocket
+   * Sends a message through the WebSocket with stable user references
    */
   const sendMessage = useCallback((message: WebSocketMessage): boolean => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -258,12 +277,12 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     try {
-      // Ensure message has required fields
+      // Ensure message has required fields using the options ref for stable references
       const fullMessage: WebSocketMessage = {
         ...message,
         timestamp: message.timestamp || Date.now(),
-        userId: opts.userId || message.userId,
-        username: message.username || opts.username
+        userId: optionsRef.current.userId || message.userId,
+        username: message.username || optionsRef.current.username
       };
       
       socketRef.current.send(JSON.stringify(fullMessage));
@@ -272,10 +291,10 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       console.error('Failed to send message:', error);
       return false;
     }
-  }, [opts.userId, opts.username]);
+  }, []); // No dependencies since we use optionsRef
   
   /**
-   * Joins a specific collaboration room
+   * Joins a specific collaboration room with stable references
    */
   const joinRoom = useCallback((roomId: string): boolean => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -291,7 +310,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     const success = sendMessage({
       type: MessageTypeEnum.JOIN,
       roomId,
-      username: opts.username
+      username: optionsRef.current.username
     });
     
     if (success) {
@@ -299,19 +318,34 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     return success;
-  }, [opts.username, sendMessage]);
+  }, [sendMessage]); // Only depend on sendMessage
+  
+  // Initialize the joinRoomRef now that joinRoom is defined
+  useEffect(() => {
+    joinRoomRef.current = joinRoom;
+  }, [joinRoom]);
+  
+  // Reference to current room to avoid dependency on currentRoom state
+  const currentRoomRef = useRef<string>('');
+  
+  // Update room ref when currentRoom changes
+  useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
   
   /**
-   * Leaves the current collaboration room
+   * Leaves the current collaboration room with stable references
    */
   const leaveRoom = useCallback((): boolean => {
-    if (!currentRoom) {
+    // Get currentRoom from ref to avoid stale closure issues
+    const roomToLeave = currentRoomRef.current;
+    if (!roomToLeave) {
       return false;
     }
     
     const success = sendMessage({
       type: MessageTypeEnum.LEAVE,
-      roomId: currentRoom
+      roomId: roomToLeave
     });
     
     if (success) {
@@ -319,7 +353,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     return success;
-  }, [currentRoom, sendMessage]);
+  }, [sendMessage]); // Only depend on sendMessage
   
   /**
    * Manually disconnect the WebSocket connection
@@ -344,7 +378,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     setMessages([]);
   }, []);
   
-  // Return the WebSocket interface
+  // Return the WebSocket interface with stable reference values
   return {
     status,
     messages,
@@ -355,7 +389,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     disconnect,
     clearMessages,
     currentRoom,
-    userId: opts.userId,
+    userId: optionsRef.current.userId, // Use the reference value
     lastMessage: messages.length > 0 ? messages[messages.length - 1] : null,
     send: sendMessage
   };
