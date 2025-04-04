@@ -8,6 +8,7 @@ import FullScreenMapPage from "@/pages/full-screen-map-page";
 import ToastTestPage from "@/pages/toast-test-page";
 import MapboxDemoPage from "@/pages/mapbox-demo-page";
 import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
+import LegalDescriptionDemo from "@/pages/legal-description-demo";
 import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page";
 import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
@@ -146,6 +147,16 @@ function App() {
               </Button>
             </Link>
             
+            <Link href="/legal-description-demo">
+              <Button 
+                variant={location === "/legal-description-demo" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <FileText className="mr-1 h-4 w-4" />
+                Legal Description Parser
+              </Button>
+            </Link>
+            
             <Link href="/websocket-demo">
               <Button 
                 variant={location === "/websocket-demo" ? "secondary" : "outline"} 
@@ -203,6 +214,7 @@ function App() {
             <Route path="/error-handling" component={ErrorHandlingPage} />
             <Route path="/toast-test" component={ToastTestPage} />
             <Route path="/legal-description-agent" component={LegalDescriptionAgentPage} />
+            <Route path="/legal-description-demo" component={LegalDescriptionDemo} />
             <Route path="/websocket-demo" component={WebSocketDemoPage} />
             <Route path="/websocket-test" component={WebSocketTestPage} />
             <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
