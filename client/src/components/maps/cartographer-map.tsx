@@ -11,7 +11,7 @@ import LeafletMap from './leaflet/leaflet-map';
 import { 
   GeoJSONFeature, 
   MapTool, 
-  MapLayerType,
+  MapLayerStyle,
   MeasurementType,
   MeasurementUnit
 } from '@/lib/map-utils';
@@ -21,7 +21,7 @@ import {
   createRectangle,
   generateLegalDescription
 } from '@/lib/advanced-drawing-utils';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -67,7 +67,6 @@ export function CartographerMap({
   className = '',
   showPrecisionTools = true
 }: CartographerMapProps) {
-  const { toast } = useToast();
   const mapRef = useRef<L.Map | null>(null);
   const [features, setFeatures] = useState<GeoJSONFeature[]>(initialFeatures);
   const [activeTool, setActiveTool] = useState<MapTool>(MapTool.PAN);
@@ -195,8 +194,14 @@ export function CartographerMap({
     }
   };
   
-  // Handle feature editing
-  const handleFeatureEdit = (editedFeatures: GeoJSONFeature[]) => {
+  // Handle feature editing - single feature adapter for AdvancedDrawControl
+  const handleFeatureEdit = (feature: GeoJSONFeature) => {
+    // Call the multi-feature version with an array containing just this feature
+    handleFeatureEditBatch([feature]);
+  };
+  
+  // Handle feature editing - batch version for internal use
+  const handleFeatureEditBatch = (editedFeatures: GeoJSONFeature[]) => {
     // Update features
     const updatedFeatures = features.map(f => {
       const editedFeature = editedFeatures.find(
@@ -219,8 +224,14 @@ export function CartographerMap({
     });
   };
   
-  // Handle feature deletion
-  const handleFeatureDelete = (deletedFeatures: GeoJSONFeature[]) => {
+  // Handle feature deletion - single feature adapter for AdvancedDrawControl
+  const handleFeatureDelete = (feature: GeoJSONFeature) => {
+    // Call the multi-feature version with an array containing just this feature
+    handleFeatureDeleteBatch([feature]);
+  };
+  
+  // Handle feature deletion - batch version for internal use
+  const handleFeatureDeleteBatch = (deletedFeatures: GeoJSONFeature[]) => {
     // Remove deleted features
     const deletedIds = deletedFeatures.map(f => f.properties?.id).filter(Boolean);
     const remainingFeatures = features.filter(

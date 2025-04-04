@@ -30,7 +30,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useWebSocket, MessageType } from '@/lib/websocket';
-import { useToast, toast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import * as turf from '@turf/turf';
 
@@ -84,9 +84,6 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
   
   // WebSocket connection
   const { send, lastMessage, userId } = useWebSocket(roomId);
-  
-  // Toast notifications
-  const { toasts, dismiss } = useToast(); // We use the imported toast function directly
   
   // Feature source and layer names
   const sourceName = 'collaborative-features';

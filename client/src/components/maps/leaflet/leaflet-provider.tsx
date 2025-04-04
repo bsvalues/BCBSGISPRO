@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapContainer, TileLayer, useMapEvents, MapContainerProps } from 'react-leaflet';
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, useMap, MapContainerProps } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import 'leaflet-defaulticon-compatibility';
@@ -14,16 +14,10 @@ export interface LeafletProviderProps extends MapContainerProps {
  * Handles map events and provides access to the map instance
  */
 function MapEventsHandler({ onMapReady }: { onMapReady?: (map: L.Map) => void }) {
-  const map = useMapEvents({
-    load: () => {
-      if (onMapReady) {
-        onMapReady(map);
-      }
-    }
-  });
+  const map = useMap();
   
   // Call onMapReady immediately since the map is already available
-  React.useEffect(() => {
+  useEffect(() => {
     if (onMapReady) {
       onMapReady(map);
     }
