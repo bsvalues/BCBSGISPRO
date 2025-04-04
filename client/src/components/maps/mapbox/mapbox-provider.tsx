@@ -97,8 +97,8 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   
   // Handle direct token fetching
   const fetchTokenDirectly = useCallback(async () => {
-    if (error && !fetchingDirectly && !token && !directToken) {
-      console.log('Attempting to fetch Mapbox token directly due to error');
+    if (!fetchingDirectly && !directToken && (!token || error)) {
+      console.log('Attempting to fetch Mapbox token directly');
       setFetchingDirectly(true);
       
       try {
@@ -109,8 +109,11 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
         
         const data = await response.json();
         if (data && typeof data.token === 'string') {
-          console.log('Successfully retrieved Mapbox token directly');
+          console.log('Successfully retrieved Mapbox token directly:', data.token.substring(0, 10) + '...');
           setDirectToken(data.token);
+          
+          // Set the token for mapbox-gl globally to ensure it's available
+          mapboxgl.accessToken = data.token;
         }
       } catch (directError) {
         console.error('Failed to fetch token directly:', directError);
@@ -118,12 +121,19 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
         setFetchingDirectly(false);
       }
     }
-  }, [error, fetchingDirectly, token, directToken]);
+  }, [fetchingDirectly, token, directToken, error]);
   
-  // Fetch token directly if hook fails
+  // Always fetch token directly on component mount
   useEffect(() => {
     fetchTokenDirectly();
-  }, [fetchTokenDirectly]);
+  }, [fetchTokenDirectly])  // Include fetchTokenDirectly to avoid lint warnings
+  
+  // Also fetch token if the hook fails
+  useEffect(() => {
+    if (error) {
+      fetchTokenDirectly();
+    }
+  }, [error, fetchTokenDirectly]);
   
   // Initialize the map when token is available
   useEffect(() => {
