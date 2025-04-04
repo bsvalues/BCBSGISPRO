@@ -42,12 +42,19 @@ export enum MessageTypeEnum {
   JOIN = 'join',
   LEAVE = 'leave',
   CURSOR_MOVE = 'cursor_move',
+  // Feature events (legacy)
   FEATURE_CREATED = 'feature_created',
   FEATURE_UPDATED = 'feature_updated',
   FEATURE_DELETED = 'feature_deleted',
+  // Feature events (new format)
+  FEATURE_ADD = 'feature_add',
+  FEATURE_UPDATE = 'feature_update',
+  FEATURE_DELETE = 'feature_delete',
+  // Annotation events
   ANNOTATION_CREATED = 'annotation_created',
   ANNOTATION_UPDATED = 'annotation_updated',
   ANNOTATION_DELETED = 'annotation_deleted',
+  // System events
   HEARTBEAT = 'heartbeat',
   CHAT = 'chat',
   STATUS = 'status'
@@ -83,6 +90,8 @@ export interface WebSocketOptions {
   maxRetries?: number;
   /** Room ID to join automatically when connected */
   autoJoinRoom?: string;
+  /** Room ID to use (alias for autoJoinRoom for compatibility) */
+  roomId?: string;
   /** User identity information */
   userId?: string;
   username?: string;
