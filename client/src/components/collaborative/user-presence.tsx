@@ -82,37 +82,78 @@ export function UserPresence({
   onUserActivity,
   className
 }: UserPresenceProps) {
-  // Use enhanced WebSocket hook
+  // Create stable refs for WebSocket hook parameters
+  const roomIdRef = React.useRef(roomId);
+  const userIdRef = React.useRef(userId);
+  const usernameRef = React.useRef(username);
+  
+  // Update refs when props change
+  React.useEffect(() => {
+    roomIdRef.current = roomId;
+    userIdRef.current = userId;
+    usernameRef.current = username;
+  }, [roomId, userId, username]);
+  
+  // Use enhanced WebSocket hook with stable refs
   const { roomUsers, status } = useEnhancedWebSocket({
-    roomId,
-    userId,
-    username
+    roomId: roomIdRef.current,
+    userId: userIdRef.current,
+    username: usernameRef.current
   });
   
   // Track selected user
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   
-  // Handle user activity updates
+  // Create stable ref for the user activity callback
+  const onUserActivityRef = React.useRef(onUserActivity);
+  
+  // Update the callback ref when it changes
+  React.useEffect(() => {
+    onUserActivityRef.current = onUserActivity;
+  }, [onUserActivity]);
+  
+  // Handle user activity updates with stable references
   useEffect(() => {
-    if (!onUserActivity) return;
+    // Return early if no callback is provided using the ref
+    if (!onUserActivityRef.current) return;
+    
+    // Create stable reference to current roomUsers
+    const roomUsersRef = React.useRef(roomUsers);
+    roomUsersRef.current = roomUsers;
     
     const timer = setInterval(() => {
-      roomUsers.forEach(user => {
-        onUserActivity(user.id, user.lastActivity);
-      });
+      // Access the latest roomUsers and callback from refs
+      if (onUserActivityRef.current) {
+        roomUsersRef.current.forEach(user => {
+          onUserActivityRef.current!(user.id, user.lastActivity);
+        });
+      }
     }, 30000); // Check every 30 seconds
     
     return () => clearInterval(timer);
-  }, [roomUsers, onUserActivity]);
+  }, []); // No dependencies as we use refs
   
-  // Handle user selection
-  const handleUserClick = (user: CollaborativeUser) => {
-    setSelectedUserId(user.id === selectedUserId ? null : user.id);
-    if (onUserSelected) onUserSelected(user);
-  };
+  // Create stable ref for the user selection callback
+  const onUserSelectedRef = React.useRef(onUserSelected);
   
-  // Render activity status indicator
-  const renderActivityIndicator = (lastActivity: number) => {
+  // Update the callback ref when it changes
+  React.useEffect(() => {
+    onUserSelectedRef.current = onUserSelected;
+  }, [onUserSelected]);
+  
+  // Handle user selection with stable callback reference
+  const handleUserClick = React.useCallback((user: CollaborativeUser) => {
+    // Toggle selected user ID
+    setSelectedUserId(prevId => user.id === prevId ? null : user.id);
+    
+    // Call the callback if available using the ref for stable reference
+    if (onUserSelectedRef.current) {
+      onUserSelectedRef.current(user);
+    }
+  }, []); // No dependencies as we use refs
+  
+  // Render activity status indicator (memoized)
+  const renderActivityIndicator = React.useCallback((lastActivity: number) => {
     const status = getActivityStatus(lastActivity);
     
     return (
@@ -144,7 +185,7 @@ export function UserPresence({
         </Tooltip>
       </TooltipProvider>
     );
-  };
+  }, []); // No dependencies as getActivityStatus and formatTimeAgo are stable functions
   
   // Render a compact view
   if (compact) {

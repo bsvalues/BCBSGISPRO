@@ -70,14 +70,30 @@ export function CollaborativeCursors({
   showUsernames = true,
   excludeLocalUser = false
 }: CollaborativeCursorsProps) {
-  // Use enhanced WebSocket
+  // Create stable room ID reference
+  const roomIdRef = useRef(roomId);
+  
+  // Update room ID ref when it changes
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+  
+  // Use enhanced WebSocket with stable room ID ref
   const { 
     sendMessage, 
     lastMessage, 
     userId: localUserId 
   } = useEnhancedWebSocket({
-    roomId
+    roomId: roomIdRef.current
   });
+  
+  // Store local user ID in ref to prevent dependency changes
+  const localUserIdRef = useRef(localUserId);
+  
+  // Update local user ID ref when it changes
+  useEffect(() => {
+    localUserIdRef.current = localUserId;
+  }, [localUserId]);
   
   // Cursor positions
   const [cursorPositions, setCursorPositions] = useState<CursorPosition[]>([]);
@@ -85,15 +101,23 @@ export function CollaborativeCursors({
   // Track mouse movement
   const mouseMovementRef = useRef<{ x: number, y: number } | null>(null);
   
-  // Effect to process incoming cursor position messages
+  // Create ref for exclude local user flag to prevent dependency changes
+  const excludeLocalUserRef = useRef(excludeLocalUser);
+  
+  // Update exclude local user ref when it changes
+  useEffect(() => {
+    excludeLocalUserRef.current = excludeLocalUser;
+  }, [excludeLocalUser]);
+  
+  // Effect to process incoming cursor position messages using refs
   useEffect(() => {
     if (!lastMessage || lastMessage.type !== MessageTypeEnum.CURSOR_MOVE) return;
     
     const { userId, username, payload } = lastMessage;
     if (!userId || !username || !payload || !payload.position) return;
     
-    // Skip the local user's cursor if excluded
-    if (excludeLocalUser && userId === localUserId) return;
+    // Skip the local user's cursor if excluded - use refs for stable comparison
+    if (excludeLocalUserRef.current && userId === localUserIdRef.current) return;
     
     // Update cursor position
     setCursorPositions(prevPositions => {
@@ -125,22 +149,38 @@ export function CollaborativeCursors({
         ];
       }
     });
-  }, [lastMessage, localUserId, excludeLocalUser]);
+  }, [lastMessage]); // Only depend on lastMessage since we use refs for other values
   
-  // Throttled function to send cursor position updates
+  // Refs for dependencies to avoid recreation
+  const sendMessageRef = useRef(sendMessage);
+  
+  // Update sendMessage ref when it changes
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+  
+  // Reference for throttle ms to avoid dependency changes
+  const throttleMsRef = useRef(throttleMs);
+  
+  // Update throttleMs ref when it changes
+  useEffect(() => {
+    throttleMsRef.current = throttleMs;
+  }, [throttleMs]);
+  
+  // Throttled function to send cursor position updates with stable references
   const sendCursorPosition = useCallback(
     throttle((x: number, y: number) => {
       if (!containerRef.current) return;
       
-      sendMessage({
+      sendMessageRef.current({
         type: MessageTypeEnum.CURSOR_MOVE,
-        roomId,
+        roomId: roomIdRef.current,
         payload: {
           position: { x, y }
         }
       });
-    }, throttleMs),
-    [sendMessage, roomId, containerRef, throttleMs]
+    }, throttleMsRef.current),
+    [containerRef] // Only depend on containerRef since we use refs for other values
   );
   
   // Handle mouse movement in the container
@@ -169,18 +209,34 @@ export function CollaborativeCursors({
     };
   }, [containerRef]);
   
-  // Periodically send cursor position
+  // Reference for the cursor position callback
+  const sendCursorPositionRef = useRef(sendCursorPosition);
+  
+  // Update the cursor position callback ref when it changes
+  useEffect(() => {
+    sendCursorPositionRef.current = sendCursorPosition;
+  }, [sendCursorPosition]);
+  
+  // Periodically send cursor position with stable references
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (mouseMovementRef.current) {
-        sendCursorPosition(mouseMovementRef.current.x, mouseMovementRef.current.y);
+        sendCursorPositionRef.current(mouseMovementRef.current.x, mouseMovementRef.current.y);
       }
-    }, throttleMs);
+    }, throttleMsRef.current);
     
     return () => clearInterval(intervalId);
-  }, [sendCursorPosition, throttleMs]);
+  }, []); // No dependencies since we use refs
   
-  // Hide cursors after inactivity
+  // Reference for the fade out delay to avoid dependency changes
+  const fadeOutDelayRef = useRef(fadeOutDelay);
+  
+  // Update fade out delay ref when it changes
+  useEffect(() => {
+    fadeOutDelayRef.current = fadeOutDelay;
+  }, [fadeOutDelay]);
+  
+  // Hide cursors after inactivity with stable references
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCursorPositions(prevPositions => {
@@ -188,9 +244,9 @@ export function CollaborativeCursors({
         const now = Date.now();
         let updated = false;
         
-        // Check each position for timeout
+        // Check each position for timeout using the ref for stable fadeOutDelay reference
         const newPositions = prevPositions.map(pos => {
-          if (pos.isVisible && now - pos.lastUpdated > fadeOutDelay) {
+          if (pos.isVisible && now - pos.lastUpdated > fadeOutDelayRef.current) {
             updated = true;
             return { ...pos, isVisible: false };
           }
@@ -203,7 +259,7 @@ export function CollaborativeCursors({
     }, 1000); // Check every second
     
     return () => clearInterval(intervalId);
-  }, [fadeOutDelay]);
+  }, []); // No dependencies since we use refs
   
   return (
     <>
