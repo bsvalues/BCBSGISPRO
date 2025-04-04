@@ -31,7 +31,7 @@ import {
   Users, 
   Globe 
 } from 'lucide-react';
-import { CollaborativeMap } from '@/components/maps/collaborative-map';
+import { CollaborativeMapContainer } from '@/components/maps/collaborative-map-container';
 
 interface ChatMessage {
   id: string;
@@ -331,7 +331,7 @@ export default function WebSocketDemoPage() {
         <TabsContent value="map">
           <div className="space-y-6">
             <div style={{ height: '600px' }}>
-              <CollaborativeMap roomId="demo-map" />
+              <CollaborativeMapContainer roomId="demo-map" height={600} />
             </div>
             
             <div className="bg-muted rounded-md p-4">

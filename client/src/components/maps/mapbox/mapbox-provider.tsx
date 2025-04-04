@@ -3,14 +3,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { toast } from '@/hooks/use-toast';
 
-// Initialize Mapbox with access token
-// Use the environment variable from Replit secrets
-const MAPBOX_TOKEN = import.meta.env.MAPBOX_ACCESS_TOKEN;
-if (MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-} else {
-  console.error('Mapbox access token not found. Map functionality will be limited.');
-}
+// We will fetch the token from the API instead of using env vars directly
+let tokenInitialized = false;
 
 // Check for browser WebGL support
 const isSupported = mapboxgl.supported();
@@ -63,61 +57,90 @@ export function MapboxProvider({
       return;
     }
 
-    if (!MAPBOX_TOKEN) {
-      toast({
-        title: 'Mapbox token missing',
-        description: 'Please provide a Mapbox access token to use the map features.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    // Only create a new map if one doesn't already exist
-    if (!map) {
-      try {
-        const newMap = new mapboxgl.Map({
-          container: mapContainerId,
-          style: mapStyle,
-          center: [initialViewState.longitude, initialViewState.latitude],
-          zoom: initialViewState.zoom,
-          attributionControl: true
-        });
-
-        // Add navigation controls
-        newMap.addControl(new mapboxgl.NavigationControl(), 'top-right');
-        
-        // Add scale control
-        newMap.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
-
-        // Wait for map to load
-        newMap.on('load', () => {
-          setIsLoaded(true);
-          if (onMapLoad) {
-            onMapLoad(newMap);
+    // First, check if we need to get the Mapbox token
+    const initializeMapbox = async () => {
+      // Only fetch token if not already initialized
+      if (!tokenInitialized) {
+        try {
+          const response = await fetch('/api/mapbox-token');
+          const data = await response.json();
+          
+          if (data.token) {
+            mapboxgl.accessToken = data.token;
+            tokenInitialized = true;
+            console.log('Mapbox token initialized successfully');
+          } else {
+            throw new Error('Token not found in response');
           }
-        });
-
-        // Add error handler
-        newMap.on('error', (e) => {
-          console.error('Mapbox error:', e);
+        } catch (err) {
+          console.error('Failed to fetch Mapbox token:', err);
           toast({
-            title: 'Map error',
-            description: 'An error occurred with the map. Please try again later.',
+            title: 'Mapbox token error',
+            description: 'Could not retrieve Mapbox access token. Map features may be limited.',
             variant: 'destructive'
           });
-        });
-
-        // Set the map instance
-        setMap(newMap);
-      } catch (error) {
-        console.error('Error initializing Mapbox:', error);
-        toast({
-          title: 'Map initialization failed',
-          description: 'Failed to initialize the map. Please try again.',
-          variant: 'destructive'
-        });
+          return false;
+        }
       }
-    }
+      return true;
+    };
+
+    // Initialize Mapbox and create map
+    const setupMap = async () => {
+      // Only proceed if token is initialized successfully
+      const tokenSuccess = await initializeMapbox();
+      if (!tokenSuccess) return;
+
+      // Only create a new map if one doesn't already exist
+      if (!map) {
+        try {
+          const newMap = new mapboxgl.Map({
+            container: mapContainerId,
+            style: mapStyle,
+            center: [initialViewState.longitude, initialViewState.latitude],
+            zoom: initialViewState.zoom,
+            attributionControl: true
+          });
+
+          // Add navigation controls
+          newMap.addControl(new mapboxgl.NavigationControl(), 'top-right');
+          
+          // Add scale control
+          newMap.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
+
+          // Wait for map to load
+          newMap.on('load', () => {
+            setIsLoaded(true);
+            if (onMapLoad) {
+              onMapLoad(newMap);
+            }
+          });
+
+          // Add error handler
+          newMap.on('error', (e) => {
+            console.error('Mapbox error:', e);
+            toast({
+              title: 'Map error',
+              description: 'An error occurred with the map. Please try again later.',
+              variant: 'destructive'
+            });
+          });
+
+          // Set the map instance
+          setMap(newMap);
+        } catch (error) {
+          console.error('Error initializing Mapbox:', error);
+          toast({
+            title: 'Map initialization failed',
+            description: 'Failed to initialize the map. Please try again.',
+            variant: 'destructive'
+          });
+        }
+      }
+    };
+
+    // Call the setup function
+    setupMap();
 
     // Cleanup function to remove the map instance
     return () => {
