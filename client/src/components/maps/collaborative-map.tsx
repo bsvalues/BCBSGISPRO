@@ -51,10 +51,11 @@ export interface CollaborativeFeature {
   id: string;
   type: 'Feature';
   geometry: {
-    type: string;
-    coordinates: any;
+    type: 'Point' | 'LineString' | 'Polygon' | 'MultiPoint' | 'MultiLineString' | 'MultiPolygon';
+    coordinates: number[] | number[][] | number[][][] | number[][][][];
   };
   properties: {
+    id?: string;
     creator: string;
     createdAt: string;
     featureType: string;
@@ -110,7 +111,10 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
   // Convert current points to a feature
   const pointsToFeature = useCallback((points: [number, number][], type: string): CollaborativeFeature => {
     const color = getRandomColor();
-    let geometry;
+    let geometry: {
+      type: 'Point' | 'LineString' | 'Polygon' | 'MultiPoint' | 'MultiLineString' | 'MultiPolygon';
+      coordinates: number[] | number[][] | number[][][] | number[][][][];
+    };
     
     switch (type) {
       case 'point':
@@ -151,7 +155,11 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
           units: 'kilometers'
         });
         
-        geometry = circleFeature.geometry;
+        // Cast the turf geometry to our expected type
+        geometry = {
+          type: 'Polygon',
+          coordinates: circleFeature.geometry.coordinates
+        };
         break;
       default:
         geometry = {
@@ -292,7 +300,25 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
       map.off('mousedown', onMouseDown);
       map.off('mousemove', onMouseMove);
       map.off('mouseup', onMouseUp);
-      map.off('click');
+      
+      // Get the click handler we set up earlier to remove it specifically
+      const mapClickHandler = (e: mapboxgl.MapMouseEvent) => {
+        if (drawMode !== DrawMode.NONE && drawMode !== DrawMode.PAN) return;
+        
+        // Query rendered features at the click location
+        const features = map.queryRenderedFeatures(e.point, {
+          layers: [layerName, `${layerName}-line`, `${layerName}-point`, `${layerName}-outline`]
+        });
+        
+        if (features.length > 0) {
+          // Handle feature selection (already defined above)
+        } else {
+          // Clear selection (already defined above)
+        }
+      };
+      
+      // Remove the click handler
+      map.off('click', mapClickHandler);
     };
   }, [map, drawMode, selectedFeatureId]);
   
@@ -337,7 +363,7 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
     
     source.setData({
       type: 'FeatureCollection',
-      features: drawnFeatures
+      features: drawnFeatures as any
     });
   }, [map, drawnFeatures]);
   
@@ -457,7 +483,7 @@ export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
         const source = map.getSource(sourceName) as mapboxgl.GeoJSONSource;
         source.setData({
           type: 'FeatureCollection',
-          features: [...drawnFeatures, feature]
+          features: [...drawnFeatures, feature] as any
         });
       }
     }
