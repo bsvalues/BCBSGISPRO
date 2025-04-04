@@ -12,6 +12,7 @@ import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page";
 import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
 import WebSocketTestPage from "@/pages/websocket-test";
+import CollaborativeMapDemoPage from "@/pages/collaborative-map-demo";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -174,6 +175,16 @@ function App() {
                 Collaborative Features
               </Button>
             </Link>
+
+            <Link href="/collaborative-map">
+              <Button 
+                variant={location === "/collaborative-map" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <MapPin className="mr-1 h-4 w-4" />
+                Collaborative Map
+              </Button>
+            </Link>
           </nav>
         </div>
       </header>
@@ -196,6 +207,7 @@ function App() {
             <Route path="/websocket-test" component={WebSocketTestPage} />
             <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
             <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
+            <Route path="/collaborative-map" component={CollaborativeMapDemoPage} />
             
             {/* Default to the Collaborative Workspace page for testing */}
             <Route>

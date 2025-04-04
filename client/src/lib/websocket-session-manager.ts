@@ -1,282 +1,211 @@
-import { WebSocketMessage, ConnectionStatusEnum, MessageTypeEnum } from './websocket';
+import { WebSocketMessage, MessageTypeEnum } from '@/lib/websocket';
 
 /**
- * Represents a user in a collaborative session
+ * User information for collaborative editing
  */
 export interface CollaborativeUser {
   id: string;
-  username: string;
-  rooms: Set<string>;
-  cursorPosition?: { x: number, y: number };
+  username?: string;
   lastActivity: number;
-  status: ConnectionStatusEnum;
+  rooms: Set<string>;
+  cursor?: {
+    lng: number;
+    lat: number;
+  };
 }
 
 /**
- * Room state for a collaboration session
+ * Room information for collaborative editing
  */
 export interface CollaborativeRoom {
   id: string;
   users: Map<string, CollaborativeUser>;
-  features: Map<string, any>;
-  annotations: Map<string, any>;
-  createdAt: number;
+  features: Map<string, any>; // Map of features indexed by ID
+  annotations: Map<string, any>; // Map of annotations indexed by ID
   lastActivity: number;
 }
 
 /**
- * Session manager for tracking users across WebSocket connections
+ * Type for room update callback
  */
-class WebSocketSessionManager {
-  // Singleton instance
-  private static _instance: WebSocketSessionManager | null = null;
+type RoomUpdateCallback = (roomId: string, room: CollaborativeRoom) => void;
+
+/**
+ * Type for user update callback
+ */
+type UserUpdateCallback = (userId: string, user: CollaborativeUser) => void;
+
+/**
+ * Type for message callback
+ */
+type MessageCallback = (message: WebSocketMessage) => void;
+
+/**
+ * Singleton class for managing WebSocket collaboration sessions
+ */
+export class WebSocketSessionManager {
+  private static instance: WebSocketSessionManager;
   
-  // Maps room IDs to room data
   private rooms: Map<string, CollaborativeRoom> = new Map();
-  
-  // Maps user IDs to user data
   private users: Map<string, CollaborativeUser> = new Map();
-  
-  // Current user info
+  private roomUpdateListeners: Set<RoomUpdateCallback> = new Set();
+  private userUpdateListeners: Set<UserUpdateCallback> = new Set();
+  private messageListeners: Set<MessageCallback> = new Set();
   private currentUserId: string = '';
   private currentUsername: string = '';
   
-  // Callbacks for various events
-  private callbacks: {
-    onRoomUpdated: Array<(roomId: string, room: CollaborativeRoom) => void>;
-    onUserUpdated: Array<(userId: string, user: CollaborativeUser) => void>;
-    onMessage: Array<(message: WebSocketMessage) => void>;
-    onError: Array<(error: Error) => void>;
-  };
-  
   /**
-   * Singleton accessor
+   * Get the singleton instance of the WebSocketSessionManager
    */
   public static getInstance(): WebSocketSessionManager {
-    if (!WebSocketSessionManager._instance) {
-      WebSocketSessionManager._instance = new WebSocketSessionManager();
+    if (!WebSocketSessionManager.instance) {
+      WebSocketSessionManager.instance = new WebSocketSessionManager();
     }
-    return WebSocketSessionManager._instance;
+    return WebSocketSessionManager.instance;
   }
   
   /**
-   * Private constructor for singleton pattern
+   * Private constructor to enforce singleton pattern
    */
   private constructor() {
-    this.callbacks = {
-      onRoomUpdated: [],
-      onUserUpdated: [],
-      onMessage: [],
-      onError: []
-    };
-    
-    console.log('WebSocketSessionManager initialized');
+    // Initialize empty
   }
   
   /**
-   * Set current user information
+   * Set the current user information
    */
   public setCurrentUser(userId: string, username: string): void {
     this.currentUserId = userId;
     this.currentUsername = username;
-    
-    // Create or update user record
-    this.getOrCreateUser(userId, username);
   }
   
   /**
-   * Get current user information
+   * Get the current user information
    */
-  public getCurrentUser(): { id: string, username: string } {
+  public getCurrentUser(): { userId: string, username: string } {
     return {
-      id: this.currentUserId,
+      userId: this.currentUserId,
       username: this.currentUsername
     };
   }
   
   /**
-   * Process a WebSocket message to update the session state
+   * Process incoming WebSocket message and update internal state
    */
   public processMessage(message: WebSocketMessage): void {
-    try {
-      const { type, userId, username, roomId, payload } = message;
-      
-      if (!userId || !roomId) {
-        return; // Invalid message
-      }
-      
-      // Ensure user and room exist
-      const user = this.getOrCreateUser(userId, username || `User${userId.substring(0, 4)}`);
-      this.ensureRoomExists(roomId);
-      
-      // Reference to the room
-      const room = this.rooms.get(roomId)!;
-      
-      // Update last activity for room
-      room.lastActivity = Date.now();
-      
-      // Update user's last activity
-      user.lastActivity = Date.now();
-      
-      // User joining room (handle both client and server formats)
-      if (type === MessageTypeEnum.JOIN || type === MessageTypeEnum.JOIN_ROOM) {
-        user.rooms.add(roomId);
-        room.users.set(userId, user);
-        this.notifyRoomUpdated(roomId, room);
-        this.notifyUserUpdated(userId, user);
-      }
-      // User leaving room (handle both client and server formats)
-      else if (type === MessageTypeEnum.LEAVE || type === MessageTypeEnum.LEAVE_ROOM) {
-        user.rooms.delete(roomId);
-        room.users.delete(userId);
-        this.notifyRoomUpdated(roomId, room);
-        this.notifyUserUpdated(userId, user);
-      }
-      // Cursor movement
-      else if (type === MessageTypeEnum.CURSOR_MOVE && payload?.position) {
-        user.cursorPosition = payload.position;
-        this.notifyUserUpdated(userId, user);
-      }
-      // Feature created/updated (both legacy and new types)
-      else if (
-        type === MessageTypeEnum.FEATURE_CREATED || 
-        type === MessageTypeEnum.FEATURE_UPDATED ||
-        type === MessageTypeEnum.FEATURE_ADD ||
-        type === MessageTypeEnum.FEATURE_UPDATE
-      ) {
-        // Support both payload formats
-        const feature = payload?.feature || message.data?.feature;
-        const featureId = payload?.featureId || (feature?.id || '');
+    // Skip processing empty messages
+    if (!message || !message.type) return;
+    
+    // Notify message listeners
+    this.notifyMessageListeners(message);
+    
+    // Process based on message type
+    switch (message.type) {
+      // Handle room joining
+      case MessageTypeEnum.JOIN:
+      case MessageTypeEnum.JOIN_ROOM:
+        if (message.roomId && message.userId) {
+          this.handleUserJoinedRoom(message.roomId, message.userId, message.username);
+        }
+        break;
         
-        if (featureId && feature) {
-          room.features.set(featureId, feature);
-          this.notifyRoomUpdated(roomId, room);
+      // Handle room leaving
+      case MessageTypeEnum.LEAVE:
+      case MessageTypeEnum.LEAVE_ROOM:
+        if (message.roomId && message.userId) {
+          this.handleUserLeftRoom(message.roomId, message.userId);
         }
-      }
-      // Feature deleted (both legacy and new types)
-      else if (
-        type === MessageTypeEnum.FEATURE_DELETED ||
-        type === MessageTypeEnum.FEATURE_DELETE
-      ) {
-        // Support both payload formats
-        const feature = payload?.feature || message.data?.feature;
-        const featureId = payload?.featureId || (feature?.id || '');
+        break;
         
-        if (featureId) {
-          room.features.delete(featureId);
-          this.notifyRoomUpdated(roomId, room);
+      // Handle cursor movement
+      case MessageTypeEnum.CURSOR_MOVE:
+        if (message.roomId && message.userId && message.payload) {
+          const position = message.payload.position || {
+            lng: message.payload.lng,
+            lat: message.payload.lat
+          };
+          
+          this.handleCursorMove(message.roomId, message.userId, position);
         }
-      }
-      // Annotation created/updated (handle both client and server formats)
-      else if (
-        type === MessageTypeEnum.ANNOTATION_CREATED || 
-        type === MessageTypeEnum.ANNOTATION_UPDATED ||
-        type === MessageTypeEnum.ANNOTATION_ADD ||
-        type === MessageTypeEnum.ANNOTATION_UPDATE
-      ) {
-        // Support both payload formats
-        const annotation = payload?.annotation || message.data?.annotation;
-        const annotationId = payload?.annotationId || (annotation?.id || '');
+        break;
         
-        if (annotationId && annotation) {
-          room.annotations.set(annotationId, annotation);
-          this.notifyRoomUpdated(roomId, room);
+      // Handle feature changes
+      case MessageTypeEnum.FEATURE_ADD:
+      case MessageTypeEnum.FEATURE_CREATED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleFeatureCreated(message.roomId, message.payload);
         }
-      }
-      // Annotation deleted (handle both client and server formats)
-      else if (
-        type === MessageTypeEnum.ANNOTATION_DELETED ||
-        type === MessageTypeEnum.ANNOTATION_DELETE
-      ) {
-        // Support both payload formats
-        const annotation = payload?.annotation || message.data?.annotation;
-        const annotationId = payload?.annotationId || (annotation?.id || '');
+        break;
         
-        if (annotationId) {
-          room.annotations.delete(annotationId);
-          this.notifyRoomUpdated(roomId, room);
+      case MessageTypeEnum.FEATURE_UPDATE:
+      case MessageTypeEnum.FEATURE_UPDATED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleFeatureUpdated(message.roomId, message.payload);
         }
-      }
-      // Status update
-      else if (type === MessageTypeEnum.STATUS) {
-        if (payload?.status) {
-          user.status = payload.status as ConnectionStatusEnum;
-          this.notifyUserUpdated(userId, user);
+        break;
+        
+      case MessageTypeEnum.FEATURE_DELETE:
+      case MessageTypeEnum.FEATURE_DELETED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleFeatureDeleted(message.roomId, message.payload.id);
         }
-      }
-      // Chat message (handle both client and server formats)
-      else if (type === MessageTypeEnum.CHAT || type === MessageTypeEnum.CHAT_MESSAGE) {
-        // Just passing through chat messages
-        // No special handling needed as they don't affect room state
-      }
-      
-      // Notify message listeners
-      this.callbacks.onMessage.forEach(callback => callback(message));
-      
-    } catch (error) {
-      console.error('Error processing WebSocket message:', error);
-      this.callbacks.onError.forEach(callback => callback(error as Error));
+        break;
+        
+      // Handle annotation changes
+      case MessageTypeEnum.ANNOTATION_ADD:
+      case MessageTypeEnum.ANNOTATION_CREATED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleAnnotationCreated(message.roomId, message.payload);
+        }
+        break;
+        
+      case MessageTypeEnum.ANNOTATION_UPDATE:
+      case MessageTypeEnum.ANNOTATION_UPDATED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleAnnotationUpdated(message.roomId, message.payload);
+        }
+        break;
+        
+      case MessageTypeEnum.ANNOTATION_DELETE:
+      case MessageTypeEnum.ANNOTATION_DELETED:
+        if (message.roomId && message.payload && message.payload.id) {
+          this.handleAnnotationDeleted(message.roomId, message.payload.id);
+        }
+        break;
     }
   }
   
   /**
-   * Register a callback for room updates
+   * Subscribe to room updates
+   * @returns Unsubscribe function
    */
-  public onRoomUpdated(callback: (roomId: string, room: CollaborativeRoom) => void): () => void {
-    this.callbacks.onRoomUpdated.push(callback);
+  public onRoomUpdated(callback: RoomUpdateCallback): () => void {
+    this.roomUpdateListeners.add(callback);
     return () => {
-      this.callbacks.onRoomUpdated = this.callbacks.onRoomUpdated.filter(cb => cb !== callback);
+      this.roomUpdateListeners.delete(callback);
     };
   }
   
   /**
-   * Register a callback for user updates
+   * Subscribe to user updates
+   * @returns Unsubscribe function
    */
-  public onUserUpdated(callback: (userId: string, user: CollaborativeUser) => void): () => void {
-    this.callbacks.onUserUpdated.push(callback);
+  public onUserUpdated(callback: UserUpdateCallback): () => void {
+    this.userUpdateListeners.add(callback);
     return () => {
-      this.callbacks.onUserUpdated = this.callbacks.onUserUpdated.filter(cb => cb !== callback);
+      this.userUpdateListeners.delete(callback);
     };
   }
   
   /**
-   * Register a callback for WebSocket messages
+   * Subscribe to all messages
+   * @returns Unsubscribe function
    */
-  public onMessage(callback: (message: WebSocketMessage) => void): () => void {
-    this.callbacks.onMessage.push(callback);
+  public onMessage(callback: MessageCallback): () => void {
+    this.messageListeners.add(callback);
     return () => {
-      this.callbacks.onMessage = this.callbacks.onMessage.filter(cb => cb !== callback);
+      this.messageListeners.delete(callback);
     };
-  }
-  
-  /**
-   * Register a callback for errors
-   */
-  public onError(callback: (error: Error) => void): () => void {
-    this.callbacks.onError.push(callback);
-    return () => {
-      this.callbacks.onError = this.callbacks.onError.filter(cb => cb !== callback);
-    };
-  }
-  
-  /**
-   * Get all users in a room
-   */
-  public getRoomUsers(roomId: string): CollaborativeUser[] {
-    const room = this.rooms.get(roomId);
-    
-    if (!room) {
-      return [];
-    }
-    
-    return Array.from(room.users.values());
-  }
-  
-  /**
-   * Get a specific user by ID
-   */
-  public getUser(userId: string): CollaborativeUser | undefined {
-    return this.users.get(userId);
   }
   
   /**
@@ -289,81 +218,290 @@ class WebSocketSessionManager {
   /**
    * Get all rooms
    */
-  public getAllRooms(): CollaborativeRoom[] {
+  public getRooms(): CollaborativeRoom[] {
     return Array.from(this.rooms.values());
   }
   
   /**
-   * Create or retrieve a user
+   * Get a user by ID
    */
-  private getOrCreateUser(userId: string, username: string): CollaborativeUser {
-    const existingUser = this.users.get(userId);
-    
-    if (existingUser) {
-      // Update username if changed
-      if (existingUser.username !== username) {
-        existingUser.username = username;
-      }
-      return existingUser;
-    }
-    
-    // Create new user
-    const newUser: CollaborativeUser = {
-      id: userId,
-      username,
-      rooms: new Set(),
-      lastActivity: Date.now(),
-      status: ConnectionStatusEnum.CONNECTED
-    };
-    
-    this.users.set(userId, newUser);
-    return newUser;
+  public getUser(userId: string): CollaborativeUser | undefined {
+    return this.users.get(userId);
   }
   
   /**
-   * Ensure a room exists
+   * Get all users
    */
-  private ensureRoomExists(roomId: string): void {
-    if (!this.rooms.has(roomId)) {
-      this.rooms.set(roomId, {
-        id: roomId,
-        users: new Map(),
-        features: new Map(),
-        annotations: new Map(),
-        createdAt: Date.now(),
-        lastActivity: Date.now()
-      });
-    }
+  public getUsers(): CollaborativeUser[] {
+    return Array.from(this.users.values());
   }
   
   /**
-   * Notify room update listeners
+   * Get users in a specific room
    */
-  private notifyRoomUpdated(roomId: string, room: CollaborativeRoom): void {
-    this.callbacks.onRoomUpdated.forEach(callback => callback(roomId, room));
+  public getUsersInRoom(roomId: string): CollaborativeUser[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    return Array.from(room.users.values());
   }
   
   /**
-   * Notify user update listeners
-   */
-  private notifyUserUpdated(userId: string, user: CollaborativeUser): void {
-    this.callbacks.onUserUpdated.forEach(callback => callback(userId, user));
-  }
-  
-  /**
-   * Clear session data
+   * Clear all session data
    */
   public clear(): void {
     this.rooms.clear();
     this.users.clear();
   }
+  
+  // --- Private helper methods ---
+  
+  /**
+   * Ensure a room exists
+   */
+  private ensureRoom(roomId: string): CollaborativeRoom {
+    let room = this.rooms.get(roomId);
+    if (!room) {
+      room = {
+        id: roomId,
+        users: new Map(),
+        features: new Map(),
+        annotations: new Map(),
+        lastActivity: Date.now()
+      };
+      this.rooms.set(roomId, room);
+    }
+    return room;
+  }
+  
+  /**
+   * Ensure a user exists
+   */
+  private ensureUser(userId: string, username?: string): CollaborativeUser {
+    let user = this.users.get(userId);
+    if (!user) {
+      user = {
+        id: userId,
+        username,
+        lastActivity: Date.now(),
+        rooms: new Set()
+      };
+      this.users.set(userId, user);
+    } else if (username && user.username !== username) {
+      user.username = username;
+    }
+    return user;
+  }
+  
+  /**
+   * Notify room update listeners
+   */
+  private notifyRoomListeners(roomId: string, room: CollaborativeRoom): void {
+    this.roomUpdateListeners.forEach(listener => {
+      try {
+        listener(roomId, room);
+      } catch (error) {
+        console.error('Error in room update listener:', error);
+      }
+    });
+  }
+  
+  /**
+   * Notify user update listeners
+   */
+  private notifyUserListeners(userId: string, user: CollaborativeUser): void {
+    this.userUpdateListeners.forEach(listener => {
+      try {
+        listener(userId, user);
+      } catch (error) {
+        console.error('Error in user update listener:', error);
+      }
+    });
+  }
+  
+  /**
+   * Notify message listeners
+   */
+  private notifyMessageListeners(message: WebSocketMessage): void {
+    this.messageListeners.forEach(listener => {
+      try {
+        listener(message);
+      } catch (error) {
+        console.error('Error in message listener:', error);
+      }
+    });
+  }
+  
+  // --- Event handlers ---
+  
+  /**
+   * Handle a user joining a room
+   */
+  private handleUserJoinedRoom(roomId: string, userId: string, username?: string): void {
+    const room = this.ensureRoom(roomId);
+    const user = this.ensureUser(userId, username);
+    
+    // Update user and room state
+    user.rooms.add(roomId);
+    user.lastActivity = Date.now();
+    room.users.set(userId, user);
+    room.lastActivity = Date.now();
+    
+    // Notify listeners
+    this.notifyUserListeners(userId, user);
+    this.notifyRoomListeners(roomId, room);
+  }
+  
+  /**
+   * Handle a user leaving a room
+   */
+  private handleUserLeftRoom(roomId: string, userId: string): void {
+    const room = this.rooms.get(roomId);
+    const user = this.users.get(userId);
+    
+    if (room && user) {
+      // Update user and room state
+      user.rooms.delete(roomId);
+      user.lastActivity = Date.now();
+      room.users.delete(userId);
+      room.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyUserListeners(userId, user);
+      this.notifyRoomListeners(roomId, room);
+      
+      // Clean up if the room is empty
+      if (room.users.size === 0) {
+        this.rooms.delete(roomId);
+      }
+      
+      // Clean up if the user is not in any rooms
+      if (user.rooms.size === 0) {
+        this.users.delete(userId);
+      }
+    }
+  }
+  
+  /**
+   * Handle cursor movement
+   */
+  private handleCursorMove(roomId: string, userId: string, position: { lng: number, lat: number }): void {
+    const user = this.users.get(userId);
+    
+    if (user) {
+      // Update user state
+      user.cursor = {
+        lng: position.lng,
+        lat: position.lat
+      };
+      user.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyUserListeners(userId, user);
+    }
+  }
+  
+  /**
+   * Handle feature created
+   */
+  private handleFeatureCreated(roomId: string, feature: any): void {
+    const room = this.ensureRoom(roomId);
+    
+    // Update room state
+    room.features.set(feature.id, feature);
+    room.lastActivity = Date.now();
+    
+    // Notify listeners
+    this.notifyRoomListeners(roomId, room);
+  }
+  
+  /**
+   * Handle feature updated
+   */
+  private handleFeatureUpdated(roomId: string, feature: any): void {
+    const room = this.rooms.get(roomId);
+    
+    if (room && room.features.has(feature.id)) {
+      // Update room state with merged feature data
+      const existingFeature = room.features.get(feature.id);
+      room.features.set(feature.id, {
+        ...existingFeature,
+        ...feature
+      });
+      room.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyRoomListeners(roomId, room);
+    }
+  }
+  
+  /**
+   * Handle feature deleted
+   */
+  private handleFeatureDeleted(roomId: string, featureId: string): void {
+    const room = this.rooms.get(roomId);
+    
+    if (room && room.features.has(featureId)) {
+      // Update room state
+      room.features.delete(featureId);
+      room.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyRoomListeners(roomId, room);
+    }
+  }
+  
+  /**
+   * Handle annotation created
+   */
+  private handleAnnotationCreated(roomId: string, annotation: any): void {
+    const room = this.ensureRoom(roomId);
+    
+    // Update room state
+    room.annotations.set(annotation.id, annotation);
+    room.lastActivity = Date.now();
+    
+    // Notify listeners
+    this.notifyRoomListeners(roomId, room);
+  }
+  
+  /**
+   * Handle annotation updated
+   */
+  private handleAnnotationUpdated(roomId: string, annotation: any): void {
+    const room = this.rooms.get(roomId);
+    
+    if (room && room.annotations.has(annotation.id)) {
+      // Update room state with merged annotation data
+      const existingAnnotation = room.annotations.get(annotation.id);
+      room.annotations.set(annotation.id, {
+        ...existingAnnotation,
+        ...annotation
+      });
+      room.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyRoomListeners(roomId, room);
+    }
+  }
+  
+  /**
+   * Handle annotation deleted
+   */
+  private handleAnnotationDeleted(roomId: string, annotationId: string): void {
+    const room = this.rooms.get(roomId);
+    
+    if (room && room.annotations.has(annotationId)) {
+      // Update room state
+      room.annotations.delete(annotationId);
+      room.lastActivity = Date.now();
+      
+      // Notify listeners
+      this.notifyRoomListeners(roomId, room);
+    }
+  }
 }
-
-export const getSessionManager = WebSocketSessionManager.getInstance;
 
 /**
- * React hook for using the session manager
+ * Get the session manager singleton instance
  */
-export function useSessionManager() {
-  return getSessionManager();
-}
+export const getSessionManager = WebSocketSessionManager.getInstance;

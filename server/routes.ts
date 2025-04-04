@@ -79,6 +79,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ token: mapboxToken });
   });
   
+  // Check secret endpoint - allows client to check if environment variables exist without exposing values
+  app.get("/api/check-secret", (req, res) => {
+    const { key } = req.query;
+    
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'A valid secret key name is required'
+      });
+    }
+    
+    // Check if the secret exists in the environment
+    const exists = !!process.env[key];
+    
+    // Return only whether the secret exists, not its value
+    return res.json({ exists });
+  });
+  
   // Legal description parsing endpoints
   app.post("/api/legal-description/parse", asyncHandler(async (req, res) => {
     const { text, referencePoint } = req.body;

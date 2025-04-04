@@ -1,240 +1,280 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useWebSocket, WebSocketMessage, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
+import { v4 as uuidv4 } from 'uuid';
+import { useWebSocket } from '@/hooks/use-websocket';
+import { MessageTypeEnum } from '@/lib/websocket';
 import { getSessionManager, CollaborativeUser, CollaborativeRoom } from '@/lib/websocket-session-manager';
 
-/**
- * Enhanced WebSocket options
- */
-export interface EnhancedWebSocketOptions {
+// Types
+export interface UseEnhancedWebSocketOptions {
+  // Room ID to join (optional, if not provided, will use generated ID)
   roomId?: string;
-  userId?: string;
+  
+  // User display name (optional)
   username?: string;
+  
+  // Auto-join the room on connect (default: false)
   autoJoin?: boolean;
-  onRoomJoined?: (roomId: string) => void;
-  onRoomLeft?: (roomId: string) => void;
-  onUserJoined?: (user: CollaborativeUser) => void;
-  onUserLeft?: (user: CollaborativeUser) => void;
-  onStatusChange?: (status: ConnectionStatusEnum) => void;
+  
+  // Throttle cursor position updates (ms, default: 50)
+  cursorUpdateThrottle?: number;
+  
+  // Heartbeat interval (ms, default: 30000 - 30 seconds)
+  heartbeatInterval?: number;
+}
+
+export interface UseEnhancedWebSocketResult {
+  // WebSocket connection status
+  status: 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+  
+  // Generated user ID
+  userId: string;
+  
+  // Room information
+  roomId: string;
+  roomUsers: CollaborativeUser[];
+  currentRoomData: CollaborativeRoom | undefined;
+  
+  // Connection operations
+  connect: () => void;
+  disconnect: () => void;
+  reconnect: () => void;
+  
+  // Room operations
+  joinRoom: (roomId: string) => void;
+  leaveRoom: () => void;
+  
+  // Message operations
+  sendMessage: (type: MessageTypeEnum, payload?: any) => void;
+  
+  // Collaborative operations
+  sendCursorPosition: (lng: number, lat: number) => void;
+  addFeature: (feature: any) => void;
+  updateFeature: (feature: any) => void;
+  deleteFeature: (featureId: string) => void;
+  addAnnotation: (annotation: any) => void;
+  updateAnnotation: (annotation: any) => void;
+  deleteAnnotation: (annotationId: string) => void;
 }
 
 /**
- * Enhanced WebSocket hook with session management and callbacks
+ * Enhanced WebSocket hook for collaborative editing
  */
-export function useEnhancedWebSocket(options: EnhancedWebSocketOptions = {}) {
-  // Default values for options
-  const {
-    roomId = '',
-    userId = crypto.randomUUID().substring(0, 8),
-    username = `User_${Math.floor(Math.random() * 1000)}`,
-    autoJoin = true,
-    onRoomJoined,
-    onRoomLeft,
-    onUserJoined,
-    onUserLeft,
-    onStatusChange
-  } = options;
-
-  // State for room users and room data
-  const [roomUsers, setRoomUsers] = useState<CollaborativeUser[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<CollaborativeRoom | null>(null);
-  const [joinedRooms, setJoinedRooms] = useState<string[]>([]);
+export function useEnhancedWebSocket({
+  roomId: initialRoomId,
+  username,
+  autoJoin = false,
+  cursorUpdateThrottle = 50,
+  heartbeatInterval = 30000
+}: UseEnhancedWebSocketOptions = {}): UseEnhancedWebSocketResult {
+  // Generate a stable user ID for this session
+  const userIdRef = useRef<string>(uuidv4());
+  const userId = userIdRef.current;
   
-  // Use the base WebSocket hook
-  const websocket = useWebSocket({
-    autoReconnect: true,
-    userId,
-    username
-  });
+  // Room ID - either provided or generated
+  const [roomId, setRoomId] = useState<string>(initialRoomId || 'default-room');
   
-  // Access session manager
+  // Throttle state for cursor updates
+  const lastCursorUpdateRef = useRef<number>(0);
+  
+  // Session manager for collaborative state
   const sessionManager = getSessionManager();
   
-  // Track if we've joined a room
-  const hasJoinedRef = useRef(false);
+  // Current room users state
+  const [roomUsers, setRoomUsers] = useState<CollaborativeUser[]>([]);
+  const [currentRoomData, setCurrentRoomData] = useState<CollaborativeRoom | undefined>();
   
-  // Set current user in session manager
-  useEffect(() => {
-    sessionManager.setCurrentUser(userId, username);
-  }, [userId, username, sessionManager]);
-  
-  // Process room updates
-  useEffect(() => {
-    const unsubscribe = sessionManager.onRoomUpdated((updatedRoomId, room) => {
-      if (roomId && updatedRoomId === roomId) {
-        setCurrentRoom(room);
-        setRoomUsers(Array.from(room.users.values()));
+  // Initialize base WebSocket connection
+  const {
+    status,
+    connect,
+    disconnect,
+    reconnect,
+    sendMessage
+  } = useWebSocket({
+    onOpen: () => {
+      console.log('Enhanced WebSocket connected');
+      
+      // Set current user in session manager
+      sessionManager.setCurrentUser(userId, username || `User-${userId.substring(0, 4)}`);
+      
+      // Auto-join room if enabled
+      if (autoJoin) {
+        joinRoom(roomId);
       }
-    });
-    
-    return unsubscribe;
-  }, [roomId, sessionManager]);
-  
-  // Process user updates with stable callback refs to prevent infinite loops
-  const userJoinedRef = useRef(onUserJoined);
-  const userLeftRef = useRef(onUserLeft);
-  
-  // Update callback refs when they change
-  useEffect(() => {
-    userJoinedRef.current = onUserJoined;
-    userLeftRef.current = onUserLeft;
-  }, [onUserJoined, onUserLeft]);
-  
-  // Process user updates with stable dependencies
-  useEffect(() => {
-    const unsubscribe = sessionManager.onUserUpdated((updatedUserId, user) => {
-      if (roomId && user.rooms.has(roomId)) {
-        // User is in current room, update room users list
-        setRoomUsers(prev => {
-          const existingIndex = prev.findIndex(u => u.id === updatedUserId);
-          if (existingIndex >= 0) {
-            // Replace existing user
-            const newUsers = [...prev];
-            newUsers[existingIndex] = user;
-            return newUsers;
-          } else {
-            // Add new user
-            if (userJoinedRef.current) userJoinedRef.current(user);
-            return [...prev, user];
-          }
-        });
-      } else if (roomId) {
-        // User left current room, remove from list
-        setRoomUsers(prev => {
-          const existingUser = prev.find(u => u.id === updatedUserId);
-          if (existingUser && userLeftRef.current) userLeftRef.current(existingUser);
-          return prev.filter(u => u.id !== updatedUserId);
-        });
+    },
+    onMessage: (event) => {
+      try {
+        // Parse and process message
+        const message = JSON.parse(event.data);
+        sessionManager.processMessage(message);
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
-    });
-    
-    return unsubscribe;
-  }, [roomId, sessionManager]);
-  
-  // Update session manager with incoming messages
-  useEffect(() => {
-    if (websocket.lastMessage) {
-      sessionManager.processMessage(websocket.lastMessage);
+    },
+    onClose: () => {
+      console.log('Enhanced WebSocket disconnected');
+    },
+    onError: (error) => {
+      console.error('Enhanced WebSocket error:', error);
     }
-  }, [websocket.lastMessage]);
-  
-  // Auto-join room when connected
-  useEffect(() => {
-    if (
-      autoJoin && 
-      roomId && 
-      websocket.status === ConnectionStatusEnum.CONNECTED && 
-      !websocket.currentRoom && 
-      !hasJoinedRef.current
-    ) {
-      hasJoinedRef.current = true;
-      websocket.joinRoom(roomId);
-    }
-  }, [autoJoin, roomId, websocket, websocket.status]);
-  
-  // Track room membership with stable callback refs
-  const roomJoinedRef = useRef(onRoomJoined);
-  
-  // Update room callback ref when it changes
-  useEffect(() => {
-    roomJoinedRef.current = onRoomJoined;
-  }, [onRoomJoined]);
-  
-  // Track room membership with stable dependencies
-  useEffect(() => {
-    if (websocket.currentRoom) {
-      if (!joinedRooms.includes(websocket.currentRoom)) {
-        setJoinedRooms(prev => [...prev, websocket.currentRoom]);
-        if (roomJoinedRef.current) roomJoinedRef.current(websocket.currentRoom);
-      }
-    }
-  }, [websocket.currentRoom, joinedRooms]);
-  
-  // Status change callback ref
-  const statusChangeRef = useRef(onStatusChange);
-  
-  // Update status change callback ref when it changes
-  useEffect(() => {
-    statusChangeRef.current = onStatusChange;
-  }, [onStatusChange]);
-  
-  // Update status change with stable callback
-  useEffect(() => {
-    if (statusChangeRef.current) {
-      statusChangeRef.current(websocket.status);
-    }
-  }, [websocket.status]);
+  });
   
   // Join a room
-  const joinRoom = useCallback((roomToJoin: string) => {
-    hasJoinedRef.current = true;
-    return websocket.joinRoom(roomToJoin);
-  }, [websocket]);
+  const joinRoom = useCallback((roomId: string) => {
+    if (status !== 'connected') {
+      console.warn('Cannot join room: WebSocket not connected');
+      return;
+    }
+    
+    // Update room ID
+    setRoomId(roomId);
+    
+    // Send join message
+    sendMessage({
+      type: MessageTypeEnum.JOIN_ROOM,
+      roomId,
+      userId,
+      username: username || `User-${userId.substring(0, 4)}`
+    });
+    
+    console.log(`Joined room: ${roomId}`);
+  }, [status, userId, username, sendMessage]);
   
-  // Room left callback ref
-  const roomLeftRef = useRef(onRoomLeft);
-  
-  // Update room left callback ref when it changes
-  useEffect(() => {
-    roomLeftRef.current = onRoomLeft;
-  }, [onRoomLeft]);
-  
-  // Leave current room with stable callback
+  // Leave the current room
   const leaveRoom = useCallback(() => {
-    hasJoinedRef.current = false;
-    const result = websocket.leaveRoom();
-    
-    if (result && websocket.currentRoom && roomLeftRef.current) {
-      roomLeftRef.current(websocket.currentRoom);
-      setJoinedRooms(prev => prev.filter(room => room !== websocket.currentRoom));
+    if (status !== 'connected') {
+      console.warn('Cannot leave room: WebSocket not connected');
+      return;
     }
     
-    return result;
-  }, [websocket]);
-  
-  // Send a cursor position update
-  const sendCursorPosition = useCallback((x: number, y: number) => {
-    if (!websocket.currentRoom || websocket.status !== ConnectionStatusEnum.CONNECTED) {
-      return false;
-    }
-    
-    return websocket.sendMessage({
-      type: MessageTypeEnum.CURSOR_MOVE,
-      roomId: websocket.currentRoom,
-      payload: {
-        position: { x, y }
-      }
+    // Send leave message
+    sendMessage({
+      type: MessageTypeEnum.LEAVE_ROOM,
+      roomId,
+      userId
     });
-  }, [websocket]);
+    
+    console.log(`Left room: ${roomId}`);
+  }, [status, roomId, userId, sendMessage]);
   
-  // Send a chat message
-  const sendChatMessage = useCallback((text: string) => {
-    if (!websocket.currentRoom || websocket.status !== ConnectionStatusEnum.CONNECTED) {
-      return false;
+  // Enhanced message sender with room ID included
+  const sendRoomMessage = useCallback((type: MessageTypeEnum, payload?: any) => {
+    if (status !== 'connected') {
+      console.warn('Cannot send message: WebSocket not connected');
+      return;
     }
     
-    return websocket.sendMessage({
-      type: MessageTypeEnum.CHAT,
-      roomId: websocket.currentRoom,
-      payload: {
-        text
-      }
+    sendMessage({
+      type,
+      roomId,
+      userId,
+      payload
     });
-  }, [websocket]);
-
-  // Return enhanced functionality
+  }, [status, roomId, userId, sendMessage]);
+  
+  // Send cursor position (throttled)
+  const sendCursorPosition = useCallback((lng: number, lat: number) => {
+    const now = Date.now();
+    
+    // Throttle updates
+    if (now - lastCursorUpdateRef.current < cursorUpdateThrottle) {
+      return;
+    }
+    
+    lastCursorUpdateRef.current = now;
+    
+    sendRoomMessage(MessageTypeEnum.CURSOR_MOVE, {
+      lng,
+      lat
+    });
+  }, [sendRoomMessage, cursorUpdateThrottle]);
+  
+  // Feature operations
+  const addFeature = useCallback((feature: any) => {
+    sendRoomMessage(MessageTypeEnum.FEATURE_ADD, feature);
+  }, [sendRoomMessage]);
+  
+  const updateFeature = useCallback((feature: any) => {
+    sendRoomMessage(MessageTypeEnum.FEATURE_UPDATE, feature);
+  }, [sendRoomMessage]);
+  
+  const deleteFeature = useCallback((featureId: string) => {
+    sendRoomMessage(MessageTypeEnum.FEATURE_DELETE, { id: featureId });
+  }, [sendRoomMessage]);
+  
+  // Annotation operations
+  const addAnnotation = useCallback((annotation: any) => {
+    sendRoomMessage(MessageTypeEnum.ANNOTATION_ADD, annotation);
+  }, [sendRoomMessage]);
+  
+  const updateAnnotation = useCallback((annotation: any) => {
+    sendRoomMessage(MessageTypeEnum.ANNOTATION_UPDATE, annotation);
+  }, [sendRoomMessage]);
+  
+  const deleteAnnotation = useCallback((annotationId: string) => {
+    sendRoomMessage(MessageTypeEnum.ANNOTATION_DELETE, { id: annotationId });
+  }, [sendRoomMessage]);
+  
+  // Heartbeat to keep connection alive
+  useEffect(() => {
+    if (status !== 'connected') return;
+    
+    const intervalId = setInterval(() => {
+      sendMessage({
+        type: MessageTypeEnum.HEARTBEAT,
+        userId,
+        timestamp: Date.now()
+      });
+    }, heartbeatInterval);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [status, userId, sendMessage, heartbeatInterval]);
+  
+  // Handle room updates from session manager
+  useEffect(() => {
+    const onRoomUpdated = (updatedRoomId: string, room: CollaborativeRoom) => {
+      if (updatedRoomId === roomId) {
+        setCurrentRoomData(room);
+        setRoomUsers(Array.from(room.users.values()));
+      }
+    };
+    
+    // Subscribe to room updates
+    const unsubscribe = sessionManager.onRoomUpdated(onRoomUpdated);
+    
+    return unsubscribe;
+  }, [sessionManager, roomId]);
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Leave room when component unmounts
+      if (status === 'connected') {
+        leaveRoom();
+      }
+    };
+  }, [status, leaveRoom]);
+  
   return {
-    // Base WebSocket properties
-    ...websocket,
-    
-    // Enhanced properties
+    status,
+    userId,
+    roomId,
     roomUsers,
-    currentRoomData: currentRoom,
-    joinedRooms,
-    
-    // Enhanced methods
+    currentRoomData,
+    connect,
+    disconnect,
+    reconnect,
     joinRoom,
     leaveRoom,
+    sendMessage: sendRoomMessage,
     sendCursorPosition,
-    sendChatMessage
+    addFeature,
+    updateFeature,
+    deleteFeature,
+    addAnnotation,
+    updateAnnotation,
+    deleteAnnotation
   };
 }
