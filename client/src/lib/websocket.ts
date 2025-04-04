@@ -1,16 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
-// Define message types
-export enum MessageType {
-  CHAT = 'chat',
-  DRAWING_UPDATE = 'drawing_update',
-  FEATURE_LOCK = 'feature_lock',
-  CURSOR_POSITION = 'cursor_position',
-  PRESENCE = 'presence',
-  SYSTEM = 'system'
-}
-
-// Define connection statuses
+// WebSocket connection status
 export enum ConnectionStatus {
   CONNECTED = 'connected',
   CONNECTING = 'connecting',
@@ -19,236 +10,291 @@ export enum ConnectionStatus {
   ERROR = 'error'
 }
 
-// Websocket message interface
+// WebSocket message types
+export enum MessageType {
+  CONNECT = 'connect',
+  DISCONNECT = 'disconnect',
+  CHAT = 'chat',
+  DRAWING = 'drawing',
+  DRAWING_UPDATE = 'drawing_update',
+  PRESENCE = 'presence',
+  ERROR = 'error'
+}
+
+// WebSocket message interface
 export interface WebSocketMessage {
+  id?: string;
   type: MessageType;
-  data?: any;
+  roomId?: string;
   source?: string;
   timestamp?: string;
-  roomId?: string;
+  data?: any;
 }
 
-// Helper to construct a drawing update message
-export function createDrawingUpdateMessage(
-  data: any,
-  source: string,
-  roomId: string = 'default'
-): WebSocketMessage {
+/**
+ * Create a chat message to send via WebSocket
+ * 
+ * @param content The message content
+ * @param userId The user ID sending the message
+ * @param roomId The room ID where the message should be sent
+ * @returns A WebSocketMessage formatted for chat
+ */
+export function createChatMessage(content: string, userId: string, roomId: string): WebSocketMessage {
   return {
-    type: MessageType.DRAWING_UPDATE,
-    data,
-    source,
-    roomId,
-    timestamp: new Date().toISOString()
-  };
-}
-
-// Helper to construct a chat message
-export function createChatMessage(
-  message: string,
-  source: string,
-  roomId: string = 'default'
-): WebSocketMessage {
-  return {
+    id: uuidv4(),
     type: MessageType.CHAT,
-    data: { message },
-    source,
     roomId,
-    timestamp: new Date().toISOString()
+    source: userId,
+    timestamp: new Date().toISOString(),
+    data: {
+      message: content
+    }
   };
 }
 
-// Custom hook for using WebSockets
-export function useWebSocket(
-  messageType: MessageType = MessageType.SYSTEM,
-  roomId: string = 'default',
-  autoReconnect: boolean = true
-) {
-  // State for connection status
+// Max reconnection attempts
+const MAX_RECONNECT_ATTEMPTS = 10;
+// Initial reconnection delay in ms
+const INITIAL_RECONNECT_DELAY = 1000;
+
+/**
+ * React hook for WebSocket connections with auto-reconnect and room management
+ * 
+ * @param roomId The room ID to join
+ * @returns WebSocket connection utilities
+ */
+export function useWebSocket(roomId: string = 'default') {
+  // Connection status
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
-  // State for the last message received
+  // Last received message
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   
-  // State for the last error
+  // Error state
   const [error, setError] = useState<Error | null>(null);
   
-  // Keep the WebSocket instance in a ref
-  const socketRef = useRef<WebSocket | null>(null);
+  // WebSocket reference
+  const wsRef = useRef<WebSocket | null>(null);
   
-  // Track reconnection attempts
+  // Reconnection attempts counter
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 10;
-  const reconnectTimeoutRef = useRef<number | null>(null);
   
-  // Create a WebSocket connection
+  // Reconnection timeout reference
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // User ID (generated once per session)
+  const userIdRef = useRef<string>(localStorage.getItem('bentonGisUserId') || uuidv4());
+  
+  // Generate a random session ID for this connection
+  const sessionIdRef = useRef<string>(uuidv4());
+  
+  // Pending messages queue for when connection is lost
+  const pendingMessagesRef = useRef<WebSocketMessage[]>([]);
+  
+  // Save user ID to localStorage
+  useEffect(() => {
+    localStorage.setItem('bentonGisUserId', userIdRef.current);
+  }, []);
+  
+  // Create WebSocket connection
   const connect = useCallback(() => {
-    // Properly handle protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    // Clean up any existing socket
-    if (socketRef.current) {
-      socketRef.current.close();
-    }
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
     
     try {
+      // Determine WebSocket protocol (ws or wss)
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      
+      // Set status to connecting
       setStatus(ConnectionStatus.CONNECTING);
       
-      // Create new WebSocket
-      const socket = new WebSocket(wsUrl);
-      socketRef.current = socket;
-      
-      // Connection opened
-      socket.addEventListener('open', () => {
-        console.log('WebSocket connection established');
-        setStatus(ConnectionStatus.CONNECTED);
+      // Handle WebSocket open event
+      ws.onopen = () => {
+        // Reset reconnection attempts
         reconnectAttemptsRef.current = 0;
         
-        // Join the room
-        const joinMsg: WebSocketMessage = {
-          type: MessageType.SYSTEM,
-          data: { action: 'join', roomId },
-          timestamp: new Date().toISOString()
+        // Set status to connected
+        setStatus(ConnectionStatus.CONNECTED);
+        
+        // Send connection message
+        const connectMessage: WebSocketMessage = {
+          id: uuidv4(),
+          type: MessageType.CONNECT,
+          roomId,
+          source: userIdRef.current,
+          timestamp: new Date().toISOString(),
+          data: {
+            sessionId: sessionIdRef.current,
+            userId: userIdRef.current
+          }
         };
-        socket.send(JSON.stringify(joinMsg));
-      });
+        
+        ws.send(JSON.stringify(connectMessage));
+        
+        // Send any pending messages
+        if (pendingMessagesRef.current.length > 0) {
+          pendingMessagesRef.current.forEach(message => {
+            ws.send(JSON.stringify(message));
+          });
+          pendingMessagesRef.current = [];
+        }
+      };
       
-      // Listen for messages
-      socket.addEventListener('message', (event) => {
+      // Handle WebSocket message event
+      ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          
-          // Only process messages of the type we're interested in, or system messages
-          if (message.type === messageType || message.type === MessageType.SYSTEM) {
-            setLastMessage(message);
-          }
+          setLastMessage(message);
         } catch (err) {
           console.error('Error parsing WebSocket message:', err);
         }
-      });
+      };
       
-      // Connection closed
-      socket.addEventListener('close', (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
+      // Handle WebSocket close event
+      ws.onclose = () => {
+        // Skip if closing was intentional
+        if (status === ConnectionStatus.DISCONNECTED) return;
+        
+        // Set status to disconnected
         setStatus(ConnectionStatus.DISCONNECTED);
         
-        // Attempt to reconnect if auto-reconnect is enabled
-        if (autoReconnect) {
-          reconnect();
-        }
-      });
+        // Attempt to reconnect
+        attemptReconnect();
+      };
       
-      // Connection error
-      socket.addEventListener('error', (event) => {
-        console.error('WebSocket error:', event);
+      // Handle WebSocket error event
+      ws.onerror = (e) => {
+        setError(new Error('WebSocket error'));
         setStatus(ConnectionStatus.ERROR);
-        setError(new Error('WebSocket connection error'));
         
-        // Attempt to reconnect if auto-reconnect is enabled
-        if (autoReconnect) {
-          reconnect();
-        }
-      });
+        console.error('WebSocket error:', e);
+      };
     } catch (err) {
-      console.error('Error creating WebSocket:', err);
-      setStatus(ConnectionStatus.ERROR);
       setError(err instanceof Error ? err : new Error('Unknown WebSocket error'));
+      setStatus(ConnectionStatus.ERROR);
       
-      // Attempt to reconnect if auto-reconnect is enabled
-      if (autoReconnect) {
-        reconnect();
-      }
+      // Attempt to reconnect
+      attemptReconnect();
     }
-  }, [messageType, roomId, autoReconnect]);
+  }, [roomId, status]);
   
-  // Reconnect with exponential backoff
-  const reconnect = useCallback(() => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+  // Attempt to reconnect with exponential backoff
+  const attemptReconnect = useCallback(() => {
+    // Clean up any existing reconnection timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    
+    // Check if max reconnection attempts reached
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
       setStatus(ConnectionStatus.ERROR);
-      setError(new Error('Failed to reconnect after maximum attempts'));
       return;
     }
     
+    // Increment reconnection attempts
+    reconnectAttemptsRef.current++;
+    
+    // Calculate backoff delay: initial * (2^attempts) with some randomization
+    // to prevent thundering herd
+    const backoffDelay = 
+      INITIAL_RECONNECT_DELAY * 
+      Math.pow(2, reconnectAttemptsRef.current - 1) * 
+      (0.75 + Math.random() * 0.5);
+    
+    // Set status to reconnecting
     setStatus(ConnectionStatus.RECONNECTING);
     
-    // Clear any existing timeout
-    if (reconnectTimeoutRef.current !== null) {
-      window.clearTimeout(reconnectTimeoutRef.current);
-    }
-    
-    // Exponential backoff with jitter
-    const baseDelay = 1000; // 1 second
-    const maxDelay = 30000; // 30 seconds
-    
-    // Calculate delay with exponential backoff
-    const exponentialDelay = Math.min(
-      maxDelay,
-      baseDelay * Math.pow(2, reconnectAttemptsRef.current)
-    );
-    
-    // Add jitter to avoid thundering herd problem
-    const jitter = Math.random() * 0.5 + 0.75; // Random value between 0.75 and 1.25
-    const delay = Math.floor(exponentialDelay * jitter);
-    
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
-    
-    // Set timeout for reconnection
-    reconnectTimeoutRef.current = window.setTimeout(() => {
-      reconnectAttemptsRef.current += 1;
+    // Schedule reconnection
+    reconnectTimeoutRef.current = setTimeout(() => {
+      console.log(`Attempting to reconnect (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
       connect();
-    }, delay);
+    }, backoffDelay);
   }, [connect]);
   
   // Send a message through the WebSocket
   const send = useCallback((message: WebSocketMessage): boolean => {
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      console.error('Cannot send message, WebSocket is not open');
-      return false;
-    }
+    // Add ID and timestamp if not provided
+    const completeMessage: WebSocketMessage = {
+      id: message.id || uuidv4(),
+      timestamp: message.timestamp || new Date().toISOString(),
+      source: message.source || userIdRef.current,
+      ...message
+    };
     
-    try {
-      socketRef.current.send(JSON.stringify(message));
+    // Check if WebSocket is open
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(completeMessage));
       return true;
-    } catch (err) {
-      console.error('Error sending WebSocket message:', err);
+    } else {
+      // Queue message for later
+      pendingMessagesRef.current.push(completeMessage);
+      
+      // Try to reconnect if not already reconnecting
+      if (status !== ConnectionStatus.CONNECTING && status !== ConnectionStatus.RECONNECTING) {
+        connect();
+      }
+      
       return false;
     }
-  }, []);
+  }, [status, connect]);
   
-  // Disconnect the WebSocket
+  // Close the WebSocket connection
   const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-    
-    // Clear any reconnection timeout
-    if (reconnectTimeoutRef.current !== null) {
-      window.clearTimeout(reconnectTimeoutRef.current);
+    // Clean up any existing reconnection timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
+    // Set status to disconnected
     setStatus(ConnectionStatus.DISCONNECTED);
-  }, []);
+    
+    // Close WebSocket if it exists
+    if (wsRef.current) {
+      // Send disconnect message if WebSocket is open
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        const disconnectMessage: WebSocketMessage = {
+          id: uuidv4(),
+          type: MessageType.DISCONNECT,
+          roomId,
+          source: userIdRef.current,
+          timestamp: new Date().toISOString(),
+          data: {
+            sessionId: sessionIdRef.current,
+            userId: userIdRef.current
+          }
+        };
+        
+        wsRef.current.send(JSON.stringify(disconnectMessage));
+      }
+      
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, [roomId]);
   
-  // Connect on component mount and disconnect on unmount
+  // Connect on mount
   useEffect(() => {
     connect();
     
-    // Cleanup function
+    // Disconnect on unmount
     return () => {
       disconnect();
     };
   }, [connect, disconnect]);
   
+  // Return hook values
   return {
     status,
     lastMessage,
     error,
     send,
     connect,
-    disconnect
+    disconnect,
+    userId: userIdRef.current
   };
 }

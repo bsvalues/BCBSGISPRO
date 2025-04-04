@@ -2999,10 +2999,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server using the HTTP server for real-time collaboration
-  const { wss, broadcastToClients } = setupWebSocketServer(httpServer);
-  
-  // Log that the WebSocket server is initialized
-  console.log('WebSocket server initialized on path: /ws');
+  setupWebSocketServer(httpServer);
   
   return httpServer;
 }

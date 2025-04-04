@@ -1,624 +1,724 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
-import MapboxDraw from '@mapbox/mapbox-gl-draw';
-import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
-import { useCollaborativeDrawing, DrawingActionType } from '@/hooks/use-collaborative-drawing';
-import { ConnectionStatus } from '@/lib/websocket';
-import { Loader2, Users, Pencil, MousePointer, Trash2, Eye, PenTool, CheckCircle, WifiOff, AlertCircle } from 'lucide-react';
-import { MapboxProvider, MapboxProviderProps } from './mapbox/mapbox-provider';
-import { MapboxMap } from './mapbox/mapbox-map';
+import { 
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter
+} from '@/components/ui/card';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
+import {
+  MousePointer,
+  Pencil,
+  Circle,
+  Square,
+  SplitSquareHorizontal,
+  Save,
+  Trash2,
+  Hand,
+  Copy,
+  Undo2,
+  Move
+} from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { useWebSocket, MessageType } from '@/lib/websocket';
+import { useToast, toast } from '@/hooks/use-toast';
+import { v4 as uuidv4 } from 'uuid';
+import * as turf from '@turf/turf';
 
-// Define prop types
-interface CollaborativeMapProps {
-  roomId?: string;
-  height?: string;
-  width?: string;
-  initialCenter?: [number, number];
-  initialZoom?: number;
+// Drawing modes
+export enum DrawMode {
+  NONE = 'none',
+  PAN = 'pan',
+  POINT = 'point',
+  LINE = 'line',
+  POLYGON = 'polygon',
+  RECTANGLE = 'rectangle',
+  CIRCLE = 'circle',
+  FREEHAND = 'freehand'
 }
 
-// Colors for different users
-const USER_COLORS = [
-  '#FF5733', '#33FF57', '#3357FF', '#F033FF', '#FF33F0',
-  '#33FFF0', '#F0FF33', '#FF8C33', '#8C33FF', '#33FF8C'
-];
+// Feature type for collaborative features
+export interface CollaborativeFeature {
+  id: string;
+  type: 'Feature';
+  geometry: {
+    type: string;
+    coordinates: any;
+  };
+  properties: {
+    creator: string;
+    createdAt: string;
+    featureType: string;
+    color: string;
+    label?: string;
+    description?: string;
+  };
+}
 
-export function CollaborativeMap({
-  roomId = 'default',
-  height = '600px',
-  width = '100%',
-  initialCenter = [-123.2615, 44.5639], // Corvallis, OR as default
-  initialZoom = 12
-}: CollaborativeMapProps) {
-  // Map refs
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const drawRef = useRef<MapboxDraw | null>(null);
+// Props for the collaborative map component
+export interface CollaborativeMapProps {
+  map: mapboxgl.Map;
+  roomId: string;
+}
+
+// Main component
+export function CollaborativeMap({ map, roomId }: CollaborativeMapProps) {
+  // Drawing state
+  const [drawMode, setDrawMode] = useState<DrawMode>(DrawMode.NONE);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentPoints, setCurrentPoints] = useState<[number, number][]>([]);
+  const [currentFeature, setCurrentFeature] = useState<CollaborativeFeature | null>(null);
+  const [drawnFeatures, setDrawnFeatures] = useState<CollaborativeFeature[]>([]);
   
-  // View state
-  const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
-  const [drawMode, setDrawMode] = useState<'simple_select' | 'draw_polygon' | 'draw_line_string' | 'draw_point'>('simple_select');
+  // Selection state
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   
-  // Custom room ID
-  const [customRoomId, setCustomRoomId] = useState(roomId);
-  const [joinedRoom, setJoinedRoom] = useState(roomId);
+  // WebSocket connection
+  const { send, lastMessage, userId } = useWebSocket(roomId);
   
-  // No need to instantiate toast as we're importing it directly
+  // Toast notifications
+  const { toasts, dismiss } = useToast(); // We use the imported toast function directly
   
-  // Use our collaborative drawing hook
-  const {
-    connected,
-    connectionStatus,
-    connectedUsers,
-    userId,
-    featureOwnership,
-    pendingChanges,
-    processPendingChange,
-    handleFeatureCreate,
-    handleFeatureUpdate,
-    handleFeatureDelete,
-    handleFeatureSelect,
-    handleModeChange
-  } = useCollaborativeDrawing(joinedRoom);
+  // Feature source and layer names
+  const sourceName = 'collaborative-features';
+  const layerName = 'collaborative-features-layer';
+  const selectedLayerName = 'collaborative-features-selected-layer';
   
-  // Get a user color from their ID (for feature display)
-  const getUserColor = useCallback((id: string) => {
-    // Simple hashing function to get a consistent index for the same user
-    const hash = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return USER_COLORS[hash % USER_COLORS.length];
-  }, []);
+  // Random color generator for features
+  const getRandomColor = () => {
+    const colors = [
+      '#FF4136', // Red
+      '#0074D9', // Blue
+      '#2ECC40', // Green
+      '#FFDC00', // Yellow
+      '#B10DC9', // Purple
+      '#FF851B', // Orange
+      '#7FDBFF', // Light Blue
+      '#01FF70', // Light Green
+      '#F012BE', // Magenta
+      '#39CCCC'  // Teal
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
   
-  // Initialize the Mapbox Draw control when the map loads
-  const onMapLoad = useCallback((map: mapboxgl.Map) => {
-    mapRef.current = map;
+  // Convert current points to a feature
+  const pointsToFeature = useCallback((points: [number, number][], type: string): CollaborativeFeature => {
+    const color = getRandomColor();
+    let geometry;
     
-    // Create the draw control
-    const draw = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: {
-        polygon: true,
-        line_string: true,
-        point: true,
-        trash: true
-      },
-      // Custom styles to show which user owns which feature
-      styles: [
-        // Default styles
-        {
-          id: 'gl-draw-polygon-fill-inactive',
-          type: 'fill',
-          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          paint: {
-            'fill-color': [
-              'case',
-              ['==', ['get', 'user'], userId], '#3b82f6', // Current user's features
-              ['has', 'user'], ['string', ['get', 'user_color']], // Other users' features
-              '#3b82f6' // Default color
-            ],
-            'fill-outline-color': '#3b82f6',
-            'fill-opacity': 0.1
-          }
-        },
-        {
-          id: 'gl-draw-polygon-fill-active',
-          type: 'fill',
-          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-          paint: {
-            'fill-color': '#3b82f6',
-            'fill-outline-color': '#3b82f6',
-            'fill-opacity': 0.1
-          }
-        },
-        {
-          id: 'gl-draw-polygon-stroke-inactive',
-          type: 'line',
-          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          paint: {
-            'line-color': [
-              'case',
-              ['==', ['get', 'user'], userId], '#3b82f6', // Current user's features
-              ['has', 'user'], ['string', ['get', 'user_color']], // Other users' features
-              '#3b82f6' // Default color
-            ],
-            'line-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-polygon-stroke-active',
-          type: 'line',
-          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          paint: {
-            'line-color': '#3b82f6',
-            'line-dasharray': [0.2, 2],
-            'line-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-line-inactive',
-          type: 'line',
-          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          paint: {
-            'line-color': [
-              'case',
-              ['==', ['get', 'user'], userId], '#3b82f6', // Current user's features
-              ['has', 'user'], ['string', ['get', 'user_color']], // Other users' features
-              '#3b82f6' // Default color
-            ],
-            'line-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-line-active',
-          type: 'line',
-          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString']],
-          layout: {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          paint: {
-            'line-color': '#3b82f6',
-            'line-dasharray': [0.2, 2],
-            'line-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-point-inactive',
-          type: 'circle',
-          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-          paint: {
-            'circle-radius': 5,
-            'circle-color': [
-              'case',
-              ['==', ['get', 'user'], userId], '#3b82f6', // Current user's features
-              ['has', 'user'], ['string', ['get', 'user_color']], // Other users' features
-              '#3b82f6' // Default color
-            ]
-          }
-        },
-        {
-          id: 'gl-draw-point-active',
-          type: 'circle',
-          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Point']],
-          paint: {
-            'circle-radius': 7,
-            'circle-color': '#3b82f6'
-          }
-        },
-        {
-          id: 'gl-draw-polygon-and-line-vertex-inactive',
-          type: 'circle',
-          filter: ['all', ['==', 'meta', 'vertex'], ['==', 'active', 'false']],
-          paint: {
-            'circle-radius': 3,
-            'circle-color': '#fff',
-            'circle-stroke-color': '#3b82f6',
-            'circle-stroke-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-polygon-and-line-vertex-active',
-          type: 'circle',
-          filter: ['all', ['==', 'meta', 'vertex'], ['==', 'active', 'true']],
-          paint: {
-            'circle-radius': 4,
-            'circle-color': '#fff',
-            'circle-stroke-color': '#3b82f6',
-            'circle-stroke-width': 2
-          }
-        },
-        {
-          id: 'gl-draw-polygon-midpoint',
-          type: 'circle',
-          filter: ['all', ['==', 'meta', 'midpoint']],
-          paint: {
-            'circle-radius': 3,
-            'circle-color': '#fff',
-            'circle-stroke-color': '#3b82f6',
-            'circle-stroke-width': 2
-          }
+    switch (type) {
+      case 'point':
+        geometry = {
+          type: 'Point',
+          coordinates: points[0]
+        };
+        break;
+      case 'line':
+        geometry = {
+          type: 'LineString',
+          coordinates: points
+        };
+        break;
+      case 'polygon':
+      case 'rectangle':
+        // Close the polygon by adding the first point at the end
+        const closedPoints = [...points];
+        if (points.length > 0 && (points[0][0] !== points[points.length - 1][0] || 
+                                  points[0][1] !== points[points.length - 1][1])) {
+          closedPoints.push(points[0]);
         }
-      ]
-    });
-    
-    // Add the draw control to the map
-    map.addControl(draw, 'top-left');
-    drawRef.current = draw;
-    
-    // Register events
-    map.on('draw.create', (e) => {
-      // Add user ID to the feature for ownership tracking
-      for (const feature of e.features) {
-        // Add ownership data to the feature before sending
-        const featureWithMetadata = {
-          ...feature,
-          properties: {
-            ...feature.properties,
-            user: userId,
-            user_color: getUserColor(userId)
-          }
+        
+        geometry = {
+          type: 'Polygon',
+          coordinates: [closedPoints]
         };
+        break;
+      case 'circle':
+        // For circles, we store the center and use turf to create a circle
+        const center = points[0];
+        const radius = points.length > 1 
+          ? turf.distance(turf.point(center), turf.point(points[1]), { units: 'kilometers' })
+          : 0.1; // Default small radius
         
-        // Update the feature in the draw control
-        draw.add(featureWithMetadata);
+        const circleFeature = turf.circle(center, radius, {
+          steps: 64,
+          units: 'kilometers'
+        });
         
-        // Send to other collaborators
-        handleFeatureCreate(featureWithMetadata);
-      }
-    });
-    
-    map.on('draw.update', (e) => {
-      for (const feature of e.features) {
-        // Preserve ownership data
-        const owner = featureOwnership[feature.id] || userId;
-        const featureWithMetadata = {
-          ...feature,
-          properties: {
-            ...feature.properties,
-            user: owner,
-            user_color: getUserColor(owner)
-          }
+        geometry = circleFeature.geometry;
+        break;
+      default:
+        geometry = {
+          type: 'Point',
+          coordinates: points[0]
         };
-        
-        // Send to other collaborators
-        handleFeatureUpdate(featureWithMetadata);
-      }
-    });
-    
-    map.on('draw.delete', (e) => {
-      const featureIds = e.features.map(f => f.id);
-      handleFeatureDelete(featureIds);
-    });
-    
-    map.on('draw.selectionchange', (e) => {
-      const featureIds = e.features.map(f => f.id);
-      handleFeatureSelect(featureIds);
-    });
-    
-    map.on('draw.modechange', (e) => {
-      const mode = e.mode;
-      setDrawMode(mode as any);
-      handleModeChange(mode);
-    });
-    
-    // Initial mode setup
-    if (viewMode === 'view') {
-      draw.changeMode('simple_select');
     }
-  }, [userId, viewMode, featureOwnership, getUserColor, handleFeatureCreate, handleFeatureUpdate, handleFeatureDelete, handleFeatureSelect, handleModeChange]);
+    
+    return {
+      id: uuidv4(),
+      type: 'Feature',
+      geometry,
+      properties: {
+        creator: userId,
+        createdAt: new Date().toISOString(),
+        featureType: type,
+        color
+      }
+    };
+  }, [userId]);
   
-  // Process pending changes from other users
+  // Initialize map layers
   useEffect(() => {
-    if (!drawRef.current || !connected || pendingChanges.length === 0) return;
+    if (!map) return;
     
-    // Process one change per tick to avoid overwhelming the system
-    const change = processPendingChange();
-    if (!change) return;
+    // Add source and layers if they don't exist
+    if (!map.getSource(sourceName)) {
+      map.addSource(sourceName, {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+      
+      // Add layer for features
+      map.addLayer({
+        id: layerName,
+        type: 'fill',
+        source: sourceName,
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.5,
+          'fill-outline-color': ['get', 'color']
+        },
+        filter: ['==', '$type', 'Polygon']
+      });
+      
+      // Add line layer
+      map.addLayer({
+        id: `${layerName}-line`,
+        type: 'line',
+        source: sourceName,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 2
+        },
+        filter: ['==', '$type', 'LineString']
+      });
+      
+      // Add point layer
+      map.addLayer({
+        id: `${layerName}-point`,
+        type: 'circle',
+        source: sourceName,
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': 6,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        },
+        filter: ['==', '$type', 'Point']
+      });
+      
+      // Add polygon outline layer
+      map.addLayer({
+        id: `${layerName}-outline`,
+        type: 'line',
+        source: sourceName,
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 2
+        },
+        filter: ['==', '$type', 'Polygon']
+      });
+      
+      // Add selected feature layer
+      map.addLayer({
+        id: selectedLayerName,
+        type: 'line',
+        source: sourceName,
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        },
+        filter: ['==', 'id', '']
+      });
+    }
     
-    const draw = drawRef.current;
+    // Set up click event for selecting features
+    map.on('click', (e) => {
+      if (drawMode !== DrawMode.NONE && drawMode !== DrawMode.PAN) return;
+      
+      // Query rendered features at the click location
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: [layerName, `${layerName}-line`, `${layerName}-point`, `${layerName}-outline`]
+      });
+      
+      if (features.length > 0) {
+        const feature = features[0];
+        const featureId = feature.properties?.id;
+        
+        if (featureId) {
+          // Toggle selection
+          setSelectedFeatureId(selectedFeatureId === featureId ? null : featureId);
+          
+          // Update selected feature filter
+          map.setFilter(selectedLayerName, selectedFeatureId === featureId
+            ? ['==', 'id', ''] // Deselect
+            : ['==', 'id', featureId] // Select
+          );
+        }
+      } else {
+        // Clear selection when clicking empty space
+        setSelectedFeatureId(null);
+        map.setFilter(selectedLayerName, ['==', 'id', '']);
+      }
+    });
+    
+    // Set up mouse events for drawing
+    map.on('mousedown', onMouseDown);
+    map.on('mousemove', onMouseMove);
+    map.on('mouseup', onMouseUp);
+    
+    // Cleanup event listeners on unmount
+    return () => {
+      map.off('mousedown', onMouseDown);
+      map.off('mousemove', onMouseMove);
+      map.off('mouseup', onMouseUp);
+      map.off('click');
+    };
+  }, [map, drawMode, selectedFeatureId]);
+  
+  // Handle incoming WebSocket messages
+  useEffect(() => {
+    if (!lastMessage || !map) return;
     
     try {
-      switch (change.action) {
-        case DrawingActionType.CREATE:
-          if (change.featureData) {
-            // Add user color for display
-            const featureWithColor = {
-              ...change.featureData,
-              properties: {
-                ...change.featureData.properties,
-                user_color: getUserColor(change.source)
-              }
-            };
-            draw.add(featureWithColor);
+      if (lastMessage.type === MessageType.DRAWING) {
+        const feature = lastMessage.data;
+        
+        // Add the received feature to our state if it doesn't already exist
+        setDrawnFeatures(prev => {
+          if (prev.some(f => f.id === feature.id)) {
+            return prev;
           }
-          break;
+          return [...prev, feature];
+        });
+      } else if (lastMessage.type === MessageType.DRAWING_UPDATE) {
+        // Handle feature updates/deletes
+        const { action, featureId } = lastMessage.data;
+        
+        if (action === 'delete' && featureId) {
+          setDrawnFeatures(prev => prev.filter(f => f.id !== featureId));
           
-        case DrawingActionType.UPDATE:
-          if (change.featureData) {
-            // Add user color for display
-            const featureWithColor = {
-              ...change.featureData,
-              properties: {
-                ...change.featureData.properties,
-                user_color: getUserColor(change.source)
-              }
-            };
-            
-            // Get currently selected feature IDs
-            const selectedIds = draw.getSelectedIds();
-            
-            // Update the feature
-            draw.add(featureWithColor);
-            
-            // Restore selection if needed
-            if (selectedIds.length > 0) {
-              draw.changeMode('simple_select', { featureIds: selectedIds });
-            }
+          if (selectedFeatureId === featureId) {
+            setSelectedFeatureId(null);
+            map.setFilter(selectedLayerName, ['==', 'id', '']);
           }
-          break;
-          
-        case DrawingActionType.DELETE:
-          if (change.featureIds && change.featureIds.length > 0) {
-            draw.delete(change.featureIds);
-          }
-          break;
-          
-        case DrawingActionType.SELECT:
-          if (change.featureIds) {
-            draw.changeMode('simple_select', { featureIds: change.featureIds });
-          }
-          break;
-          
-        case DrawingActionType.MODE_CHANGE:
-          if (change.mode && viewMode === 'edit') {
-            draw.changeMode(change.mode);
-          }
-          break;
+        }
       }
-    } catch (error) {
-      console.error('Error processing collaborative change:', error);
+    } catch (err) {
+      console.error('Error processing drawing message:', err);
     }
-  }, [connected, pendingChanges, processPendingChange, getUserColor, viewMode]);
+  }, [lastMessage, map, selectedFeatureId]);
   
-  // Toggle between view and edit modes
-  const toggleViewMode = useCallback(() => {
-    if (!drawRef.current) return;
+  // Update the map source data when features change
+  useEffect(() => {
+    if (!map || !map.getSource(sourceName)) return;
     
-    const newMode = viewMode === 'view' ? 'edit' : 'view';
-    setViewMode(newMode);
+    const source = map.getSource(sourceName) as mapboxgl.GeoJSONSource;
     
-    if (newMode === 'view') {
-      drawRef.current.changeMode('simple_select');
-      drawRef.current.deleteAll();
-    } else {
-      drawRef.current.changeMode('simple_select');
-    }
-    
-    toast({
-      title: newMode === 'view' ? 'View Mode' : 'Edit Mode',
-      description: newMode === 'view' 
-        ? 'You can now view features but not edit them.' 
-        : 'You can now create and edit features collaboratively.',
-      variant: 'default'
+    source.setData({
+      type: 'FeatureCollection',
+      features: drawnFeatures
     });
-  }, [viewMode]);
+  }, [map, drawnFeatures]);
   
-  // Set the draw mode
-  const setMode = useCallback((mode: 'simple_select' | 'draw_polygon' | 'draw_line_string' | 'draw_point') => {
-    if (!drawRef.current || viewMode !== 'edit') return;
+  // Mouse event handlers for drawing
+  const onMouseDown = useCallback((e: mapboxgl.MapMouseEvent) => {
+    if (drawMode === DrawMode.NONE || drawMode === DrawMode.PAN) return;
     
-    drawRef.current.changeMode(mode);
-    setDrawMode(mode);
+    // Start drawing
+    setIsDrawing(true);
     
-    // Notify other users about mode change
-    handleModeChange(mode);
-  }, [viewMode, handleModeChange]);
-  
-  // Delete all features
-  const deleteAll = useCallback(() => {
-    if (!drawRef.current || viewMode !== 'edit') return;
+    // Get mouse coordinates
+    const point: [number, number] = [e.lngLat.lng, e.lngLat.lat];
     
-    const allFeatures = drawRef.current.getAll();
-    const featureIds = allFeatures.features.map(f => f.id as string);
-    
-    drawRef.current.deleteAll();
-    
-    // Notify other users about the deletion
-    if (featureIds.length > 0) {
-      handleFeatureDelete(featureIds);
-    }
-    
-    toast({
-      title: 'All Features Deleted',
-      description: 'All drawing features have been removed.',
-      variant: 'default'
-    });
-  }, [viewMode, handleFeatureDelete]);
-  
-  // Join a custom room
-  const joinCustomRoom = useCallback(() => {
-    if (!customRoomId.trim()) {
-      toast({
-        title: 'Invalid Room ID',
-        description: 'Please enter a valid room ID.',
-        variant: 'destructive'
+    // For POINT mode, create and complete the feature immediately
+    if (drawMode === DrawMode.POINT) {
+      const feature = pointsToFeature([point], 'point');
+      setCurrentFeature(feature);
+      setDrawnFeatures(prev => [...prev, feature]);
+      
+      // Send via WebSocket
+      send({
+        type: MessageType.DRAWING,
+        roomId,
+        source: userId,
+        data: feature
       });
+      
+      // Reset drawing state
+      setIsDrawing(false);
+      setCurrentPoints([]);
+      setCurrentFeature(null);
+      
+      // Show success toast
+      toast({
+        title: "Point created",
+        description: "Point has been created and shared with collaborators",
+        variant: "default"
+      });
+      
       return;
     }
     
-    // Clear existing features before joining new room
-    if (drawRef.current) {
-      drawRef.current.deleteAll();
+    // For other modes, start collecting points
+    setCurrentPoints([point]);
+    
+    // For rectangles, we need to track start point
+    if (drawMode === DrawMode.RECTANGLE) {
+      map.getCanvas().style.cursor = 'crosshair';
     }
-    
-    setJoinedRoom(customRoomId);
-    
-    toast({
-      title: 'Joined Room',
-      description: `You've joined the collaborative room: ${customRoomId}`,
-      variant: 'default'
-    });
-  }, [customRoomId]);
+  }, [drawMode, map, pointsToFeature, roomId, send, userId]);
   
-  // Connection status indicator
-  const ConnectionStatusIndicator = () => {
-    let Icon;
-    let label;
-    let color;
+  const onMouseMove = useCallback((e: mapboxgl.MapMouseEvent) => {
+    if (!isDrawing || drawMode === DrawMode.NONE || drawMode === DrawMode.PAN) return;
     
-    switch (connectionStatus) {
-      case ConnectionStatus.CONNECTED:
-        Icon = CheckCircle;
-        label = 'Connected';
-        color = 'bg-green-500';
+    const point: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+    
+    // Different behavior based on draw mode
+    switch (drawMode) {
+      case DrawMode.LINE:
+      case DrawMode.POLYGON:
+      case DrawMode.FREEHAND:
+        // Add point to current points
+        setCurrentPoints(prev => [...prev, point]);
         break;
-      case ConnectionStatus.CONNECTING:
-      case ConnectionStatus.RECONNECTING:
-        Icon = Loader2;
-        label = connectionStatus === ConnectionStatus.CONNECTING ? 'Connecting' : 'Reconnecting';
-        color = 'bg-yellow-500';
+      
+      case DrawMode.RECTANGLE:
+        // For rectangle, we use the first point and current point to create a rectangle
+        if (currentPoints.length > 0) {
+          const startPoint = currentPoints[0];
+          const points: [number, number][] = [
+            startPoint,
+            [point[0], startPoint[1]],
+            point,
+            [startPoint[0], point[1]],
+            startPoint // Close the polygon
+          ];
+          setCurrentPoints(points);
+        }
         break;
-      case ConnectionStatus.ERROR:
-        Icon = AlertCircle;
-        label = 'Connection Error';
-        color = 'bg-red-500';
+      
+      case DrawMode.CIRCLE:
+        // For circle, we use the first point as center and distance to current point as radius
+        if (currentPoints.length > 0) {
+          setCurrentPoints([currentPoints[0], point]);
+        }
         break;
-      default:
-        Icon = WifiOff;
-        label = 'Disconnected';
-        color = 'bg-gray-500';
     }
     
-    return (
-      <Badge className={`${color} gap-1`}>
-        <Icon className="h-3 w-3" />
-        <span>{label}</span>
-      </Badge>
-    );
+    // Preview the feature being drawn
+    if (currentPoints.length > 0) {
+      let featureType = '';
+      
+      switch (drawMode) {
+        case DrawMode.LINE:
+          featureType = 'line';
+          break;
+        case DrawMode.POLYGON:
+        case DrawMode.RECTANGLE:
+          featureType = 'polygon';
+          break;
+        case DrawMode.CIRCLE:
+          featureType = 'circle';
+          break;
+        case DrawMode.FREEHAND:
+          featureType = 'line';
+          break;
+        default:
+          featureType = 'point';
+      }
+      
+      // Create a preview feature
+      const feature = pointsToFeature(currentPoints, featureType);
+      setCurrentFeature(feature);
+      
+      // Update the map source with preview feature
+      if (map && map.getSource(sourceName)) {
+        const source = map.getSource(sourceName) as mapboxgl.GeoJSONSource;
+        source.setData({
+          type: 'FeatureCollection',
+          features: [...drawnFeatures, feature]
+        });
+      }
+    }
+  }, [isDrawing, drawMode, currentPoints, map, drawnFeatures, pointsToFeature]);
+  
+  const onMouseUp = useCallback(() => {
+    if (!isDrawing || drawMode === DrawMode.NONE || drawMode === DrawMode.PAN) return;
+    
+    // Complete the drawing
+    if (currentFeature && currentPoints.length > 0) {
+      // Minimum points check
+      let isValid = true;
+      
+      switch (drawMode) {
+        case DrawMode.LINE:
+          isValid = currentPoints.length >= 2;
+          break;
+        case DrawMode.POLYGON:
+          isValid = currentPoints.length >= 3;
+          break;
+        case DrawMode.RECTANGLE:
+        case DrawMode.CIRCLE:
+          isValid = currentPoints.length >= 2;
+          break;
+      }
+      
+      if (isValid) {
+        setDrawnFeatures(prev => [...prev, currentFeature]);
+        
+        // Send via WebSocket
+        send({
+          type: MessageType.DRAWING,
+          roomId,
+          source: userId,
+          data: currentFeature
+        });
+        
+        // Show success toast
+        const featureType = drawMode.toLowerCase();
+        toast({
+          title: `${featureType.charAt(0).toUpperCase() + featureType.slice(1)} created`,
+          description: `${featureType} has been created and shared with collaborators`,
+          variant: "default"
+        });
+      }
+    }
+    
+    // Reset drawing state
+    setIsDrawing(false);
+    setCurrentPoints([]);
+    setCurrentFeature(null);
+    
+    if (map) {
+      map.getCanvas().style.cursor = '';
+    }
+  }, [isDrawing, drawMode, currentFeature, currentPoints, map, roomId, send, userId]);
+  
+  // Set draw mode
+  const setDrawingMode = (mode: DrawMode) => {
+    setDrawMode(mode);
+    setSelectedFeatureId(null);
+    
+    if (map) {
+      // Update cursor
+      map.getCanvas().style.cursor = mode === DrawMode.PAN ? 'grab' : '';
+      
+      // Clear selection
+      map.setFilter(selectedLayerName, ['==', 'id', '']);
+    }
+  };
+  
+  // Delete selected feature
+  const deleteSelectedFeature = () => {
+    if (!selectedFeatureId) return;
+    
+    // Remove feature from local state
+    setDrawnFeatures(prev => prev.filter(f => f.id !== selectedFeatureId));
+    
+    // Send delete message via WebSocket
+    send({
+      type: MessageType.DRAWING_UPDATE,
+      roomId,
+      source: userId,
+      data: {
+        action: 'delete',
+        featureId: selectedFeatureId
+      }
+    });
+    
+    // Clear selection
+    setSelectedFeatureId(null);
+    
+    if (map) {
+      map.setFilter(selectedLayerName, ['==', 'id', '']);
+    }
+    
+    // Show success toast
+    toast({
+      title: "Feature deleted",
+      description: "Feature has been deleted and removed for all collaborators",
+      variant: "default"
+    });
   };
   
   return (
-    <Card className="shadow-lg w-full">
-      <CardHeader className="pb-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <CardTitle>Collaborative Map</CardTitle>
-            <CardDescription>Draw and collaborate in real-time with others</CardDescription>
-          </div>
-          <ConnectionStatusIndicator />
-        </div>
+    <Card className="w-auto">
+      <CardHeader className="py-3">
+        <CardTitle className="text-sm font-medium">Drawing Tools</CardTitle>
       </CardHeader>
-      
-      <CardContent className="p-0">
-        <div className="flex flex-col gap-4">
-          {/* Room controls */}
-          <div className="px-6 pt-2 flex items-end gap-4">
-            <div className="flex-1">
-              <Label htmlFor="room-id">Room ID</Label>
-              <Input 
-                id="room-id" 
-                placeholder="Enter room ID" 
-                value={customRoomId}
-                onChange={(e) => setCustomRoomId(e.target.value)}
-              />
-            </div>
-            <Button onClick={joinCustomRoom} disabled={!connected}>
-              Join Room
-            </Button>
-            <div className="flex gap-2 items-center">
-              <Users className="h-4 w-4" />
-              <span className="text-sm font-medium">{connectedUsers.length} user{connectedUsers.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-          
-          <div style={{ position: 'relative' }}>
-            <MapboxMap
-              id="collaborative-map"
-              width={width}
-              height={height}
-              longitude={initialCenter[0]}
-              latitude={initialCenter[1]}
-              zoom={initialZoom}
-              style={"mapbox://styles/mapbox/streets-v12"}
-              onMapLoad={onMapLoad}
-              className="rounded-md"
-            />
-          </div>
+      <CardContent className="py-2">
+        <div className="flex flex-wrap gap-2">
+          <TooltipProvider>
+            {/* Navigation modes */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.PAN ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.PAN)}
+                >
+                  <Hand className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Pan Mode</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.NONE ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.NONE)}
+                >
+                  <MousePointer className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Select Mode</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Separator orientation="vertical" className="h-8" />
+            
+            {/* Drawing modes */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.POINT ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.POINT)}
+                >
+                  <Circle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Draw Point</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.LINE ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.LINE)}
+                >
+                  <SplitSquareHorizontal className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Draw Line</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.POLYGON ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.POLYGON)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Draw Polygon</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.RECTANGLE ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.RECTANGLE)}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Draw Rectangle</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={drawMode === DrawMode.CIRCLE ? "default" : "outline"} 
+                  size="icon"
+                  onClick={() => setDrawingMode(DrawMode.CIRCLE)}
+                >
+                  <Circle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Draw Circle</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Separator orientation="vertical" className="h-8" />
+            
+            {/* Feature operations */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    disabled={!selectedFeatureId}
+                    onClick={deleteSelectedFeature}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Selected Feature</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </CardContent>
-      
-      <CardFooter className="flex justify-between pt-6">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant={viewMode === 'edit' ? 'default' : 'outline'} 
-            size="sm"
-            onClick={toggleViewMode}
-            disabled={!connected}
-          >
-            {viewMode === 'view' ? (
-              <>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit Mode
-              </>
-            ) : (
-              <>
-                <Eye className="h-4 w-4 mr-2" />
-                View Mode
-              </>
-            )}
-          </Button>
-          
-          {viewMode === 'edit' && (
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={deleteAll}
-              disabled={!connected}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete All
-            </Button>
-          )}
-        </div>
-        
-        {viewMode === 'edit' && (
-          <div className="flex gap-2">
-            <Button
-              variant={drawMode === 'simple_select' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('simple_select')}
-              disabled={!connected}
-            >
-              <MousePointer className="h-4 w-4" />
-            </Button>
-            
-            <Button
-              variant={drawMode === 'draw_point' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('draw_point')}
-              disabled={!connected}
-            >
-              <span className="text-lg">•</span>
-            </Button>
-            
-            <Button
-              variant={drawMode === 'draw_line_string' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('draw_line_string')}
-              disabled={!connected}
-            >
-              <PenTool className="h-4 w-4" />
-            </Button>
-            
-            <Button
-              variant={drawMode === 'draw_polygon' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('draw_polygon')}
-              disabled={!connected}
-            >
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3.5 2C3.22386 2 3 2.22386 3 2.5C3 2.77614 3.22386 3 3.5 3C3.77614 3 4 2.77614 4 2.5C4 2.22386 3.77614 2 3.5 2ZM3.5 5C3.22386 5 3 5.22386 3 5.5C3 5.77614 3.22386 6 3.5 6C3.77614 6 4 5.77614 4 5.5C4 5.22386 3.77614 5 3.5 5ZM3 8.5C3 8.22386 3.22386 8 3.5 8C3.77614 8 4 8.22386 4 8.5C4 8.77614 3.77614 9 3.5 9C3.22386 9 3 8.77614 3 8.5ZM3.5 11C3.22386 11 3 11.2239 3 11.5C3 11.7761 3.22386 12 3.5 12C3.77614 12 4 11.7761 4 11.5C4 11.2239 3.77614 11 3.5 11ZM6.5 2C6.22386 2 6 2.22386 6 2.5C6 2.77614 6.22386 3 6.5 3C6.77614 3 7 2.77614 7 2.5C7 2.22386 6.77614 2 6.5 2ZM6 11.5C6 11.2239 6.22386 11 6.5 11C6.77614 11 7 11.2239 7 11.5C7 11.7761 6.77614 12 6.5 12C6.22386 12 6 11.7761 6 11.5ZM9.5 2C9.22386 2 9 2.22386 9 2.5C9 2.77614 9.22386 3 9.5 3C9.77614 3 10 2.77614 10 2.5C10 2.22386 9.77614 2 9.5 2ZM9 11.5C9 11.2239 9.22386 11 9.5 11C9.77614 11 10 11.2239 10 11.5C10 11.7761 9.77614 12 9.5 12C9.22386 12 9 11.7761 9 11.5ZM12.5 2C12.2239 2 12 2.22386 12 2.5C12 2.77614 12.2239 3 12.5 3C12.7761 3 13 2.77614 13 2.5C13 2.22386 12.7761 2 12.5 2ZM12 5.5C12 5.22386 12.2239 5 12.5 5C12.7761 5 13 5.22386 13 5.5C13 5.77614 12.7761 6 12.5 6C12.2239 6 12 5.77614 12 5.5ZM12.5 8C12.2239 8 12 8.22386 12 8.5C12 8.77614 12.2239 9 12.5 9C12.7761 9 13 8.77614 13 8.5C13 8.22386 12.7761 8 12.5 8ZM12 11.5C12 11.2239 12.2239 11 12.5 11C12.7761 11 13 11.2239 13 11.5C13 11.7761 12.7761 12 12.5 12C12.2239 12 12 11.7761 12 11.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
-              </svg>
-            </Button>
-          </div>
-        )}
+      <CardFooter className="py-2 px-6 justify-between">
+        <Badge variant="outline" className="text-xs">
+          Features: {drawnFeatures.length}
+        </Badge>
+        <Badge 
+          variant="outline" 
+          className={`text-xs ${
+            drawMode !== DrawMode.NONE 
+              ? 'bg-primary text-primary-foreground' 
+              : ''
+          }`}
+        >
+          Mode: {drawMode.charAt(0).toUpperCase() + drawMode.slice(1)}
+        </Badge>
       </CardFooter>
     </Card>
   );

@@ -13,6 +13,9 @@ export interface MapboxMapProps {
   style?: string;
   children?: React.ReactNode;
   onMapLoad?: (map: mapboxgl.Map) => void;
+  onMapCreated?: (map: mapboxgl.Map) => void;
+  initialCenter?: [number, number];
+  initialZoom?: number;
 }
 
 /**
@@ -28,7 +31,10 @@ export function MapboxMap({
   zoom = 11,
   style = 'mapbox://styles/mapbox/streets-v12',
   children,
-  onMapLoad
+  onMapLoad,
+  onMapCreated,
+  initialCenter,
+  initialZoom
 }: MapboxMapProps) {
   // Create a unique ID for the map container if not provided
   const mapId = useRef<string>(id);
@@ -45,6 +51,20 @@ export function MapboxMap({
     });
   }, [width, height]);
 
+  // Handle map load and created events
+  const handleMapLoad = (map: mapboxgl.Map) => {
+    // Call both callbacks if provided
+    if (onMapLoad) onMapLoad(map);
+    if (onMapCreated) onMapCreated(map);
+  };
+
+  // Determine initial view state
+  const initialViewState = {
+    longitude: initialCenter ? initialCenter[0] : longitude,
+    latitude: initialCenter ? initialCenter[1] : latitude,
+    zoom: initialZoom !== undefined ? initialZoom : zoom
+  };
+
   return (
     <div className={cn('mapbox-map-container relative', className)} style={mapContainerStyle}>
       <div
@@ -54,13 +74,9 @@ export function MapboxMap({
       />
       <MapboxProvider
         mapContainerId={mapId.current}
-        initialViewState={{
-          longitude,
-          latitude,
-          zoom
-        }}
+        initialViewState={initialViewState}
         mapStyle={style}
-        onMapLoad={onMapLoad}
+        onMapLoad={handleMapLoad}
       >
         {children}
       </MapboxProvider>

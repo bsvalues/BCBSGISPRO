@@ -69,7 +69,7 @@ export default function WebSocketDemoPage() {
   const messageEndRef = useRef<HTMLDivElement>(null);
   
   // Connect to WebSocket
-  const { status, lastMessage, send } = useWebSocket(MessageType.CHAT, joinedRoom);
+  const { status, lastMessage, send } = useWebSocket(joinedRoom);
   
   // Handle incoming chat messages
   useEffect(() => {
@@ -330,7 +330,9 @@ export default function WebSocketDemoPage() {
         
         <TabsContent value="map">
           <div className="space-y-6">
-            <CollaborativeMap roomId="demo-map" height="600px" />
+            <div style={{ height: '600px' }}>
+              <CollaborativeMap roomId="demo-map" />
+            </div>
             
             <div className="bg-muted rounded-md p-4">
               <h3 className="font-medium mb-2">How Collaborative Mapping Works</h3>
