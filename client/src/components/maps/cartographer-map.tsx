@@ -7,6 +7,7 @@ import { AdvancedDrawControl } from './advanced-draw-control';
 import { FeatureVersionHistory } from './feature-version-history';
 import { PrecisionDrawingTools } from './precision-drawing-tools';
 import { AnimatedCountyBoundaries } from './animated-county-boundaries';
+import LeafletMap from './leaflet/leaflet-map';
 import { 
   GeoJSONFeature, 
   MapTool, 
@@ -67,7 +68,7 @@ export function CartographerMap({
   showPrecisionTools = true
 }: CartographerMapProps) {
   const { toast } = useToast();
-  const mapRef = useRef<EnhancedMapViewerRef>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const [features, setFeatures] = useState<GeoJSONFeature[]>(initialFeatures);
   const [activeTool, setActiveTool] = useState<MapTool>(MapTool.PAN);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSONFeature | null>(null);
@@ -75,6 +76,11 @@ export function CartographerMap({
   const [isLegalDescriptionOpen, setIsLegalDescriptionOpen] = useState(false);
   const [legalDescription, setLegalDescription] = useState('');
   const versionTrackerRef = useRef<FeatureVersionTracker>(new FeatureVersionTracker());
+  
+  // Handle map ready
+  const handleMapReady = (map: L.Map) => {
+    mapRef.current = map;
+  };
   
   // Handle feature changes
   const handleFeaturesChanged = (newFeatures: GeoJSONFeature[]) => {
@@ -232,32 +238,24 @@ export function CartographerMap({
   return (
     <div className={`relative ${className}`}>
       <div className="relative">
-        {/* Main Map */}
-        <EnhancedMapViewer
-          ref={mapRef}
+        {/* Use the LeafletMap component instead of EnhancedMapViewer */}
+        <LeafletMap
           width={width}
           height={height}
-          center={center}
+          latitude={center[0]}
+          longitude={center[1]}
           zoom={zoom}
-          initialFeatures={features}
-          mapLayers={mapLayers}
-          onFeaturesChanged={handleFeaturesChanged}
-          activeTool={activeTool}
-          showDrawTools={false} // We're using our advanced drawing tools instead
+          onMapReady={handleMapReady}
         >
           {/* Advanced Drawing Control */}
           <AdvancedDrawControl
             position="topright"
-            onFeatureCreate={handleFeatureCreate}
-            onFeatureEdit={handleFeatureEdit}
-            onFeatureDelete={handleFeatureDelete}
-            onVersionChange={handleVersionChange}
-            onLegalDescriptionGenerate={handleLegalDescriptionGenerate}
+            currentTool={activeTool}
+            onToolChange={setActiveTool}
+            onFeatureCreated={handleFeatureCreate}
+            onFeatureEdited={handleFeatureEdit}
+            onFeatureDeleted={handleFeatureDelete}
             existingFeatures={features}
-            enableSnapping={true}
-            enableVersioning={true}
-            enableSplitJoin={true}
-            enablePrecisionTools={true}
           />
           
           {/* Animated County Boundaries Control */}
@@ -276,7 +274,7 @@ export function CartographerMap({
               });
             }}
           />
-        </EnhancedMapViewer>
+        </LeafletMap>
         
         {/* Precision Drawing Tools Panel */}
         {showPrecisionTools && (
@@ -302,7 +300,7 @@ export function CartographerMap({
                   description: "Redid last action",
                 });
               }}
-              map={mapRef.current?.map ?? null}
+              map={mapRef.current}
               selectedFeature={selectedFeature}
             />
           </div>
