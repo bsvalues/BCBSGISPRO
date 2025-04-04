@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { LegalDescriptionDetails } from "./legal-description-details";
 import { useToast } from "@/hooks/use-toast";
-import { mapboxToken } from "@/lib/mapbox-token";
+import { getMapboxToken } from "@/lib/mapbox-token";
 import { Badge } from "@/components/ui/badge";
 
 // Type definition for the component props
@@ -71,7 +71,7 @@ export const LegalDescriptionAgent: React.FC<LegalDescriptionAgentProps> = ({
   useEffect(() => {
     const fetchToken = async () => {
       try {
-        const token = await mapboxToken.getToken();
+        const token = await getMapboxToken();
         setMapboxAccessToken(token);
       } catch (error) {
         console.error("Failed to get Mapbox token:", error);

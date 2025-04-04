@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as mapboxgl from 'mapbox-gl';
-import { useWebSocket, MessageType } from '@/lib/websocket';
+import { useWebSocket } from '@/lib/websocket';
 
 interface CursorPosition {
   userId: string;
@@ -47,7 +47,13 @@ export function CollaborativeCursor({
   // Track cursor positions
   const [cursorPositions, setCursorPositions] = useState<Record<string, CursorPosition>>({});
   // Use WebSocket connection
-  const { status, lastMessage, send } = useWebSocket(roomId);
+  const { status, messages, sendMessage } = useWebSocket({ autoJoinRoom: roomId });
+  
+  // Get the latest message
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  
+  // Alias for sendMessage
+  const send = sendMessage;
   // Track throttled send time
   const lastSendTimeRef = useRef<number>(0);
   // Cursor update throttle interval (ms)
@@ -111,10 +117,10 @@ export function CollaborativeCursor({
       
       // Send cursor position
       send({
-        type: MessageType.CURSOR,
+        type: 'cursor_move',
         roomId,
-        source: userId,
-        data: {
+        userId,
+        payload: {
           position: [e.lngLat.lng, e.lngLat.lat]
         }
       });
@@ -135,13 +141,13 @@ export function CollaborativeCursor({
     
     // Only process cursor messages from other users
     if (
-      lastMessage.type === MessageType.CURSOR && 
+      lastMessage.type === 'cursor_move' && 
       lastMessage.roomId === roomId &&
-      lastMessage.source !== userId && 
-      lastMessage.data?.position
+      lastMessage.userId !== userId && 
+      lastMessage.payload?.position
     ) {
-      const otherUserId = lastMessage.source as string;
-      const position = lastMessage.data.position as [number, number];
+      const otherUserId = lastMessage.userId as string;
+      const position = lastMessage.payload.position as [number, number];
       
       // Update cursor position
       setCursorPositions(prev => ({

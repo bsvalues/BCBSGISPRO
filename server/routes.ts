@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketManager } from "./websocket-server";
 import * as fs from 'fs';
 import * as path from 'path';
-import { WebSocketManager } from "./websocket-server";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";

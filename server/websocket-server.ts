@@ -1,11 +1,11 @@
-import { Server, IncomingMessage } from 'http';
+import { Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { parse } from 'url';
+import { IncomingMessage } from 'http';
 
 /**
  * WebSocket message type
  */
-type MessageType = 
+export type MessageType = 
   | 'join_room' 
   | 'leave_room' 
   | 'cursor_move' 
@@ -21,7 +21,7 @@ type MessageType =
 /**
  * WebSocket message interface
  */
-interface WebSocketMessage {
+export interface WebSocketMessage {
   type: MessageType;
   roomId?: string;
   userId?: string;
@@ -65,85 +65,62 @@ export class WebSocketManager {
    * Initialize the WebSocket server
    */
   constructor(server: Server) {
-    // Initialize WebSocket server on the existing HTTP server
+    // Create WebSocket server attached to the HTTP server
     this.wss = new WebSocketServer({ 
       server,
-      path: '/ws',
-      clientTracking: true
+      path: '/ws'
     });
-    
-    console.log('WebSocket server initialized on path /ws');
     
     // Set up event handlers
     this.wss.on('connection', this.handleConnection.bind(this));
     
-    // Start the interval to check for dead connections every 30 seconds
+    // Set up ping interval (30 seconds)
     this.pingInterval = setInterval(this.pingClients.bind(this), 30000);
+    
+    console.log('WebSocket server initialized');
   }
   
   /**
    * Handle new WebSocket connections
    */
   private handleConnection(ws: WebSocket, request: IncomingMessage) {
-    // Initialize extended properties
+    console.log('New WebSocket connection established');
+    
+    // Extend the WebSocket with custom properties
     const extWs = ws as ExtendedWebSocket;
     extWs.isAlive = true;
-    extWs.userId = Math.random().toString(36).substring(2, 15);
-    extWs.username = 'User_' + extWs.userId.substring(0, 5);
+    extWs.userId = Math.random().toString(36).substring(2, 15); // Generate random ID 
+    extWs.username = `User_${extWs.userId.substring(0, 5)}`;   // Generate default username
     extWs.rooms = new Set();
     extWs.lastActivity = Date.now();
     
-    // Parse any query parameters
-    if (request.url) {
-      const { query } = parse(request.url, true);
-      
-      if (query.userId && typeof query.userId === 'string') {
-        extWs.userId = query.userId;
-      }
-      
-      if (query.username && typeof query.username === 'string') {
-        extWs.username = query.username;
-      }
-      
-      // Auto-join room if specified
-      if (query.roomId && typeof query.roomId === 'string') {
-        this.joinRoom(extWs, query.roomId);
-      }
-    }
-    
-    // Set up WebSocket event handlers
+    // Handle pong messages (keep-alive)
     extWs.on('pong', () => {
       extWs.isAlive = true;
     });
     
+    // Handle incoming messages
     extWs.on('message', (data) => {
       try {
         const message: WebSocketMessage = JSON.parse(data.toString());
         this.handleMessage(extWs, message);
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error('Error parsing WebSocket message:', error);
       }
     });
     
+    // Handle client disconnection
     extWs.on('close', () => {
       this.handleDisconnect(extWs);
     });
     
-    extWs.on('error', (error) => {
-      console.error('WebSocket error:', error);
-      extWs.terminate();
-    });
-    
-    // Send an initial welcome message
+    // Send welcome message to client
     const message: WebSocketMessage = {
       type: 'heartbeat',
-      userId: 'server',
-      username: 'Server',
+      userId: extWs.userId,
+      username: extWs.username,
       timestamp: Date.now(),
-      payload: {
-        message: 'Connected to BentonGeoPro WebSocket server',
-        userId: extWs.userId
-      }
+      payload: { message: 'Welcome to the BentonGeoPro WebSocket server' }
     };
     
     extWs.send(JSON.stringify(message));
@@ -153,22 +130,18 @@ export class WebSocketManager {
    * Handle messages received from clients
    */
   private handleMessage(ws: ExtendedWebSocket, message: WebSocketMessage) {
-    // Update last activity timestamp
     ws.lastActivity = Date.now();
     
-    // Update user information if provided
-    if (message.userId) {
-      ws.userId = message.userId;
-    }
+    // Add user ID and timestamp if not provided
+    if (!message.userId) message.userId = ws.userId;
+    if (!message.username) message.username = ws.username;
+    if (!message.timestamp) message.timestamp = Date.now();
     
-    if (message.username) {
-      ws.username = message.username;
-    }
-    
-    // Process message based on type
+    // Handle different message types
     switch (message.type) {
       case 'join_room':
         if (message.roomId) {
+          if (message.username) ws.username = message.username;
           this.joinRoom(ws, message.roomId);
         }
         break;
@@ -179,41 +152,84 @@ export class WebSocketManager {
         }
         break;
         
-      case 'heartbeat':
-        // Just keep the connection alive, no need to broadcast
-        ws.isAlive = true;
-        break;
-        
       case 'cursor_move':
-      case 'chat_message':
-        // Forward these messages to everyone in the room
-        if (message.roomId) {
+        if (message.roomId && message.payload) {
           this.broadcastToRoom(message.roomId, message, ws);
         }
         break;
         
       case 'feature_add':
+        if (message.roomId && message.payload && message.payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room) {
+            room.features[message.payload.id] = message.payload;
+            room.lastActivity = Date.now();
+            this.broadcastToRoom(message.roomId, message);
+          }
+        }
+        break;
+        
       case 'feature_update':
+        if (message.roomId && message.payload && message.payload.id) {
+          this.updateFeature(message.roomId, message.payload.id, message);
+        }
+        break;
+        
       case 'feature_delete':
-        // Update the feature collection and broadcast
-        if (message.roomId && message.payload?.featureId) {
-          this.updateFeature(message.roomId, message.payload.featureId, message);
-          this.broadcastToRoom(message.roomId, message, ws);
+        if (message.roomId && message.payload && message.payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room && room.features[message.payload.id]) {
+            delete room.features[message.payload.id];
+            room.lastActivity = Date.now();
+            this.broadcastToRoom(message.roomId, message);
+          }
         }
         break;
         
       case 'annotation_add':
-      case 'annotation_update':
-      case 'annotation_delete':
-        // Update the annotations collection and broadcast
-        if (message.roomId && message.payload?.annotationId) {
-          this.updateAnnotation(message.roomId, message.payload.annotationId, message);
-          this.broadcastToRoom(message.roomId, message, ws);
+        if (message.roomId && message.payload && message.payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room) {
+            room.annotations[message.payload.id] = message.payload;
+            room.lastActivity = Date.now();
+            this.broadcastToRoom(message.roomId, message);
+          }
         }
         break;
         
+      case 'annotation_update':
+        if (message.roomId && message.payload && message.payload.id) {
+          this.updateAnnotation(message.roomId, message.payload.id, message);
+        }
+        break;
+        
+      case 'annotation_delete':
+        if (message.roomId && message.payload && message.payload.id) {
+          const room = this.rooms.get(message.roomId);
+          if (room && room.annotations[message.payload.id]) {
+            delete room.annotations[message.payload.id];
+            room.lastActivity = Date.now();
+            this.broadcastToRoom(message.roomId, message);
+          }
+        }
+        break;
+        
+      case 'chat_message':
+        if (message.roomId && message.payload) {
+          this.broadcastToRoom(message.roomId, message);
+        }
+        break;
+        
+      case 'heartbeat':
+        // Respond with a heartbeat message
+        ws.send(JSON.stringify({
+          type: 'heartbeat',
+          timestamp: Date.now()
+        }));
+        break;
+        
       default:
-        console.warn('Unhandled message type:', message.type);
+        console.warn(`Unknown message type: ${message.type}`);
     }
   }
   
@@ -225,7 +241,7 @@ export class WebSocketManager {
     if (!this.rooms.has(roomId)) {
       this.rooms.set(roomId, {
         id: roomId,
-        clients: new Set<ExtendedWebSocket>(),
+        clients: new Set(),
         features: {},
         annotations: {},
         createdAt: Date.now(),
@@ -234,11 +250,17 @@ export class WebSocketManager {
     }
     
     const room = this.rooms.get(roomId)!;
+    
+    // Add client to room
     room.clients.add(ws);
-    room.lastActivity = Date.now();
     ws.rooms.add(roomId);
     
-    // Notify all clients in the room about the new connection
+    // Update room activity
+    room.lastActivity = Date.now();
+    
+    console.log(`User ${ws.username} (${ws.userId}) joined room ${roomId}`);
+    
+    // Notify other clients in the room
     const joinMessage: WebSocketMessage = {
       type: 'join_room',
       roomId,
@@ -246,26 +268,21 @@ export class WebSocketManager {
       username: ws.username,
       timestamp: Date.now(),
       payload: {
-        userCount: room.clients.size,
-        userId: ws.userId,
-        username: ws.username
+        userCount: room.clients.size
       }
     };
     
-    this.broadcastToRoom(roomId, joinMessage);
+    this.broadcastToRoom(roomId, joinMessage, ws);
     
-    // Send the current state of the room to the new client
+    // Send current room state to the client
     const stateMessage: WebSocketMessage = {
       type: 'join_room',
       roomId,
-      userId: 'server',
-      username: 'Server',
       timestamp: Date.now(),
       payload: {
         features: room.features,
         annotations: room.annotations,
-        userCount: room.clients.size,
-        roomState: 'active'
+        userCount: room.clients.size
       }
     };
     
@@ -276,14 +293,19 @@ export class WebSocketManager {
    * Leave a collaboration room
    */
   private leaveRoom(ws: ExtendedWebSocket, roomId: string) {
-    if (!this.rooms.has(roomId)) return;
+    const room = this.rooms.get(roomId);
+    if (!room) return;
     
-    const room = this.rooms.get(roomId)!;
+    // Remove client from room
     room.clients.delete(ws);
-    room.lastActivity = Date.now();
     ws.rooms.delete(roomId);
     
-    // Notify all clients in the room about the disconnection
+    // Update room activity
+    room.lastActivity = Date.now();
+    
+    console.log(`User ${ws.username} (${ws.userId}) left room ${roomId}`);
+    
+    // Notify other clients in the room
     const leaveMessage: WebSocketMessage = {
       type: 'leave_room',
       roomId,
@@ -291,17 +313,15 @@ export class WebSocketManager {
       username: ws.username,
       timestamp: Date.now(),
       payload: {
-        userCount: room.clients.size,
-        userId: ws.userId,
-        username: ws.username
+        userCount: room.clients.size
       }
     };
     
     this.broadcastToRoom(roomId, leaveMessage);
     
-    // Clean up empty rooms
+    // Clean up empty room after a delay
     if (room.clients.size === 0) {
-      this.cleanupRoom(roomId);
+      setTimeout(() => this.cleanupRoom(roomId), 300000); // 5 minutes
     }
   }
   
@@ -309,15 +329,21 @@ export class WebSocketManager {
    * Update a feature in a room
    */
   private updateFeature(roomId: string, featureId: string, message: WebSocketMessage) {
-    if (!this.rooms.has(roomId)) return;
+    const room = this.rooms.get(roomId);
+    if (!room) return;
     
-    const room = this.rooms.get(roomId)!;
-    room.lastActivity = Date.now();
-    
-    if (message.type === 'feature_delete') {
-      delete room.features[featureId];
-    } else if (message.payload?.feature) {
-      room.features[featureId] = message.payload.feature;
+    // Update feature if it exists
+    if (room.features[featureId]) {
+      room.features[featureId] = {
+        ...room.features[featureId],
+        ...message.payload
+      };
+      
+      // Update room activity
+      room.lastActivity = Date.now();
+      
+      // Broadcast the update
+      this.broadcastToRoom(roomId, message);
     }
   }
   
@@ -325,15 +351,21 @@ export class WebSocketManager {
    * Update an annotation in a room
    */
   private updateAnnotation(roomId: string, annotationId: string, message: WebSocketMessage) {
-    if (!this.rooms.has(roomId)) return;
+    const room = this.rooms.get(roomId);
+    if (!room) return;
     
-    const room = this.rooms.get(roomId)!;
-    room.lastActivity = Date.now();
-    
-    if (message.type === 'annotation_delete') {
-      delete room.annotations[annotationId];
-    } else if (message.payload?.annotation) {
-      room.annotations[annotationId] = message.payload.annotation;
+    // Update annotation if it exists
+    if (room.annotations[annotationId]) {
+      room.annotations[annotationId] = {
+        ...room.annotations[annotationId],
+        ...message.payload
+      };
+      
+      // Update room activity
+      room.lastActivity = Date.now();
+      
+      // Broadcast the update
+      this.broadcastToRoom(roomId, message);
     }
   }
   
@@ -341,9 +373,9 @@ export class WebSocketManager {
    * Broadcast a message to all clients in a room
    */
   private broadcastToRoom(roomId: string, message: WebSocketMessage, exclude?: ExtendedWebSocket) {
-    if (!this.rooms.has(roomId)) return;
+    const room = this.rooms.get(roomId);
+    if (!room) return;
     
-    const room = this.rooms.get(roomId)!;
     const messageStr = JSON.stringify(message);
     
     room.clients.forEach(client => {
@@ -357,6 +389,8 @@ export class WebSocketManager {
    * Handle client disconnection
    */
   private handleDisconnect(ws: ExtendedWebSocket) {
+    console.log(`WebSocket disconnected: ${ws.username} (${ws.userId})`);
+    
     // Leave all rooms
     for (const roomId of ws.rooms) {
       this.leaveRoom(ws, roomId);
@@ -371,18 +405,12 @@ export class WebSocketManager {
       const extWs = ws as ExtendedWebSocket;
       
       if (extWs.isAlive === false) {
+        console.log(`Terminating inactive connection: ${extWs.username} (${extWs.userId})`);
         return extWs.terminate();
       }
       
       extWs.isAlive = false;
       extWs.ping();
-      
-      // Check for inactive clients (no activity for more than 10 minutes)
-      const inactiveTime = Date.now() - extWs.lastActivity;
-      if (inactiveTime > 10 * 60 * 1000) {
-        console.log(`Terminating inactive connection for user ${extWs.userId}`);
-        extWs.terminate();
-      }
     });
   }
   
@@ -390,33 +418,25 @@ export class WebSocketManager {
    * Clean up an empty room
    */
   private cleanupRoom(roomId: string) {
-    if (!this.rooms.has(roomId)) return;
+    const room = this.rooms.get(roomId);
     
-    const room = this.rooms.get(roomId)!;
-    
-    // If there are still clients, don't clean up
-    if (room.clients.size > 0) return;
-    
-    // After 1 hour of inactivity, remove the room
-    setTimeout(() => {
-      if (this.rooms.has(roomId)) {
-        const room = this.rooms.get(roomId)!;
-        
-        // Only delete if still empty
-        if (room.clients.size === 0) {
-          this.rooms.delete(roomId);
-          console.log(`Room ${roomId} cleaned up due to inactivity`);
-        }
-      }
-    }, 60 * 60 * 1000);
+    // Only delete the room if it's still empty
+    if (room && room.clients.size === 0) {
+      console.log(`Cleaning up empty room: ${roomId}`);
+      this.rooms.delete(roomId);
+    }
   }
   
   /**
    * Clean up resources when the server is shutting down
    */
   public shutdown() {
+    console.log('Shutting down WebSocket server');
+    
+    // Clear ping interval
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
+      this.pingInterval = null;
     }
     
     // Close all connections
@@ -424,6 +444,7 @@ export class WebSocketManager {
       ws.terminate();
     });
     
+    // Close the server
     this.wss.close();
   }
 }

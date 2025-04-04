@@ -78,6 +78,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             <NavLink href="/collaborative-workspace" icon={<Users size={18} />}>
               Collaborative Workspace
             </NavLink>
+            <NavLink href="/websocket-demo" icon={<Users size={18} />}>
+              WebSocket Demo
+            </NavLink>
             <NavLink href="/settings" icon={<Settings size={18} />}>Settings</NavLink>
           </nav>
         </aside>

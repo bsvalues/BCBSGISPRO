@@ -28,7 +28,7 @@ import {
   Move
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { useWebSocket, MessageType, ConnectionStatus } from '@/lib/websocket';
+import { useWebSocket, ConnectionStatus, type MessageType } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -98,7 +98,19 @@ export function CollaborativeMap({
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   
   // WebSocket connection
-  const { send, lastMessage, userId, status, collaborators } = useWebSocket(roomId);
+  const { sendMessage, messages, status, currentRoom } = useWebSocket({ autoJoinRoom: roomId });
+  
+  // Get the latest message
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  
+  // Generate a random user ID if not provided
+  const userId = useState(() => Math.random().toString(36).substring(2, 15))[0];
+  
+  // Track collaborators (not implemented in the current hook)
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  
+  // Alias for sendMessage
+  const send = sendMessage;
   
   // Pass connection status to parent component
   useEffect(() => {
@@ -355,8 +367,8 @@ export function CollaborativeMap({
     if (!lastMessage || !map) return;
     
     try {
-      if (lastMessage.type === MessageType.DRAWING) {
-        const feature = lastMessage.data;
+      if (lastMessage.type === 'feature_add') {
+        const feature = lastMessage.payload;
         
         // Add the received feature to our state if it doesn't already exist
         setDrawnFeatures(prev => {
@@ -365,9 +377,9 @@ export function CollaborativeMap({
           }
           return [...prev, feature];
         });
-      } else if (lastMessage.type === MessageType.DRAWING_UPDATE) {
+      } else if (lastMessage.type === 'feature_update') {
         // Handle feature updates/deletes
-        const { action, featureId } = lastMessage.data;
+        const { action, featureId } = lastMessage.payload;
         
         if (action === 'delete' && featureId) {
           setDrawnFeatures(prev => prev.filter(f => f.id !== featureId));
@@ -462,10 +474,10 @@ export function CollaborativeMap({
       
       // Send via WebSocket
       send({
-        type: MessageType.DRAWING,
+        type: 'feature_add',
         roomId,
-        source: userId,
-        data: feature
+        userId,
+        payload: feature
       });
       
       // Reset drawing state
@@ -592,10 +604,10 @@ export function CollaborativeMap({
         
         // Send via WebSocket
         send({
-          type: MessageType.DRAWING,
+          type: 'feature_add',
           roomId,
-          source: userId,
-          data: currentFeature
+          userId,
+          payload: currentFeature
         });
         
         // Show success toast
@@ -641,10 +653,10 @@ export function CollaborativeMap({
     
     // Send delete message via WebSocket
     send({
-      type: MessageType.DRAWING_UPDATE,
+      type: 'feature_update',
       roomId,
-      source: userId,
-      data: {
+      userId,
+      payload: {
         action: 'delete',
         featureId: selectedFeatureId
       }
