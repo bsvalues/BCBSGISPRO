@@ -3071,10 +3071,266 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // WebSocket Test Endpoints
+  app.get("/api/websocket/test", (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>WebSocket Test</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+          #status { font-weight: bold; }
+          #log { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+          .connected { color: green; }
+          .disconnected { color: red; }
+          .message { margin: 5px 0; }
+          .sent { color: blue; }
+          .received { color: purple; }
+          button, input, select { margin: 5px; padding: 5px; }
+          fieldset { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+          legend { font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <h1>WebSocket Server Test</h1>
+        <div>Status: <span id="status" class="disconnected">Disconnected</span></div>
+        
+        <fieldset>
+          <legend>Connection</legend>
+          <div>
+            <input type="text" id="username" placeholder="Username" value="TestUser">
+            <button id="connect">Connect</button>
+            <button id="disconnect" disabled>Disconnect</button>
+          </div>
+        </fieldset>
+        
+        <fieldset>
+          <legend>Room</legend>
+          <div>
+            <input type="text" id="roomId" placeholder="Room ID" value="test-room">
+            <button id="join" disabled>Join Room</button>
+            <button id="leave" disabled>Leave Room</button>
+          </div>
+        </fieldset>
+        
+        <fieldset>
+          <legend>Messages</legend>
+          <div>
+            <input type="text" id="message" placeholder="Message text" style="width: 60%;">
+            <select id="messageType">
+              <option value="chat_message">Chat Message</option>
+              <option value="heartbeat">Heartbeat</option>
+              <option value="cursor_move">Cursor Move</option>
+            </select>
+            <button id="send" disabled>Send</button>
+          </div>
+        </fieldset>
+        
+        <div id="log"></div>
+        
+        <script>
+          let socket;
+          let currentRoom = "";
+          let userId = "user_" + Math.floor(Math.random() * 10000);
+          
+          const statusEl = document.getElementById("status");
+          const logEl = document.getElementById("log");
+          const connectBtn = document.getElementById("connect");
+          const disconnectBtn = document.getElementById("disconnect");
+          const joinBtn = document.getElementById("join");
+          const leaveBtn = document.getElementById("leave");
+          const sendBtn = document.getElementById("send");
+          
+          function log(message, type = "") {
+            const div = document.createElement("div");
+            div.className = "message " + type;
+            div.textContent = message;
+            logEl.appendChild(div);
+            logEl.scrollTop = logEl.scrollHeight;
+          }
+          
+          function connect() {
+            try {
+              const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+              const wsUrl = \`\${protocol}//\${window.location.host}/ws\`;
+              
+              log("Connecting to " + wsUrl);
+              socket = new WebSocket(wsUrl);
+              
+              socket.onopen = () => {
+                statusEl.textContent = "Connected";
+                statusEl.className = "connected";
+                log("WebSocket connection established");
+                
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                joinBtn.disabled = false;
+              };
+              
+              socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log("Received: " + JSON.stringify(data, null, 2), "received");
+                
+                // Enable send button when in a room
+                if (data.type === "join_room" && data.roomId === currentRoom) {
+                  sendBtn.disabled = false;
+                }
+              };
+              
+              socket.onclose = () => {
+                statusEl.textContent = "Disconnected";
+                statusEl.className = "disconnected";
+                log("WebSocket connection closed");
+                
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                joinBtn.disabled = true;
+                leaveBtn.disabled = true;
+                sendBtn.disabled = true;
+                currentRoom = "";
+              };
+              
+              socket.onerror = (error) => {
+                log("WebSocket error: " + error, "error");
+              };
+            } catch (error) {
+              log("Error connecting to WebSocket: " + error);
+            }
+          }
+          
+          function disconnect() {
+            if (socket) {
+              socket.close();
+            }
+          }
+          
+          function joinRoom() {
+            const roomIdEl = document.getElementById("roomId");
+            const usernameEl = document.getElementById("username");
+            const roomId = roomIdEl.value.trim();
+            const username = usernameEl.value.trim();
+            
+            if (!roomId) {
+              return log("Please enter a room ID");
+            }
+            
+            const message = {
+              type: "join_room",
+              roomId: roomId,
+              userId: userId,
+              username: username
+            };
+            
+            socket.send(JSON.stringify(message));
+            log("Sent: " + JSON.stringify(message, null, 2), "sent");
+            
+            currentRoom = roomId;
+            joinBtn.disabled = true;
+            leaveBtn.disabled = false;
+          }
+          
+          function leaveRoom() {
+            if (!currentRoom) return;
+            
+            const message = {
+              type: "leave_room",
+              roomId: currentRoom,
+              userId: userId
+            };
+            
+            socket.send(JSON.stringify(message));
+            log("Sent: " + JSON.stringify(message, null, 2), "sent");
+            
+            currentRoom = "";
+            joinBtn.disabled = false;
+            leaveBtn.disabled = true;
+            sendBtn.disabled = true;
+          }
+          
+          function sendMessage() {
+            if (!currentRoom) return;
+            
+            const messageEl = document.getElementById("message");
+            const messageTypeEl = document.getElementById("messageType");
+            const messageText = messageEl.value.trim();
+            const messageType = messageTypeEl.value;
+            
+            if (!messageText && messageType === "chat_message") {
+              return log("Please enter a message");
+            }
+            
+            let payload = {};
+            
+            switch (messageType) {
+              case "chat_message":
+                payload = { text: messageText };
+                break;
+              case "cursor_move":
+                payload = { 
+                  position: { 
+                    x: Math.floor(Math.random() * 100), 
+                    y: Math.floor(Math.random() * 100) 
+                  } 
+                };
+                break;
+              case "heartbeat":
+                payload = { timestamp: Date.now() };
+                break;
+            }
+            
+            const message = {
+              type: messageType,
+              roomId: currentRoom,
+              userId: userId,
+              username: document.getElementById("username").value,
+              payload: payload
+            };
+            
+            socket.send(JSON.stringify(message));
+            log("Sent: " + JSON.stringify(message, null, 2), "sent");
+            
+            if (messageType === "chat_message") {
+              messageEl.value = "";
+            }
+          }
+          
+          // Event listeners
+          connectBtn.addEventListener("click", connect);
+          disconnectBtn.addEventListener("click", disconnect);
+          joinBtn.addEventListener("click", joinRoom);
+          leaveBtn.addEventListener("click", leaveRoom);
+          sendBtn.addEventListener("click", sendMessage);
+          
+          // Handle Enter key in message input
+          document.getElementById("message").addEventListener("keypress", (e) => {
+            if (e.key === "Enter" && !sendBtn.disabled) {
+              sendMessage();
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  });
+
+
+
   const httpServer = createServer(app);
   
   // Setup WebSocket server using the HTTP server for real-time collaboration
-  new WebSocketManager(httpServer);
+  const wsManager = new WebSocketManager(httpServer);
+  
+  // Health check endpoint for WebSocket server (use direct reference)
+  app.get("/api/websocket/health", (req, res) => {
+    const status = {
+      isRunning: !!wsManager,
+      rooms: wsManager.getRoomsStatus(),
+      activeConnections: wsManager.getActiveConnectionsCount()
+    };
+    
+    res.json(status);
+  });
   
   return httpServer;
 }

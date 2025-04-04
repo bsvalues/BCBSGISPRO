@@ -72,12 +72,26 @@ interface Room {
 }
 
 /**
+ * Room status information for health check
+ */
+export interface RoomStatus {
+  id: string;
+  clientCount: number;
+  featureCount: number;
+  annotationCount: number;
+  lastActivity: number;
+}
+
+/**
  * WebSocket server manager
  */
 export class WebSocketManager {
   private wss: WebSocketServer;
   private rooms: Map<string, Room> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
+  
+  // Singleton instance - accessible directly
+  public static instance: WebSocketManager | null = null;
   
   /**
    * Initialize the WebSocket server
@@ -95,7 +109,36 @@ export class WebSocketManager {
     // Set up ping interval (30 seconds)
     this.pingInterval = setInterval(this.pingClients.bind(this), 30000);
     
+    // Set singleton instance
+    WebSocketManager.instance = this;
+    
     console.log('WebSocket server initialized');
+  }
+  
+  /**
+   * Get active connections count
+   */
+  public getActiveConnectionsCount(): number {
+    return this.wss.clients.size;
+  }
+  
+  /**
+   * Get status information about all rooms
+   */
+  public getRoomsStatus(): RoomStatus[] {
+    const roomStatus: RoomStatus[] = [];
+    
+    this.rooms.forEach((room) => {
+      roomStatus.push({
+        id: room.id,
+        clientCount: room.clients.size,
+        featureCount: Object.keys(room.features).length,
+        annotationCount: Object.keys(room.annotations).length,
+        lastActivity: room.lastActivity
+      });
+    });
+    
+    return roomStatus;
   }
   
   /**
