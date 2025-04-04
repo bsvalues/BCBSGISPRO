@@ -13,9 +13,14 @@ import { CollaborativeUserIndicator, UserActivity } from './collaborative-user-i
 interface CollaborativeMapContainerProps {
   roomId: string;
   height?: string | number;
+  onMapUpdated?: (map: mapboxgl.Map) => void;
 }
 
-export function CollaborativeMapContainer({ roomId, height = '500px' }: CollaborativeMapContainerProps) {
+export function CollaborativeMapContainer({ 
+  roomId, 
+  height = '500px',
+  onMapUpdated 
+}: CollaborativeMapContainerProps) {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [collaborators, setCollaborators] = useState<string[]>([]);
@@ -26,7 +31,12 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
   // Handle map creation
   const handleMapCreated = useCallback((mapInstance: mapboxgl.Map) => {
     setMap(mapInstance);
-  }, []);
+    
+    // Call the parent's callback if provided
+    if (onMapUpdated) {
+      onMapUpdated(mapInstance);
+    }
+  }, [onMapUpdated]);
 
   // Handle connection status change
   const handleConnectionStatusChange = useCallback((status: ConnectionStatus) => {

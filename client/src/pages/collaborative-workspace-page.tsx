@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CollaborativeMapContainer } from "@/components/maps/collaborative-map-container";
+import { EnhancedCollaborativeWorkspace } from "@/components/collaborative/enhanced-collaborative-workspace";
 import { Users, Share, Plus, ArrowRight } from "lucide-react";
 import { 
   Dialog,
@@ -290,10 +291,10 @@ export function CollaborativeWorkspacePage() {
           </div>
           
           <Card>
-            <CardContent className="p-6">
-              <CollaborativeMapContainer 
+            <CardContent className="p-4">
+              <EnhancedCollaborativeWorkspace 
                 roomId={activeRoomId} 
-                height={600}
+                height={650}
               />
             </CardContent>
             <CardFooter className="text-sm text-muted-foreground">
