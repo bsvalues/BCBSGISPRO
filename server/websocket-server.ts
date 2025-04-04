@@ -140,6 +140,18 @@ export class WebSocketHandler {
         this.handlePresenceMessage(client, message);
         break;
         
+      case 'cursor':
+        this.handleCursorMessage(client, message);
+        break;
+        
+      case 'session_save':
+        this.handleSessionSaveMessage(client, message);
+        break;
+        
+      case 'session_load':
+        this.handleSessionLoadMessage(client, message);
+        break;
+        
       default:
         console.warn(`Unknown message type: ${message.type}`);
     }
@@ -471,6 +483,133 @@ export class WebSocketHandler {
       
       // Remove client
       this.clients.delete(ws);
+    }
+  }
+  
+  private handleCursorMessage(client: WebSocketClient, message: WebSocketMessage) {
+    // Simply broadcast cursor position to all clients in the room
+    if (message.roomId) {
+      const room = this.rooms.get(message.roomId);
+      
+      if (room) {
+        // Update client activity timestamp
+        client.lastActivity = new Date();
+        
+        // Broadcast to all clients except sender
+        this.broadcast(message, room.clients, client);
+      }
+    }
+  }
+  
+  private handleSessionSaveMessage(client: WebSocketClient, message: WebSocketMessage) {
+    // Just broadcast the save event to other clients
+    if (message.roomId) {
+      const room = this.rooms.get(message.roomId);
+      
+      if (room) {
+        // Update client activity timestamp
+        client.lastActivity = new Date();
+        
+        // Broadcast to all clients except sender
+        this.broadcast(message, room.clients, client);
+      }
+    }
+  }
+  
+  private handleSessionLoadMessage(client: WebSocketClient, message: WebSocketMessage) {
+    // Session load - broadcast to let others know a user loaded a session
+    if (message.roomId) {
+      const room = this.rooms.get(message.roomId);
+      
+      if (room) {
+        // Update client activity timestamp
+        client.lastActivity = new Date();
+        
+        // Check if we should update room features/annotations
+        if (message.data && message.data.features) {
+          // If this is a full session load, we might want to merge features
+          if (message.data.replaceAll) {
+            // Replace all features if requested
+            room.features = message.data.features;
+          } else {
+            // Otherwise merge with existing features
+            message.data.features.forEach((feature: any) => {
+              if (feature && feature.id) {
+                const existingIndex = room.features.findIndex((f: any) => f.id === feature.id);
+                if (existingIndex >= 0) {
+                  room.features[existingIndex] = feature;
+                } else {
+                  room.features.push(feature);
+                }
+              }
+            });
+          }
+        }
+        
+        // Similar for annotations
+        if (message.data && message.data.annotations) {
+          if (message.data.replaceAll) {
+            room.annotations = message.data.annotations;
+          } else {
+            message.data.annotations.forEach((annotation: any) => {
+              if (annotation && annotation.id) {
+                const existingIndex = room.annotations.findIndex((a: any) => a.id === annotation.id);
+                if (existingIndex >= 0) {
+                  room.annotations[existingIndex] = annotation;
+                } else {
+                  room.annotations.push(annotation);
+                }
+              }
+            });
+          }
+        }
+        
+        // Broadcast session load to other clients
+        this.broadcast(message, room.clients, client);
+        
+        // If features or annotations were updated, notify all clients of the new state
+        if ((message.data && message.data.features) || (message.data && message.data.annotations)) {
+          this.broadcastRoomState(message.roomId);
+        }
+      }
+    }
+  }
+  
+  private broadcastRoomState(roomId: string) {
+    const room = this.rooms.get(roomId);
+    
+    if (!room) return;
+    
+    // Create features message
+    const featuresMessage: WebSocketMessage = {
+      id: uuidv4(),
+      type: 'drawing',
+      roomId,
+      source: 'server',
+      timestamp: new Date().toISOString(),
+      data: {
+        action: 'init',
+        features: room.features
+      }
+    };
+    
+    // Create annotations message
+    const annotationsMessage: WebSocketMessage = {
+      id: uuidv4(),
+      type: 'drawing_update',
+      roomId,
+      source: 'server',
+      timestamp: new Date().toISOString(),
+      data: {
+        action: 'init',
+        annotations: room.annotations
+      }
+    };
+    
+    // Broadcast to all clients in room
+    for (const client of room.clients) {
+      this.sendMessage(client, featuresMessage);
+      this.sendMessage(client, annotationsMessage);
     }
   }
   

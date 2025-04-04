@@ -18,7 +18,10 @@ export enum MessageType {
   DRAWING = 'drawing',
   DRAWING_UPDATE = 'drawing_update',
   PRESENCE = 'presence',
-  ERROR = 'error'
+  ERROR = 'error',
+  CURSOR = 'cursor',
+  SESSION_SAVE = 'session_save',
+  SESSION_LOAD = 'session_load'
 }
 
 // WebSocket message interface

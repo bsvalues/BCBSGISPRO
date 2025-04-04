@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { Button } from '@/components/ui/button';
 import { 
@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import * as turf from '@turf/turf';
+import { CollaborativeCursor } from './collaborative-cursor';
 
 // Drawing modes
 export enum DrawMode {
@@ -71,6 +72,9 @@ export interface CollaborativeMapProps {
   roomId: string;
   onConnectionStatusChange?: (status: ConnectionStatus) => void;
   onCollaboratorsChange?: (users: string[]) => void;
+  onFeaturesUpdate?: (features: CollaborativeFeature[]) => void;
+  onAnnotationsUpdate?: (annotations: any[]) => void;
+  onUserActivity?: (userId: string, activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => void;
 }
 
 // Main component
@@ -78,7 +82,10 @@ export function CollaborativeMap({
   map, 
   roomId,
   onConnectionStatusChange,
-  onCollaboratorsChange
+  onCollaboratorsChange,
+  onFeaturesUpdate,
+  onAnnotationsUpdate,
+  onUserActivity
 }: CollaborativeMapProps) {
   // Drawing state
   const [drawMode, setDrawMode] = useState<DrawMode>(DrawMode.NONE);
@@ -386,7 +393,56 @@ export function CollaborativeMap({
       type: 'FeatureCollection',
       features: drawnFeatures as any
     });
-  }, [map, drawnFeatures]);
+    
+    // Pass features to parent component
+    if (onFeaturesUpdate) {
+      onFeaturesUpdate(drawnFeatures);
+    }
+  }, [map, drawnFeatures, onFeaturesUpdate]);
+  
+  // Pass user activity updates to parent
+  useEffect(() => {
+    if (!onUserActivity || !map) return;
+    
+    // Report initial viewing activity
+    onUserActivity(userId, "viewing");
+    
+    // Report drawing activity when drawing mode changes
+    if (drawMode !== DrawMode.NONE && drawMode !== DrawMode.PAN) {
+      onUserActivity(userId, "drawing", { mode: drawMode });
+    }
+    
+    // Report when editing (selecting features)
+    if (selectedFeatureId) {
+      onUserActivity(userId, "editing", { featureId: selectedFeatureId });
+    }
+    
+    const reportMouseMove = (e: mapboxgl.MapMouseEvent) => {
+      // Only send occasional updates to avoid flooding
+      onUserActivity(userId, "viewing", { 
+        position: [e.lngLat.lng, e.lngLat.lat]
+      });
+    };
+    
+    // Throttled mouse move handler
+    let lastReportTime = 0;
+    const REPORT_INTERVAL = 1000; // Once per second at most
+    
+    const throttledReportMouseMove = (e: mapboxgl.MapMouseEvent) => {
+      const now = Date.now();
+      if (now - lastReportTime > REPORT_INTERVAL) {
+        reportMouseMove(e);
+        lastReportTime = now;
+      }
+    };
+    
+    // Add mouse move listener
+    map.on('mousemove', throttledReportMouseMove);
+    
+    return () => {
+      map.off('mousemove', throttledReportMouseMove);
+    };
+  }, [map, onUserActivity, userId, drawMode, selectedFeatureId]);
   
   // Mouse event handlers for drawing
   const onMouseDown = useCallback((e: mapboxgl.MapMouseEvent) => {
@@ -609,14 +665,29 @@ export function CollaborativeMap({
     });
   };
   
+  // Add collaborative cursor component 
+  // This is a non-visual component that renders cursors of other users
+  const CursorComponent = map ? (
+    <CollaborativeCursor 
+      map={map} 
+      roomId={roomId} 
+      userId={userId}
+      enabled={true}
+    />
+  ) : null;
+  
   return (
-    <Card className="w-auto">
-      <CardHeader className="py-3">
-        <CardTitle className="text-sm font-medium">Drawing Tools</CardTitle>
-      </CardHeader>
-      <CardContent className="py-2">
-        <div className="flex flex-wrap gap-2">
-          <TooltipProvider>
+    <React.Fragment>
+      {/* Render cursor component outside the card */}
+      {CursorComponent}
+      
+      <Card className="w-auto">
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm font-medium">Drawing Tools</CardTitle>
+        </CardHeader>
+        <CardContent className="py-2">
+          <div className="flex flex-wrap gap-2">
+            <TooltipProvider>
             {/* Navigation modes */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -765,5 +836,6 @@ export function CollaborativeMap({
         </Badge>
       </CardFooter>
     </Card>
+    </React.Fragment>
   );
 }

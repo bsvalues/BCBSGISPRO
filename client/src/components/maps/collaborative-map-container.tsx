@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { CollaborativeMap } from './collaborative-map';
+import { CollaborativeMap, CollaborativeFeature } from './collaborative-map';
 import { MapboxMap } from './mapbox/mapbox-map';
 import mapboxgl from 'mapbox-gl';
 import { ConnectionStatus } from '@/lib/websocket';
@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle, Loader2, WifiOff } from 'lucide-react';
+import { CollaborativeSessionManager, SessionData } from './collaborative-session-manager';
+import { CollaborativeUserIndicator, UserActivity } from './collaborative-user-indicator';
 
 interface CollaborativeMapContainerProps {
   roomId: string;
@@ -17,6 +19,9 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [features, setFeatures] = useState<CollaborativeFeature[]>([]);
+  const [annotations, setAnnotations] = useState<any[]>([]);
+  const [userActivities, setUserActivities] = useState<UserActivity[]>([]);
 
   // Handle map creation
   const handleMapCreated = useCallback((mapInstance: mapboxgl.Map) => {
@@ -55,6 +60,62 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
         variant: "default",
       });
     }
+  }, []);
+  
+  // Handle features update
+  const handleFeaturesUpdate = useCallback((updatedFeatures: CollaborativeFeature[]) => {
+    setFeatures(updatedFeatures);
+  }, []);
+  
+  // Handle annotations update
+  const handleAnnotationsUpdate = useCallback((updatedAnnotations: any[]) => {
+    setAnnotations(updatedAnnotations);
+  }, []);
+  
+  // Handle user activity update
+  const handleUserActivityUpdate = useCallback((userId: string, activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => {
+    const timestamp = new Date();
+    const randomColor = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+    
+    setUserActivities(prev => {
+      // Find existing activity for this user
+      const existingIndex = prev.findIndex(a => a.userId === userId);
+      
+      if (existingIndex >= 0) {
+        // Update existing activity
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          activityType,
+          lastActivity: timestamp,
+          data
+        };
+        return updated;
+      } else {
+        // Add new activity
+        return [...prev, {
+          userId,
+          activityType,
+          lastActivity: timestamp,
+          color: randomColor,
+          data
+        }];
+      }
+    });
+  }, []);
+  
+  // Clean up stale user activities (older than 10 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setUserActivities(prev => 
+        prev.filter(activity => 
+          now.getTime() - activity.lastActivity.getTime() < 10000
+        )
+      );
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Initial map location (Benton County, Oregon)
@@ -117,6 +178,77 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
     }
   };
 
+  // Session save/load handlers
+  const handleSessionSave = useCallback((name: string, description?: string) => {
+    const sessionData: SessionData = {
+      name,
+      description,
+      features,
+      annotations,
+      timestamp: new Date().toISOString(),
+      center: map ? [map.getCenter().lng, map.getCenter().lat] : initialCenter,
+      zoom: map ? map.getZoom() : initialZoom
+    };
+    
+    // In a real app, we'd save this to a database
+    localStorage.setItem(`map-session-${roomId}-${name}`, JSON.stringify(sessionData));
+    
+    toast({
+      title: "Session saved",
+      description: `Map session "${name}" has been saved`,
+      variant: "default"
+    });
+    
+    return sessionData;
+  }, [features, annotations, map, roomId, initialCenter, initialZoom]);
+  
+  const handleSessionLoad = useCallback((sessionName: string) => {
+    // In a real app, we'd load this from a database
+    const savedSession = localStorage.getItem(`map-session-${roomId}-${sessionName}`);
+    
+    if (savedSession) {
+      try {
+        const sessionData: SessionData = JSON.parse(savedSession);
+        
+        // Update state with loaded data
+        setFeatures(sessionData.features || []);
+        setAnnotations(sessionData.annotations || []);
+        
+        // Update map position if available
+        if (map && sessionData.center && sessionData.zoom) {
+          map.flyTo({
+            center: sessionData.center as [number, number],
+            zoom: sessionData.zoom
+          });
+        }
+        
+        toast({
+          title: "Session loaded",
+          description: `Map session "${sessionName}" has been loaded`,
+          variant: "default"
+        });
+        
+        return sessionData;
+      } catch (err) {
+        console.error('Error loading session:', err);
+        
+        toast({
+          title: "Error loading session",
+          description: "The saved session data could not be loaded",
+          variant: "destructive"
+        });
+      }
+    } else {
+      toast({
+        title: "Session not found",
+        description: `No saved session named "${sessionName}" was found`,
+        variant: "destructive"
+      });
+    }
+    
+    return null;
+  }, [map, roomId]);
+
   return (
     <div className="space-y-3">
       {/* Status bar */}
@@ -139,6 +271,21 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
         </Badge>
       </div>
       
+      {/* Session manager */}
+      <div className="flex items-start justify-between gap-2">
+        <CollaborativeSessionManager 
+          onSave={handleSessionSave}
+          onLoad={handleSessionLoad}
+          roomId={roomId}
+        />
+        
+        {/* User activity indicator */}
+        <CollaborativeUserIndicator 
+          activities={userActivities} 
+          collaborators={collaborators}
+        />
+      </div>
+      
       {/* Map container */}
       <div style={containerStyle}>
         <MapboxMap
@@ -154,6 +301,9 @@ export function CollaborativeMapContainer({ roomId, height = '500px' }: Collabor
               roomId={roomId} 
               onConnectionStatusChange={handleConnectionStatusChange}
               onCollaboratorsChange={handleCollaboratorsChange}
+              onFeaturesUpdate={handleFeaturesUpdate}
+              onAnnotationsUpdate={handleAnnotationsUpdate}
+              onUserActivity={handleUserActivityUpdate}
             />
           )}
         </MapboxMap>
