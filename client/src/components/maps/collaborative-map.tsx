@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useCollaborativeDrawing, DrawingActionType } from '@/hooks/use-collaborative-drawing';
 import { ConnectionStatus } from '@/lib/websocket';
 import { Loader2, Users, Pencil, MousePointer, Trash2, Eye, PenTool, CheckCircle, WifiOff, AlertCircle } from 'lucide-react';
-import { MapboxProvider } from './mapbox/mapbox-provider';
+import { MapboxProvider, MapboxProviderProps } from './mapbox/mapbox-provider';
 import { MapboxMap } from './mapbox/mapbox-map';
 
 // Define prop types
@@ -49,8 +49,7 @@ export function CollaborativeMap({
   const [customRoomId, setCustomRoomId] = useState(roomId);
   const [joinedRoom, setJoinedRoom] = useState(roomId);
   
-  // Get toast to show notifications
-  const { toast } = useToast();
+  // No need to instantiate toast as we're importing it directly
   
   // Use our collaborative drawing hook
   const {
@@ -399,7 +398,7 @@ export function CollaborativeMap({
         : 'You can now create and edit features collaboratively.',
       variant: 'default'
     });
-  }, [viewMode, toast]);
+  }, [viewMode]);
   
   // Set the draw mode
   const setMode = useCallback((mode: 'simple_select' | 'draw_polygon' | 'draw_line_string' | 'draw_point') => {
@@ -431,7 +430,7 @@ export function CollaborativeMap({
       description: 'All drawing features have been removed.',
       variant: 'default'
     });
-  }, [viewMode, handleFeatureDelete, toast]);
+  }, [viewMode, handleFeatureDelete]);
   
   // Join a custom room
   const joinCustomRoom = useCallback(() => {
@@ -456,7 +455,7 @@ export function CollaborativeMap({
       description: `You've joined the collaborative room: ${customRoomId}`,
       variant: 'default'
     });
-  }, [customRoomId, toast]);
+  }, [customRoomId]);
   
   // Connection status indicator
   const ConnectionStatusIndicator = () => {
@@ -529,21 +528,19 @@ export function CollaborativeMap({
             </div>
           </div>
           
-          <MapboxProvider>
-            <div style={{ height, width, position: 'relative' }}>
-              <MapboxMap
-                initialViewState={{
-                  longitude: initialCenter[0],
-                  latitude: initialCenter[1],
-                  zoom: initialZoom
-                }}
-                onLoad={onMapLoad}
-                style={{ width: '100%', height: '100%', borderRadius: '0' }}
-                mapStyle="mapbox://styles/mapbox/streets-v12"
-                localFontFamily="Inter, sans-serif"
-              />
-            </div>
-          </MapboxProvider>
+          <div style={{ position: 'relative' }}>
+            <MapboxMap
+              id="collaborative-map"
+              width={width}
+              height={height}
+              longitude={initialCenter[0]}
+              latitude={initialCenter[1]}
+              zoom={initialZoom}
+              style={"mapbox://styles/mapbox/streets-v12"}
+              onMapLoad={onMapLoad}
+              className="rounded-md"
+            />
+          </div>
         </div>
       </CardContent>
       

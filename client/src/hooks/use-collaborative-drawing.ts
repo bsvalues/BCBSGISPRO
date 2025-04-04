@@ -61,7 +61,10 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     if (!lastMessage || lastMessage.type !== MessageType.DRAWING_UPDATE) return;
     
     try {
-      const { data, source } = lastMessage;
+      const { data, source: msgSource } = lastMessage;
+      
+      // Ensure we have a valid source (default to 'unknown')
+      const source = msgSource || 'unknown';
       
       // Ignore our own messages to prevent echo effects
       if (source === userId || !data) return;
@@ -90,9 +93,9 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
             featureIds: data.featureIds,
             featureData: data.featureData,
             mode: data.mode,
-            source,
+            source: source, // Ensure source is a string
             timestamp: data.timestamp
-          }
+          } as FeatureChange
         ]);
       }
       
