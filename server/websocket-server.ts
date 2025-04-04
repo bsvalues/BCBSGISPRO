@@ -3,7 +3,25 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 
 /**
+ * WebSocket message type enum
+ */
+export enum MessageTypeEnum {
+  JOIN_ROOM = 'join_room',
+  LEAVE_ROOM = 'leave_room',
+  CURSOR_MOVE = 'cursor_move',
+  FEATURE_ADD = 'feature_add',
+  FEATURE_UPDATE = 'feature_update',
+  FEATURE_DELETE = 'feature_delete',
+  ANNOTATION_ADD = 'annotation_add',
+  ANNOTATION_UPDATE = 'annotation_update',
+  ANNOTATION_DELETE = 'annotation_delete',
+  HEARTBEAT = 'heartbeat',
+  CHAT = 'chat_message'
+}
+
+/**
  * WebSocket message type
+ * @deprecated Use MessageTypeEnum instead
  */
 export type MessageType = 
   | 'join_room' 
@@ -22,7 +40,7 @@ export type MessageType =
  * WebSocket message interface
  */
 export interface WebSocketMessage {
-  type: MessageType;
+  type: MessageTypeEnum;
   roomId?: string;
   userId?: string;
   username?: string;
@@ -116,7 +134,7 @@ export class WebSocketManager {
     
     // Send welcome message to client
     const message: WebSocketMessage = {
-      type: 'heartbeat',
+      type: MessageTypeEnum.HEARTBEAT,
       userId: extWs.userId,
       username: extWs.username,
       timestamp: Date.now(),
@@ -139,26 +157,26 @@ export class WebSocketManager {
     
     // Handle different message types
     switch (message.type) {
-      case 'join_room':
+      case MessageTypeEnum.JOIN_ROOM:
         if (message.roomId) {
           if (message.username) ws.username = message.username;
           this.joinRoom(ws, message.roomId);
         }
         break;
         
-      case 'leave_room':
+      case MessageTypeEnum.LEAVE_ROOM:
         if (message.roomId) {
           this.leaveRoom(ws, message.roomId);
         }
         break;
         
-      case 'cursor_move':
+      case MessageTypeEnum.CURSOR_MOVE:
         if (message.roomId && message.payload) {
           this.broadcastToRoom(message.roomId, message, ws);
         }
         break;
         
-      case 'feature_add':
+      case MessageTypeEnum.FEATURE_ADD:
         if (message.roomId && message.payload && message.payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room) {
@@ -169,13 +187,13 @@ export class WebSocketManager {
         }
         break;
         
-      case 'feature_update':
+      case MessageTypeEnum.FEATURE_UPDATE:
         if (message.roomId && message.payload && message.payload.id) {
           this.updateFeature(message.roomId, message.payload.id, message);
         }
         break;
         
-      case 'feature_delete':
+      case MessageTypeEnum.FEATURE_DELETE:
         if (message.roomId && message.payload && message.payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room && room.features[message.payload.id]) {
@@ -186,7 +204,7 @@ export class WebSocketManager {
         }
         break;
         
-      case 'annotation_add':
+      case MessageTypeEnum.ANNOTATION_ADD:
         if (message.roomId && message.payload && message.payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room) {
@@ -197,13 +215,13 @@ export class WebSocketManager {
         }
         break;
         
-      case 'annotation_update':
+      case MessageTypeEnum.ANNOTATION_UPDATE:
         if (message.roomId && message.payload && message.payload.id) {
           this.updateAnnotation(message.roomId, message.payload.id, message);
         }
         break;
         
-      case 'annotation_delete':
+      case MessageTypeEnum.ANNOTATION_DELETE:
         if (message.roomId && message.payload && message.payload.id) {
           const room = this.rooms.get(message.roomId);
           if (room && room.annotations[message.payload.id]) {
@@ -214,16 +232,16 @@ export class WebSocketManager {
         }
         break;
         
-      case 'chat_message':
+      case MessageTypeEnum.CHAT:
         if (message.roomId && message.payload) {
           this.broadcastToRoom(message.roomId, message);
         }
         break;
         
-      case 'heartbeat':
+      case MessageTypeEnum.HEARTBEAT:
         // Respond with a heartbeat message
         ws.send(JSON.stringify({
-          type: 'heartbeat',
+          type: MessageTypeEnum.HEARTBEAT,
           timestamp: Date.now()
         }));
         break;
@@ -262,7 +280,7 @@ export class WebSocketManager {
     
     // Notify other clients in the room
     const joinMessage: WebSocketMessage = {
-      type: 'join_room',
+      type: MessageTypeEnum.JOIN_ROOM,
       roomId,
       userId: ws.userId,
       username: ws.username,
@@ -276,7 +294,7 @@ export class WebSocketManager {
     
     // Send current room state to the client
     const stateMessage: WebSocketMessage = {
-      type: 'join_room',
+      type: MessageTypeEnum.JOIN_ROOM,
       roomId,
       timestamp: Date.now(),
       payload: {
@@ -307,7 +325,7 @@ export class WebSocketManager {
     
     // Notify other clients in the room
     const leaveMessage: WebSocketMessage = {
-      type: 'leave_room',
+      type: MessageTypeEnum.LEAVE_ROOM,
       roomId,
       userId: ws.userId,
       username: ws.username,
