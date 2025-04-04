@@ -8,6 +8,7 @@ import FullScreenMapPage from "@/pages/full-screen-map-page";
 import ToastTestPage from "@/pages/toast-test-page";
 import MapboxDemoPage from "@/pages/mapbox-demo-page";
 import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
+import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -18,7 +19,8 @@ import {
   Maximize,
   BellRing,
   Globe,
-  FileText
+  FileText,
+  MessagesSquare
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast-provider";
@@ -129,6 +131,16 @@ function App({ children }: { children?: React.ReactNode }) {
                   Legal Description Agent
                 </Button>
               </Link>
+              
+              <Link href="/websocket-demo">
+                <Button 
+                  variant={location === "/websocket-demo" ? "secondary" : "outline"} 
+                  size="sm"
+                >
+                  <MessagesSquare className="mr-1 h-4 w-4" />
+                  WebSocket Demo
+                </Button>
+              </Link>
             </nav>
           </div>
         </header>
@@ -147,6 +159,7 @@ function App({ children }: { children?: React.ReactNode }) {
               <Route path="/error-handling" component={ErrorHandlingPage} />
               <Route path="/toast-test" component={ToastTestPage} />
               <Route path="/legal-description-agent" component={LegalDescriptionAgentPage} />
+              <Route path="/websocket-demo" component={WebSocketDemoPage} />
               
               {/* Default to the toast test page for testing */}
               <Route>

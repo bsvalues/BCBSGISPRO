@@ -5,14 +5,12 @@
  * into GeoJSON features that can be displayed on a map.
  */
 
-import { 
-  LegalDescriptionType, 
-  ConfidenceLevel, 
-  parseLegalDescription, 
-  parseMetesBounds, 
-  detectDescriptionType
-} from '@shared/legal-description-parser';
 import { Feature } from 'geojson';
+import { 
+  ConfidenceLevel, 
+  LegalDescriptionType, 
+  parseLegalDescription 
+} from '../../shared/legal-description-parser';
 
 /**
  * Extended parsing result with additional metadata for the server
@@ -38,23 +36,23 @@ export interface ServerParsingResult {
  */
 const EXAMPLE_DESCRIPTIONS = [
   {
-    name: 'Simple Metes and Bounds',
-    description: `Beginning at a point on the southerly line of Lot 2; thence N 89° 30' E, 200 feet; thence S 0° 30' W, 150 feet; thence S 89° 30' W, 200 feet; thence N 0° 30' E, 150 feet to the point of beginning.`,
-    type: LegalDescriptionType.METES_AND_BOUNDS,
-  },
-  {
-    name: 'Complex Metes and Bounds',
-    description: `Commencing at the Northeast corner of said Lot 1; thence S 00°15'33" W along the East line of said Lot 1 a distance of 195.98 feet; thence N 89°39'15" W a distance of 120.68 feet; thence S 00°15'33" W a distance of 155.19 feet to the point of beginning; thence continuing S 00°15'33" W a distance of 137.00 feet; thence N 89°39'15" W a distance of 84.84 feet; thence N 00°15'33" E a distance of 137.00 feet; thence S 89°39'15" E a distance of 84.84 feet to the point of beginning.`,
+    name: "Simple Metes and Bounds",
+    description: "Commencing at the Northeast corner of Section 14, Township 4 North, Range 3 West; thence South 89°42'30\" West 210 feet; thence South 0°15' East 185 feet; thence North 89°42'30\" East 210 feet; thence North 0°15' West 185 feet to the point of beginning.",
     type: LegalDescriptionType.METES_AND_BOUNDS
   },
   {
-    name: 'Section-Township-Range',
-    description: `The Northwest quarter of the Northeast quarter of Section 15, Township 7 North, Range 3 East, Benton County, Washington.`,
+    name: "Complex Metes and Bounds",
+    description: "Beginning at a point which is 330 feet South of the Northwest corner of the Northeast Quarter of Section 22, Township 7 North, Range 2 East of the Salt Lake Base and Meridian; thence East 330 feet; thence South 165 feet; thence West 330 feet; thence North 165 feet to the point of beginning.",
+    type: LegalDescriptionType.METES_AND_BOUNDS
+  },
+  {
+    name: "Section Township Range",
+    description: "The Northeast Quarter of the Southwest Quarter (NE¼ SW¼) of Section 32, Township 8 North, Range 4 West, Boise Meridian, Benton County, Washington, containing 40 acres, more or less.",
     type: LegalDescriptionType.SECTION_TOWNSHIP_RANGE
   },
   {
-    name: 'Lot and Block',
-    description: `Lot 5, Block 3, SUNSET VISTA ADDITION, according to the plat thereof recorded in Volume 7 of Plats, Page 15, records of Benton County, Washington.`,
+    name: "Lot and Block",
+    description: "Lot 7, Block 12, WOODLAND HILLS SUBDIVISION, according to the official plat thereof, filed in Book 8 of Plats at Pages 10-12, records of Benton County, Washington.",
     type: LegalDescriptionType.LOT_BLOCK
   }
 ];
@@ -64,42 +62,36 @@ const EXAMPLE_DESCRIPTIONS = [
  */
 export async function parseDescription(
   text: string, 
-  referencePoint?: [number, number],
-  parcelId?: string
+  referencePoint?: [number, number]
 ): Promise<ServerParsingResult> {
-  const startTime = process.hrtime();
-  
   try {
-    // Use shared parser to parse the legal description
+    // Record start time for performance measurement
+    const startTime = Date.now();
+    
+    // Call the shared parser
     const result = parseLegalDescription(text, referencePoint);
     
     // Calculate processing time
-    const hrEnd = process.hrtime(startTime);
-    const processingTimeMs = hrEnd[0] * 1000 + hrEnd[1] / 1000000;
+    const endTime = Date.now();
+    const processingTimeMs = endTime - startTime;
     
-    // Add server-specific metadata
+    // Create the server result with additional metadata
     const serverResult: ServerParsingResult = {
       ...result,
       processedAt: new Date(),
-      processingTimeMs,
-      userReference: parcelId ? { parcelId } : undefined,
+      processingTimeMs
     };
     
     return serverResult;
   } catch (error) {
-    // Handle parsing errors
-    const hrEnd = process.hrtime(startTime);
-    const processingTimeMs = hrEnd[0] * 1000 + hrEnd[1] / 1000000;
-    
+    console.error('Error parsing legal description:', error);
     return {
       type: LegalDescriptionType.UNKNOWN,
       confidence: ConfidenceLevel.LOW,
       errorMessage: error instanceof Error ? error.message : String(error),
       rawText: text,
       processedAt: new Date(),
-      processingTimeMs,
-      userReference: parcelId ? { parcelId } : undefined,
-      referencePoint
+      processingTimeMs: 0
     };
   }
 }
@@ -118,29 +110,24 @@ export function analyzeLegalDescription(text: string): {
   type: LegalDescriptionType;
   confidence: ConfidenceLevel;
   keywords: string[];
-  possiblePatterns: string[];
-  suggestedReferencePoint?: boolean;
+  patterns: string[];
 } {
-  const type = detectDescriptionType(text);
+  const type = LegalDescriptionType.UNKNOWN;
   
-  // Basic keyword extraction
+  // Extract keywords from the text
   const keywords = extractKeywords(text);
   
-  // Determine if a reference point might be needed
-  const needsReferencePoint = type === LegalDescriptionType.METES_AND_BOUNDS;
+  // Identify patterns in the text
+  const patterns = identifyPatterns(text, type);
   
-  // Identify potential patterns in the text
-  const possiblePatterns = identifyPatterns(text, type);
-  
-  // Assess confidence based on the detected type and patterns
-  const confidence = assessConfidence(text, type, possiblePatterns);
+  // Assess confidence based on the patterns
+  const confidence = assessConfidence(text, type, patterns);
   
   return {
     type,
     confidence,
     keywords,
-    possiblePatterns,
-    suggestedReferencePoint: needsReferencePoint
+    patterns
   };
 }
 
@@ -148,96 +135,76 @@ export function analyzeLegalDescription(text: string): {
  * Extract key terminology from legal description
  */
 function extractKeywords(text: string): string[] {
-  const keywords: string[] = [];
-  const lowerText = text.toLowerCase();
+  const keywordsArray = [];
   
-  // Common terms in legal descriptions
-  const terms = [
-    'beginning', 'commencing', 'point of beginning', 'thence', 'feet',
-    'north', 'south', 'east', 'west', 'section', 'township', 'range',
-    'lot', 'block', 'subdivision', 'quarter', 'acres', 'degree',
-    'minutes', 'seconds', 'bearings', 'distance'
-  ];
+  // Extract direction terms
+  const directions = text.match(/north|south|east|west|N\s|S\s|E\s|W\s|N\d|S\d|E\d|W\d/gi) || [];
+  keywordsArray.push(...directions);
   
-  terms.forEach(term => {
-    if (lowerText.includes(term)) {
-      keywords.push(term);
-    }
-  });
+  // Extract numeric values
+  const numbers = text.match(/\d+\.?\d*\s*(feet|foot|ft|meters|m)/gi) || [];
+  keywordsArray.push(...numbers);
   
-  // Look for directional notation like "N 89° W"
-  const directionalPattern = /[NSEW]\s*\d+[°'\s]*\d*['"\s]*\d*\s*[NSEW]/gi;
-  const directionals = text.match(directionalPattern);
-  if (directionals && directionals.length > 0) {
-    keywords.push('directional bearings');
-  }
+  // Extract section/township/range terms
+  const sectionTerms = text.match(/section|township|range|quarter|NE¼|NW¼|SE¼|SW¼|meridian/gi) || [];
+  keywordsArray.push(...sectionTerms);
   
-  // Look for measurements
-  const distancePattern = /\d+\s*(feet|foot|ft|\')|\d+\.\d+\s*(feet|foot|ft|\')/gi;
-  const distances = text.match(distancePattern);
-  if (distances && distances.length > 0) {
-    keywords.push('distance measurements');
-  }
+  // Extract lot/block terms
+  const lotTerms = text.match(/lot\s+\d+|block\s+\d+|subdivision|addition|plat/gi) || [];
+  keywordsArray.push(...lotTerms);
   
-  return Array.from(new Set(keywords)); // Remove duplicates
+  // Remove duplicates using a filter instead of Set
+  return keywordsArray.filter((value, index, self) => 
+    self.indexOf(value) === index
+  );
 }
 
 /**
  * Identify potential patterns in the legal description text
  */
 function identifyPatterns(text: string, type: LegalDescriptionType): string[] {
-  const patterns: string[] = [];
+  const patterns = [];
   
-  if (type === LegalDescriptionType.METES_AND_BOUNDS) {
-    // Check for starting point definition
-    if (/beginning at|commencing at|point of beginning|POB/i.test(text)) {
-      patterns.push('starting point definition');
-    }
-    
-    // Check for direction and distance patterns
-    const directionDistancePattern = /(north|south|east|west|N|S|E|W).*?(\d+\.?\d*).*?(feet|foot|ft)/gi;
-    const directionDistanceMatches = text.match(directionDistancePattern);
-    if (directionDistanceMatches && directionDistanceMatches.length > 0) {
-      patterns.push('direction-distance pairs');
-    }
-    
-    // Check for bearings
-    const bearingPattern = /[NSEW]\s*\d+[°'\s]*\d*['"\s]*\d*\s*[NSEW]/gi;
-    const bearingMatches = text.match(bearingPattern);
-    if (bearingMatches && bearingMatches.length > 0) {
-      patterns.push('bearings');
-    }
-    
-    // Check for closed loop (ending at starting point)
-    if (/to the point of beginning|to the place of beginning|to the POB/i.test(text)) {
-      patterns.push('closed loop');
-    }
-  } else if (type === LegalDescriptionType.SECTION_TOWNSHIP_RANGE) {
-    // Check for township and range notation
-    if (/township\s+\d+\s+(north|south)|T\d+[NS]/i.test(text) && 
-        /range\s+\d+\s+(east|west)|R\d+[EW]/i.test(text)) {
-      patterns.push('township-range notation');
-    }
-    
-    // Check for section notation
-    if (/section\s+\d+|sec\.\s*\d+/i.test(text)) {
-      patterns.push('section notation');
-    }
-    
-    // Check for aliquot parts (divisions of a section)
-    if (/quarter|½|1\/4|NW|NE|SW|SE/i.test(text)) {
-      patterns.push('aliquot parts');
-    }
-  } else if (type === LegalDescriptionType.LOT_BLOCK) {
-    // Check for lot and block notation
-    if (/lot\s+\d+/i.test(text) && /block\s+\d+/i.test(text)) {
-      patterns.push('lot-block notation');
-    }
-    
-    // Check for subdivision reference
-    if (/subdivision|addition|plat|according to|recorded|volume|page|records of/i.test(text)) {
-      patterns.push('subdivision reference');
-    }
+  // Look for bearing patterns
+  const bearingPatterns = text.match(/([NSEW])\s*(\d+)[°\s]*(\d*)['\s]*(\d*)["\s]*([NSEW])?/gi) || [];
+  if (bearingPatterns.length > 0) {
+    patterns.push('bearings');
+  }
+  
+  // Look for distance patterns
+  const distancePatterns = text.match(/\d+\.?\d*\s*(feet|foot|ft|meters|m)/gi) || [];
+  if (distancePatterns.length > 0) {
+    patterns.push('distances');
+  }
+  
+  // Look for section patterns
+  const sectionPatterns = text.match(/section\s+\d+/gi) || [];
+  if (sectionPatterns.length > 0) {
+    patterns.push('sections');
+  }
+  
+  // Look for township patterns
+  const townshipPatterns = text.match(/township\s+\d+\s*[NS]/gi) || [];
+  if (townshipPatterns.length > 0) {
+    patterns.push('townships');
+  }
+  
+  // Look for range patterns
+  const rangePatterns = text.match(/range\s+\d+\s*[EW]/gi) || [];
+  if (rangePatterns.length > 0) {
+    patterns.push('ranges');
+  }
+  
+  // Look for lot patterns
+  const lotPatterns = text.match(/lot\s+\d+/gi) || [];
+  if (lotPatterns.length > 0) {
+    patterns.push('lots');
+  }
+  
+  // Look for block patterns
+  const blockPatterns = text.match(/block\s+\d+/gi) || [];
+  if (blockPatterns.length > 0) {
+    patterns.push('blocks');
   }
   
   return patterns;
@@ -247,51 +214,16 @@ function identifyPatterns(text: string, type: LegalDescriptionType): string[] {
  * Assess confidence level based on detected patterns
  */
 function assessConfidence(text: string, type: LegalDescriptionType, patterns: string[]): ConfidenceLevel {
-  // Default to LOW confidence
-  let confidence = ConfidenceLevel.LOW;
+  // More patterns generally means higher confidence
+  const patternCount = patterns.length;
   
-  // Adjust confidence based on pattern count and type
-  if (patterns.length >= 3) {
-    confidence = ConfidenceLevel.HIGH;
-  } else if (patterns.length >= 1) {
-    confidence = ConfidenceLevel.MEDIUM;
+  if (patternCount >= 4) {
+    return ConfidenceLevel.HIGH;
+  } else if (patternCount >= 2) {
+    return ConfidenceLevel.MEDIUM;
+  } else if (patternCount > 0) {
+    return ConfidenceLevel.LOW;
+  } else {
+    return ConfidenceLevel.UNKNOWN;
   }
-  
-  // Special case checks to adjust confidence
-  if (type === LegalDescriptionType.METES_AND_BOUNDS) {
-    // Metes and bounds should have a starting point and directions
-    const hasStartingPoint = patterns.includes('starting point definition');
-    const hasDirections = patterns.includes('direction-distance pairs') || patterns.includes('bearings');
-    const hasClosedLoop = patterns.includes('closed loop');
-    
-    if (hasStartingPoint && hasDirections && hasClosedLoop) {
-      confidence = ConfidenceLevel.HIGH;
-    } else if (!hasStartingPoint || !hasDirections) {
-      confidence = ConfidenceLevel.LOW;
-    }
-  } else if (type === LegalDescriptionType.SECTION_TOWNSHIP_RANGE) {
-    // Section-township-range should have all three components
-    const hasTownship = /township\s+\d+\s+(north|south)|T\d+[NS]/i.test(text);
-    const hasRange = /range\s+\d+\s+(east|west)|R\d+[EW]/i.test(text);
-    const hasSection = /section\s+\d+|sec\.\s*\d+/i.test(text);
-    
-    if (hasTownship && hasRange && hasSection) {
-      confidence = ConfidenceLevel.HIGH;
-    } else if (!hasTownship || !hasRange || !hasSection) {
-      confidence = ConfidenceLevel.LOW;
-    }
-  } else if (type === LegalDescriptionType.LOT_BLOCK) {
-    // Lot-block should have both components and subdivision reference
-    const hasLot = /lot\s+\d+/i.test(text);
-    const hasBlock = /block\s+\d+/i.test(text);
-    const hasSubdivision = /subdivision|addition|plat/i.test(text);
-    
-    if (hasLot && hasBlock && hasSubdivision) {
-      confidence = ConfidenceLevel.HIGH;
-    } else if (!hasLot || !hasBlock) {
-      confidence = ConfidenceLevel.LOW;
-    }
-  }
-  
-  return confidence;
 }
