@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import * as fs from 'fs';
 import * as path from 'path';
+import { setupWebSocketServer } from "./websocket-server";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
@@ -2997,86 +2998,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   
-  // Create WebSocket server on a distinct path
-  const wss = new WebSocketServer({ 
-    server: httpServer, 
-    path: '/ws' 
-  });
+  // Setup WebSocket server using the HTTP server for real-time collaboration
+  const { wss, broadcastToClients } = setupWebSocketServer(httpServer);
   
-  // Handle WebSocket connections
-  wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
-    
-    // Send a welcome message
-    ws.send(JSON.stringify({
-      type: 'connection',
-      message: 'Connected to BentonGeoPro WebSocket Server',
-      timestamp: new Date().toISOString()
-    }));
-    
-    // Handle incoming messages
-    ws.on('message', (data) => {
-      try {
-        // Parse the incoming message
-        const message = JSON.parse(data.toString());
-        console.log('Received:', message);
-        
-        // Handle different message types
-        switch (message.type) {
-          case 'ping':
-            ws.send(JSON.stringify({
-              type: 'pong',
-              timestamp: new Date().toISOString()
-            }));
-            break;
-            
-          case 'drawing_update':
-            // Broadcast drawing updates to all clients
-            broadcastToClients(wss, {
-              type: 'drawing_update',
-              data: message.data,
-              source: message.source || 'unknown',
-              timestamp: new Date().toISOString()
-            });
-            break;
-            
-          default:
-            // Echo back unhandled message types
-            ws.send(JSON.stringify({
-              type: 'echo',
-              originalMessage: message,
-              timestamp: new Date().toISOString()
-            }));
-        }
-      } catch (error) {
-        console.error('WebSocket message error:', error);
-        ws.send(JSON.stringify({
-          type: 'error',
-          message: 'Invalid message format',
-          timestamp: new Date().toISOString()
-        }));
-      }
-    });
-    
-    // Handle disconnection
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
-    });
-    
-    // Handle errors
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-    });
-  });
-  
-  // Helper function to broadcast messages to all connected clients
-  function broadcastToClients(websocketServer: WebSocketServer, data: any) {
-    websocketServer.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(data));
-      }
-    });
-  }
+  // Log that the WebSocket server is initialized
+  console.log('WebSocket server initialized on path: /ws');
   
   return httpServer;
 }

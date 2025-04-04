@@ -1,381 +1,348 @@
-import { useState, useEffect } from "react";
-import { useWebSocket, MessageType, ConnectionStatus, WebSocketMessage, createDrawingUpdateMessage } from "@/lib/websocket";
+import { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { 
+  useWebSocket, 
+  MessageType, 
+  ConnectionStatus,
+  createChatMessage,
+  WebSocketMessage
+} from '@/lib/websocket';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { 
   Card, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription, 
   CardContent, 
-  CardFooter 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
 import { 
-  MessageSquare, 
-  Send, 
-  GitCommit, 
-  RefreshCw, 
-  WifiOff, 
-  Loader2, 
-  CheckCircle2, 
+  CheckCircle, 
   AlertCircle, 
-  ArrowRightCircle,
-  Wifi
-} from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Loader2, 
+  WifiOff, 
+  Send, 
+  User, 
+  Users, 
+  Globe 
+} from 'lucide-react';
+import { CollaborativeMap } from '@/components/maps/collaborative-map';
 
-// Status badge colors
-const statusColors: Record<ConnectionStatus, string> = {
-  [ConnectionStatus.CONNECTED]: "bg-green-500",
-  [ConnectionStatus.CONNECTING]: "bg-yellow-500",
-  [ConnectionStatus.DISCONNECTED]: "bg-gray-500",
-  [ConnectionStatus.RECONNECTING]: "bg-yellow-500",
-  [ConnectionStatus.ERROR]: "bg-red-500"
-};
-
-// Status icons
-const StatusIcon = ({ status }: { status: ConnectionStatus }) => {
-  switch (status) {
-    case ConnectionStatus.CONNECTED:
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-    case ConnectionStatus.CONNECTING:
-      return <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />;
-    case ConnectionStatus.DISCONNECTED:
-      return <WifiOff className="h-4 w-4 text-gray-500" />;
-    case ConnectionStatus.RECONNECTING:
-      return <RefreshCw className="h-4 w-4 text-yellow-500 animate-spin" />;
-    case ConnectionStatus.ERROR:
-      return <AlertCircle className="h-4 w-4 text-red-500" />;
-    default:
-      return <Wifi className="h-4 w-4" />;
-  }
-};
-
-// Message component for the messages list
-const Message = ({ data, isSent }: { data: any, isSent: boolean }) => {
-  return (
-    <div className={`flex items-start gap-2 p-2 ${isSent ? "flex-row-reverse" : ""}`}>
-      <div className={`rounded-full p-2 ${isSent ? "bg-primary/10" : "bg-muted"}`}>
-        {isSent ? <ArrowRightCircle className="h-4 w-4" /> : <GitCommit className="h-4 w-4" />}
-      </div>
-      <div className={`rounded-lg p-2 max-w-[80%] ${isSent ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-        <div className="text-xs font-semibold flex justify-between">
-          <span>{data.type || "Unknown"}</span>
-          <span className="opacity-70">{new Date(data.timestamp || Date.now()).toLocaleTimeString()}</span>
-        </div>
-        <div className="text-sm mt-1 break-words">
-          {typeof data === 'object' ? 
-            <pre className="text-xs overflow-auto">{JSON.stringify(data, null, 2)}</pre> : 
-            String(data)
-          }
-        </div>
-      </div>
-    </div>
-  );
-};
+interface ChatMessage {
+  id: string;
+  sender: string;
+  content: string;
+  timestamp: Date;
+  isMe: boolean;
+}
 
 export default function WebSocketDemoPage() {
-  // Use our WebSocket hook
-  const { status, lastMessage, send } = useWebSocket();
-  
-  // State for message history
-  const [messages, setMessages] = useState<Array<{data: any, sent: boolean}>>([]);
-  
-  // State for message input
-  const [messageText, setMessageText] = useState("");
-  const [messageType, setMessageType] = useState<string>(MessageType.PING);
-  
-  // State for drawing simulation
-  const [drawingId, setDrawingId] = useState("drawing-1");
-  const [drawingData, setDrawingData] = useState<any>({
-    type: "point",
-    coordinates: [-123.0, 45.5],
-    properties: {
-      label: "Test Point",
-      timestamp: new Date().toISOString()
-    }
+  // Generate a user ID for this session
+  const [userId] = useState(() => {
+    const storedId = localStorage.getItem('bentonGisUserId');
+    if (storedId) return storedId;
+    
+    const newId = uuidv4();
+    localStorage.setItem('bentonGisUserId', newId);
+    return newId;
   });
   
-  // Handle incoming messages
+  // User nickname
+  const [nickname, setNickname] = useState(() => {
+    const storedNickname = localStorage.getItem('bentonGisNickname');
+    return storedNickname || `User_${userId.substring(0, 5)}`;
+  });
+  
+  // Chat message and room
+  const [message, setMessage] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [roomId, setRoomId] = useState('demo-room');
+  const [joinedRoom, setJoinedRoom] = useState('demo-room');
+  const [connectedUsers, setConnectedUsers] = useState<string[]>([]);
+  
+  // Message area ref for auto-scrolling
+  const messageEndRef = useRef<HTMLDivElement>(null);
+  
+  // Connect to WebSocket
+  const { status, lastMessage, send } = useWebSocket(MessageType.CHAT, joinedRoom);
+  
+  // Handle incoming chat messages
   useEffect(() => {
-    if (lastMessage) {
-      setMessages(prev => [...prev, { data: lastMessage, sent: false }]);
-    }
-  }, [lastMessage]);
-  
-  // Handle sending messages
-  const handleSendMessage = () => {
-    try {
-      // Parse JSON input if possible
-      let messageData: any;
-      try {
-        messageData = JSON.parse(messageText);
-      } catch {
-        // If not valid JSON, use as string
-        messageData = messageText;
-      }
+    if (!lastMessage || lastMessage.type !== MessageType.CHAT) return;
+    
+    const { data, source, timestamp } = lastMessage;
+    
+    if (data?.message && source) {
+      const isMe = source === userId;
       
-      // Prepare message object
-      const message: WebSocketMessage = {
-        type: messageType,
-        ...(typeof messageData === 'object' ? messageData : { message: messageData }),
-        timestamp: new Date().toISOString()
-      };
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: uuidv4(),
+          sender: isMe ? nickname : data.sender || 'Unknown',
+          content: data.message,
+          timestamp: timestamp ? new Date(timestamp) : new Date(),
+          isMe
+        }
+      ]);
       
-      // Send via WebSocket
-      if (send(message)) {
-        setMessages(prev => [...prev, { data: message, sent: true }]);
-        setMessageText("");
-      }
-    } catch (error) {
-      console.error("Error sending message:", error);
+      // Scroll to bottom
+      messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+    
+    // Update connected users if present
+    if (data?.connectedUsers) {
+      setConnectedUsers(data.connectedUsers);
+    }
+  }, [lastMessage, userId, nickname]);
   
-  // Send drawing update
-  const sendDrawingUpdate = () => {
-    // Randomize coordinates slightly to simulate movement
-    const updatedDrawing = {
-      ...drawingData,
-      coordinates: [
-        drawingData.coordinates[0] + (Math.random() * 0.02 - 0.01),
-        drawingData.coordinates[1] + (Math.random() * 0.02 - 0.01)
-      ],
-      properties: {
-        ...drawingData.properties,
-        timestamp: new Date().toISOString()
-      }
+  // Save nickname when it changes
+  useEffect(() => {
+    localStorage.setItem('bentonGisNickname', nickname);
+  }, [nickname]);
+  
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+  
+  // Send a chat message
+  const sendChatMessage = () => {
+    if (!message.trim()) return;
+    
+    const messageObj = createChatMessage(message, userId, joinedRoom);
+    // Add sender nickname to data
+    messageObj.data = {
+      ...messageObj.data,
+      sender: nickname
     };
     
-    // Update local state
-    setDrawingData(updatedDrawing);
+    const success = send(messageObj);
     
-    // Create and send the message
-    const message = createDrawingUpdateMessage({
-      id: drawingId,
-      geometry: updatedDrawing
-    }, "demo-page");
-    
-    if (send(message)) {
-      setMessages(prev => [...prev, { data: message, sent: true }]);
+    if (success) {
+      setMessage('');
     }
   };
   
-  // Handle ping test
-  const sendPing = () => {
-    const pingMessage = {
-      type: MessageType.PING,
-      timestamp: new Date().toISOString()
-    };
+  // Join a room
+  const joinRoom = () => {
+    if (!roomId.trim()) return;
+    setJoinedRoom(roomId);
+    setChatMessages([]);
     
-    if (send(pingMessage)) {
-      setMessages(prev => [...prev, { data: pingMessage, sent: true }]);
-    }
+    // Add system message
+    setChatMessages([{
+      id: uuidv4(),
+      sender: 'System',
+      content: `You joined room: ${roomId}`,
+      timestamp: new Date(),
+      isMe: false
+    }]);
   };
   
-  // Clear message history
-  const clearMessages = () => {
-    setMessages([]);
+  // Connection status indicator
+  const ConnectionStatusIndicator = () => {
+    let Icon;
+    let label;
+    let color;
+    
+    switch (status) {
+      case ConnectionStatus.CONNECTED:
+        Icon = CheckCircle;
+        label = 'Connected';
+        color = 'bg-green-500';
+        break;
+      case ConnectionStatus.CONNECTING:
+      case ConnectionStatus.RECONNECTING:
+        Icon = Loader2;
+        label = status === ConnectionStatus.CONNECTING ? 'Connecting' : 'Reconnecting';
+        color = 'bg-yellow-500';
+        break;
+      case ConnectionStatus.ERROR:
+        Icon = AlertCircle;
+        label = 'Connection Error';
+        color = 'bg-red-500';
+        break;
+      default:
+        Icon = WifiOff;
+        label = 'Disconnected';
+        color = 'bg-gray-500';
+    }
+    
+    return (
+      <Badge className={`${color} gap-1`}>
+        <Icon className="h-3 w-3" />
+        <span>{label}</span>
+      </Badge>
+    );
+  };
+  
+  // Format timestamp
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
   
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">WebSocket Demo</h1>
-          <p className="text-muted-foreground">Test the WebSocket connection and features</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusIcon status={status} />
-          <Badge className={statusColors[status]}>
-            {status}
-          </Badge>
-        </div>
-      </div>
+    <div className="container mx-auto py-8 space-y-8">
+      <h1 className="text-3xl font-bold mb-2">WebSocket Demo</h1>
+      <p className="text-muted-foreground mb-6">
+        Test real-time communication using WebSockets
+      </p>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Connection Panel */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Connection Controls</CardTitle>
-            <CardDescription>Manage WebSocket connection</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col space-y-2">
-              <Label>Connection Status</Label>
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                <StatusIcon status={status} />
-                <span className="font-medium">{status}</span>
+      <Tabs defaultValue="chat" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="chat">Chat Demo</TabsTrigger>
+          <TabsTrigger value="map">Collaborative Map</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="chat" className="space-y-6">
+          <Card className="shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Real-time Chat</CardTitle>
+                  <CardDescription>
+                    Connect with others in room: <strong>{joinedRoom}</strong>
+                  </CardDescription>
+                </div>
+                <ConnectionStatusIndicator />
               </div>
-            </div>
+            </CardHeader>
             
-            <div className="flex flex-col space-y-2">
-              <Label>Connection URL</Label>
-              <div className="p-2 bg-muted rounded-md text-sm font-mono truncate">
-                {window.location.protocol === "https:" ? "wss:" : "ws:"}//{window.location.host}/ws
+            <CardContent className="p-0">
+              <div className="flex flex-col gap-4">
+                {/* Room controls */}
+                <div className="px-6 pt-2 flex items-end gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="nickname">Your Nickname</Label>
+                    <Input 
+                      id="nickname" 
+                      placeholder="Enter your nickname" 
+                      value={nickname} 
+                      onChange={(e) => setNickname(e.target.value)} 
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="room-id">Room ID</Label>
+                    <Input 
+                      id="room-id" 
+                      placeholder="Enter room ID" 
+                      value={roomId}
+                      onChange={(e) => setRoomId(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={joinRoom} disabled={status !== ConnectionStatus.CONNECTED}>
+                    Join Room
+                  </Button>
+                </div>
+                
+                {/* Connected users */}
+                <div className="px-6 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span>{connectedUsers.length || 1} user{(connectedUsers.length || 1) !== 1 ? 's' : ''} connected</span>
+                </div>
+                
+                {/* Messages */}
+                <ScrollArea className="h-[400px] px-6">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-muted-foreground">
+                      <div className="text-center space-y-2">
+                        <Globe className="h-10 w-10 mx-auto opacity-20" />
+                        <p>No messages yet</p>
+                        <p className="text-xs">Start chatting to see messages appear here</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 pt-4">
+                      {chatMessages.map((msg) => (
+                        <div 
+                          key={msg.id} 
+                          className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div 
+                            className={`
+                              max-w-[80%] rounded-lg px-4 py-2
+                              ${msg.isMe 
+                                ? 'bg-primary text-primary-foreground' 
+                                : 'bg-muted'
+                              }
+                            `}
+                          >
+                            {!msg.isMe && (
+                              <div className="flex items-center gap-1 mb-1">
+                                <User className="h-3 w-3" />
+                                <span className="text-xs font-medium">{msg.sender}</span>
+                              </div>
+                            )}
+                            <p className="break-words">{msg.content}</p>
+                            <p className="text-xs text-right mt-1 opacity-70">
+                              {formatTime(msg.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={messageEndRef} />
+                    </div>
+                  )}
+                </ScrollArea>
               </div>
+            </CardContent>
+            
+            <CardFooter className="pt-6">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendChatMessage();
+                }}
+                className="w-full flex gap-2"
+              >
+                <Input 
+                  placeholder="Type a message..." 
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  disabled={status !== ConnectionStatus.CONNECTED}
+                />
+                <Button 
+                  type="submit" 
+                  disabled={!message.trim() || status !== ConnectionStatus.CONNECTED}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
+                </Button>
+              </form>
+            </CardFooter>
+          </Card>
+          
+          <div className="bg-muted rounded-md p-4">
+            <h3 className="font-medium mb-2">How This Works</h3>
+            <p className="text-sm text-muted-foreground">
+              This demo uses WebSockets to enable real-time communication. When you send a message, 
+              it's transmitted to the server and then broadcasted to all clients in the same room.
+              The connection automatically reconnects if interrupted.
+            </p>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="map">
+          <div className="space-y-6">
+            <CollaborativeMap roomId="demo-map" height="600px" />
+            
+            <div className="bg-muted rounded-md p-4">
+              <h3 className="font-medium mb-2">How Collaborative Mapping Works</h3>
+              <p className="text-sm text-muted-foreground">
+                The collaborative map uses WebSockets to synchronize drawing actions between users.
+                When you create, update, or delete features, these changes are sent to all users in the same room.
+                Different colors indicate which user created each feature.
+              </p>
             </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button 
-              onClick={() => window.location.reload()} 
-              variant="outline"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reload Page
-            </Button>
-            <Button 
-              onClick={clearMessages} 
-              variant="outline"
-            >
-              Clear Messages
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        {/* Tabs for different message types */}
-        <Card className="col-span-1 lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Send Messages</CardTitle>
-            <CardDescription>Test different WebSocket message types</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="custom">
-              <TabsList className="mb-4">
-                <TabsTrigger value="custom">Custom Message</TabsTrigger>
-                <TabsTrigger value="drawing">Drawing Update</TabsTrigger>
-                <TabsTrigger value="ping">Ping Test</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="custom">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="messageType">Message Type</Label>
-                      <Input
-                        id="messageType"
-                        value={messageType}
-                        onChange={(e) => setMessageType(e.target.value)}
-                        placeholder="Enter message type"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="messageContent">Message Content (JSON or text)</Label>
-                      <Textarea
-                        id="messageContent"
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        placeholder="Enter message content (can be JSON or plain text)"
-                        className="h-[120px] font-mono text-sm"
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleSendMessage} 
-                    className="w-full" 
-                    disabled={status !== ConnectionStatus.CONNECTED || !messageText}
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Message
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="drawing">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="drawingId">Drawing ID</Label>
-                    <Input
-                      id="drawingId"
-                      value={drawingId}
-                      onChange={(e) => setDrawingId(e.target.value)}
-                      placeholder="Enter drawing ID"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="drawingJson">Drawing Data (GeoJSON)</Label>
-                    <Textarea
-                      id="drawingJson"
-                      value={JSON.stringify(drawingData, null, 2)}
-                      onChange={(e) => {
-                        try {
-                          setDrawingData(JSON.parse(e.target.value));
-                        } catch (error) {
-                          console.error("Invalid JSON:", error);
-                        }
-                      }}
-                      placeholder="Enter GeoJSON data"
-                      className="h-[120px] font-mono text-sm"
-                    />
-                  </div>
-                  <Button 
-                    onClick={sendDrawingUpdate} 
-                    className="w-full" 
-                    disabled={status !== ConnectionStatus.CONNECTED}
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Drawing Update
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="ping">
-                <div className="space-y-4">
-                  <p className="text-muted-foreground">
-                    Send a simple ping message to test the WebSocket connection.
-                    The server should respond with a "pong" message.
-                  </p>
-                  <Button 
-                    onClick={sendPing} 
-                    className="w-full" 
-                    disabled={status !== ConnectionStatus.CONNECTED}
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Ping
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-        
-        {/* Message Log */}
-        <Card className="col-span-1 lg:col-span-3">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Message Log
-            </CardTitle>
-            <CardDescription>Real-time WebSocket messages</CardDescription>
-            <Separator />
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-2">
-                {messages.length > 0 ? (
-                  messages.map((msg, index) => (
-                    <Message 
-                      key={index} 
-                      data={msg.data} 
-                      isSent={msg.sent} 
-                    />
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-                    <MessageSquare className="h-10 w-10 mb-2 opacity-20" />
-                    <p>No messages yet. Send a message to see it appear here.</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
