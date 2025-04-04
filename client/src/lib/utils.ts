@@ -45,6 +45,50 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
+ * Throttles a function call, ensuring it's not called more frequently than the specified interval
+ * Useful for events that fire rapidly (e.g., mouse movements, scrolling)
+ * @param func The function to throttle
+ * @param wait The minimum time between function calls in milliseconds
+ * @returns A throttled version of the function
+ */
+export function throttle<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let lastCall = 0;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<T> | null = null;
+  
+  return (...args: Parameters<T>): void => {
+    const now = Date.now();
+    const remaining = wait - (now - lastCall);
+    
+    // Store the latest arguments
+    lastArgs = args;
+    
+    // If it's been longer than the wait time since last call, execute immediately
+    if (remaining <= 0) {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      lastCall = now;
+      func(...args);
+    } 
+    // Otherwise, schedule execution at the end of the wait period
+    else if (timeout === null) {
+      timeout = setTimeout(() => {
+        lastCall = Date.now();
+        timeout = null;
+        if (lastArgs) {
+          func(...lastArgs);
+        }
+      }, remaining);
+    }
+  };
+}
+
+/**
  * Standard button variants for consistency across the app
  */
 export const ButtonVariant = {

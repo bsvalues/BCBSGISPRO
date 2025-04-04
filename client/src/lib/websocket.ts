@@ -19,35 +19,38 @@ export enum ConnectionStatusEnum {
 
 /**
  * Message types that can be sent/received over WebSocket
+ * @deprecated Use MessageTypeEnum instead
  */
 export type MessageType = 
-  | 'join_room' 
-  | 'leave_room' 
+  | 'join' 
+  | 'leave' 
   | 'cursor_move' 
-  | 'feature_add' 
-  | 'feature_update'
-  | 'feature_delete'
-  | 'annotation_add'
-  | 'annotation_update'
-  | 'annotation_delete'
+  | 'feature_created' 
+  | 'feature_updated'
+  | 'feature_deleted'
+  | 'annotation_created'
+  | 'annotation_updated'
+  | 'annotation_deleted'
   | 'heartbeat'
-  | 'chat_message';
+  | 'chat'
+  | 'status';
 
 /**
  * Message type enum for components that need to reference message types
  */
 export enum MessageTypeEnum {
-  JOIN_ROOM = 'join_room',
-  LEAVE_ROOM = 'leave_room',
+  JOIN = 'join',
+  LEAVE = 'leave',
   CURSOR_MOVE = 'cursor_move',
-  FEATURE_ADD = 'feature_add',
-  FEATURE_UPDATE = 'feature_update',
-  FEATURE_DELETE = 'feature_delete',
-  ANNOTATION_ADD = 'annotation_add',
-  ANNOTATION_UPDATE = 'annotation_update',
-  ANNOTATION_DELETE = 'annotation_delete',
+  FEATURE_CREATED = 'feature_created',
+  FEATURE_UPDATED = 'feature_updated',
+  FEATURE_DELETED = 'feature_deleted',
+  ANNOTATION_CREATED = 'annotation_created',
+  ANNOTATION_UPDATED = 'annotation_updated',
+  ANNOTATION_DELETED = 'annotation_deleted',
   HEARTBEAT = 'heartbeat',
-  CHAT = 'chat_message'
+  CHAT = 'chat',
+  STATUS = 'status'
 }
 
 /**
@@ -286,7 +289,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     const success = sendMessage({
-      type: MessageTypeEnum.JOIN_ROOM,
+      type: MessageTypeEnum.JOIN,
       roomId,
       username: opts.username
     });
@@ -307,7 +310,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
     
     const success = sendMessage({
-      type: MessageTypeEnum.LEAVE_ROOM,
+      type: MessageTypeEnum.LEAVE,
       roomId: currentRoom
     });
     

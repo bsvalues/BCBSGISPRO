@@ -10,6 +10,7 @@ import MapboxDemoPage from "@/pages/mapbox-demo-page";
 import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
 import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page";
+import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -22,7 +23,8 @@ import {
   Globe,
   FileText,
   MessagesSquare,
-  Users
+  Users,
+  Share2
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -151,6 +153,16 @@ function App() {
                 WebSocket Demo
               </Button>
             </Link>
+            
+            <Link href="/collaborative-features">
+              <Button 
+                variant={location === "/collaborative-features" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <Share2 className="mr-1 h-4 w-4" />
+                Collaborative Features
+              </Button>
+            </Link>
           </nav>
         </div>
       </header>
@@ -171,6 +183,7 @@ function App() {
             <Route path="/legal-description-agent" component={LegalDescriptionAgentPage} />
             <Route path="/websocket-demo" component={WebSocketDemoPage} />
             <Route path="/collaborative-workspace" component={CollaborativeWorkspacePage} />
+            <Route path="/collaborative-features" component={CollaborativeFeaturesDemo} />
             
             {/* Default to the Collaborative Workspace page for testing */}
             <Route>

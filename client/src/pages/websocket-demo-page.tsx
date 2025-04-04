@@ -58,13 +58,13 @@ export default function WebSocketDemoPage() {
   } = useWebSocket({
     autoReconnect: true,
     userId: userIdRef.current,
-    username: username
+    username: usernameRef.current
   });
   
   // Filter messages by type
   const chatMessages = messages.filter(msg => msg.type === MessageTypeEnum.CHAT);
   const joinLeaveMessages = messages.filter(
-    msg => msg.type === MessageTypeEnum.JOIN_ROOM || msg.type === MessageTypeEnum.LEAVE_ROOM
+    msg => msg.type === MessageTypeEnum.JOIN || msg.type === MessageTypeEnum.LEAVE
   );
   
   // User list derived from join/leave messages
@@ -84,9 +84,9 @@ export default function WebSocketDemoPage() {
     const usernames = new Set<string>();
     
     joinLeaveMessages.forEach(msg => {
-      if (msg.type === MessageTypeEnum.JOIN_ROOM && msg.username) {
+      if (msg.type === MessageTypeEnum.JOIN && msg.username) {
         usernames.add(msg.username);
-      } else if (msg.type === MessageTypeEnum.LEAVE_ROOM && msg.username) {
+      } else if (msg.type === MessageTypeEnum.LEAVE && msg.username) {
         usernames.delete(msg.username);
       }
     });
@@ -390,7 +390,7 @@ export default function WebSocketDemoPage() {
                         <div className="text-sm flex justify-between">
                           <span>
                             <span className="font-semibold">{msg.username}</span>
-                            <span> {msg.type === MessageTypeEnum.JOIN_ROOM ? 'joined' : 'left'} the room</span>
+                            <span> {msg.type === MessageTypeEnum.JOIN ? 'joined' : 'left'} the room</span>
                           </span>
                           <span className="text-xs opacity-70">
                             {msg.timestamp ? formatTime(msg.timestamp) : ""}
