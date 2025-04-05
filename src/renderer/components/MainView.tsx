@@ -2,37 +2,31 @@ import React, { useState } from 'react';
 import Header from './layout/Header';
 import Sidebar from './layout/Sidebar';
 import MapView from './maps/MapView';
-import DocumentManager from './documents/DocumentManager';
 import './MainView.css';
 
 const MainView: React.FC = () => {
   // State for sidebar visibility
-  const [isSidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // State for active view
+  const [activeView, setActiveView] = useState<'map' | 'documents' | 'workflows' | 'reports'>('map');
   
   // Toggle sidebar visibility
   const toggleSidebar = () => {
-    setSidebarOpen(prev => !prev);
+    setIsSidebarOpen(!isSidebarOpen);
   };
   
-  // State for active view (map, documents, workflows, reports)
-  const [activeView, setActiveView] = useState<'map' | 'documents' | 'workflows' | 'reports'>('map');
-  
-  // Handle view change
-  const handleViewChange = (view: 'map' | 'documents' | 'workflows' | 'reports') => {
-    setActiveView(view);
-  };
-  
-  // Render the active content based on the selected view
-  const renderContent = () => {
+  // Determine content based on active view
+  const renderActiveContent = () => {
     switch (activeView) {
       case 'map':
         return <MapView />;
       case 'documents':
-        return <DocumentManager />;
+        return <div className="placeholder-content">Documents View (Under Development)</div>;
       case 'workflows':
-        return <div className="placeholder-content">Workflows view is not implemented yet</div>;
+        return <div className="placeholder-content">Workflows View (Under Development)</div>;
       case 'reports':
-        return <div className="placeholder-content">Reports view is not implemented yet</div>;
+        return <div className="placeholder-content">Reports View (Under Development)</div>;
       default:
         return <MapView />;
     }
@@ -41,20 +35,18 @@ const MainView: React.FC = () => {
   return (
     <div className="main-view">
       <Header 
-        toggleSidebar={toggleSidebar} 
-        onViewChange={handleViewChange}
+        toggleSidebar={toggleSidebar}
         activeView={activeView}
+        setActiveView={setActiveView}
       />
-      
       <div className="content-area">
         <Sidebar 
-          isOpen={isSidebarOpen} 
-          onClose={toggleSidebar}
+          isOpen={isSidebarOpen}
+          activeView={activeView}
         />
-        
-        <main className="main-content">
-          {renderContent()}
-        </main>
+        <div className={`main-content ${isSidebarOpen ? 'with-sidebar' : ''}`}>
+          {renderActiveContent()}
+        </div>
       </div>
     </div>
   );

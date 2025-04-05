@@ -1,87 +1,166 @@
 .map-view {
+  display: flex;
   position: relative;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  background-color: #e5e7eb;
+  background-color: #f4f7fa;
 }
 
 .map-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background-color: #e9eef3;
 }
 
-.map-loading {
+/* Map Controls */
+.map-controls {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: rgba(255, 255, 255, 0.7);
-  z-index: 2;
-  font-size: 1.2rem;
-  color: #4b5563;
-}
-
-.map-tools {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 3;
+  top: 15px;
+  right: 15px;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.tool-group {
-  background-color: white;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
+.map-control-group {
   display: flex;
   flex-direction: column;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
-.map-tool-button {
+.map-control {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: none;
+  background: white;
   border: none;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #f1f5f9;
   cursor: pointer;
-  color: #4b5563;
-  transition: all 0.2s;
+  color: #64748b;
+  transition: all 0.2s ease;
 }
 
-.map-tool-button:last-child {
+.map-control:last-child {
   border-bottom: none;
 }
 
-.map-tool-button:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+.map-control:hover {
+  background-color: #f8fafc;
+  color: #0284c7;
 }
 
-.map-tool-button.active {
-  background-color: #eff6ff;
-  color: #2563eb;
+.map-control:active {
+  background-color: #f1f5f9;
 }
 
-/* Placeholder styling for attribution */
-.leaflet-container .leaflet-control-attribution {
-  background-color: rgba(255, 255, 255, 0.7);
-  padding: 0 5px;
-  font-size: 10px;
-  color: #4b5563;
-  border-radius: 3px 0 0 0;
+/* Map Info Panel */
+.map-info-panel {
+  position: absolute;
+  bottom: 15px;
+  left: 15px;
+  z-index: 1000;
+  display: flex;
+  gap: 20px;
+}
+
+.map-coordinates {
+  display: flex;
+  gap: 10px;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.map-scale {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.scale-bar {
+  width: 100px;
+  height: 4px;
+  background: linear-gradient(to right, #64748b 0%, #64748b 50%, #94a3b8 50%, #94a3b8 100%);
+  margin-bottom: 4px;
+}
+
+/* Mock Map Styling */
+.mock-map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mock-map-content {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mock-map-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  z-index: 1;
+}
+
+.mock-grid-cell {
+  border: 1px solid rgba(203, 213, 225, 0.3);
+  background-color: #cbd5e1;
+}
+
+.mock-map-overlay {
+  position: relative;
+  z-index: 2;
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px 30px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 350px;
+}
+
+.mock-map-overlay h3 {
+  color: #0f172a;
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.25rem;
+}
+
+.mock-map-overlay p {
+  color: #64748b;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
