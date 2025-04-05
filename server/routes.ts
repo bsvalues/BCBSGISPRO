@@ -78,24 +78,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wsManager = new WebSocketServerManager(httpServer);
   
   // Mapbox token endpoint - serves the token securely to the frontend
-  app.get("/api/mapbox-token", (req, res) => {
-    // Try to get token from environment variables
-    let mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
-    
-    // Log the token retrieval attempt (without exposing the actual token)
-    console.log(`Mapbox token retrieval attempt: ${mapboxToken ? 'Token found in environment' : 'Token not found in environment'}`);
-    
-    // Final check if we have a token
-    if (!mapboxToken) {
-      console.error('Mapbox token not available in environment');
-      return res.status(500).json({ 
-        error: 'Mapbox token not configured',
-        message: 'The Mapbox access token is not available. Please add it to your environment variables.'
+  app.get("/api/mapbox-token", async (req, res) => {
+    try {
+      // Access token directly from secret environment variables
+      const { MAPBOX_ACCESS_TOKEN } = process.env;
+      
+      // Log the token retrieval attempt (without exposing the actual token)
+      console.log(`Mapbox token retrieval attempt: ${MAPBOX_ACCESS_TOKEN ? 'Token found in environment' : 'Token not found in environment'}`);
+      
+      // Final check if we have a token
+      if (!MAPBOX_ACCESS_TOKEN) {
+        console.error('Mapbox token not available in environment');
+        return res.status(500).json({ 
+          error: 'Mapbox token not configured',
+          message: 'The Mapbox access token is not available. Please add it to your environment variables.'
+        });
+      }
+      
+      // Return the token to the client
+      return res.json({ token: MAPBOX_ACCESS_TOKEN });
+    } catch (error) {
+      console.error('Error accessing Mapbox token:', error);
+      return res.status(500).json({
+        error: 'Failed to retrieve Mapbox token',
+        message: 'Error accessing environment variables'
       });
     }
-    
-    // Return the token to the client
-    return res.json({ token: mapboxToken });
   });
   
   // Check secret endpoint - allows client to check if environment variables exist without exposing values
