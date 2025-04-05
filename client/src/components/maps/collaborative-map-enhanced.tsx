@@ -61,7 +61,7 @@ export function CollaborativeMap({
     lastMessage, 
     status 
   } = useWebSocket({
-    path: `/ws/collaborative-map/${roomId}`,
+    path: `/ws`, // Use the base path to match the server configuration
     autoConnect: true,
     autoReconnect: true,
     maxReconnectAttempts: 10,
@@ -189,7 +189,9 @@ export function CollaborativeMap({
       // Send update to other collaborators
       sendMessage(JSON.stringify({
         type: 'features',
-        features: collaborativeFeatures
+        roomId: roomId, // Include roomId to identify the collaboration space
+        features: collaborativeFeatures,
+        userId: userId
       }));
       
       // Notify parent about the update
@@ -219,7 +221,9 @@ export function CollaborativeMap({
       // Send update to other collaborators
       sendMessage(JSON.stringify({
         type: 'features',
-        features: collaborativeFeatures
+        roomId: roomId, // Include roomId to identify the collaboration space
+        features: collaborativeFeatures,
+        userId: userId
       }));
       
       // Notify parent about the update
@@ -227,13 +231,14 @@ export function CollaborativeMap({
         onFeaturesUpdate(collaborativeFeatures);
       }
     }
-  }, [userId, sendMessage, onFeaturesUpdate]);
+  }, [userId, roomId, sendMessage, onFeaturesUpdate]);
 
   // Send activity update
   const sendActivityUpdate = useCallback((activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => {
     // Send activity update to server for other users
     sendMessage(JSON.stringify({
       type: 'activity',
+      roomId: roomId, // Include roomId to identify the collaboration space
       activityType,
       userId,
       data
@@ -243,7 +248,7 @@ export function CollaborativeMap({
     if (onUserActivity) {
       onUserActivity(userId, activityType, data);
     }
-  }, [userId, sendMessage, onUserActivity]);
+  }, [userId, roomId, sendMessage, onUserActivity]);
 
   // Handle connection status changes
   useEffect(() => {
@@ -255,16 +260,24 @@ export function CollaborativeMap({
     if (connectionStatus === ConnectionStatusEnum.CONNECTED) {
       // Set up heartbeat interval
       heartbeatIntervalRef.current = setInterval(() => {
-        sendMessage(JSON.stringify({ type: 'heartbeat', userId }));
+        sendMessage(JSON.stringify({ 
+          type: 'heartbeat', 
+          roomId: roomId,
+          userId 
+        }));
       }, 30000); // 30 second heartbeat
       
       // Initial state sync request
-      sendMessage(JSON.stringify({ type: 'sync_request' }));
+      sendMessage(JSON.stringify({ 
+        type: 'sync_request',
+        roomId: roomId,
+        userId 
+      }));
     } else if (heartbeatIntervalRef.current) {
       // Clear heartbeat interval when disconnected
       clearInterval(heartbeatIntervalRef.current);
     }
-  }, [connectionStatus, sendMessage, userId, onConnectionStatusChange]);
+  }, [connectionStatus, sendMessage, userId, roomId, onConnectionStatusChange]);
 
   // Process incoming WebSocket messages
   useEffect(() => {
