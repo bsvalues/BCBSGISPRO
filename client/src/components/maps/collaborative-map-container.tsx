@@ -16,13 +16,15 @@ interface CollaborativeMapContainerProps {
   height?: string | number;
   onMapUpdated?: (map: mapboxgl.Map | __esri.MapView) => void;
   defaultProvider?: MapProviderType;
+  onParcelSelected?: (parcelId: number) => void;
 }
 
 export function CollaborativeMapContainer({ 
   roomId, 
   height = '500px',
   onMapUpdated,
-  defaultProvider = 'mapbox'
+  defaultProvider = 'mapbox',
+  onParcelSelected
 }: CollaborativeMapContainerProps) {
   const [map, setMap] = useState<mapboxgl.Map | any>(null);
   const [mapProvider, setMapProvider] = useState<MapProviderType>(defaultProvider);
@@ -91,7 +93,18 @@ export function CollaborativeMapContainer({
   // Handle features update
   const handleFeaturesUpdate = useCallback((updatedFeatures: CollaborativeFeature[]) => {
     setFeatures(updatedFeatures);
-  }, []);
+    
+    // Check for parcel selection events
+    if (onParcelSelected) {
+      const selectedParcelFeature = updatedFeatures.find(
+        feature => feature.properties?.isSelected && feature.properties?.parcelId
+      );
+      
+      if (selectedParcelFeature?.properties?.parcelId) {
+        onParcelSelected(parseInt(selectedParcelFeature.properties.parcelId));
+      }
+    }
+  }, [onParcelSelected]);
   
   // Handle annotations update
   const handleAnnotationsUpdate = useCallback((updatedAnnotations: any[]) => {
