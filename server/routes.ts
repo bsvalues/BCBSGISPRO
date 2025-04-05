@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServerManager } from "./websocket-server";
+// Old import replaced
 import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from "./storage";
@@ -60,9 +60,20 @@ const operationTitles: Record<GeospatialOperationType, string> = {
   [GeospatialOperationType.SIMPLIFY]: 'Geometry Simplification'
 };
 
+// Import WebSocketServerManager later to avoid duplicate declarations
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
+  
+  // Create HTTP server (this will be returned at the end of the function)
+  const httpServer = createServer(app);
+  
+  // Import WebSocketServerManager
+  const { WebSocketServerManager } = await import('./websocket-manager');
+  
+  // Initialize WebSocket server
+  const wsManager = new WebSocketServerManager(httpServer);
   
   // Mapbox token endpoint - serves the token securely to the frontend
   app.get("/api/mapbox-token", (req, res) => {
@@ -72,25 +83,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Log the token retrieval attempt (without exposing the actual token)
     console.log(`Mapbox token retrieval attempt: ${mapboxToken ? 'Token found in environment' : 'Token not found in environment'}`);
     
-    // For development fallback - DO NOT use in production
-    if (!mapboxToken) {
-      // Check if we have a secrets storage mechanism
-      try {
-        // This is a placeholder - in a real implementation, you would have a secure secret storage
-        const replit_secrets = process.env.REPLIT_DB_URL ? true : false;
-        
-        if (replit_secrets) {
-          console.log('Attempting to retrieve token from Replit secrets');
-          // In a real app, we would fetch from a secure secrets store here
-        }
-      } catch (err) {
-        console.error('Error accessing secrets storage:', err);
-      }
-    }
-    
     // Final check if we have a token
     if (!mapboxToken) {
-      console.error('Mapbox token not available in any source');
+      console.error('Mapbox token not available in environment');
       return res.status(500).json({ 
         error: 'Mapbox token not configured',
         message: 'The Mapbox access token is not available. Please add it to your environment variables.'
@@ -3356,10 +3351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  const httpServer = createServer(app);
-  
-  // Setup WebSocket server using the HTTP server for real-time collaboration
-  const wsManager = new WebSocketServerManager(httpServer);
+  // This section has been removed to fix duplicate declarations
   
   // Health check endpoint for WebSocket server
   app.get("/api/websocket/health", (req, res) => {
@@ -3388,7 +3380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const roomId = req.params.roomId;
       const rooms = wsManager.getRoomsStatus();
-      const room = rooms.find(r => r.id === roomId);
+      const room = rooms.find(r => r.roomId === roomId);
       
       if (!room) {
         return res.status(404).json({
