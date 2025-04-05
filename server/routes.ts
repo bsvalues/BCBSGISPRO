@@ -83,8 +83,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Access token directly from secret environment variables
       const { MAPBOX_ACCESS_TOKEN } = process.env;
       
-      // Log the token retrieval attempt (without exposing the actual token)
-      console.log(`Mapbox token retrieval attempt: ${MAPBOX_ACCESS_TOKEN ? 'Token found in environment' : 'Token not found in environment'}`);
+      // Enhanced logging to troubleshoot token access
+      console.log('Mapbox token endpoint accessed');
+      console.log(`Environment variables available: ${Object.keys(process.env).join(', ')}`);
+      console.log(`MAPBOX_ACCESS_TOKEN present: ${!!MAPBOX_ACCESS_TOKEN}`);
+      console.log(`Is token a non-empty string: ${!!MAPBOX_ACCESS_TOKEN && typeof MAPBOX_ACCESS_TOKEN === 'string' && MAPBOX_ACCESS_TOKEN.length > 0}`);
       
       // Final check if we have a token
       if (!MAPBOX_ACCESS_TOKEN) {
@@ -96,6 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Return the token to the client
+      console.log('Successfully returning Mapbox token to client');
       return res.json({ token: MAPBOX_ACCESS_TOKEN });
     } catch (error) {
       console.error('Error accessing Mapbox token:', error);
