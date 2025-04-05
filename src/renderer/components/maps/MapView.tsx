@@ -1,7 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import './MapView.css';
 
-const MapView: React.FC = () => {
+interface MapViewProps {
+  initialFeatures?: any[];
+  onFeatureSelect?: (feature: any) => void;
+}
+
+const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -10,6 +15,11 @@ const MapView: React.FC = () => {
     // This is a placeholder for the actual map implementation
     // In a real implementation, we would initialize Leaflet or Mapbox here
     const mapContainer = mapContainerRef.current;
+    
+    // Log the features (would be used in the actual implementation)
+    if (initialFeatures && initialFeatures.length > 0) {
+      console.log('Initializing map with features:', initialFeatures);
+    }
     
     // Create a simple map placeholder
     const placeholderMap = document.createElement('div');
@@ -89,7 +99,7 @@ const MapView: React.FC = () => {
         });
       }
     };
-  }, []);
+  }, [initialFeatures]);
   
   return (
     <div className="map-view">
@@ -107,7 +117,18 @@ const MapView: React.FC = () => {
             </svg>
           </button>
           
-          <button className="tool-button" title="Select">
+          <button 
+            className="tool-button" 
+            title="Select"
+            onClick={() => {
+              if (initialFeatures && initialFeatures.length > 0 && onFeatureSelect) {
+                // In the real implementation, this would be triggered by clicking on a feature on the map
+                // For now, just simulate selecting the first feature
+                console.log('Feature selected:', initialFeatures[0]);
+                onFeatureSelect(initialFeatures[0]);
+              }
+            }}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
               <path d="M13 13l6 6"></path>

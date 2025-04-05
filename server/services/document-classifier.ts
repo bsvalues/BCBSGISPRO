@@ -1,250 +1,174 @@
-import { DocumentType } from '@shared/document-types';
+/**
+ * Document Classification Service
+ * 
+ * This service handles document classification based on content and metadata
+ * using keyword matching and a basic rules engine to determine document types.
+ */
 
-// Export the utility function to use in routes
-export function getDocumentTypeLabel(type: DocumentType): string {
-  const labels: Record<DocumentType, string> = {
-    [DocumentType.PLAT_MAP]: 'Plat Map',
-    [DocumentType.DEED]: 'Deed',
-    [DocumentType.SURVEY]: 'Survey',
-    [DocumentType.LEGAL_DESCRIPTION]: 'Legal Description',
-    [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: 'Boundary Line Adjustment',
-    [DocumentType.TAX_FORM]: 'Tax Form',
-    [DocumentType.UNCLASSIFIED]: 'Unclassified Document'
-  };
+import { DocumentType, DocumentClassification, documentTypeKeywords } from '../../shared/document-types';
+
+// Classifies a document based on its name, content type, and optionally extracted content
+export async function classifyDocument(fileName: string, contentType: string, content?: string): Promise<DocumentClassification> {
+  // Default to UNKNOWN with a lower confidence
+  let documentType = DocumentType.UNKNOWN;
+  let confidence = 0.3;
+  let matchedKeywords: string[] = [];
   
-  return labels[type] || 'Unknown Document Type';
-}
-
-/**
- * Result of document classification operation
- */
-export interface ClassificationResult {
-  documentType: DocumentType;
-  confidence: number;
-  alternativeTypes?: Array<{
-    documentType: DocumentType;
-    confidence: number;
-  }>;
-  keywords?: string[];
-}
-
-/**
- * Rule-based classifier that uses keyword matching to determine document types.
- * This serves as a placeholder for a more sophisticated ML model in production.
- */
-class RuleBasedClassifier {
-  private keywordMap: Record<DocumentType, string[]> = {
-    [DocumentType.PLAT_MAP]: [
-      'plat', 'parcel map', 'subdivision', 'lot', 'tract', 'survey map',
-      'recorded map', 'property boundary', 'lot line', 'easement'
-    ],
-    [DocumentType.DEED]: [
-      'deed', 'grant deed', 'quitclaim', 'warranty deed', 'convey', 'conveyance',
-      'transfer ownership', 'property transfer', 'title', 'grantor', 'grantee'
-    ],
-    [DocumentType.SURVEY]: [
-      'survey', 'boundary survey', 'topographic', 'land survey', 'metes and bounds',
-      'monument', 'benchmark', 'elevation', 'ALTA survey'
-    ],
-    [DocumentType.LEGAL_DESCRIPTION]: [
-      'legal description', 'described as', 'metes and bounds', 'section township range',
-      'point of beginning', 'thence', 'feet', 'acres', 'situated in', 'together with'
-    ],
-    [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: [
-      'boundary line adjustment', 'BLA', 'lot line adjustment', 'property line adjustment', 
-      'adjust boundary', 'modified boundary', 'boundary change', 'boundary revision',
-      'adjustment area', 'parcels after', 'original parcels', 'adjusted parcel'
-    ],
-    [DocumentType.TAX_FORM]: [
-      'tax', 'assessment', 'excise tax', 'property tax', 'tax parcel', 'tax statement',
-      'assessed value', 'tax exemption', 'tax roll', 'taxable value'
-    ],
-    [DocumentType.UNCLASSIFIED]: []  // Default category has no keywords
-  };
-
-  /**
-   * Classifies a document based on its text content using keyword matching
-   * @param text The text content of the document
-   * @returns Classification result with document type and confidence score
-   */
-  public classify(text: string): ClassificationResult {
-    const normalizedText = text.toLowerCase();
-    const scores: Record<DocumentType, number> = {
-      [DocumentType.PLAT_MAP]: 0,
-      [DocumentType.DEED]: 0,
-      [DocumentType.SURVEY]: 0,
-      [DocumentType.LEGAL_DESCRIPTION]: 0,
-      [DocumentType.BOUNDARY_LINE_ADJUSTMENT]: 0,
-      [DocumentType.TAX_FORM]: 0,
-      [DocumentType.UNCLASSIFIED]: 0.1 // Small base score for unclassified
-    };
+  // Normalize file name and content for matching
+  const normalizedFileName = fileName.toLowerCase();
+  const normalizedContent = content ? content.toLowerCase() : '';
+  
+  // Check file extension to determine format-based classification
+  if (normalizedFileName.endsWith('.pdf')) {
+    // PDFs could be any document type, so we rely more on content
+    if (!content) {
+      confidence = 0.4; // Slightly higher than unknown, but still uncertain
+    }
+  } else if (normalizedFileName.match(/\.(docx?|rtf)$/)) {
+    // Word documents are often correspondence, legal descriptions, or reports
+    if (normalizedFileName.includes('letter') || normalizedFileName.includes('memo')) {
+      documentType = DocumentType.CORRESPONDENCE;
+      confidence = 0.65;
+      matchedKeywords.push('letter', 'memo');
+    } else if (normalizedFileName.includes('report')) {
+      documentType = DocumentType.STAFF_REPORT;
+      confidence = 0.65;
+      matchedKeywords.push('report');
+    }
+  } else if (normalizedFileName.match(/\.(xlsx?|csv)$/)) {
+    // Spreadsheets are often tax records or assessments
+    documentType = DocumentType.ASSESSMENT;
+    confidence = 0.6;
+    matchedKeywords.push('spreadsheet');
+  } else if (normalizedFileName.match(/\.(jpe?g|png|tiff?)$/)) {
+    // Images could be aerial photos or site plans
+    if (normalizedFileName.includes('aerial') || normalizedFileName.includes('satellite')) {
+      documentType = DocumentType.AERIAL_PHOTO;
+      confidence = 0.8;
+      matchedKeywords.push('aerial', 'satellite');
+    } else {
+      documentType = DocumentType.SITE_PLAN;
+      confidence = 0.5;
+      matchedKeywords.push('image');
+    }
+  } else if (normalizedFileName.match(/\.(dwg|dxf)$/)) {
+    // CAD files are typically surveys or site plans
+    documentType = DocumentType.SURVEY;
+    confidence = 0.7;
+    matchedKeywords.push('cad', 'drawing');
+  } else if (normalizedFileName.match(/\.(shp|geojson|kml)$/)) {
+    // GIS files are typically maps
+    documentType = DocumentType.MAP;
+    confidence = 0.8;
+    matchedKeywords.push('gis', 'map');
+  }
+  
+  // Enhanced classification based on file name keywords
+  for (const [type, keywords] of Object.entries(documentTypeKeywords)) {
+    let keywordMatches = 0;
+    const uniqueMatchedKeywords: string[] = [];
     
-    let matchedKeywords: string[] = [];
-    
-    // Count keyword occurrences for each document type
-    Object.entries(this.keywordMap).forEach(([docType, keywords]) => {
-      keywords.forEach(keyword => {
-        // Count occurrences of the keyword in the text
-        const regex = new RegExp('\\b' + keyword + '\\b', 'gi');
-        const matches = normalizedText.match(regex);
-        if (matches) {
-          // Apply different weights for specific document types
-          let weight = 0.1; // Default weight
-          
-          // Boost boundary line adjustment keywords
-          if (docType === DocumentType.BOUNDARY_LINE_ADJUSTMENT) {
-            // Give more weight to the exact term 'boundary line adjustment'
-            if (keyword === 'boundary line adjustment' || keyword === 'BLA') {
-              weight = 0.3;
-            } else {
-              weight = 0.2;
-            }
-          }
-          
-          const typeScore = matches.length * weight;
-          scores[docType as DocumentType] += typeScore;
-          matchedKeywords.push(keyword);
-        }
-      });
-    });
-    
-    // Get total score
-    const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
-    
-    // Normalize scores to get confidence values
-    const normalizedScores = Object.entries(scores).map(([docType, score]) => ({
-      documentType: docType as DocumentType,
-      confidence: totalScore > 0 ? score / totalScore : score
-    }));
-    
-    // Sort by confidence
-    normalizedScores.sort((a, b) => b.confidence - a.confidence);
-    
-    // The highest confidence type is the primary classification
-    const primaryClassification = normalizedScores[0];
-    
-    // If confidence is very low, use unclassified
-    if (primaryClassification.confidence < 0.4 && 
-        primaryClassification.documentType !== DocumentType.UNCLASSIFIED) {
-      return {
-        documentType: DocumentType.UNCLASSIFIED,
-        confidence: 0.5,
-        alternativeTypes: normalizedScores.slice(0, 3),
-        keywords: [...new Set(matchedKeywords)]
-      };
+    // Count matches in file name
+    for (const keyword of keywords) {
+      if (normalizedFileName.includes(keyword.toLowerCase())) {
+        keywordMatches++;
+        uniqueMatchedKeywords.push(keyword);
+      }
     }
     
-    return {
-      documentType: primaryClassification.documentType,
-      confidence: primaryClassification.confidence,
-      alternativeTypes: normalizedScores.slice(1, 4), // Next 3 alternatives
-      keywords: [...new Set(matchedKeywords)]
-    };
+    // Count matches in content if available
+    if (normalizedContent) {
+      for (const keyword of keywords) {
+        if (normalizedContent.includes(keyword.toLowerCase()) && 
+            !uniqueMatchedKeywords.includes(keyword)) {
+          keywordMatches++;
+          uniqueMatchedKeywords.push(keyword);
+        }
+      }
+    }
+    
+    // Calculate confidence based on keyword matches
+    const matchConfidence = Math.min(0.3 + (keywordMatches * 0.15), 0.9);
+    
+    // If this type has a higher confidence than current best, update
+    if (keywordMatches > 0 && matchConfidence > confidence) {
+      documentType = type as DocumentType;
+      confidence = matchConfidence;
+      matchedKeywords = [...uniqueMatchedKeywords];
+    }
   }
+  
+  // Find alternate classifications with reasonable confidence
+  const alternateTypes: { documentType: DocumentType, confidence: number }[] = [];
+  
+  for (const [type, keywords] of Object.entries(documentTypeKeywords)) {
+    // Skip the primary classification type
+    if (type === documentType) continue;
+    
+    let keywordMatches = 0;
+    
+    // Count matches in file name
+    for (const keyword of keywords) {
+      if (normalizedFileName.includes(keyword.toLowerCase())) {
+        keywordMatches++;
+      }
+    }
+    
+    // Count matches in content if available
+    if (normalizedContent) {
+      for (const keyword of keywords) {
+        if (normalizedContent.includes(keyword.toLowerCase())) {
+          keywordMatches++;
+        }
+      }
+    }
+    
+    // Calculate alternate confidence
+    const altConfidence = Math.min(0.2 + (keywordMatches * 0.1), 0.65);
+    
+    // Add to alternate types if confidence is reasonable
+    if (keywordMatches > 0 && altConfidence > 0.35) {
+      alternateTypes.push({
+        documentType: type as DocumentType,
+        confidence: altConfidence
+      });
+    }
+  }
+  
+  // Sort alternate types by confidence (descending)
+  alternateTypes.sort((a, b) => b.confidence - a.confidence);
+  
+  // Return the full classification result
+  return {
+    documentType,
+    confidence,
+    alternateTypes: alternateTypes.length > 0 ? alternateTypes.slice(0, 3) : undefined,
+    keywords: matchedKeywords.length > 0 ? matchedKeywords : undefined
+  };
 }
 
-// Create a singleton instance of the classifier
-const classifier = new RuleBasedClassifier();
-
-/**
- * Classifies a document based on its text content and metadata
- * @param content The text content of the document
- * @param fileType The MIME type or file extension of the document
- * @param fileName Optional file name which may contain clues about document type
- * @returns Classification result with document type and confidence score
- */
-export async function classifyDocument(
-  content: string,
-  fileType?: string,
-  fileName?: string
-): Promise<ClassificationResult & { wasManuallyClassified: boolean, classifiedAt: string }> {
-  // Combine content with filename for better classification
-  let combinedText = content;
-  if (fileName) {
-    combinedText += ` ${fileName}`;
-  }
-  
-  // Enhance classification based on file type
-  let baseClassification = classifier.classify(combinedText);
-  
-  // Special handling for BLA documents
-  // If the text contains specific BLA-related phrases AND has BLA as a high alternative
-  const normalizedText = combinedText.toLowerCase();
-  
-  // Check for specific BLA-related patterns that strongly indicate BLA documents
-  const specificBLAPatterns = [
-    /\bboundary\s+line\s+adjustment\b/i,
-    /\bbla[-\s][0-9]+/i,
-    /\bparcel.+adjusted\b/i,
-    /\badjustment\s+area\b/i,
-    /\bparcels\s+after\s+boundary\s+line\s+adjustment\b/i,
-    /\badjusted\s+parcel\b/i
+// Function to test classifications based on sample data
+export function testClassifications() {
+  const sampleFiles = [
+    { name: 'deed_of_trust_14653.pdf', type: 'application/pdf' },
+    { name: 'plat_map_oak_hills_subdivision.pdf', type: 'application/pdf' },
+    { name: 'county_assessment_2023.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    { name: 'building_permit_application.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    { name: 'property_survey_lot15.dwg', type: 'application/acad' },
+    { name: 'aerial_imagery_2022.jpg', type: 'image/jpeg' },
+    { name: 'board_meeting_minutes_jan2023.pdf', type: 'application/pdf' },
+    { name: 'zone_variance_request.pdf', type: 'application/pdf' },
+    { name: 'property_tax_statement_20240.pdf', type: 'application/pdf' },
+    { name: 'site_plan_proposed_development.pdf', type: 'application/pdf' },
+    { name: 'correspondence_re_boundary_dispute.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    { name: 'property_parcel_map.geojson', type: 'application/geo+json' }
   ];
   
-  // Count how many specific BLA patterns match
-  const blaPatternMatches = specificBLAPatterns.filter(pattern => 
-    pattern.test(normalizedText)
-  ).length;
-  
-  // If we find multiple strong BLA indicators, override to BLA classification
-  if (blaPatternMatches >= 2) {
-    // Log for debugging
-    console.log(`Found ${blaPatternMatches} BLA pattern matches in text`);
-    
-    // Force override to BLA classification regardless of alternatives
-    baseClassification.documentType = DocumentType.BOUNDARY_LINE_ADJUSTMENT;
-    baseClassification.confidence = 0.75;
-    
-    // Keep the original classification as an alternative
-    const originalType = baseClassification.documentType;
-    const originalConfidence = baseClassification.confidence;
-    
-    // Update alternatives list
-    if (baseClassification.alternativeTypes && baseClassification.alternativeTypes.length > 0) {
-      const withoutBLA = baseClassification.alternativeTypes.filter(
-        alt => alt.documentType !== DocumentType.BOUNDARY_LINE_ADJUSTMENT
-      );
-      
-      // Add the original primary classification as an alternative if it's not BLA
-      if (originalType !== DocumentType.BOUNDARY_LINE_ADJUSTMENT) {
-        withoutBLA.unshift({
-          documentType: originalType,
-          confidence: originalConfidence
-        });
-      }
-      
-      // Update alternatives
-      baseClassification.alternativeTypes = withoutBLA.slice(0, 3);
-    }
-  }
-  
-  // Adjust confidence based on file type
-  if (fileType) {
-    const lowerFileType = fileType.toLowerCase();
-    
-    // PDFs are more likely to be official documents
-    if (lowerFileType.includes('pdf')) {
-      if (baseClassification.documentType !== DocumentType.UNCLASSIFIED) {
-        baseClassification.confidence = Math.min(baseClassification.confidence * 1.2, 1.0);
-      }
-    }
-    
-    // Image files are more likely to be plat maps or surveys
-    if (lowerFileType.includes('image') || 
-        lowerFileType.includes('jpg') || 
-        lowerFileType.includes('png') || 
-        lowerFileType.includes('tiff')) {
-      if (baseClassification.documentType === DocumentType.PLAT_MAP ||
-          baseClassification.documentType === DocumentType.SURVEY) {
-        baseClassification.confidence = Math.min(baseClassification.confidence * 1.2, 1.0);
-      }
-    }
-  }
-  
-  // Add additional metadata for the API response
-  return {
-    ...baseClassification,
-    wasManuallyClassified: false,
-    classifiedAt: new Date().toISOString()
-  };
+  return Promise.all(sampleFiles.map(async file => {
+    const classification = await classifyDocument(file.name, file.type);
+    return {
+      fileName: file.name,
+      classification
+    };
+  }));
 }
