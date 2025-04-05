@@ -340,6 +340,7 @@ export function CollaborativeMapContainer({
               onFeaturesUpdate={handleFeaturesUpdate}
               onAnnotationsUpdate={handleAnnotationsUpdate}
               onUserActivity={handleUserActivityUpdate}
+              onParcelClick={onParcelSelected}
             />
           )}
           {map && mapProvider === 'arcgis' && (

@@ -5,6 +5,7 @@ import useMapboxToken from '@/hooks/use-mapbox-token';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { ConnectionStatusEnum } from '@/lib/websocket';
 import { v4 as uuidv4 } from 'uuid';
+import { apiRequest } from '@/lib/queryClient';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
@@ -26,6 +27,7 @@ export interface CollaborativeMapProps {
   onFeaturesUpdate?: (features: CollaborativeFeature[]) => void;
   onAnnotationsUpdate?: (annotations: any[]) => void;
   onUserActivity?: (userId: string, activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => void;
+  onParcelClick?: (parcelId: number) => void;
 }
 
 /**
@@ -40,6 +42,7 @@ export function CollaborativeMap({
   onFeaturesUpdate,
   onAnnotationsUpdate,
   onUserActivity,
+  onParcelClick,
 }: CollaborativeMapProps) {
   // Get token using the custom hook
   const { token, isLoading, error } = useMapboxToken();
@@ -79,6 +82,67 @@ export function CollaborativeMap({
         return ConnectionStatusEnum.DISCONNECTED;
     }
   })();
+
+  // Utility function to fetch parcel data
+  const fetchParcels = async (mapInstance: mapboxgl.Map) => {
+    try {
+      // Fetch parcels from API
+      const response = await apiRequest('GET', '/api/parcels');
+      const parcels = await response.json();
+      
+      if (parcels && parcels.length > 0) {
+        // Convert to GeoJSON format
+        const features = parcels.map((parcel: any) => ({
+          type: 'Feature',
+          properties: {
+            id: parcel.id,
+            parcelId: parcel.id,
+            parcelNumber: parcel.parcelNumber,
+            owner: parcel.owner,
+            address: parcel.address,
+            isSelected: false
+          },
+          geometry: parcel.geometry
+        }));
+        
+        // Update the source data if the map is still available
+        if (mapInstance && mapInstance.getSource('parcels')) {
+          (mapInstance.getSource('parcels') as mapboxgl.GeoJSONSource).setData({
+            type: 'FeatureCollection',
+            features
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching parcels:', err);
+    }
+  };
+  
+  // Utility function to mark a parcel as selected
+  const markParcelAsSelected = (mapInstance: mapboxgl.Map, parcelId: number) => {
+    if (!mapInstance || !mapInstance.getSource('parcels')) return;
+    
+    // Get current data
+    const source = mapInstance.getSource('parcels') as mapboxgl.GeoJSONSource;
+    const data = (source as any)._data as { features: any[] };
+    
+    if (!data || !data.features) return;
+    
+    // Update selection state in properties
+    const updatedFeatures = data.features.map(feature => ({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        isSelected: feature.properties.parcelId === parcelId
+      }
+    }));
+    
+    // Update the source data
+    source.setData({
+      type: 'FeatureCollection',
+      features: updatedFeatures
+    });
+  };
 
   // Initialize map
   useEffect(() => {
@@ -121,6 +185,116 @@ export function CollaborativeMap({
         newMap.addControl(draw, 'top-right');
         drawRef.current = draw;
 
+        // Add a source for parcel data
+        newMap.addSource('parcels', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        });
+
+        // Add a layer for parcel outlines
+        newMap.addLayer({
+          id: 'parcel-boundaries',
+          type: 'line',
+          source: 'parcels',
+          layout: {},
+          paint: {
+            'line-color': '#3388ff',
+            'line-width': 2,
+          },
+        });
+
+        // Add a layer for parcel fills
+        newMap.addLayer({
+          id: 'parcel-fills',
+          type: 'fill',
+          source: 'parcels',
+          layout: {},
+          paint: {
+            'fill-color': '#3388ff',
+            'fill-opacity': 0.1,
+            'fill-outline-color': '#3388ff',
+          },
+        });
+
+        // Add a highlighted layer for selected parcels
+        newMap.addLayer({
+          id: 'selected-parcels',
+          type: 'fill',
+          source: 'parcels',
+          layout: {},
+          paint: {
+            'fill-color': '#ff9900',
+            'fill-opacity': 0.4,
+          },
+          filter: ['==', 'isSelected', true],
+        });
+
+        // Fetch parcel data when the map loads
+        fetchParcels(newMap);
+
+        // Add click handler for parcels
+        newMap.on('click', 'parcel-fills', (e) => {
+          if (e.features && e.features.length > 0) {
+            const feature = e.features[0];
+            const parcelId = feature.properties?.parcelId || feature.properties?.id;
+            
+            if (parcelId && onParcelClick) {
+              // Mark this parcel as selected
+              markParcelAsSelected(newMap, parseInt(parcelId));
+              
+              // Notify parent about the selection
+              onParcelClick(parseInt(parcelId));
+              
+              // Broadcast selection to all collaborators
+              const allFeatures = drawRef.current?.getAll();
+              if (allFeatures) {
+                const collaborativeFeatures = [...features]; // Start with existing features
+                
+                // Add selection feature
+                collaborativeFeatures.push({
+                  id: `selected-parcel-${parcelId}`,
+                  geometry: feature.geometry,
+                  properties: {
+                    ...feature.properties,
+                    isSelected: true,
+                    parcelId: parcelId,
+                  },
+                  type: 'Feature',
+                  userId: userId,
+                  timestamp: new Date().toISOString()
+                });
+                
+                // Update the feature collection and notify parent
+                setFeatures(collaborativeFeatures);
+                if (onFeaturesUpdate) {
+                  onFeaturesUpdate(collaborativeFeatures);
+                }
+                
+                // Send to collaborators
+                sendMessage(JSON.stringify({
+                  type: 'features',
+                  roomId: roomId,
+                  features: collaborativeFeatures,
+                  userId: userId
+                }));
+              }
+            }
+          }
+        });
+
+        // Change the cursor to a pointer when hovering over parcels
+        newMap.on('mouseenter', 'parcel-fills', () => {
+          newMap.getCanvas().style.cursor = 'pointer';
+        });
+        
+        // Change back to default cursor when leaving parcels
+        newMap.on('mouseleave', 'parcel-fills', () => {
+          newMap.getCanvas().style.cursor = '';
+        });
+
         // Listen for drawing events
         newMap.on('draw.create', (e) => handleDrawEvent('create', e));
         newMap.on('draw.update', (e) => handleDrawEvent('update', e));
@@ -160,7 +334,7 @@ export function CollaborativeMap({
     } catch (err) {
       console.error('Error initializing map:', err);
     }
-  }, [token, isLoading, error, mapInitialized]);
+  }, [token, isLoading, error, mapInitialized, fetchParcels, markParcelAsSelected, onParcelClick, userId, features, roomId, sendMessage, onFeaturesUpdate]);
 
   // Handle draw events
   const handleDrawEvent = useCallback((type: string, event: any) => {

@@ -187,6 +187,20 @@ export function DocumentParcelLinker({
     }
   });
 
+  // Update selected parcel ID when prop changes
+  useEffect(() => {
+    if (parcelId !== undefined) {
+      setSelectedParcelId(parcelId);
+    }
+  }, [parcelId]);
+  
+  // Update selected document ID when prop changes
+  useEffect(() => {
+    if (documentId !== undefined) {
+      setSelectedDocumentId(documentId);
+    }
+  }, [documentId]);
+
   // Listen for WebSocket messages related to document-parcel links
   useEffect(() => {
     if (messages.length > 0) {
