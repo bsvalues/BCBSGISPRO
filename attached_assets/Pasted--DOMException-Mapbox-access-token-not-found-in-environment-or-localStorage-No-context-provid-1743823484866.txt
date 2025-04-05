@@ -1,0 +1,35 @@
+
+DOMException {}
+
+Mapbox access token not found in environment or localStorage
+No context provided: useLeafletContext() can only be used in a descendant of 
+No context provided: useLeafletContext() can only be used in a descendant of 
+The above error occurred in the <ParcelOverlay> component:
+
+    at ParcelOverlay (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/maps/parcel-overlay.tsx:24:3)
+    at div
+    at https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/maps/enhanced-map-viewer.tsx:23:7
+    at div
+    at _c9 (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/ui/card.tsx:114:12)
+    at div
+    at _c (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at div
+    at main
+    at div
+    at div
+    at MapViewerPage (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/pages/map-viewer-page.tsx:48:51)
+    at Route (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b2fe3d52:323:16)
+    at Switch (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b2fe3d52:379:17)
+    at ErrorBoundary (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/components/ui/error-boundary.tsx:9:5)
+    at main
+    at div
+    at App (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/src/App.tsx?v=NAaWjDFYxOxqWKMU9KjyU:60:22)
+    at _a (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-helmet-async.js?v=b2fe3d52:624:5)
+    at QueryClientProvider (https://9dda3ef5-f82a-49f9-afd2-00a48052b9f3-00-2tg4bc0132x1d.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=b2fe3d52:2805:3)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+ErrorBoundary caught an error: 
+Error {}
+ 
+Object {componentStack: "↵    at ParcelOverlay…"}

@@ -320,8 +320,7 @@ export function CollaborativeMapContainer({
           onArcGISMapCreated={handleArcGISMapCreated}
         >
           {map && mapProvider === 'mapbox' && (
-            <CollaborativeMap 
-              map={map} 
+            <CollaborativeMap
               roomId={roomId} 
               onConnectionStatusChange={handleConnectionStatusChange}
               onCollaboratorsChange={handleCollaboratorsChange}

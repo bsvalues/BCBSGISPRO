@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Users, Layers, Edit3, Ruler, Hand, PenTool, MousePointer } from 'lucide-react';
-import { ConnectionStatusEnum, MessageTypeEnum } from '@/lib/websocket';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
+import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import useMapboxToken from '@/hooks/use-mapbox-token';
+import { useWebSocket } from '@/hooks/use-websocket';
+import { ConnectionStatusEnum } from '@/lib/websocket';
+import { v4 as uuidv4 } from 'uuid';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
-// Types for collaborative features
+// Define CollaborativeFeature interface
 export interface CollaborativeFeature {
   id: string;
   geometry: any;
@@ -16,9 +18,8 @@ export interface CollaborativeFeature {
   timestamp?: string;
 }
 
-// Enhanced CollaborativeMap props that accepts a map instance
-interface CollaborativeMapProps {
-  map: mapboxgl.Map;
+// Collaborative Map Props
+export interface CollaborativeMapProps {
   roomId: string;
   onConnectionStatusChange?: (status: ConnectionStatusEnum) => void;
   onCollaboratorsChange?: (users: string[]) => void;
@@ -27,299 +28,393 @@ interface CollaborativeMapProps {
   onUserActivity?: (userId: string, activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => void;
 }
 
+/**
+ * Collaborative Map Component
+ * 
+ * This component adds real-time collaboration features to Mapbox maps
+ */
 export function CollaborativeMap({
-  map,
   roomId,
   onConnectionStatusChange,
   onCollaboratorsChange,
   onFeaturesUpdate,
   onAnnotationsUpdate,
-  onUserActivity
+  onUserActivity,
 }: CollaborativeMapProps) {
-  const [activeMode, setActiveMode] = useState<string>('view');
-  const [showingUsers, setShowingUsers] = useState<boolean>(false);
-  const [collaborators, setCollaborators] = useState<string[]>([]);
+  // Get token using the custom hook
+  const { token, isLoading, error } = useMapboxToken();
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const drawRef = useRef<MapboxDraw | null>(null);
+  const [map, setMap] = useState<mapboxgl.Map | null>(null);
+  const [mapInitialized, setMapInitialized] = useState(false);
+  const [userId] = useState<string>(uuidv4());
   const [features, setFeatures] = useState<CollaborativeFeature[]>([]);
   const [annotations, setAnnotations] = useState<any[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatusEnum>(ConnectionStatusEnum.DISCONNECTED);
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const drawingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Set up WebSocket connection for collaboration
-  useEffect(() => {
-    // Set up WebSocket connection
-    console.log(`Setting up WebSocket connection for room: ${roomId}`);
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
-    
-    // Update connection status
-    setConnectionStatus(ConnectionStatusEnum.CONNECTING);
-    if (onConnectionStatusChange) {
-      onConnectionStatusChange(ConnectionStatusEnum.CONNECTING);
+  // Initialize WebSocket connection
+  const { 
+    sendMessage, 
+    lastMessage, 
+    status 
+  } = useWebSocket({
+    path: `/ws/collaborative-map/${roomId}`,
+    autoConnect: true,
+    autoReconnect: true,
+    maxReconnectAttempts: 10,
+    reconnectDelay: 2000
+  });
+  
+  // Map status to ConnectionStatusEnum
+  const connectionStatus = (() => {
+    switch (status) {
+      case 'connected': return ConnectionStatusEnum.CONNECTED;
+      case 'connecting': return ConnectionStatusEnum.CONNECTING;
+      case 'reconnecting': return ConnectionStatusEnum.RECONNECTING;
+      case 'disconnected': 
+      default: 
+        return ConnectionStatusEnum.DISCONNECTED;
     }
+  })();
+
+  // Initialize map
+  useEffect(() => {
+    if (!token || isLoading || error || !mapContainerRef.current || mapInitialized) {
+      return;
+    }
+
+    try {
+      console.log('Initializing map with token');
+      mapboxgl.accessToken = token;
+
+      // Create a new map instance
+      const newMap = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [-123.3617, 44.5646], // Benton County, Oregon
+        zoom: 10,
+      });
+
+      // Save the map instance and set initialized flag
+      mapRef.current = newMap;
+      setMap(newMap);
+
+      // Setup event listeners on map load
+      newMap.on('load', () => {
+        console.log('Map loaded successfully');
+
+        // Initialize the draw control
+        const draw = new MapboxDraw({
+          displayControlsDefault: false,
+          controls: {
+            point: true,
+            line_string: true,
+            polygon: true,
+            trash: true,
+          },
+        });
+
+        // Add draw controls to the map
+        newMap.addControl(draw, 'top-right');
+        drawRef.current = draw;
+
+        // Listen for drawing events
+        newMap.on('draw.create', (e) => handleDrawEvent('create', e));
+        newMap.on('draw.update', (e) => handleDrawEvent('update', e));
+        newMap.on('draw.delete', (e) => handleDrawEvent('delete', e));
+        newMap.on('draw.selectionchange', (e) => handleDrawEvent('selection', e));
+        newMap.on('mousemove', () => {
+          // Track user movement for activity indicators
+          if (drawingTimeoutRef.current) {
+            clearTimeout(drawingTimeoutRef.current);
+          }
+          
+          sendActivityUpdate('viewing');
+          
+          // Set a timeout to revert to idle after no movement
+          drawingTimeoutRef.current = setTimeout(() => {
+            sendActivityUpdate('idle');
+          }, 5000); // 5 seconds with no movement = idle
+        });
+        
+        setMapInitialized(true);
+      });
+
+      // Clean up on unmount
+      return () => {
+        if (drawingTimeoutRef.current) {
+          clearTimeout(drawingTimeoutRef.current);
+        }
+        
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+        }
+        
+        if (mapRef.current) {
+          mapRef.current.remove();
+        }
+      };
+    } catch (err) {
+      console.error('Error initializing map:', err);
+    }
+  }, [token, isLoading, error, mapInitialized]);
+
+  // Handle draw events
+  const handleDrawEvent = useCallback((type: string, event: any) => {
+    if (!drawRef.current || !mapRef.current) return;
     
-    // Connection opened
-    ws.addEventListener('open', (event) => {
-      console.log('WebSocket connection established');
-      setConnectionStatus(ConnectionStatusEnum.CONNECTED);
-      if (onConnectionStatusChange) {
-        onConnectionStatusChange(ConnectionStatusEnum.CONNECTED);
+    console.log(`Draw event: ${type}`, event);
+    
+    // Only send updates for create and update events
+    if (type === 'create' || type === 'update') {
+      // Get all features from the draw control
+      const allFeatures = drawRef.current.getAll();
+      
+      // Convert to our internal format
+      const collaborativeFeatures = allFeatures.features.map(feature => ({
+        id: feature.id as string,
+        geometry: feature.geometry,
+        properties: feature.properties || {},
+        type: 'Feature',
+        userId: userId,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Update local state
+      setFeatures(collaborativeFeatures);
+      
+      // Send update to other collaborators
+      sendMessage(JSON.stringify({
+        type: 'features',
+        features: collaborativeFeatures
+      }));
+      
+      // Notify parent about the update
+      if (onFeaturesUpdate) {
+        onFeaturesUpdate(collaborativeFeatures);
       }
       
-      // Join the specified room
-      const joinMessage = {
-        type: MessageTypeEnum.JOIN_ROOM,
-        roomId: roomId,
-        userId: `user-${Math.floor(Math.random() * 10000)}`,
-        username: `User ${Math.floor(Math.random() * 100)}`
-      };
-      ws.send(JSON.stringify(joinMessage));
-    });
-    
-    // Connection closed
-    ws.addEventListener('close', (event) => {
-      console.log('WebSocket connection closed');
-      setConnectionStatus(ConnectionStatusEnum.DISCONNECTED);
-      if (onConnectionStatusChange) {
-        onConnectionStatusChange(ConnectionStatusEnum.DISCONNECTED);
+      // Update user activity
+      sendActivityUpdate('drawing', { featureCount: collaborativeFeatures.length });
+    } else if (type === 'delete') {
+      // Handle delete operation
+      const allFeatures = drawRef.current.getAll();
+      
+      // Convert to our internal format
+      const collaborativeFeatures = allFeatures.features.map(feature => ({
+        id: feature.id as string,
+        geometry: feature.geometry,
+        properties: feature.properties || {},
+        type: 'Feature',
+        userId: userId,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Update local state
+      setFeatures(collaborativeFeatures);
+      
+      // Send update to other collaborators
+      sendMessage(JSON.stringify({
+        type: 'features',
+        features: collaborativeFeatures
+      }));
+      
+      // Notify parent about the update
+      if (onFeaturesUpdate) {
+        onFeaturesUpdate(collaborativeFeatures);
       }
-    });
+    }
+  }, [userId, sendMessage, onFeaturesUpdate]);
+
+  // Send activity update
+  const sendActivityUpdate = useCallback((activityType: "drawing" | "editing" | "viewing" | "idle", data?: any) => {
+    // Send activity update to server for other users
+    sendMessage(JSON.stringify({
+      type: 'activity',
+      activityType,
+      userId,
+      data
+    }));
     
-    // Connection error
-    ws.addEventListener('error', (event) => {
-      console.error('WebSocket error:', event);
-      setConnectionStatus(ConnectionStatusEnum.DISCONNECTED);
-      if (onConnectionStatusChange) {
-        onConnectionStatusChange(ConnectionStatusEnum.DISCONNECTED);
-      }
-    });
+    // Notify parent component
+    if (onUserActivity) {
+      onUserActivity(userId, activityType, data);
+    }
+  }, [userId, sendMessage, onUserActivity]);
+
+  // Handle connection status changes
+  useEffect(() => {
+    if (onConnectionStatusChange) {
+      onConnectionStatusChange(connectionStatus);
+    }
     
-    // Listen for messages
-    ws.addEventListener('message', (event) => {
+    // Initialize heartbeat when connected
+    if (connectionStatus === ConnectionStatusEnum.CONNECTED) {
+      // Set up heartbeat interval
+      heartbeatIntervalRef.current = setInterval(() => {
+        sendMessage(JSON.stringify({ type: 'heartbeat', userId }));
+      }, 30000); // 30 second heartbeat
+      
+      // Initial state sync request
+      sendMessage(JSON.stringify({ type: 'sync_request' }));
+    } else if (heartbeatIntervalRef.current) {
+      // Clear heartbeat interval when disconnected
+      clearInterval(heartbeatIntervalRef.current);
+    }
+  }, [connectionStatus, sendMessage, userId, onConnectionStatusChange]);
+
+  // Process incoming WebSocket messages
+  useEffect(() => {
+    if (lastMessage) {
       try {
-        const message = JSON.parse(event.data);
-        console.log('Received message:', message);
+        const data = JSON.parse(lastMessage.data);
+        console.log('Received message:', data);
         
-        switch (message.type) {
-          // Handle room users update
-          case 'room_users':
-            if (message.payload && Array.isArray(message.payload.users)) {
-              const users = message.payload.users;
-              setCollaborators(users);
-              if (onCollaboratorsChange) {
-                onCollaboratorsChange(users);
+        switch(data.type) {
+          case 'features':
+            // Update features from other collaborators
+            if (data.features && Array.isArray(data.features)) {
+              setFeatures(data.features);
+              
+              // Update draw control if the features weren't created by this user
+              if (drawRef.current && mapRef.current && data.userId !== userId) {
+                // Clear existing features first
+                const currentFeatures = drawRef.current.getAll();
+                currentFeatures.features.forEach(feature => {
+                  drawRef.current?.delete(feature.id as string);
+                });
+                
+                // Add new features
+                data.features.forEach((feature: CollaborativeFeature) => {
+                  if (feature.geometry) {
+                    drawRef.current?.add({
+                      id: feature.id,
+                      type: 'Feature' as 'Feature',
+                      geometry: feature.geometry,
+                      properties: feature.properties || {}
+                    });
+                  }
+                });
               }
-            }
-            break;
-            
-          // Handle feature updates
-          case MessageTypeEnum.FEATURE_CREATED:
-          case MessageTypeEnum.FEATURE_UPDATED:
-          case MessageTypeEnum.FEATURE_DELETED:
-            if (message.payload && message.payload.features) {
-              setFeatures(message.payload.features);
+              
+              // Notify parent component
               if (onFeaturesUpdate) {
-                onFeaturesUpdate(message.payload.features);
+                onFeaturesUpdate(data.features);
               }
             }
             break;
             
-          // Handle annotation updates
-          case MessageTypeEnum.ANNOTATION_CREATED:
-          case MessageTypeEnum.ANNOTATION_UPDATED:
-          case MessageTypeEnum.ANNOTATION_DELETED:
-            if (message.payload && message.payload.annotations) {
-              setAnnotations(message.payload.annotations);
+          case 'annotations':
+            // Handle annotations from collaborators
+            if (data.annotations && Array.isArray(data.annotations)) {
+              setAnnotations(data.annotations);
+              
+              // Notify parent component
               if (onAnnotationsUpdate) {
-                onAnnotationsUpdate(message.payload.annotations);
+                onAnnotationsUpdate(data.annotations);
               }
             }
             break;
             
-          // Handle user activity
-          case MessageTypeEnum.USER_ACTIVITY:
-            if (message.userId && message.payload && message.payload.activityType) {
-              if (onUserActivity) {
-                onUserActivity(
-                  message.userId,
-                  message.payload.activityType,
-                  message.payload.data
-                );
+          case 'users':
+            // Update collaborator list
+            if (data.users && Array.isArray(data.users)) {
+              const filteredUsers = data.users.filter((id: string) => id !== userId);
+              setCollaborators(filteredUsers);
+              
+              if (onCollaboratorsChange) {
+                onCollaboratorsChange(filteredUsers);
               }
             }
             break;
             
-          default:
+          case 'activity':
+            // Process activity updates from other users
+            if (data.userId && data.userId !== userId && data.activityType && onUserActivity) {
+              onUserActivity(data.userId, data.activityType, data.data);
+            }
+            break;
+            
+          case 'sync_response':
+            // Handle sync response with current state
+            if (data.features && Array.isArray(data.features)) {
+              setFeatures(data.features);
+              
+              // Update draw control
+              if (drawRef.current && mapRef.current) {
+                // Clear existing features first
+                const currentFeatures = drawRef.current.getAll();
+                currentFeatures.features.forEach(feature => {
+                  drawRef.current?.delete(feature.id as string);
+                });
+                
+                // Add synced features
+                data.features.forEach((feature: CollaborativeFeature) => {
+                  if (feature.geometry) {
+                    drawRef.current?.add({
+                      id: feature.id,
+                      type: 'Feature' as 'Feature',
+                      geometry: feature.geometry,
+                      properties: feature.properties || {}
+                    });
+                  }
+                });
+              }
+              
+              // Notify parent component
+              if (onFeaturesUpdate) {
+                onFeaturesUpdate(data.features);
+              }
+            }
+            
+            if (data.annotations && Array.isArray(data.annotations)) {
+              setAnnotations(data.annotations);
+              
+              // Notify parent component
+              if (onAnnotationsUpdate) {
+                onAnnotationsUpdate(data.annotations);
+              }
+            }
             break;
         }
       } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
-      }
-    });
-    
-    // Clean up on unmount
-    return () => {
-      console.log('Cleaning up WebSocket connection');
-      
-      // Send leave room message before closing
-      if (ws.readyState === WebSocket.OPEN) {
-        const leaveMessage = {
-          type: MessageTypeEnum.LEAVE_ROOM,
-          roomId: roomId
-        };
-        ws.send(JSON.stringify(leaveMessage));
-        ws.close();
-      }
-    };
-  }, [roomId, onConnectionStatusChange, onCollaboratorsChange, onFeaturesUpdate, onAnnotationsUpdate, onUserActivity]);
-  
-  // Change active mode
-  const handleModeChange = (mode: string) => {
-    setActiveMode(mode);
-    
-    // Change cursor based on mode
-    if (map) {
-      switch (mode) {
-        case 'measure':
-          map.getCanvas().style.cursor = 'crosshair';
-          break;
-        case 'draw':
-          map.getCanvas().style.cursor = 'crosshair';
-          break;
-        case 'annotate':
-          map.getCanvas().style.cursor = 'text';
-          break;
-        case 'select':
-          map.getCanvas().style.cursor = 'pointer';
-          break;
-        case 'pan':
-        default:
-          map.getCanvas().style.cursor = 'grab';
-          break;
+        console.error('Error processing message:', err);
       }
     }
-    
-    // Notify about activity change
-    if (onUserActivity) {
-      onUserActivity('local-user', mode as any);
-    }
-  };
-  
-  // Toggle user list visibility
-  const toggleUsers = () => {
-    setShowingUsers(!showingUsers);
-  };
-  
+  }, [lastMessage, userId, onFeaturesUpdate, onAnnotationsUpdate, onCollaboratorsChange, onUserActivity]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-sm text-gray-500">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center max-w-md p-4">
+          <div className="text-red-500 text-4xl mb-2">⚠️</div>
+          <h3 className="font-semibold text-lg mb-2">Could not load map</h3>
+          <p className="text-sm text-gray-600 mb-4">{error}</p>
+          <p className="text-xs text-gray-500">
+            Please check your internet connection and try again. If the problem persists, ensure you have a valid Mapbox access token.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative w-full h-full">
-      {/* Map Controls */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-        <Card className="shadow-md">
-          <CardContent className="p-2">
-            <div className="flex flex-col gap-2">
-              <Button
-                variant={activeMode === 'view' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleModeChange('view')}
-                title="Pan & Zoom"
-              >
-                <Hand className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={activeMode === 'select' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleModeChange('select')}
-                title="Select Features"
-              >
-                <MousePointer className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={activeMode === 'draw' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleModeChange('draw')}
-                title="Draw Features"
-              >
-                <Edit3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={activeMode === 'measure' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleModeChange('measure')}
-                title="Measure Distance"
-              >
-                <Ruler className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={activeMode === 'annotate' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleModeChange('annotate')}
-                title="Add Annotation"
-              >
-                <PenTool className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Layer Controls */}
-      <div className="absolute top-4 right-4 z-10">
-        <Card className="shadow-md">
-          <CardContent className="p-2">
-            <Button
-              variant="outline"
-              size="sm"
-              title="Layer Controls"
-            >
-              <Layers className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Collaborator Controls */}
-      <div className="absolute bottom-4 left-4 z-10">
-        <Card className="shadow-md">
-          <CardContent className="p-2">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleUsers}
-                className="relative"
-                title="Collaborators"
-              >
-                <Users className="h-4 w-4" />
-                {collaborators.length > 0 && (
-                  <Badge 
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-[10px]"
-                    variant="default"
-                  >
-                    {collaborators.length}
-                  </Badge>
-                )}
-              </Button>
-              
-              {showingUsers && (
-                <div className="bg-background border rounded-md p-2 shadow-md ml-2">
-                  <h4 className="text-xs font-medium mb-1">Collaborators</h4>
-                  {collaborators.length > 0 ? (
-                    <ul className="space-y-1">
-                      {collaborators.map((user, index) => (
-                        <li key={index} className="flex items-center gap-1 text-xs">
-                          <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                          {user}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No other users</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <div ref={mapContainerRef} className="w-full h-full rounded-md overflow-hidden" />
   );
 }
+
+export default CollaborativeMap;

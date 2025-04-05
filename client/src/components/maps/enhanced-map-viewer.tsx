@@ -1,5 +1,12 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { MapTool, MeasurementType, MeasurementUnit, MapLayer } from '@/lib/map-utils';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix Leaflet default icon issue
+import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css';
+import 'leaflet-defaulticon-compatibility';
 
 // Reference type for EnhancedMapViewer component
 export interface EnhancedMapViewerRef {
@@ -123,56 +130,33 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
       map: mapRef.current
     }));
     
-    // This is a placeholder for the real map implementation
-    // In a real application, this would use a library like Leaflet or Mapbox
+    // Now using actual Leaflet MapContainer
     return (
       <div
         ref={mapRef}
         style={{
           width: typeof width === 'number' ? `${width}px` : width,
           height: typeof height === 'number' ? `${height}px` : height,
-          background: '#f0f0f0',
           position: 'relative',
           overflow: 'hidden'
         }}
       >
-        {/* Placeholder Map Content */}
-        <div 
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            background: 'linear-gradient(135deg, #e9ecef 25%, #dee2e6 25%, #dee2e6 50%, #e9ecef 50%, #e9ecef 75%, #dee2e6 75%, #dee2e6 100%)',
-            backgroundSize: '40px 40px'
-          }}
+        {/* Actual Leaflet Map with MapContainer */}
+        <MapContainer 
+          center={[center[0], center[1]]} 
+          zoom={zoom} 
+          style={{ height: '100%', width: '100%' }}
+          ref={mapRef}
         >
-          <div 
-            style={{
-              background: 'rgba(255, 255, 255, 0.8)',
-              padding: '16px 24px',
-              borderRadius: '8px',
-              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-              textAlign: 'center'
-            }}
-          >
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Benton County Map</h3>
-            <p style={{ margin: '0', fontSize: '14px' }}>
-              Center: {center[0].toFixed(4)}, {center[1].toFixed(4)} | Zoom: {zoom}
-            </p>
-            <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
-              Active Tool: {activeTool} | Layers: {mapLayers.length}
-            </p>
-            <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
-              Features: {initialFeatures.length}
-            </p>
-          </div>
-        </div>
+          {/* Base tile layer */}
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          
+          {/* Child components (including ParcelOverlay) can now use Leaflet context */}
+          {children}
+        </MapContainer>
         
         {/* Debug Info */}
         <div 
@@ -180,6 +164,7 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
             position: 'absolute',
             bottom: 10,
             left: 10,
+            zIndex: 1000,
             background: 'rgba(0, 0, 0, 0.6)',
             color: 'white',
             padding: '4px 8px',
@@ -192,9 +177,6 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
             <div>Measuring: {measurementType} in {measurementUnit}</div>
           )}
         </div>
-        
-        {/* Children components (controls, etc.) */}
-        {children}
       </div>
     );
   }
