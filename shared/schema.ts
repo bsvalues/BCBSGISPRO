@@ -506,3 +506,47 @@ export type InsertReportSchedule = z.infer<typeof insertReportScheduleSchema>;
 
 export type ReportExport = typeof reportExports.$inferSelect;
 export type InsertReportExport = z.infer<typeof insertReportExportSchema>;
+
+// Search History
+export const searchHistory = pgTable("search_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  query: text("query").notNull(),
+  type: text("type").notNull(), // "parcel", "document", "address", etc.
+  results: integer("results").default(0), // Number of results returned
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at").defaultNow().notNull(), // For tracking frequent searches
+  frequency: integer("frequency").default(1), // How many times this search was performed
+});
+
+export const insertSearchHistorySchema = createInsertSchema(searchHistory).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+  frequency: true,
+});
+
+export type SearchHistory = typeof searchHistory.$inferSelect;
+export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
+
+// Search Suggestions (for autocomplete)
+export const searchSuggestions = pgTable("search_suggestions", {
+  id: serial("id").primaryKey(),
+  term: text("term").notNull().unique(), // The suggestion term
+  type: text("type").notNull(), // "parcel", "address", "owner", "document", etc.
+  priority: integer("priority").default(0), // Higher priority suggestions appear first
+  metadata: jsonb("metadata"), // Additional context about the suggestion
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  frequency: integer("frequency").default(0), // How often this term is searched
+});
+
+export const insertSearchSuggestionSchema = createInsertSchema(searchSuggestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  frequency: true,
+});
+
+export type SearchSuggestion = typeof searchSuggestions.$inferSelect;
+export type InsertSearchSuggestion = z.infer<typeof insertSearchSuggestionSchema>;

@@ -9,6 +9,8 @@ import {
   parcels, type Parcel, type InsertParcel,
   mapLayers, type MapLayer,
   sm00Reports, type SM00Report,
+  searchHistory, type SearchHistory, type InsertSearchHistory,
+  searchSuggestions, type SearchSuggestion, type InsertSearchSuggestion,
   type InsertDocumentVersion, type InsertDocumentParcelLink
 } from "@shared/schema";
 import { DocumentType } from "@shared/document-types";
@@ -123,6 +125,12 @@ export interface IStorage {
   
   // Assistant operations
   queryAssistant(query: string): Promise<string>;
+  
+  // Search operations
+  getSearchHistory(userId?: number, limit?: number): Promise<SearchHistory[]>;
+  saveSearchQuery(query: string, type: string, userId?: number, results?: number): Promise<SearchHistory>;
+  getSearchSuggestions(prefix: string, type?: string, limit?: number): Promise<SearchSuggestion[]>;
+  addSearchSuggestion(term: string, type: string, priority?: number, metadata?: any): Promise<SearchSuggestion>;
 }
 
 export class MemStorage implements IStorage {
@@ -135,6 +143,8 @@ export class MemStorage implements IStorage {
   private parcels: Map<number, Parcel>;
   private mapLayers: Map<number, MapLayer>;
   private sm00Reports: Map<number, SM00Report>;
+  private searchHistory: Map<number, SearchHistory>;
+  private searchSuggestions: Map<number, SearchSuggestion>;
   
   sessionStore: ReturnType<typeof createMemoryStore>;
   
@@ -147,6 +157,8 @@ export class MemStorage implements IStorage {
   parcelId: number;
   layerId: number;
   reportId: number;
+  searchHistoryId: number;
+  searchSuggestionId: number;
 
   constructor() {
     this.users = new Map();
@@ -158,6 +170,8 @@ export class MemStorage implements IStorage {
     this.parcels = new Map();
     this.mapLayers = new Map();
     this.sm00Reports = new Map();
+    this.searchHistory = new Map();
+    this.searchSuggestions = new Map();
     
     this.userId = 1;
     this.workflowId = 1;
@@ -168,6 +182,8 @@ export class MemStorage implements IStorage {
     this.parcelId = 1;
     this.layerId = 1;
     this.reportId = 1;
+    this.searchHistoryId = 1;
+    this.searchSuggestionId = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
