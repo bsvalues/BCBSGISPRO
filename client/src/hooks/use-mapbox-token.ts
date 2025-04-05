@@ -35,8 +35,9 @@ export function useMapboxToken() {
       try {
         console.log(`Attempting to fetch Mapbox token (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
         
-        // Direct API fetch instead of using the utility function
-        const response = await fetch('/api/mapbox-token', {
+        // Use proper API base URL depending on environment
+        const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+        const response = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
           method: 'GET',
           credentials: 'include',
           headers: {

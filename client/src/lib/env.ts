@@ -35,22 +35,11 @@ export function setGlobalMapboxToken(token: string): void {
 export async function getMapboxTokenAsync(): Promise<string> {
   // Return cached token if available
   if (cachedMapboxToken) {
+    console.log('Using cached Mapbox token');
     return cachedMapboxToken;
   }
   
-  // First try to get from environment variable
-  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-  
-  if (token) {
-    cachedMapboxToken = token as string;
-    setGlobalMapboxToken(cachedMapboxToken);
-    return cachedMapboxToken;
-  }
-  
-  // If not in environment, try to fetch from API
-  console.log('VITE_MAPBOX_ACCESS_TOKEN not available, trying API endpoint');
-  
-  // Check if token is in localStorage
+  // Try to get from localStorage first (for fast loading)
   try {
     const localToken = localStorage.getItem('mapbox_token');
     if (localToken) {
@@ -62,9 +51,21 @@ export async function getMapboxTokenAsync(): Promise<string> {
     console.warn('Error accessing localStorage:', err);
   }
   
+  // Then try environment variable
+  const envToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  if (envToken) {
+    console.log('Using Mapbox token from environment variables');
+    cachedMapboxToken = envToken as string;
+    setGlobalMapboxToken(cachedMapboxToken);
+    return cachedMapboxToken;
+  }
+  
+  // If both failed, fetch from API as most reliable source
+  console.log('Fetching Mapbox token from API endpoint');
   try {
-    console.log('Fetching Mapbox token from API endpoint');
-    const response = await fetch('/api/mapbox-token', {
+    // Use proper API base URL depending on environment
+    const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+    const response = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -98,17 +99,11 @@ export async function getMapboxTokenAsync(): Promise<string> {
 export function getMapboxToken(): string {
   // Return cached token if available
   if (cachedMapboxToken) {
+    console.log('Using cached Mapbox token (sync)');
     return cachedMapboxToken;
   }
   
-  // Try to get token from environment
-  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-  if (token) {
-    setGlobalMapboxToken(token as string);
-    return token as string;
-  }
-  
-  // Try to get from localStorage as fallback
+  // Try to get from localStorage first (for fast loading)
   try {
     const localToken = localStorage.getItem('mapbox_token');
     if (localToken) {
@@ -120,12 +115,21 @@ export function getMapboxToken(): string {
     console.warn('Error accessing localStorage (sync):', err);
   }
   
-  // Log absence of token and set global mapboxgl.accessToken to empty to prevent errors
-  console.warn('Mapbox access token not found in environment or localStorage');
-  // We'll manually set this to prevent mapbox-gl initialization errors
+  // Then try environment variable
+  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  if (token) {
+    console.log('Using Mapbox token from environment variables (sync)');
+    setGlobalMapboxToken(token as string);
+    return token as string;
+  }
+  
+  // Log that we need to fetch from API, but that requires async
+  // This is expected in many cases, so we'll change the log level to info
+  console.info('Mapbox token not found in cached sources, will need to fetch from API');
+  
+  // We'll set empty token for now, but components should handle fetching via API
   mapboxgl.accessToken = '';
   
-  // Return empty string, the component should handle token fetching via API
   return '';
 }
 
@@ -147,13 +151,22 @@ export function isProduction(): boolean {
  * Get the base URL for API requests
  */
 export function getApiBaseUrl(): string {
-  return '/api';
+  // In development, use the specific port
+  // In production, use relative path
+  return import.meta.env.DEV ? 'http://localhost:5000/api' : '/api';
 }
 
 /**
  * Get the base URL for WebSocket connections
  */
 export function getWebSocketUrl(): string {
+  // In development environment, use specific port
+  if (import.meta.env.DEV) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//localhost:5000/ws`;
+  }
+  
+  // In production, use relative WebSocket path
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws`;
 }

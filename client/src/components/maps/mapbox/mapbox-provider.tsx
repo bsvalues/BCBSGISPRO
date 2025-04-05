@@ -97,23 +97,35 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   
   // Handle direct token fetching
   const fetchTokenDirectly = useCallback(async () => {
-    if (!fetchingDirectly && !directToken && (!token || error)) {
-      console.log('Attempting to fetch Mapbox token directly');
+    if (!fetchingDirectly && !directToken) {
+      console.log('Attempting to fetch Mapbox token directly from API');
       setFetchingDirectly(true);
       
       try {
-        const response = await fetch('/api/mapbox-token');
+        // Use full URL with correct port for API endpoint
+        const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+        const response = await fetch(`${apiBaseUrl}/api/mapbox-token`);
         if (!response.ok) {
           throw new Error(`Failed to fetch Mapbox token: ${response.statusText}`);
         }
         
         const data = await response.json();
         if (data && typeof data.token === 'string') {
-          console.log('Successfully retrieved Mapbox token directly:', data.token.substring(0, 10) + '...');
+          console.log('Successfully retrieved Mapbox token from API:', data.token.substring(0, 10) + '...');
           setDirectToken(data.token);
           
           // Set the token for mapbox-gl globally to ensure it's available
           mapboxgl.accessToken = data.token;
+          
+          // Also store in localStorage for future use
+          try {
+            localStorage.setItem('mapbox_token', data.token);
+            console.log('Saved Mapbox token to localStorage for future use');
+          } catch (storageError) {
+            console.warn('Could not save token to localStorage:', storageError);
+          }
+        } else {
+          throw new Error('Invalid token response from API');
         }
       } catch (directError) {
         console.error('Failed to fetch token directly:', directError);
@@ -121,16 +133,22 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
         setFetchingDirectly(false);
       }
     }
-  }, [fetchingDirectly, token, directToken, error]);
+  }, [fetchingDirectly, directToken]);
   
-  // Always fetch token directly on component mount
+  // Always try to fetch token on component mount, regardless of other token sources
   useEffect(() => {
-    fetchTokenDirectly();
-  }, [fetchTokenDirectly])  // Include fetchTokenDirectly to avoid lint warnings
+    // Short timeout to allow other methods to work first
+    const timer = setTimeout(() => {
+      fetchTokenDirectly();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [fetchTokenDirectly]);
   
   // Also fetch token if the hook fails
   useEffect(() => {
     if (error) {
+      console.log('Token hook failed with error, trying direct approach:', error);
       fetchTokenDirectly();
     }
   }, [error, fetchTokenDirectly]);
