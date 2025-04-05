@@ -24,6 +24,10 @@ export default function WebSocketDemo() {
   const [roomName, setRoomName] = useState('Demo Collaboration Room');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
+  // Generate user ID for this demo
+  const demoUserId = useRef(`user-${uuidv4().substring(0, 5)}`);
+  const demoUsername = useRef(`User-${Math.floor(Math.random() * 1000)}`);
+  
   // Initialize WebSocket with enhanced features
   const {
     send,
@@ -31,27 +35,43 @@ export default function WebSocketDemo() {
     messages,
     joinRoom,
     leaveRoom,
-    clearMessages,
-    currentRoom,
-    connected,
+    roomId: currentRoom,
+    isConnected,
     disconnect,
-    reconnect,
-    userId,
-    username
+    connect
   } = useEnhancedWebSocket({
-    reconnectInterval: 3000,
-    reconnectAttempts: 5,
-    userId: `user-${uuidv4().substring(0, 5)}`,
-    username: `User-${Math.floor(Math.random() * 1000)}`
+    roomId: 'demo-room',
+    autoConnect: true
   });
+  
+  // Use local references for user ID and username
+  const userId = demoUserId.current;
+  const username = demoUsername.current;
+  
+  // Function to clear messages
+  const clearMessages = () => {
+    // No direct method to clear messages, so we'll just re-connect
+    if (isConnected) {
+      disconnect();
+      setTimeout(() => connect(), 300);
+    }
+  };
+  
+  // Function to reconnect
+  const reconnect = () => {
+    disconnect();
+    setTimeout(() => connect(), 300);
+  };
 
   // Send a chat message
   const sendMessage = () => {
     if (!message.trim()) return;
     
     send({
-      type: MessageTypeEnum.CHAT,
+      type: MessageTypeEnum.CHAT_MESSAGE,
       roomId: currentRoom || roomId,
+      userId: userId,
+      username: username,
       payload: {
         text: message
       }
@@ -63,13 +83,24 @@ export default function WebSocketDemo() {
   // Connect to a room
   const handleJoinRoom = () => {
     if (!roomId.trim()) return;
-    joinRoom(roomId, roomName);
+    const joined = joinRoom(roomId);
+    
+    // Send additional room metadata with room info if join was successful
+    if (joined) {
+      send({
+        type: MessageTypeEnum.JOIN_ROOM,
+        roomId: roomId,
+        roomName: roomName,
+        userId: userId,
+        username: username
+      });
+    }
   };
 
   // Disconnect from a room
   const handleLeaveRoom = () => {
     if (currentRoom) {
-      leaveRoom(currentRoom);
+      leaveRoom();
     }
   };
 
@@ -155,7 +186,7 @@ export default function WebSocketDemo() {
             
             <div className="flex-none flex items-end gap-2">
               {!currentRoom ? (
-                <Button onClick={handleJoinRoom} disabled={!connected || !roomId.trim()}>
+                <Button onClick={handleJoinRoom} disabled={!isConnected || !roomId.trim()}>
                   <LogIn className="h-4 w-4 mr-2" />
                   Join Room
                 </Button>
@@ -170,7 +201,7 @@ export default function WebSocketDemo() {
                 <Trash className="h-4 w-4" />
               </Button>
               
-              <Button variant="ghost" onClick={connected ? disconnect : reconnect} title={connected ? "Disconnect" : "Reconnect"}>
+              <Button variant="ghost" onClick={isConnected ? disconnect : reconnect} title={isConnected ? "Disconnect" : "Reconnect"}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
@@ -191,7 +222,7 @@ export default function WebSocketDemo() {
                     ? 'ml-auto bg-primary text-primary-foreground' 
                     : 'bg-muted'
                 } ${
-                  msg.type === MessageTypeEnum.SYSTEM 
+                  msg.type === 'system' 
                     ? 'w-full bg-accent/20 text-center italic text-sm' 
                     : ''
                 } ${
@@ -200,7 +231,7 @@ export default function WebSocketDemo() {
                     : ''
                 }`}
               >
-                {msg.type === MessageTypeEnum.CHAT && (
+                {msg.type === MessageTypeEnum.CHAT_MESSAGE && (
                   <>
                     <div className="flex justify-between items-start">
                       <span className="font-semibold text-xs">
@@ -216,13 +247,13 @@ export default function WebSocketDemo() {
                   </>
                 )}
                 
-                {msg.type === MessageTypeEnum.USER_PRESENCE && (
+                {msg.type === 'user_presence' && (
                   <div className="text-center text-sm">
                     <span className="font-semibold">{msg.username}</span> has {msg.payload?.action} the room
                   </div>
                 )}
                 
-                {msg.type === MessageTypeEnum.SYSTEM && (
+                {msg.type === 'system' && (
                   <div>{msg.payload?.message}</div>
                 )}
                 
@@ -237,7 +268,7 @@ export default function WebSocketDemo() {
             <div ref={messagesEndRef} />
           </div>
           
-          {connected && currentRoom && (
+          {isConnected && currentRoom && (
             <div className="flex gap-2">
               <Textarea
                 value={message}

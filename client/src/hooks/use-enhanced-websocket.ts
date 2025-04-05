@@ -119,9 +119,10 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
  * Create a WebSocket connection with the specified path
  */
 export function createWebSocket(path: string = '/ws'): WebSocket {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}${path}`;
+  // Use the environment-aware URL method
+  const wsUrl = getWebSocketUrl();
   
+  console.log(`Creating WebSocket connection to: ${wsUrl}`);
   return new WebSocket(wsUrl);
 }
 
@@ -168,12 +169,8 @@ export function useEnhancedWebSocket(options: UseWebSocketOptions = {}) {
         reconnectTimeoutRef.current = null;
       }
       
-      // Get WebSocket URL from env helper
-      const wsUrl = getWebSocketUrl();
-      console.log(`Connecting to WebSocket at ${wsUrl}`);
-      
-      // Create new WebSocket connection
-      const socket = new WebSocket(wsUrl);
+      // Create new WebSocket connection using our helper function
+      const socket = createWebSocket();
       socketRef.current = socket;
       
       // Set up event handlers
