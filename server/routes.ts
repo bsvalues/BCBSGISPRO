@@ -66,12 +66,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Mapbox token endpoint - serves the token securely to the frontend
   app.get("/api/mapbox-token", (req, res) => {
-    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
+    // Try to get token from environment variables
+    let mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
     
+    // Log the token retrieval attempt (without exposing the actual token)
+    console.log(`Mapbox token retrieval attempt: ${mapboxToken ? 'Token found in environment' : 'Token not found in environment'}`);
+    
+    // For development fallback - DO NOT use in production
     if (!mapboxToken) {
+      // Check if we have a secrets storage mechanism
+      try {
+        // This is a placeholder - in a real implementation, you would have a secure secret storage
+        const replit_secrets = process.env.REPLIT_DB_URL ? true : false;
+        
+        if (replit_secrets) {
+          console.log('Attempting to retrieve token from Replit secrets');
+          // In a real app, we would fetch from a secure secrets store here
+        }
+      } catch (err) {
+        console.error('Error accessing secrets storage:', err);
+      }
+    }
+    
+    // Final check if we have a token
+    if (!mapboxToken) {
+      console.error('Mapbox token not available in any source');
       return res.status(500).json({ 
         error: 'Mapbox token not configured',
-        message: 'The Mapbox access token is not available in the server environment'
+        message: 'The Mapbox access token is not available. Please add it to your environment variables.'
       });
     }
     

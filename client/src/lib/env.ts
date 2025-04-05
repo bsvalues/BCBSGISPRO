@@ -1,11 +1,33 @@
 /**
  * Environment variables and configuration
  */
+import mapboxgl from 'mapbox-gl';
 
 /**
  * Cache for the Mapbox token to avoid repeated API calls
  */
 let cachedMapboxToken: string = '';
+
+/**
+ * Set the global Mapbox token for all components
+ */
+export function setGlobalMapboxToken(token: string): void {
+  if (token && typeof token === 'string') {
+    console.log('Setting global Mapbox token');
+    // Set token in our cache
+    cachedMapboxToken = token;
+    
+    // Set the global token for mapbox-gl
+    mapboxgl.accessToken = token;
+    
+    // Store in localStorage for persistence across page refreshes
+    try {
+      localStorage.setItem('mapbox_token', token);
+    } catch (err) {
+      console.warn('Could not store Mapbox token in localStorage:', err);
+    }
+  }
+}
 
 /**
  * Get the Mapbox access token from environment or API
@@ -27,7 +49,20 @@ export async function getMapboxTokenAsync(): Promise<string> {
   // If not in environment, try to fetch from API
   console.log('VITE_MAPBOX_ACCESS_TOKEN not available, trying API endpoint');
   
+  // Check if token is in localStorage
   try {
+    const localToken = localStorage.getItem('mapbox_token');
+    if (localToken) {
+      console.log('Found Mapbox token in localStorage');
+      setGlobalMapboxToken(localToken);
+      return localToken;
+    }
+  } catch (err) {
+    console.warn('Error accessing localStorage:', err);
+  }
+  
+  try {
+    console.log('Fetching Mapbox token from API endpoint');
     const response = await fetch('/api/mapbox-token');
     if (!response.ok) {
       throw new Error(`Failed to fetch Mapbox token: ${response.statusText}`);
@@ -35,8 +70,9 @@ export async function getMapboxTokenAsync(): Promise<string> {
     
     const data = await response.json();
     if (data && typeof data.token === 'string') {
-      cachedMapboxToken = data.token as string;
-      return cachedMapboxToken;
+      console.log('Successfully retrieved Mapbox token from API');
+      setGlobalMapboxToken(data.token);
+      return data.token;
     } else {
       throw new Error('No token found in API response');
     }
@@ -56,15 +92,28 @@ export function getMapboxToken(): string {
     return cachedMapboxToken;
   }
   
+  // Try to get token from environment
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-  if (!token) {
-    console.warn('Mapbox access token not found in environment');
-    // Return empty string, the component should handle token fetching via API
-    return '';
+  if (token) {
+    setGlobalMapboxToken(token as string);
+    return token as string;
   }
   
-  cachedMapboxToken = token as string;
-  return cachedMapboxToken;
+  // Try to get from localStorage as fallback
+  try {
+    const localToken = localStorage.getItem('mapbox_token');
+    if (localToken) {
+      console.log('Found Mapbox token in localStorage (sync)');
+      setGlobalMapboxToken(localToken);
+      return localToken;
+    }
+  } catch (err) {
+    console.warn('Error accessing localStorage (sync):', err);
+  }
+  
+  console.warn('Mapbox access token not found in environment or localStorage');
+  // Return empty string, the component should handle token fetching via API
+  return '';
 }
 
 /**
