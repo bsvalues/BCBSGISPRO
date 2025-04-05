@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import MapboxProvider from './mapbox-provider';
 import { cn } from '@/lib/utils';
 import mapboxgl from 'mapbox-gl';
+import LeafletContextWrapper from '../leaflet/leaflet-context-wrapper';
+import { containsLeafletDependentComponents } from '@/lib/leaflet-helpers';
 
 export interface MapboxMapProps {
   id?: string;
@@ -23,6 +25,7 @@ export interface MapboxMapProps {
     description?: string;
     type?: string;
   }>;
+  forceLeafletContext?: boolean;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import useMapboxToken from '@/hooks/use-mapbox-token';
@@ -593,12 +593,19 @@ export function CollaborativeMap({
   }
 
   if (error) {
+    // Convert the error to a string for safe rendering
+    const errorMessage: ReactNode = error instanceof Error 
+      ? error.message 
+      : typeof error === 'object'
+        ? JSON.stringify(error)
+        : String(error);
+        
     return (
       <div className="flex items-center justify-center h-full bg-gray-50">
         <div className="text-center max-w-md p-4">
           <div className="text-red-500 text-4xl mb-2">⚠️</div>
           <h3 className="font-semibold text-lg mb-2">Could not load map</h3>
-          <p className="text-sm text-gray-600 mb-4">{error}</p>
+          <p className="text-sm text-gray-600 mb-4">{errorMessage}</p>
           <p className="text-xs text-gray-500">
             Please check your internet connection and try again. If the problem persists, ensure you have a valid Mapbox access token.
           </p>
