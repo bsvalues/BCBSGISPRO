@@ -7,6 +7,8 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
 import { ApiError, asyncHandler } from "./error-handler";
+import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
+import multer from "multer";
 import { 
   workflows, 
   WorkflowState, 
@@ -3352,6 +3354,333 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // This section has been removed to fix duplicate declarations
+  
+  // FTP service is already imported, we don't need to import it again
+
+  // Setup temporary file storage for uploads
+  const ftpUploadStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(__dirname, '../uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, `${Date.now()}_${file.originalname}`);
+    }
+  });
+  
+  const ftpUpload = multer({ storage: ftpUploadStorage });
+  
+  // FTP connection endpoint
+  app.post("/api/ftp/connect", asyncHandler(async (req, res) => {
+    const { host, port, user, password, secure } = req.body;
+    
+    if (!host || !user || !password) {
+      throw ApiError.badRequest('Host, username, and password are required');
+    }
+    
+    try {
+      const config: FtpConfig = {
+        host,
+        port: port || 21,
+        user,
+        password,
+        secure: secure || false,
+        secureOptions: {
+          rejectUnauthorized: false
+        }
+      };
+      
+      const connected = await ftpService.connect(config);
+      
+      if (!connected) {
+        throw ApiError.internal('Failed to connect to FTP server');
+      }
+      
+      return res.json({
+        success: true,
+        message: `Connected to FTP server: ${host}`
+      });
+    } catch (error) {
+      console.error('FTP connection error:', error);
+      throw ApiError.internal(
+        'Failed to connect to FTP server', 
+        'FTP_CONNECT_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP status endpoint
+  app.get("/api/ftp/status", asyncHandler(async (req, res) => {
+    try {
+      const isConnected = await ftpService.checkConnection();
+      
+      return res.json({
+        connected: isConnected,
+        transfers: ftpService.getTransferStatuses()
+      });
+    } catch (error) {
+      console.error('FTP status error:', error);
+      throw ApiError.internal(
+        'Failed to check FTP status', 
+        'FTP_STATUS_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP list files endpoint
+  app.get("/api/ftp/files", asyncHandler(async (req, res) => {
+    const { path: remotePath = '/' } = req.query;
+    
+    if (typeof remotePath !== 'string') {
+      throw ApiError.badRequest('Remote path must be a string');
+    }
+    
+    try {
+      const files = await ftpService.listFiles(remotePath);
+      
+      return res.json({
+        success: true,
+        path: remotePath,
+        files: files.map(file => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          date: file.date,
+          isDirectory: file.isDirectory,
+          isFile: file.isFile,
+          isSymbolicLink: file.isSymbolicLink
+        }))
+      });
+    } catch (error) {
+      console.error('FTP list files error:', error);
+      throw ApiError.internal(
+        'Failed to list files', 
+        'FTP_LIST_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP download file endpoint
+  app.get("/api/ftp/download", asyncHandler(async (req, res) => {
+    const { path: remotePath, fileType = 'OTHER' } = req.query;
+    
+    if (typeof remotePath !== 'string') {
+      throw ApiError.badRequest('Remote path must be a string');
+    }
+    
+    try {
+      // Create temp directory if it doesn't exist
+      const downloadDir = path.join(__dirname, '../downloads');
+      if (!fs.existsSync(downloadDir)) {
+        fs.mkdirSync(downloadDir, { recursive: true });
+      }
+      
+      const filename = path.basename(remotePath);
+      const localPath = path.join(downloadDir, filename);
+      
+      // Download the file
+      const result = await ftpService.downloadFile(
+        remotePath, 
+        localPath, 
+        fileType as FileType
+      );
+      
+      // Send the file as attachment
+      res.download(localPath, filename, (err) => {
+        if (err) {
+          console.error('Error sending file:', err);
+        } else {
+          // Clean up the file after sending
+          setTimeout(() => {
+            fs.unlink(localPath, (unlinkErr) => {
+              if (unlinkErr) {
+                console.error('Error removing temp file:', unlinkErr);
+              }
+            });
+          }, 60000); // Give it a minute before deleting
+        }
+      });
+    } catch (error) {
+      console.error('FTP download error:', error);
+      throw ApiError.internal(
+        'Failed to download file', 
+        'FTP_DOWNLOAD_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP upload file endpoint
+  app.post("/api/ftp/upload", ftpUpload.single('file'), asyncHandler(async (req, res) => {
+    const { remotePath, fileType = 'OTHER' } = req.body;
+    
+    if (!req.file) {
+      throw ApiError.badRequest('No file uploaded');
+    }
+    
+    if (!remotePath) {
+      throw ApiError.badRequest('Remote path is required');
+    }
+    
+    try {
+      const localFilePath = req.file.path;
+      
+      // Upload the file
+      const result = await ftpService.uploadFile(
+        localFilePath, 
+        `${remotePath}/${req.file.originalname}`, 
+        fileType as FileType
+      );
+      
+      // Clean up the local file after upload
+      fs.unlink(localFilePath, (err) => {
+        if (err) {
+          console.error('Error removing temp file:', err);
+        }
+      });
+      
+      return res.status(201).json({
+        success: true,
+        message: 'File uploaded successfully',
+        file: {
+          name: req.file.originalname,
+          size: req.file.size,
+          mimetype: req.file.mimetype,
+          remotePath: `${remotePath}/${req.file.originalname}`
+        },
+        transfer: result
+      });
+    } catch (error) {
+      console.error('FTP upload error:', error);
+      
+      // Clean up the local file if upload failed
+      if (req.file) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) {
+            console.error('Error removing temp file after failed upload:', err);
+          }
+        });
+      }
+      
+      throw ApiError.internal(
+        'Failed to upload file', 
+        'FTP_UPLOAD_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP create directory endpoint
+  app.post("/api/ftp/directory", asyncHandler(async (req, res) => {
+    const { path: remotePath } = req.body;
+    
+    if (!remotePath) {
+      throw ApiError.badRequest('Remote path is required');
+    }
+    
+    try {
+      const created = await ftpService.createDirectory(remotePath);
+      
+      if (!created) {
+        throw ApiError.internal('Failed to create directory');
+      }
+      
+      return res.status(201).json({
+        success: true,
+        message: `Directory created: ${remotePath}`
+      });
+    } catch (error) {
+      console.error('FTP create directory error:', error);
+      throw ApiError.internal(
+        'Failed to create directory', 
+        'FTP_MKDIR_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP delete file endpoint
+  app.delete("/api/ftp/files", asyncHandler(async (req, res) => {
+    const { path: remotePath } = req.body;
+    
+    if (!remotePath) {
+      throw ApiError.badRequest('Remote path is required');
+    }
+    
+    try {
+      const deleted = await ftpService.deleteFile(remotePath);
+      
+      if (!deleted) {
+        throw ApiError.internal('Failed to delete file');
+      }
+      
+      return res.json({
+        success: true,
+        message: `File deleted: ${remotePath}`
+      });
+    } catch (error) {
+      console.error('FTP delete file error:', error);
+      throw ApiError.internal(
+        'Failed to delete file', 
+        'FTP_DELETE_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP rename file endpoint
+  app.put("/api/ftp/files", asyncHandler(async (req, res) => {
+    const { oldPath, newPath } = req.body;
+    
+    if (!oldPath || !newPath) {
+      throw ApiError.badRequest('Old path and new path are required');
+    }
+    
+    try {
+      const renamed = await ftpService.renameFile(oldPath, newPath);
+      
+      if (!renamed) {
+        throw ApiError.internal('Failed to rename file');
+      }
+      
+      return res.json({
+        success: true,
+        message: `File renamed: ${oldPath} -> ${newPath}`
+      });
+    } catch (error) {
+      console.error('FTP rename file error:', error);
+      throw ApiError.internal(
+        'Failed to rename file', 
+        'FTP_RENAME_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
+  
+  // FTP disconnect endpoint
+  app.post("/api/ftp/disconnect", asyncHandler(async (req, res) => {
+    try {
+      await ftpService.disconnect();
+      
+      return res.json({
+        success: true,
+        message: 'Disconnected from FTP server'
+      });
+    } catch (error) {
+      console.error('FTP disconnect error:', error);
+      throw ApiError.internal(
+        'Failed to disconnect from FTP server', 
+        'FTP_DISCONNECT_ERROR', 
+        { message: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }));
   
   // Health check endpoint for WebSocket server
   app.get("/api/websocket/health", (req, res) => {

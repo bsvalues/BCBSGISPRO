@@ -19,6 +19,7 @@ import MapCollaborationDemoPage from "@/pages/map-collaboration-demo-page";
 import EnhancedMapCollaborationPage from "@/pages/enhanced-map-collaboration-page";
 import MapCollaborationStarterPage from "@/pages/map-collaboration-starter-page";
 import DocumentParcelManagementPage from "@/pages/document-parcel-management";
+import DataMigrationPage from "@/pages/data-migration";
 import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
@@ -33,7 +34,8 @@ import {
   MessagesSquare,
   Users,
   Share2,
-  BarChart
+  BarChart,
+  Database
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -252,6 +254,16 @@ function App() {
                 Document-Parcel Management
               </Button>
             </Link>
+            
+            <Link href="/data-migration">
+              <Button 
+                variant={location === "/data-migration" ? "secondary" : "outline"} 
+                size="sm"
+              >
+                <Database className="mr-1 h-4 w-4" />
+                Data Migration
+              </Button>
+            </Link>
           </nav>
         </div>
       </header>
@@ -281,6 +293,7 @@ function App() {
             <Route path="/map-collaboration-starter" component={MapCollaborationStarterPage} />
             <Route path="/document-parcel-management" component={DocumentParcelManagementPage} />
             <Route path="/project-progress" component={ProjectProgressPage} />
+            <Route path="/data-migration" component={DataMigrationPage} />
             
             {/* Default to the Collaborative Workspace page for testing */}
             <Route>
