@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
-import { CollaborativeMap, CollaborativeFeature } from './collaborative-map';
+import { CollaborativeMap, CollaborativeFeature } from './collaborative-map-enhanced';
 import { MapboxMap } from './mapbox/mapbox-map';
+import { MapProviderSelector, MapProviderType } from './map-provider-selector';
 import mapboxgl from 'mapbox-gl';
-import { ConnectionStatus, ConnectionStatusEnum } from '@/lib/websocket';
+import { ConnectionStatusEnum } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle, Loader2, WifiOff } from 'lucide-react';
 import { CollaborativeSessionManager, SessionData } from './collaborative-session-manager';
@@ -13,28 +14,43 @@ import { CollaborativeUserIndicator, UserActivity } from './collaborative-user-i
 interface CollaborativeMapContainerProps {
   roomId: string;
   height?: string | number;
-  onMapUpdated?: (map: mapboxgl.Map) => void;
+  onMapUpdated?: (map: mapboxgl.Map | __esri.MapView) => void;
+  defaultProvider?: MapProviderType;
 }
 
 export function CollaborativeMapContainer({ 
   roomId, 
   height = '500px',
-  onMapUpdated 
+  onMapUpdated,
+  defaultProvider = 'mapbox'
 }: CollaborativeMapContainerProps) {
-  const [map, setMap] = useState<mapboxgl.Map | null>(null);
+  const [map, setMap] = useState<mapboxgl.Map | any>(null);
+  const [mapProvider, setMapProvider] = useState<MapProviderType>(defaultProvider);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatusEnum>(ConnectionStatusEnum.DISCONNECTED);
   const [collaborators, setCollaborators] = useState<string[]>([]);
   const [features, setFeatures] = useState<CollaborativeFeature[]>([]);
   const [annotations, setAnnotations] = useState<any[]>([]);
   const [userActivities, setUserActivities] = useState<UserActivity[]>([]);
 
-  // Handle map creation
-  const handleMapCreated = useCallback((mapInstance: mapboxgl.Map) => {
+  // Handle Mapbox map creation
+  const handleMapboxMapCreated = useCallback((mapInstance: mapboxgl.Map) => {
     setMap(mapInstance);
+    setMapProvider('mapbox');
     
     // Call the parent's callback if provided
     if (onMapUpdated) {
       onMapUpdated(mapInstance);
+    }
+  }, [onMapUpdated]);
+  
+  // Handle ArcGIS map creation
+  const handleArcGISMapCreated = useCallback((view: any) => {
+    setMap(view);
+    setMapProvider('arcgis');
+    
+    // Call the parent's callback if provided
+    if (onMapUpdated) {
+      onMapUpdated(view);
     }
   }, [onMapUpdated]);
 
@@ -49,7 +65,7 @@ export function CollaborativeMapContainer({
         description: "You can now draw and collaborate with others",
         variant: "default",
       });
-    } else if (status === ConnectionStatusEnum.DISCONNECTED || status === ConnectionStatusEnum.ERROR) {
+    } else if (status === ConnectionStatusEnum.DISCONNECTED) {
       toast({
         title: "Disconnected from collaboration server",
         description: "Attempting to reconnect automatically",
@@ -147,7 +163,6 @@ export function CollaborativeMapContainer({
       case ConnectionStatusEnum.RECONNECTING:
         return <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />;
       case ConnectionStatusEnum.DISCONNECTED:
-      case ConnectionStatusEnum.ERROR:
         return <WifiOff className="h-4 w-4 text-red-500" />;
       default:
         return <AlertCircle className="h-4 w-4" />;
@@ -163,7 +178,6 @@ export function CollaborativeMapContainer({
       case ConnectionStatusEnum.RECONNECTING:
         return "secondary";
       case ConnectionStatusEnum.DISCONNECTED:
-      case ConnectionStatusEnum.ERROR:
         return "destructive";
       default:
         return "outline";
@@ -181,8 +195,6 @@ export function CollaborativeMapContainer({
         return "Reconnecting";
       case ConnectionStatusEnum.DISCONNECTED:
         return "Disconnected";
-      case ConnectionStatusEnum.ERROR:
-        return "Connection Error";
       default:
         return "Unknown";
     }
@@ -298,14 +310,16 @@ export function CollaborativeMapContainer({
       
       {/* Map container */}
       <div style={containerStyle}>
-        <MapboxMap
+        <MapProviderSelector
           initialCenter={initialCenter}
           initialZoom={initialZoom}
-          onMapCreated={handleMapCreated}
+          defaultProvider={defaultProvider}
           width="100%"
           height="100%"
+          onMapboxMapCreated={handleMapboxMapCreated}
+          onArcGISMapCreated={handleArcGISMapCreated}
         >
-          {map && (
+          {map && mapProvider === 'mapbox' && (
             <CollaborativeMap 
               map={map} 
               roomId={roomId} 
@@ -316,7 +330,17 @@ export function CollaborativeMapContainer({
               onUserActivity={handleUserActivityUpdate}
             />
           )}
-        </MapboxMap>
+          {map && mapProvider === 'arcgis' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+              <Card className="w-auto mx-4">
+                <CardContent className="p-4 text-center">
+                  <p>Collaborative features not yet implemented for ArcGIS maps.</p>
+                  <p className="text-xs mt-1 text-muted-foreground">Switch to Mapbox for collaborative editing.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </MapProviderSelector>
       </div>
     </div>
   );
