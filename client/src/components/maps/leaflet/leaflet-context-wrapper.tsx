@@ -5,6 +5,9 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css';
 import 'leaflet-defaulticon-compatibility';
 
+// Fix for the "Map is not found in the element's scope" error
+import { Map } from 'leaflet';
+
 interface LeafletContextWrapperProps {
   children: React.ReactNode;
   center?: [number, number];
@@ -91,7 +94,11 @@ export function LeafletContextWrapper({
         ref={(map) => map && handleMapReady(map)}
         attributionControl={false}
         zoomControl={false}
-        whenReady={() => mapRef.current && onLeafletMapReady && onLeafletMapReady(mapRef.current)}
+        whenReady={() => {
+          if (mapRef.current && onLeafletMapReady) {
+            onLeafletMapReady(mapRef.current);
+          }
+        }}
       >
         {/* Add a transparent tile layer if the wrapper should be visible */}
         {visible && (

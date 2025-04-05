@@ -77,6 +77,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize WebSocket server
   const wsManager = new WebSocketServerManager(httpServer);
   
+  // WebSocket health endpoint
+  app.get("/api/websocket/health", (req, res) => {
+    res.json({
+      status: "online",
+      connections: wsManager.getActiveConnectionsCount(),
+      uptime: process.uptime()
+    });
+  });
+  
+  // WebSocket rooms status endpoint
+  app.get("/api/websocket/rooms", (req, res) => {
+    res.json({
+      rooms: wsManager.getRoomsStatus()
+    });
+  });
+  
   // Mapbox token endpoint - serves the token securely to the frontend
   app.get("/api/mapbox-token", async (req, res) => {
     try {

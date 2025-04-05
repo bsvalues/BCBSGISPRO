@@ -17,6 +17,7 @@ interface MapboxProviderProps {
   children?: React.ReactNode;
   onMapLoaded?: (map: mapboxgl.Map) => void;
   interactive?: boolean;
+  mapContainerId?: string; // Added to support the mapContainerId prop
 }
 
 // Create a context for Mapbox map
@@ -46,7 +47,8 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   mapStyle = 'mapbox://styles/mapbox/streets-v12',
   children,
   onMapLoaded,
-  interactive = true
+  interactive = true,
+  mapContainerId
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -195,7 +197,7 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-            {error}
+            {error.toString()}
           </AlertDescription>
         </Alert>
       )}

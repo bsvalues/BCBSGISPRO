@@ -3,7 +3,7 @@ import MapboxProvider from './mapbox-provider';
 import { cn } from '@/lib/utils';
 import mapboxgl from 'mapbox-gl';
 import LeafletContextWrapper from '../leaflet/leaflet-context-wrapper';
-import { containsLeafletDependentComponents } from '@/lib/leaflet-helpers';
+import { containsParcelOverlay } from '@/lib/leaflet-helpers';
 
 export interface MapboxMapProps {
   id?: string;
@@ -46,7 +46,8 @@ export function MapboxMap({
   initialCenter,
   initialZoom,
   geoJsonData,
-  points
+  points,
+  forceLeafletContext = false
 }: MapboxMapProps) {
   // Create a unique ID for the map container if not provided
   const mapId = useRef<string>(id);
@@ -211,6 +212,11 @@ export function MapboxMap({
     latitude: initialCenter ? initialCenter[1] : latitude,
     zoom: initialZoom !== undefined ? initialZoom : zoom
   };
+  
+  // Check if children contain components that need Leaflet context
+  const needsLeafletContext = useMemo(() => {
+    return forceLeafletContext || containsParcelOverlay(children);
+  }, [children, forceLeafletContext]);
 
   return (
     <div className={cn('mapbox-map-container relative', className)} style={mapContainerStyle}>
@@ -223,9 +229,20 @@ export function MapboxMap({
         mapContainerId={mapId.current}
         initialViewState={initialViewState}
         mapStyle={style}
-        onMapLoad={handleMapLoad}
+        onMapLoaded={handleMapLoad}
       >
-        {children}
+        {needsLeafletContext ? (
+          <LeafletContextWrapper
+            center={[initialViewState.latitude, initialViewState.longitude]}
+            zoom={initialViewState.zoom}
+            mapboxInstance={mapRef.current}
+            visible={false}
+          >
+            {children}
+          </LeafletContextWrapper>
+        ) : (
+          children
+        )}
       </MapboxProvider>
     </div>
   );
