@@ -10,21 +10,18 @@ import { ApiError, asyncHandler } from "./error-handler";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { 
-  workflows, 
-  WorkflowState, 
-  insertWorkflowStateSchema,
-  documents,
-  documentVersions,
-  documentParcelLinks,
   parcels,
-  mapLayers,
-  checklistItems,
-  WorkflowType,
+  documents,
+  annotations,
+  insertParcelSchema,
   insertDocumentSchema,
-  insertDocumentParcelLinkSchema
-} from "@shared/schema";
-import { classifyDocument, getDocumentTypeLabel } from "./services/document-classifier";
-import { DocumentType } from "@shared/document-types";
+  insertAnnotationSchema,
+  Parcel,
+  Document,
+  Annotation,
+  ParsedLegalDescription
+} from "../shared/schema";
+import { DocumentType } from "../shared/document-types";
 import { documentService } from "./services/document-service";
 import { documentParcelService } from "./services/document-parcel-service";
 import { parseLegalDescription, ParsedLegalDescription } from "./services/legal-description-parser";

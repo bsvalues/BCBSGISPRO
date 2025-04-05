@@ -1,0 +1,108 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+.content-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  background-color: #005a9c;
+  color: white;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar {
+  width: 280px;
+  background-color: #f5f5f5;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section {
+  padding: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sidebar-section h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.nav-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-left: 4px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-item:hover {
+  background-color: #e5e5e5;
+  border-left-color: #0077cc;
+}
+
+.nav-item.active {
+  background-color: #e0e0e0;
+  border-left-color: #005a9c;
+}
+
+button {
+  background-color: #0077cc;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: #005a9c;
+}
+
+button.secondary {
+  background-color: transparent;
+  color: #0077cc;
+  border: 1px solid #0077cc;
+}
+
+button.secondary:hover {
+  background-color: rgba(0, 119, 204, 0.1);
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.icon-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}

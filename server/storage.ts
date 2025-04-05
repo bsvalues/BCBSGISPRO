@@ -1,19 +1,7 @@
-import {
-  users, type User, type InsertUser,
-  workflows, type Workflow, type InsertWorkflow,
-  workflowStates, type WorkflowState, type InsertWorkflowState,
-  workflowEvents, type WorkflowEvent, type InsertWorkflowEvent,
-  checklistItems, type ChecklistItem, type InsertChecklistItem,
-  documents, type Document, documentVersions, type DocumentVersion,
-  documentParcelLinks, type DocumentParcelLink,
-  parcels, type Parcel, type InsertParcel,
-  mapLayers, type MapLayer,
-  sm00Reports, type SM00Report,
-  searchHistory, type SearchHistory, type InsertSearchHistory,
-  searchSuggestions, type SearchSuggestion, type InsertSearchSuggestion,
-  type InsertDocumentVersion, type InsertDocumentParcelLink
-} from "@shared/schema";
-import { DocumentType } from "@shared/document-types";
+import { 
+  type Parcel, type Document, type Annotation
+} from "../shared/schema";
+import { DocumentType } from "../shared/document-types";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -1453,4 +1441,5 @@ export class DatabaseStorage implements IStorage {
 }
 
 // Use DatabaseStorage instead of MemStorage
-export const storage = new DatabaseStorage();
+// Use in-memory storage for development
+export const storage = new MemStorage();
