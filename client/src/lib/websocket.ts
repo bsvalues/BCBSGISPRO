@@ -133,12 +133,17 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
 }
 
 /**
- * Create a WebSocket connection with the specified path
+ * Create a WebSocket connection
+ * 
+ * @param path - WebSocket endpoint path, defaults to '/ws'
+ * @param roomId - Optional room ID to add to the path
+ * @returns A new WebSocket instance
  */
 export function createWebSocket(path: string = '/ws'): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}${path}`;
   
+  console.log(`Creating WebSocket connection to: ${wsUrl}`);
   return new WebSocket(wsUrl);
 }
 

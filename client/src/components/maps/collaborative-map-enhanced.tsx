@@ -283,8 +283,15 @@ export function CollaborativeMap({
   useEffect(() => {
     if (lastMessage) {
       try {
-        const data = JSON.parse(lastMessage.data);
-        console.log('Received message:', data);
+        // Extract data from the message
+        const data = lastMessage.data;
+        
+        console.log('Processing WebSocket message:', data);
+        
+        if (!data || typeof data !== 'object') {
+          console.warn('Invalid message format:', lastMessage);
+          return;
+        }
         
         switch(data.type) {
           case 'features':
@@ -394,7 +401,8 @@ export function CollaborativeMap({
             break;
         }
       } catch (err) {
-        console.error('Error processing message:', err);
+        console.error('Error processing WebSocket message:', err);
+        console.error('Message content:', lastMessage.data);
       }
     }
   }, [lastMessage, userId, onFeaturesUpdate, onAnnotationsUpdate, onCollaboratorsChange, onUserActivity]);

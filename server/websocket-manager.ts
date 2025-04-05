@@ -84,12 +84,12 @@ export class WebSocketServerManager {
     
     // Automatically join room if roomId is specified but client is not in that room yet
     if (roomId && this.clientRooms.get(ws) !== roomId) {
-      this.joinRoom(ws, roomId, userId);
+      this.joinRoom(ws, roomId, userId || "anonymous");
     }
     
     switch (type) {
       case 'join':
-        this.joinRoom(ws, roomId, userId);
+        this.joinRoom(ws, roomId, userId || "anonymous");
         break;
         
       case 'leave':

@@ -89,25 +89,46 @@ export function useWebSocket({
       setStatus('connecting');
       
       // Create new connection
+      console.log(`Connecting to WebSocket at path: ${path}`);
       const newSocket = createWebSocket(path);
       
       // Set up event handlers
       newSocket.addEventListener('open', (event) => {
+        console.log('WebSocket connection established');
         setStatus('connected');
         reconnectAttempts.current = 0;
         if (onOpen) onOpen(event);
       });
       
       newSocket.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setLastMessage(data);
-        } catch (error) {
-          // If not JSON, store raw data
-          setLastMessage(event.data);
+        console.log('WebSocket message received');
+        
+        let parsedData;
+        
+        // Try to parse the data if it's a string
+        if (typeof event.data === 'string') {
+          try {
+            parsedData = JSON.parse(event.data);
+            console.log('Parsed WebSocket message:', parsedData);
+          } catch (error) {
+            console.log('Received non-JSON message:', event.data);
+            parsedData = event.data;
+          }
+        } else {
+          console.log('Received non-string message');
+          parsedData = event.data;
         }
         
-        if (onMessage) onMessage(event);
+        // Update last message state
+        setLastMessage({
+          data: parsedData,
+          original: event
+        });
+        
+        // Call user message handler if provided
+        if (onMessage) {
+          onMessage(event);
+        }
       });
       
       newSocket.addEventListener('close', (event) => {
