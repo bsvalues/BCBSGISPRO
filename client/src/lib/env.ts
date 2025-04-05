@@ -160,13 +160,13 @@ export function getApiBaseUrl(): string {
  * Get the base URL for WebSocket connections
  */
 export function getWebSocketUrl(): string {
-  // In development environment, use specific port
+  // In development environment, use specific port with ws protocol
   if (import.meta.env.DEV) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//localhost:5000/ws`;
+    // Always use ws protocol for localhost connections in development
+    return `ws://localhost:5000/ws`;
   }
   
-  // In production, use relative WebSocket path
+  // In production, use relative WebSocket path with protocol based on page protocol
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws`;
 }

@@ -1,6 +1,7 @@
 /**
  * WebSocket message types and utilities
  */
+import { getWebSocketUrl } from '@/lib/env';
 
 /**
  * WebSocket connection status enum
@@ -140,8 +141,8 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
  * @returns A new WebSocket instance
  */
 export function createWebSocket(path: string = '/ws'): WebSocket {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}${path}`;
+  // Use WebSocket URL utility which handles the development vs production environments
+  const wsUrl = getWebSocketUrl();
   
   console.log(`Creating WebSocket connection to: ${wsUrl}`);
   return new WebSocket(wsUrl);
