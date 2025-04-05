@@ -43,6 +43,7 @@ export async function getMapboxTokenAsync(): Promise<string> {
   
   if (token) {
     cachedMapboxToken = token as string;
+    setGlobalMapboxToken(cachedMapboxToken);
     return cachedMapboxToken;
   }
   
@@ -63,12 +64,20 @@ export async function getMapboxTokenAsync(): Promise<string> {
   
   try {
     console.log('Fetching Mapbox token from API endpoint');
-    const response = await fetch('/api/mapbox-token');
+    const response = await fetch('/api/mapbox-token', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
     if (!response.ok) {
-      throw new Error(`Failed to fetch Mapbox token: ${response.statusText}`);
+      throw new Error(`Failed to fetch Mapbox token: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
+    
     if (data && typeof data.token === 'string') {
       console.log('Successfully retrieved Mapbox token from API');
       setGlobalMapboxToken(data.token);
@@ -111,7 +120,11 @@ export function getMapboxToken(): string {
     console.warn('Error accessing localStorage (sync):', err);
   }
   
+  // Log absence of token and set global mapboxgl.accessToken to empty to prevent errors
   console.warn('Mapbox access token not found in environment or localStorage');
+  // We'll manually set this to prevent mapbox-gl initialization errors
+  mapboxgl.accessToken = '';
+  
   // Return empty string, the component should handle token fetching via API
   return '';
 }
