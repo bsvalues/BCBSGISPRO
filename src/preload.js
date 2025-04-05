@@ -1,33 +1,60 @@
+// Preload script for Electron app
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Define a set of functions that will be available to the renderer process
-contextBridge.exposeInMainWorld('electron', {
-  // Send messages to the main process
-  send: (channel, data) => {
-    // Allow only specific channels
-    const validChannels = ['save-file', 'open-file', 'print-document', 'export-data'];
-    if (validChannels.includes(channel)) {
-      ipcRenderer.send(channel, data);
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld(
+  'api', {
+    // File operations
+    readFile: (path) => ipcRenderer.invoke('read-file', path),
+    writeFile: (path, data) => ipcRenderer.invoke('write-file', { filePath: path, data }),
+    listDirectory: (path) => ipcRenderer.invoke('list-directory', path),
+    
+    // Dialog operations
+    openFile: () => ipcRenderer.send('open-file'),
+    saveFile: (defaultPath, data) => ipcRenderer.send('save-file', { defaultPath, data }),
+    
+    // System info
+    getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+    
+    // Document operations
+    printDocument: (options) => ipcRenderer.send('print-document', options),
+    exportData: (format, data, defaultFilename) => 
+      ipcRenderer.send('export-data', { format, data, defaultFilename }),
+    
+    // Event listeners
+    on: (channel, callback) => {
+      // Whitelist channels to listen to
+      const validChannels = [
+        'file-opened', 
+        'file-saved', 
+        'export-completed', 
+        'print-completed',
+        'error'
+      ];
+      
+      if (validChannels.includes(channel)) {
+        // Remove the event listener if it exists to avoid leaks
+        ipcRenderer.removeAllListeners(channel);
+        // Add a new listener
+        ipcRenderer.on(channel, (_, ...args) => callback(...args));
+      }
+    },
+    
+    // Remove event listeners
+    removeAllListeners: (channel) => {
+      // Whitelist channels to listen to
+      const validChannels = [
+        'file-opened', 
+        'file-saved', 
+        'export-completed', 
+        'print-completed',
+        'error'
+      ];
+      
+      if (validChannels.includes(channel)) {
+        ipcRenderer.removeAllListeners(channel);
+      }
     }
-  },
-  
-  // Listen for messages from the main process
-  receive: (channel, func) => {
-    const validChannels = ['file-saved', 'file-opened', 'print-completed', 'export-completed', 'error'];
-    if (validChannels.includes(channel)) {
-      // Remove the event listener if it exists
-      ipcRenderer.removeAllListeners(channel);
-      // Add a new listener
-      ipcRenderer.on(channel, (event, ...args) => func(...args));
-    }
-  },
-  
-  // Invoke a function in the main process and get the result (async)
-  invoke: async (channel, data) => {
-    const validChannels = ['read-file', 'write-file', 'list-directory', 'get-system-info'];
-    if (validChannels.includes(channel)) {
-      return await ipcRenderer.invoke(channel, data);
-    }
-    return null;
   }
-});
+);

@@ -1,36 +1,235 @@
-import React from 'react';
+import React, { useState } from 'react';
+import './Header.css';
 
 interface HeaderProps {
   toggleSidebar: () => void;
+  sidebarOpen: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ toggleSidebar, sidebarOpen }) => {
+  const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+  
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Here we would handle the search functionality
+    console.log('Searching for:', searchQuery);
+  };
+  
+  const toggleUserMenu = () => {
+    setShowUserMenu(!showUserMenu);
+    if (showNotifications) setShowNotifications(false);
+  };
+  
+  const toggleNotifications = () => {
+    setShowNotifications(!showNotifications);
+    if (showUserMenu) setShowUserMenu(false);
+  };
+  
   return (
-    <header className="header">
+    <header className="app-header">
       <div className="header-left">
-        <button className="icon-button" onClick={toggleSidebar}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 18H21V16H3V18ZM3 13H21V11H3V13ZM3 6V8H21V6H3Z" fill="currentColor" />
+        <button className="menu-toggle" onClick={toggleSidebar} title={sidebarOpen ? "Hide Sidebar" : "Show Sidebar"}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {sidebarOpen ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </>
+            )}
           </svg>
         </button>
-        <h1 className="app-title">BentonGeoPro</h1>
+        
+        <div className="logo">
+          <img src="/logo.png" alt="BentonGeoPro Logo" className="logo-image" />
+          <span className="logo-text">BentonGeoPro</span>
+        </div>
       </div>
+      
+      <div className="header-center">
+        <form className="search-form" onSubmit={handleSearchSubmit}>
+          <div className="search-wrapper">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              placeholder="Search parcels, addresses, or owners..." 
+              className="search-input"
+              value={searchQuery}
+              onChange={handleSearchChange}
+            />
+            {searchQuery && (
+              <button 
+                type="button" 
+                className="search-clear" 
+                onClick={() => setSearchQuery('')}
+                title="Clear Search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
+          </div>
+          <button type="submit" className="search-button">
+            Search
+          </button>
+        </form>
+      </div>
+      
       <div className="header-right">
-        <button className="icon-button">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 22C6.477 22 2 17.523 2 12C2 6.477 6.477 2 12 2C17.523 2 22 6.477 22 12C22 17.523 17.523 22 12 22ZM12 20C16.418 20 20 16.418 20 12C20 7.582 16.418 4 12 4C7.582 4 4 7.582 4 12C4 16.418 7.582 20 12 20ZM11 7H13V9H11V7ZM11 11H13V17H11V11Z" fill="currentColor" />
+        <button 
+          className={`notifications-button ${showNotifications ? 'active' : ''}`} 
+          onClick={toggleNotifications}
+          title="Notifications"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
           </svg>
+          <span className="notification-badge">3</span>
         </button>
-        <button className="icon-button">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 17H22V19H2V17H4V10C4 5.59 7.59 2 12 2C16.41 2 20 5.59 20 10V17ZM18 17V10C18 6.69 15.31 4 12 4C8.69 4 6 6.69 6 10V17H18ZM12 22C13.1046 22 14 21.1046 14 20H10C10 21.1046 10.8954 22 12 22Z" fill="currentColor" />
+        
+        <div className="user-profile" onClick={toggleUserMenu}>
+          <div className="user-avatar">
+            <span>JD</span>
+          </div>
+          <div className="user-info">
+            <span className="user-name">John Doe</span>
+            <span className="user-role">GIS Specialist</span>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`dropdown-arrow ${showUserMenu ? 'open' : ''}`}>
+            <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
-        </button>
-        <button className="icon-button">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 5C8.13401 5 5 8.13401 5 12C5 15.866 8.13401 19 12 19C15.866 19 19 15.866 19 12C19 8.13401 15.866 5 12 5ZM12 8C13.6569 8 15 9.34315 15 11C15 11.7293 14.7233 12.3946 14.2641 12.8954C15.2512 13.5509 15.9044 14.6567 16 16H14C14 14.3431 12.6569 13 11 13H10V11H11C11.5523 11 12 10.5523 12 10C12 9.44772 11.5523 9 11 9C10.4477 9 10 9.44772 10 10H8C8 8.34315 9.34315 7 11 7H12Z" fill="currentColor" />
-          </svg>
-        </button>
+        </div>
+        
+        {showUserMenu && (
+          <div className="user-dropdown">
+            <div className="user-dropdown-header">
+              <div className="user-avatar large">
+                <span>JD</span>
+              </div>
+              <div className="user-dropdown-info">
+                <span className="user-dropdown-name">John Doe</span>
+                <span className="user-dropdown-email">john.doe@benton.gov</span>
+              </div>
+            </div>
+            <ul className="user-dropdown-menu">
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>My Profile</span>
+              </li>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+                <span>Activity</span>
+              </li>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>Settings</span>
+              </li>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+              </li>
+            </ul>
+          </div>
+        )}
+        
+        {showNotifications && (
+          <div className="notifications-dropdown">
+            <div className="notifications-header">
+              <h3>Notifications</h3>
+              <button className="mark-all-read">Mark all as read</button>
+            </div>
+            <ul className="notifications-list">
+              <li className="notification-item unread">
+                <div className="notification-icon document">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                </div>
+                <div className="notification-content">
+                  <div className="notification-title">New Document Added</div>
+                  <div className="notification-text">Smith Property Deed has been uploaded</div>
+                  <div className="notification-time">5 minutes ago</div>
+                </div>
+              </li>
+              <li className="notification-item unread">
+                <div className="notification-icon workflow">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="20" x2="12" y2="10"></line>
+                    <line x1="18" y1="20" x2="18" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="16"></line>
+                  </svg>
+                </div>
+                <div className="notification-content">
+                  <div className="notification-title">Workflow Status Update</div>
+                  <div className="notification-text">Land Division workflow requires your approval</div>
+                  <div className="notification-time">45 minutes ago</div>
+                </div>
+              </li>
+              <li className="notification-item unread">
+                <div className="notification-icon alert">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <div className="notification-content">
+                  <div className="notification-title">Data Sync Complete</div>
+                  <div className="notification-text">County parcel data has been updated</div>
+                  <div className="notification-time">2 hours ago</div>
+                </div>
+              </li>
+              <li className="notification-item">
+                <div className="notification-icon comment">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div className="notification-content">
+                  <div className="notification-title">New Comment</div>
+                  <div className="notification-text">Sarah left a comment on Appeal #2023-45</div>
+                  <div className="notification-time">Yesterday</div>
+                </div>
+              </li>
+            </ul>
+            <div className="notifications-footer">
+              <a href="#" className="view-all-notifications">View all notifications</a>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );
