@@ -62,42 +62,53 @@ export function FullScreenMapLayout({
   
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col">
-      {/* Header (optional) */}
-      {headerContent && (
-        <header className="flex-shrink-0 border-b shadow-sm z-30 bg-background">
-          {headerContent}
-        </header>
-      )}
+      {/* Main map container - Positioned absolutely to enable full immersion */}
+      <div className="immersive-map">
+        {children}
+      </div>
       
-      {/* Main content area */}
-      <div className="flex-grow flex relative overflow-hidden">
-        {/* Sidebar (optional) */}
+      {/* Overlay elements positioned on top of the map */}
+      <div className="relative w-full h-full pointer-events-none">
+        {/* Header (optional) - transparent overlay */}
+        {headerContent && (
+          <header className="absolute top-0 left-0 right-0 pointer-events-auto z-30 glass-panel bg-opacity-60 backdrop-blur-md border-b border-white/20">
+            {headerContent}
+          </header>
+        )}
+        
+        {/* Sidebar (optional) - Floating panel */}
         {sidebarContent && (
           <aside 
             className={cn(
-              "absolute h-full top-0 left-0 z-20 border-r bg-background",
-              "transition-all duration-300 ease-in-out overflow-hidden"
+              "absolute h-[calc(100%-2rem)] top-16 left-4 z-20 pointer-events-auto glass-panel",
+              "transition-all duration-300 ease-in-out overflow-hidden",
+              "border border-white/20 rounded-lg"
             )}
-            style={sidebarStyle}
+            style={{
+              ...sidebarStyle,
+              backgroundImage: 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%)',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1), 0 1px 8px rgba(0, 0, 0, 0.06)'
+            }}
           >
             <div className="h-full flex flex-col overflow-hidden">
               {/* Sidebar content */}
-              <div className="flex-grow overflow-y-auto">
+              <div className="flex-grow overflow-y-auto readable-text">
                 {sidebarContent}
               </div>
             </div>
           </aside>
         )}
         
-        {/* Toggle button for sidebar */}
+        {/* Toggle button for sidebar - Styled as floating control */}
         {sidebarContent && (
           <Button 
             variant="secondary"
             size="sm"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className={cn(
-              "absolute top-4 z-30 shadow-md",
-              "transition-all duration-300 ease-in-out",
+              "absolute top-20 z-30 pointer-events-auto btn-3d",
+              "transition-all duration-300 ease-in-out glass-panel",
+              "h-8 w-8 p-0 flex items-center justify-center",
               sidebarCollapsed ? "left-4" : `left-[${sidebarWidth - 16}px]`
             )}
             style={{
@@ -113,24 +124,13 @@ export function FullScreenMapLayout({
           </Button>
         )}
         
-        {/* Main content (Map) */}
-        <main 
-          className={cn(
-            "absolute top-0 h-full bg-muted overflow-hidden",
-            "transition-all duration-300 ease-in-out"
-          )}
-          style={mainStyle}
-        >
-          {children}
-        </main>
+        {/* Footer (optional) - transparent overlay */}
+        {footerContent && (
+          <footer className="absolute bottom-0 left-0 right-0 pointer-events-auto z-30 glass-panel bg-opacity-60 backdrop-blur-md border-t border-white/20">
+            {footerContent}
+          </footer>
+        )}
       </div>
-      
-      {/* Footer (optional) */}
-      {footerContent && (
-        <footer className="flex-shrink-0 border-t z-30 bg-background">
-          {footerContent}
-        </footer>
-      )}
     </div>
   );
 }

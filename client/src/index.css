@@ -14,6 +14,26 @@
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
   }
+
+  /* Global scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(240, 240, 240, 0.3);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(180, 180, 180, 0.5);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(140, 140, 140, 0.7);
+  }
 }
 
 /* Fix for button accessibility */
@@ -24,4 +44,82 @@ button:not([aria-label]):not([title]) {
 /* Improved accessibility for interactive elements */
 .interactive-element:focus-visible {
   @apply outline-2 outline-offset-2 outline-primary;
+}
+
+/* Map styling for immersive experience */
+.leaflet-container {
+  @apply h-full w-full;
+  z-index: 0;
+}
+
+/* Glass morphism effect for cards and panels */
+.glass-panel {
+  @apply bg-white/60 backdrop-blur-md border border-white/20 shadow-lg;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+/* 3D-like hover effects for interactive elements */
+.btn-3d {
+  @apply transition-all duration-200 ease-out transform;
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.btn-3d:hover {
+  @apply -translate-y-0.5;
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.btn-3d:active {
+  @apply translate-y-0.5;
+  box-shadow: 
+    0 2px 3px -1px rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Map controls with enhanced styling */
+.map-control {
+  @apply glass-panel rounded-lg overflow-hidden;
+}
+
+/* Card with glass effect for map popups */
+.map-card {
+  @apply glass-panel rounded-lg overflow-hidden;
+  transform: translateZ(0);
+}
+
+/* Map toolbar with 3D effect */
+.map-toolbar {
+  @apply glass-panel rounded-full flex items-center justify-center px-3 py-1.5 space-x-1;
+  box-shadow: 
+    0 8px 16px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+/* 3D tooltip style */
+.tooltip-3d {
+  @apply px-2 py-1 bg-black/80 text-white text-xs rounded backdrop-blur-sm;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Immersive full-screen map */
+.immersive-map {
+  @apply fixed inset-0 z-0;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Text readability enhancement for translucent cards */
+.readable-text {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }

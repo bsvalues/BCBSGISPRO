@@ -136,27 +136,38 @@ export function SleekMapControls({
           <div
             key={group.id}
             className={cn(
-              'bg-white/95 backdrop-blur-sm rounded-md shadow-md p-1 border border-gray-200',
+              'map-toolbar',
               'flex',
               direction === 'horizontal' ? 'flex-row' : 'flex-col',
-              'gap-1'
+              'gap-1.5'
             )}
             aria-label={group.label}
+            style={{
+              transform: 'translateZ(0)'
+            }}
           >
             {group.controls.map((control) => (
               <SimpleTooltip
                 key={control.id}
-                content={control.label}
+                content={
+                  <div className="tooltip-3d">
+                    {control.label}
+                  </div>
+                }
                 side={direction === 'horizontal' ? 'bottom' : 'right'}
               >
                 <Button
                   variant={control.isActive ? 'default' : 'ghost'}
                   size="icon"
                   className={cn(
-                    'h-8 w-8',
-                    control.isActive && 'shadow-sm',
+                    'h-9 w-9 btn-3d',
+                    control.isActive ? 'bg-primary/20 text-primary-800 shadow-md' : 'bg-white/10 hover:bg-white/30',
                     control.isDisabled && 'opacity-50 cursor-not-allowed'
                   )}
+                  style={{
+                    backdropFilter: 'blur(8px)',
+                    transform: control.isActive ? 'translateY(-1px)' : 'none'
+                  }}
                   onClick={control.onClick}
                   disabled={control.isDisabled}
                   aria-label={control.label}

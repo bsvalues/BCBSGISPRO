@@ -106,15 +106,19 @@ export function MapControlPanel({
   return (
     <Card
       className={cn(
-        'absolute z-10 w-72 max-w-[calc(100%-32px)] bg-white/95 backdrop-blur-sm shadow-md border',
-        'transition-all duration-300 ease-in-out',
+        'absolute z-10 w-72 max-w-[calc(100%-32px)] glass-panel',
+        'transition-all duration-300 ease-in-out transform',
+        isCollapsed ? 'opacity-80 hover:opacity-100' : 'opacity-100',
         positionClasses[position],
         className
       )}
+      style={{
+        backgroundImage: 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%)'
+      }}
     >
       {/* Panel header with title and controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-        <h3 className="text-sm font-medium truncate">{title}</h3>
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/20 bg-white/10 backdrop-blur-md">
+        <h3 className="text-sm font-medium truncate readable-text">{title}</h3>
         
         <div className="flex items-center space-x-1">
           {/* Collapse button */}
@@ -123,7 +127,7 @@ export function MapControlPanel({
               variant="ghost"
               size="sm"
               onClick={toggleCollapse}
-              className="h-6 w-6 p-0"
+              className="h-6 w-6 p-0 hover:bg-white/20 btn-3d"
               aria-label={isCollapsed ? 'Expand panel' : 'Collapse panel'}
             >
               {isCollapsed ? (
@@ -140,7 +144,7 @@ export function MapControlPanel({
               variant="ghost"
               size="sm"
               onClick={handleDismiss}
-              className="h-6 w-6 p-0"
+              className="h-6 w-6 p-0 hover:bg-white/20 hover:text-red-500 btn-3d"
               aria-label="Close panel"
             >
               <X className="h-4 w-4" />
@@ -157,7 +161,9 @@ export function MapControlPanel({
         )}
       >
         <CardContent className="overflow-y-auto p-3">
-          {children}
+          <div className="readable-text">
+            {children}
+          </div>
         </CardContent>
       </div>
     </Card>

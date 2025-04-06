@@ -134,48 +134,73 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
     return (
       <div
         ref={mapRef}
+        className="map-container-3d"
         style={{
           width: typeof width === 'number' ? `${width}px` : width,
           height: typeof height === 'number' ? `${height}px` : height,
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          borderRadius: '0px',
         }}
       >
+        {/* Light haze overlay to add depth perception */}
+        <div 
+          className="absolute inset-0 z-[5] pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,0), rgba(0,20,40,0.03))',
+            boxShadow: 'inset 0 0 100px rgba(0,0,0,0.05)'
+          }}
+        />
+        
+        {/* Map title overlay */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[5] glass-panel px-4 py-2 rounded-full pointer-events-none">
+          <div className="text-sm font-semibold readable-text">Benton County GIS</div>
+        </div>
+        
         {/* Actual Leaflet Map with MapContainer */}
         <MapContainer 
           center={[center[0], center[1]]} 
           zoom={zoom} 
           style={{ height: '100%', width: '100%' }}
           ref={mapRef}
+          zoomControl={false}
+          attributionControl={false}
+          className="map-background"
         >
-          {/* Base tile layer */}
+          {/* Custom premium-looking tile layer */}
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
           
           {/* Child components (including ParcelOverlay) can now use Leaflet context */}
           {children}
         </MapContainer>
         
-        {/* Debug Info */}
+        {/* Vignette effect for depth */}
         <div 
+          className="absolute inset-0 z-[4] pointer-events-none" 
           style={{
-            position: 'absolute',
-            bottom: 10,
-            left: 10,
-            zIndex: 1000,
-            background: 'rgba(0, 0, 0, 0.6)',
-            color: 'white',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px'
+            boxShadow: 'inset 0 0 150px rgba(0,0,0,0.2)',
+            background: 'radial-gradient(circle at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 100%)'
           }}
+        />
+        
+        {/* Attribution */}
+        <div className="absolute bottom-2 right-2 z-[100] glass-panel text-xs px-2 py-1 rounded opacity-70 hover:opacity-100 transition-opacity">
+          &copy; <a href="https://www.openstreetmap.org/copyright" className="text-primary-700 hover:underline">OpenStreetMap</a> contributors
+        </div>
+        
+        {/* Active tool indicator */}
+        <div 
+          className="absolute bottom-3 left-3 z-[100] glass-panel px-3 py-1.5 rounded-full opacity-80 hover:opacity-100 transition-all"
         >
-          <div>Tool: {activeTool}</div>
-          {activeTool === MapTool.MEASURE && measurementType && (
-            <div>Measuring: {measurementType} in {measurementUnit}</div>
-          )}
+          <div className="text-xs font-medium readable-text">
+            <span className="text-primary-700">Mode:</span> {activeTool}
+            {activeTool === MapTool.MEASURE && measurementType && (
+              <span> | {measurementType} in {measurementUnit}</span>
+            )}
+          </div>
         </div>
       </div>
     );
