@@ -8,20 +8,20 @@ import './styles/App.css';
 const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
-  // Feature data for Benton County, OR
+  // Feature data for Benton County, WA
   const initialFeatures = [
     {
       type: 'Feature',
       geometry: {
         type: 'Point',
-        coordinates: [-123.2620, 44.5646]
+        coordinates: [-119.2670, 46.2275]
       },
       properties: {
         id: '1',
         name: 'Benton County Courthouse',
-        address: '120 NW 4th St, Corvallis, OR 97330',
+        address: '620 Market St, Prosser, WA 99350',
         type: 'Government',
-        parcelId: 'R135792'
+        parcelId: '109891000001000'
       }
     },
     {
@@ -29,18 +29,18 @@ const App: React.FC = () => {
       geometry: {
         type: 'Polygon',
         coordinates: [[
-          [-123.2720, 44.5746],
-          [-123.2720, 44.5846],
-          [-123.2620, 44.5846],
-          [-123.2620, 44.5746],
-          [-123.2720, 44.5746]
+          [-119.3020, 46.2980],
+          [-119.3020, 46.3080],
+          [-119.2920, 46.3080],
+          [-119.2920, 46.2980],
+          [-119.3020, 46.2980]
         ]]
       },
       properties: {
         id: '2',
-        name: 'OSU Campus Area',
-        zone: 'Educational',
-        acres: 422,
+        name: 'Horn Rapids Area',
+        zone: 'Industrial',
+        acres: 745,
         parcelId: 'Multiple'
       }
     },
@@ -48,14 +48,14 @@ const App: React.FC = () => {
       type: 'Feature',
       geometry: {
         type: 'Point',
-        coordinates: [-123.3050, 44.5642]
+        coordinates: [-119.1710, 46.2055]
       },
       properties: {
         id: '3',
         name: 'Benton County Fairgrounds',
-        address: '110 SW 53rd St, Corvallis, OR 97333',
+        address: '1500 S Oak St, Kennewick, WA 99337',
         type: 'Recreation',
-        parcelId: 'R193001'
+        parcelId: '117971000000000'
       }
     }
   ];
@@ -80,9 +80,9 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <Header onMenuToggle={toggleSidebar} />
+      <Header toggleSidebar={toggleSidebar} />
       <div className="app-content">
-        {sidebarOpen && <Sidebar isOpen={true} />}
+        {sidebarOpen && <Sidebar visible={true} />}
         <div className="app-main">
           {/* View selection tabs */}
           <div className="view-tabs">

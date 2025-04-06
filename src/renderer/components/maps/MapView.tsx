@@ -21,8 +21,8 @@ interface MapViewProps {
 }
 
 const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect }) => {
-  // Benton County, OR approximate center coordinates
-  const defaultCenter: LatLngTuple = [44.5700, -123.2700];
+  // Benton County, WA approximate center coordinates
+  const defaultCenter: LatLngTuple = [46.2681, -119.2815];
   const defaultZoom = 11;
   const mapRef = useRef<L.Map | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<any | null>(null);
@@ -156,7 +156,7 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
           {/* Coordinates tracker */}
           <CoordinatesTracker />
         </MapContainer>
-        <div className="map-overlay-text">Benton County GIS</div>
+        <div className="map-overlay-text">Benton County, WA GIS</div>
         {coordinates && (
           <div className="coordinates-display">
             Lat: {coordinates.lat.toFixed(6)}, Lng: {coordinates.lng.toFixed(6)}
