@@ -50,42 +50,42 @@ export function useMapBookmarks() {
   
   // Fetch all bookmarks
   const { data: bookmarks = [], isLoading, error } = useQuery({
-    queryKey: ['/api/map/bookmarks'],
+    queryKey: ['/api/map-bookmarks'],
     placeholderData: [],
   });
 
   // Create a new bookmark
   const createBookmark = useMutation({
     mutationFn: (newBookmark: CreateBookmarkInput) => 
-      apiRequest('/api/map/bookmarks', {
+      apiRequest('/api/map-bookmarks', {
         method: 'POST',
         body: JSON.stringify(newBookmark),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/bookmarks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
     },
   });
 
   // Update an existing bookmark
   const updateBookmark = useMutation({
     mutationFn: (updatedBookmark: UpdateBookmarkInput) => 
-      apiRequest(`/api/map/bookmarks/${updatedBookmark.id}`, {
+      apiRequest(`/api/map-bookmarks/${updatedBookmark.id}`, {
         method: 'PATCH',
         body: JSON.stringify(updatedBookmark),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/bookmarks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
     },
   });
 
   // Delete a bookmark
   const deleteBookmark = useMutation({
     mutationFn: (bookmarkId: number) => 
-      apiRequest(`/api/map/bookmarks/${bookmarkId}`, {
+      apiRequest(`/api/map-bookmarks/${bookmarkId}`, {
         method: 'DELETE',
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/bookmarks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
     },
   });
 

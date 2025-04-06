@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { MapPin, Clock, History, Trash2, Search, Home, X, BuildingEstate, Navigation, Eye } from 'lucide-react';
+import { MapPin, Clock, History, Trash2, Search, Home, X, Building2, Navigation, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 
 export interface RecentlyViewedParcelsProps {
@@ -162,7 +162,7 @@ export function RecentlyViewedParcels({ className, compact = false, onParcelSele
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="font-medium flex items-center gap-1">
-                            <BuildingEstate className="h-3.5 w-3.5" />
+                            <Building2 className="h-3.5 w-3.5" />
                             {parcel.parcelNumber}
                           </h4>
                           

@@ -20,11 +20,11 @@ export function useRecentlyViewed(limit?: number) {
   
   // Fetch recently viewed parcels
   const { data: recentParcels = [], isLoading, error } = useQuery({
-    queryKey: ['/api/map/recently-viewed', { limit }],
+    queryKey: ['/api/recently-viewed-parcels', { limit }],
     queryFn: async () => {
       const url = limit 
-        ? `/api/map/recently-viewed?limit=${limit}` 
-        : '/api/map/recently-viewed';
+        ? `/api/recently-viewed-parcels?limit=${limit}` 
+        : '/api/recently-viewed-parcels';
       
       const response = await apiRequest(url);
       return response as RecentParcel[];
@@ -41,34 +41,34 @@ export function useRecentlyViewed(limit?: number) {
       zoom: number;
       address?: string | null;
     }) => 
-      apiRequest('/api/map/recently-viewed', {
+      apiRequest('/api/recently-viewed-parcels', {
         method: 'POST',
         body: JSON.stringify(parcel),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/recently-viewed'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
     },
   });
 
   // Remove a parcel from the recently viewed list
   const removeRecentParcel = useMutation({
     mutationFn: (id: number) => 
-      apiRequest(`/api/map/recently-viewed/${id}`, {
+      apiRequest(`/api/recently-viewed-parcels/${id}`, {
         method: 'DELETE',
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/recently-viewed'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
     },
   });
 
   // Clear all parcels from recently viewed list
   const clearRecentParcels = useMutation({
     mutationFn: () => 
-      apiRequest('/api/map/recently-viewed/clear', {
-        method: 'POST',
+      apiRequest('/api/recently-viewed-parcels', {
+        method: 'DELETE',
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/recently-viewed'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
     },
   });
 

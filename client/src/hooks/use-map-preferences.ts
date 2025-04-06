@@ -72,30 +72,30 @@ export function useMapPreferences() {
   
   // Fetch user preferences
   const { data: preferences, isLoading, error } = useQuery({
-    queryKey: ['/api/map/preferences'],
+    queryKey: ['/api/map-preferences'],
     placeholderData: defaultPreferences,
   });
 
   // Update preferences
   const updatePreferences = useMutation({
     mutationFn: (updatedPrefs: Partial<MapPreferences>) => 
-      apiRequest('/api/map/preferences', {
+      apiRequest('/api/map-preferences', {
         method: 'PATCH',
         body: JSON.stringify(updatedPrefs),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
     },
   });
 
   // Reset preferences to default
   const resetPreferences = useMutation({
     mutationFn: () => 
-      apiRequest('/api/map/preferences/reset', {
+      apiRequest('/api/map-preferences/reset', {
         method: 'POST',
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map/preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
     },
   });
 

@@ -999,6 +999,23 @@ export class MemStorage implements IStorage {
       .find(preference => preference.userId === userId);
   }
   
+  async getMapPreferences(userId: number): Promise<MapPreference | undefined> {
+    // This is an alias for getMapPreference for API consistency
+    return this.getMapPreference(userId);
+  }
+  
+  async createMapPreferences(preference: InsertMapPreference): Promise<MapPreference> {
+    const id = this.mapPreferenceId++;
+    const newPreference: MapPreference = {
+      ...preference,
+      id,
+      updatedAt: new Date()
+    };
+    
+    this.mapPreferences.set(id, newPreference);
+    return newPreference;
+  }
+  
   async createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference> {
     const existingPreference = await this.getMapPreference(preference.userId);
     
@@ -1016,13 +1033,61 @@ export class MemStorage implements IStorage {
       const newPreference: MapPreference = {
         ...preference,
         id,
-        createdAt: new Date(),
         updatedAt: new Date()
       };
       
       this.mapPreferences.set(id, newPreference);
       return newPreference;
     }
+  }
+  
+  async updateMapPreferences(userId: number, updates: Partial<Omit<InsertMapPreference, 'id'>>): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(userId);
+    
+    if (!existingPreference) {
+      throw new Error(`Map preferences for user ${userId} not found`);
+    }
+    
+    const updatedPreference: MapPreference = {
+      ...existingPreference,
+      ...updates,
+      userId, // Ensure userId doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.mapPreferences.set(existingPreference.id, updatedPreference);
+    return updatedPreference;
+  }
+  
+  async resetMapPreferences(userId: number): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(userId);
+    
+    if (!existingPreference) {
+      throw new Error(`Map preferences for user ${userId} not found`);
+    }
+    
+    // Create default preferences
+    const defaultPreference: InsertMapPreference = {
+      userId,
+      defaultCenter: { lat: 46.06, lng: -123.43 }, // Default Benton County center
+      defaultZoom: 12,
+      baseLayer: 'streets',
+      layerVisibility: 'visible',
+      theme: 'light',
+      measurement: { enabled: false, unit: 'imperial' },
+      snapToFeature: true,
+      showLabels: true,
+      animation: true,
+    };
+    
+    const resetPreference: MapPreference = {
+      ...defaultPreference,
+      id: existingPreference.id,
+      updatedAt: new Date()
+    };
+    
+    this.mapPreferences.set(existingPreference.id, resetPreference);
+    return resetPreference;
   }
   
   // Recently viewed parcels operations
@@ -1035,7 +1100,10 @@ export class MemStorage implements IStorage {
       .slice(0, limitCount);
   }
   
-  async addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel> {
+  async addRecentlyViewedParcel(data: InsertRecentlyViewedParcel): Promise<RecentlyViewedParcel> {
+    const userId = data.userId;
+    const parcelId = data.parcelId;
+    
     // Check if this parcel was already viewed by this user
     const existingRecord = Array.from(this.recentlyViewedParcels.values())
       .find(record => record.userId === userId && record.parcelId === parcelId);
@@ -1044,24 +1112,46 @@ export class MemStorage implements IStorage {
       // Update the existing record with the new timestamp
       const updatedRecord: RecentlyViewedParcel = {
         ...existingRecord,
-        viewedAt: new Date()
+        viewedAt: data.viewedAt || new Date()
       };
       
       this.recentlyViewedParcels.set(existingRecord.id, updatedRecord);
       return updatedRecord;
     } else {
       // Create a new record
-      const id = this.recentlyViewedParcelId++;
+      const id = data.id || this.recentlyViewedParcelId++;
       const newRecord: RecentlyViewedParcel = {
         id,
         userId,
         parcelId,
-        viewedAt: new Date()
+        viewedAt: data.viewedAt || new Date()
       };
       
       this.recentlyViewedParcels.set(id, newRecord);
       return newRecord;
     }
+  }
+  
+  async removeRecentlyViewedParcel(id: number): Promise<boolean> {
+    if (!this.recentlyViewedParcels.has(id)) {
+      return false;
+    }
+    
+    return this.recentlyViewedParcels.delete(id);
+  }
+  
+  async clearRecentlyViewedParcels(userId: number): Promise<boolean> {
+    const parcelIdsToRemove = Array.from(this.recentlyViewedParcels.values())
+      .filter(record => record.userId === userId)
+      .map(record => record.id);
+    
+    let success = true;
+    for (const id of parcelIdsToRemove) {
+      const result = this.recentlyViewedParcels.delete(id);
+      if (!result) success = false;
+    }
+    
+    return success;
   }
 }
 
@@ -1790,6 +1880,22 @@ export class DatabaseStorage implements IStorage {
     return preference;
   }
   
+  async getMapPreferences(userId: number): Promise<MapPreference | undefined> {
+    // This is an alias for getMapPreference for API consistency
+    return this.getMapPreference(userId);
+  }
+  
+  async createMapPreferences(preference: InsertMapPreference): Promise<MapPreference> {
+    const [newPreference] = await db.insert(mapPreferences)
+      .values({
+        ...preference,
+        updatedAt: new Date()
+      })
+      .returning();
+    
+    return newPreference;
+  }
+  
   async createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference> {
     const existingPreference = await this.getMapPreference(preference.userId);
     
@@ -1815,6 +1921,59 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
+  async updateMapPreferences(userId: number, updates: Partial<Omit<InsertMapPreference, 'id'>>): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(userId);
+    
+    if (!existingPreference) {
+      throw new Error(`Map preferences not found for user ${userId}`);
+    }
+    
+    const [updatedPreference] = await db.update(mapPreferences)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(mapPreferences.id, existingPreference.id))
+      .returning();
+    
+    return updatedPreference;
+  }
+  
+  async resetMapPreferences(userId: number): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(userId);
+    
+    // Default preferences configuration
+    const defaultPreference: InsertMapPreference = {
+      userId,
+      defaultCenter: { lat: 44.5646, lng: -123.2620 }, // Default to Benton County coordinates
+      defaultZoom: 12,
+      baseLayer: "streets",
+      layerVisibility: "all",
+      theme: "light",
+      measurement: { enabled: false, unit: "imperial" },
+      snapToFeature: false,
+      showLabels: true,
+      animation: true
+    };
+    
+    if (existingPreference) {
+      // Update existing preference with default values
+      const [resetPreference] = await db.update(mapPreferences)
+        .set({
+          ...defaultPreference,
+          id: existingPreference.id,
+          updatedAt: new Date()
+        })
+        .where(eq(mapPreferences.id, existingPreference.id))
+        .returning();
+      
+      return resetPreference;
+    } else {
+      // Create new default preferences
+      return this.createMapPreferences(defaultPreference);
+    }
+  }
+  
   // Recently viewed parcels operations
   async getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]> {
     return db.select()
@@ -1824,7 +1983,10 @@ export class DatabaseStorage implements IStorage {
       .limit(limit || 10);
   }
   
-  async addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel> {
+  async addRecentlyViewedParcel(data: InsertRecentlyViewedParcel): Promise<RecentlyViewedParcel> {
+    const userId = data.userId;
+    const parcelId = data.parcelId;
+    
     // Check if this combination already exists
     const [existingRecord] = await db.select()
       .from(recentlyViewedParcels)
@@ -1839,7 +2001,7 @@ export class DatabaseStorage implements IStorage {
       // Update the viewed timestamp
       const [updatedRecord] = await db.update(recentlyViewedParcels)
         .set({
-          viewedAt: new Date()
+          viewedAt: data.viewedAt || new Date()
         })
         .where(eq(recentlyViewedParcels.id, existingRecord.id))
         .returning();
@@ -1849,6 +2011,7 @@ export class DatabaseStorage implements IStorage {
       // Create a new record
       const [newRecord] = await db.insert(recentlyViewedParcels)
         .values({
+          id: data.id,
           userId,
           parcelId,
           viewedAt: new Date()
@@ -1857,6 +2020,20 @@ export class DatabaseStorage implements IStorage {
       
       return newRecord;
     }
+  }
+  
+  async removeRecentlyViewedParcel(id: number): Promise<boolean> {
+    const result = await db.delete(recentlyViewedParcels)
+      .where(eq(recentlyViewedParcels.id, id));
+    
+    return result.rowCount > 0;
+  }
+  
+  async clearRecentlyViewedParcels(userId: number): Promise<boolean> {
+    const result = await db.delete(recentlyViewedParcels)
+      .where(eq(recentlyViewedParcels.userId, userId));
+    
+    return result.rowCount > 0;
   }
 }
 
