@@ -61,38 +61,65 @@ button:not([aria-label]):not([title]) {
 /* Ultra-modern glass morphism effect for panels with light refraction */
 .glass-panel {
   @apply backdrop-blur-lg shadow-lg;
-  background-color: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   background-image: linear-gradient(
     135deg, 
-    rgba(255, 255, 255, 0.25) 0%, 
-    rgba(255, 255, 255, 0.1) 100%
+    rgba(255, 255, 255, 0.35) 0%, 
+    rgba(255, 255, 255, 0.15) 100%
   );
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 4px 16px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    0 8px 32px rgba(0, 0, 0, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 /* Advanced 3D interactive elements with depth perception */
 .btn-3d {
-  @apply transition-all duration-300 ease-out transform;
+  @apply transition-all duration-300 ease-out transform relative;
   box-shadow: 
-    0 4px 8px -1px rgba(0, 0, 0, 0.12),
-    0 2px 4px -1px rgba(0, 0, 0, 0.07),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    0 4px 12px -2px rgba(0, 0, 0, 0.15),
+    0 2px 6px -1px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   transform-style: preserve-3d;
   perspective: 800px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.btn-3d::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
 }
 
 .btn-3d:hover {
   @apply -translate-y-1 scale-[1.02];
   box-shadow: 
-    0 15px 25px -4px rgba(0, 0, 0, 0.15),
-    0 8px 12px -4px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    0 15px 30px -4px rgba(0, 0, 0, 0.18),
+    0 8px 15px -4px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
   transform: translateY(-4px) scale(1.02) translateZ(4px);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-3d:hover::before {
+  opacity: 1;
 }
 
 .btn-3d:active {
@@ -102,24 +129,29 @@ button:not([aria-label]):not([title]) {
     0 1px 2px -1px rgba(0, 0, 0, 0.05),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   transform: translateY(1px) scale(0.98) translateZ(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Premium glass panels with light reflection */
 .premium-glass {
-  @apply glass-panel;
+  @apply rounded-xl overflow-hidden relative;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.25) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0.15) 100%
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.2) 100%
   );
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.1),
-    0 1px 8px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    0 10px 30px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
+  z-index: 1;
+  transform: translateZ(0);
 }
 
 .premium-glass::before {
@@ -131,7 +163,7 @@ button:not([aria-label]):not([title]) {
   height: 200%;
   background: radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.5) 0%,
     rgba(255, 255, 255, 0) 60%
   );
   opacity: 0;
@@ -139,6 +171,22 @@ button:not([aria-label]):not([title]) {
   transition: opacity 0.5s, transform 0.7s;
   pointer-events: none;
   z-index: 1;
+}
+
+.premium-glass::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  z-index: 2;
 }
 
 .premium-glass:hover::before {
