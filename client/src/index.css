@@ -52,38 +52,103 @@ button:not([aria-label]):not([title]) {
   z-index: 0;
 }
 
-/* Glass morphism effect for cards and panels */
+/* Ultra-modern glass morphism effect for panels with light refraction */
 .glass-panel {
-  @apply bg-white/60 backdrop-blur-md border border-white/20 shadow-lg;
+  @apply bg-white/50 backdrop-blur-lg border border-white/30 shadow-lg;
+  background-image: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.5) 0%, 
+    rgba(255, 255, 255, 0.2) 100%
+  );
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    0 10px 40px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
 }
 
-/* 3D-like hover effects for interactive elements */
+/* Advanced 3D interactive elements with depth perception */
 .btn-3d {
-  @apply transition-all duration-200 ease-out transform;
+  @apply transition-all duration-300 ease-out transform;
   box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    0 4px 8px -1px rgba(0, 0, 0, 0.12),
+    0 2px 4px -1px rgba(0, 0, 0, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transform-style: preserve-3d;
+  perspective: 800px;
 }
 
 .btn-3d:hover {
-  @apply -translate-y-0.5;
+  @apply -translate-y-1 scale-[1.02];
   box-shadow: 
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    0 15px 25px -4px rgba(0, 0, 0, 0.15),
+    0 8px 12px -4px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  transform: translateY(-4px) scale(1.02) translateZ(4px);
 }
 
 .btn-3d:active {
-  @apply translate-y-0.5;
+  @apply translate-y-0.5 scale-[0.98];
   box-shadow: 
-    0 2px 3px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.1),
     0 1px 2px -1px rgba(0, 0, 0, 0.05),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transform: translateY(1px) scale(0.98) translateZ(-2px);
+}
+
+/* Premium glass panels with light reflection */
+.premium-glass {
+  @apply glass-panel;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-glass::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0) 60%
+  );
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.5s, transform 0.7s;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.premium-glass:hover::before {
+  opacity: 0.8;
+  transform: scale(1);
+}
+
+/* Modern floating UI elements */
+.floating-ui {
+  animation: float 6s ease-in-out infinite;
+  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.1));
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 /* Map controls with enhanced styling */
