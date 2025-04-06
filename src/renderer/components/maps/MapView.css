@@ -4,6 +4,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  z-index: 1;
+  overflow: hidden;
 }
 
 .map-container {
@@ -11,103 +13,213 @@
   position: relative;
   overflow: hidden;
   background-color: #f1f5f9;
-  border-radius: 4px;
+  border-radius: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.05);
 }
 
 /* Leaflet map container and related styles */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  border-radius: 4px;
+  border-radius: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  position: absolute;
+  z-index: 1;
+}
+
+/* Map illumination effect */
+.map-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at 70% 30%, 
+    rgba(255, 255, 255, 0.15), 
+    rgba(0, 0, 0, 0.05) 80%
+  );
+  pointer-events: none;
+  z-index: 2;
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 
+    0 10px 25px rgba(0, 0, 0, 0.1),
+    0 6px 12px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px);
+  transform: translateZ(0);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(10px);
 }
 
 .leaflet-popup-content {
-  margin: 12px 16px;
+  margin: 16px 18px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: #334155;
 }
 
 .feature-popup {
-  max-width: 300px;
-  max-height: 300px;
+  max-width: 320px;
+  max-height: 350px;
   overflow-y: auto;
+  position: relative;
 }
 
 .feature-popup strong {
   font-weight: 600;
   color: #0c4a6e;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.feature-popup::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.1));
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Custom zoom controls styling */
 .leaflet-control-zoom {
   border: none !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.08), 
+    0 2px 4px rgba(0, 0, 0, 0.05) !important;
+  margin: 15px !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
 }
 
 .leaflet-control-zoom a {
-  width: 36px !important;
-  height: 36px !important;
-  line-height: 36px !important;
-  border-radius: 4px !important;
-  background-color: white !important;
-  color: #475569 !important;
-  font-size: 18px !important;
+  width: 42px !important;
+  height: 42px !important;
+  line-height: 42px !important;
+  background-color: transparent !important;
+  color: #334155 !important;
+  font-size: 22px !important;
   font-weight: bold !important;
-  transition: all 0.2s !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  overflow: hidden !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7) !important;
+}
+
+.leaflet-control-zoom a::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: radial-gradient(circle at center, rgba(14, 165, 233, 0.1), transparent 70%) !important;
+  opacity: 0 !important;
+  transform: scale(0.8) !important;
+  transition: all 0.4s ease !important;
+  z-index: -1 !important;
 }
 
 .leaflet-control-zoom a:hover {
-  background-color: #f8fafc !important;
+  background-color: rgba(241, 245, 249, 0.6) !important;
   color: #0ea5e9 !important;
+  transform: translateY(-1px) !important;
+}
+
+.leaflet-control-zoom a:hover::before {
+  opacity: 1 !important;
+  transform: scale(1.5) !important;
+}
+
+.leaflet-control-zoom-in {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5) !important;
 }
 
 /* Custom attribution styles */
 .leaflet-control-attribution {
-  padding: 4px 8px !important;
-  background-color: rgba(255, 255, 255, 0.8) !important;
+  padding: 5px 10px !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
   font-size: 11px !important;
-  border-radius: 4px 0 0 0 !important;
+  border-radius: 6px 0 0 0 !important;
+  backdrop-filter: blur(4px) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.4) !important;
 }
 
 /* Map overlay with Benton County text */
 .map-overlay-text {
   position: absolute;
-  top: 16px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 6px 12px;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #475569;
+  padding: 10px 16px;
+  background-color: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #334155;
   z-index: 999; /* Above Leaflet controls */
   pointer-events: none; /* Allow clicking through */
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.01em;
 }
 
-/* MapView tools below the map */
+/* MapView tools */
 .map-tools {
-  height: 48px;
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 56px;
   display: flex;
   gap: 16px;
-  padding: 6px 12px;
-  border-top: 1px solid #e2e8f0;
-  background-color: white;
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.85);
   z-index: 400;
+  border-radius: 12px;
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.1),
+    0 2px 5px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .tool-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding-right: 16px;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid rgba(226, 232, 240, 0.6);
 }
 
 .tool-group:last-child {
@@ -115,41 +227,72 @@
 }
 
 .tool-button {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: 10px;
   color: #475569;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(3, 105, 161, 0.1), transparent 70%);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: all 0.4s ease;
+  z-index: -1;
 }
 
 .tool-button:hover {
-  background-color: #f1f5f9;
   color: #0369a1;
+  transform: translateY(-1px);
+}
+
+.tool-button:hover::before {
+  opacity: 1;
+  transform: scale(1.5);
 }
 
 .tool-button.active {
-  background-color: #e0f2fe;
+  background-color: rgba(224, 242, 254, 0.7);
   color: #0369a1;
+  box-shadow: 
+    0 2px 5px rgba(3, 105, 161, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.9);
 }
 
 /* Coordinates display */
 .coordinates-display {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  padding: 5px 10px;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 4px;
+  bottom: 15px;
+  right: 15px;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
   font-size: 12px;
-  font-family: monospace;
-  color: #475569;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: #334155;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   z-index: 1000;
   pointer-events: none; /* Allow clicking through */
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transform: translateZ(0);
 }
