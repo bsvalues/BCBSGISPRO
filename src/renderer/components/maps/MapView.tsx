@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, GeoJSON, ZoomControl, FeatureGroup, useMap } from 'react-leaflet';
-import { LatLngTuple, Map as LeafletMap } from 'leaflet';
+import { MapContainer, TileLayer, GeoJSON, ZoomControl, FeatureGroup, useMap, useMapEvents } from 'react-leaflet';
+import { LatLngTuple, Map as LeafletMap, LatLng } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import 'leaflet-defaulticon-compatibility';
@@ -26,6 +26,8 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
   const defaultZoom = 11;
   const mapRef = useRef<L.Map | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<any | null>(null);
+  // State for tracking mouse coordinates
+  const [coordinates, setCoordinates] = useState<LatLng | null>(null);
   
   // Handle feature selection
   const handleFeatureClick = (feature: any) => {
@@ -105,6 +107,20 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
     
     return null;
   };
+  
+  // Coordinates tracker component
+  const CoordinatesTracker = () => {
+    const map = useMapEvents({
+      mousemove: (e) => {
+        setCoordinates(e.latlng);
+      },
+      mouseout: () => {
+        setCoordinates(null);
+      }
+    });
+    
+    return null;
+  };
 
   return (
     <div className="map-view">
@@ -136,8 +152,16 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
               ))}
             </FeatureGroup>
           )}
+          
+          {/* Coordinates tracker */}
+          <CoordinatesTracker />
         </MapContainer>
         <div className="map-overlay-text">Benton County GIS</div>
+        {coordinates && (
+          <div className="coordinates-display">
+            Lat: {coordinates.lat.toFixed(6)}, Lng: {coordinates.lng.toFixed(6)}
+          </div>
+        )}
       </div>
 
       <div className="map-tools">
