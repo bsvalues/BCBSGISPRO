@@ -147,11 +147,17 @@ export interface IStorage {
   
   // Map preferences operations
   getMapPreference(userId: number): Promise<MapPreference | undefined>;
+  getMapPreferences(userId: number): Promise<MapPreference | undefined>;
+  createMapPreferences(preference: InsertMapPreference): Promise<MapPreference>;
   createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference>;
+  updateMapPreferences(userId: number, updates: Partial<Omit<InsertMapPreference, 'id'>>): Promise<MapPreference>;
+  resetMapPreferences(userId: number): Promise<MapPreference>;
   
   // Recently viewed parcels operations
   getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]>;
-  addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel>;
+  addRecentlyViewedParcel(data: InsertRecentlyViewedParcel): Promise<RecentlyViewedParcel>;
+  removeRecentlyViewedParcel(id: number): Promise<boolean>;
+  clearRecentlyViewedParcels(userId: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {

@@ -97,6 +97,7 @@ export const insertMapBookmarkSchema = createInsertSchema(mapBookmarks);
 // Enum for map layer types
 export const mapLayerVisibilityEnum = pgEnum('map_layer_visibility', ['visible', 'hidden', 'custom']);
 export const mapBaseLayerEnum = pgEnum('map_base_layer', ['satellite', 'streets', 'terrain', 'light', 'dark', 'custom']);
+export const themeEnum = pgEnum('theme', ['light', 'dark', 'system']);
 
 // User map preferences
 export const mapPreferences = pgTable('map_preferences', {
@@ -105,12 +106,17 @@ export const mapPreferences = pgTable('map_preferences', {
   defaultCenter: json('default_center').$type<{lat: number, lng: number}>().notNull(), // Default map center
   defaultZoom: integer('default_zoom').notNull().default(12),
   baseLayer: mapBaseLayerEnum('base_layer').notNull().default('streets'),
+  layerVisibility: mapLayerVisibilityEnum('layer_visibility').notNull().default('visible'),
   customBaseLayer: varchar('custom_base_layer', { length: 255 }), // URL for custom tile layer
   layerSettings: json('layer_settings'), // JSON with layer visibility preferences
   uiSettings: json('ui_settings'), // UI preferences like control positions, auto-hiding, etc.
-  measurementUnit: varchar('measurement_unit', { length: 20 }).default('metric'), // metric or imperial
-  labelVisibility: boolean('label_visibility').default(true),
-  enable3D: boolean('enable_3d').default(false), // Enable 3D terrain rendering if available
+  theme: themeEnum('theme').notNull().default('light'),
+  measurement: json('measurement').$type<{
+    enabled: boolean;
+    unit: 'imperial' | 'metric';
+  }>().default({ enabled: false, unit: 'imperial' }),
+  snapToFeature: boolean('snap_to_feature').default(true),
+  showLabels: boolean('show_labels').default(true),
   animation: boolean('animation').default(true), // Enable animations for panning/zooming
   updatedAt: timestamp('updated_at').defaultNow()
 });

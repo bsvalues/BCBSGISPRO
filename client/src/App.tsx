@@ -21,6 +21,7 @@ import EnhancedMapCollaborationPage from "@/pages/enhanced-map-collaboration-pag
 import MapCollaborationStarterPage from "@/pages/map-collaboration-starter-page";
 import DocumentParcelManagementPage from "@/pages/document-parcel-management";
 import DataMigrationPage from "@/pages/data-migration";
+import { MapSettingsPage } from "@/pages/map-settings";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -41,7 +42,8 @@ import {
   ChevronDown,
   ChevronUp,
   Menu,
-  X
+  X,
+  Settings
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -133,6 +135,11 @@ function App() {
       path: '/mapbox-demo', 
       icon: <Globe className="h-4 w-4" />, 
       label: 'Mapbox Demo',
+    },
+    { 
+      path: '/map-settings', 
+      icon: <Settings className="h-4 w-4" />, 
+      label: 'Map Settings',
     },
     { 
       path: '/progress-tracker', 
@@ -378,6 +385,7 @@ function App() {
             <Route path="/document-parcel-management" component={DocumentParcelManagementPage} />
             <Route path="/project-progress" component={ProjectProgressPage} />
             <Route path="/data-migration" component={DataMigrationPage} />
+            <Route path="/map-settings" component={MapSettingsPage} />
             
             {/* Default to the fullscreen map page */}
             <Route>

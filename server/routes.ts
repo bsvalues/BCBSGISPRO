@@ -7,18 +7,27 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
 import { ApiError, asyncHandler } from "./error-handler";
+import { registerMapFeatureRoutes } from "./routes/map-features";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { 
   parcels,
   documents,
   annotations,
+  mapBookmarks,
+  mapPreferences,
+  recentlyViewedParcels,
   insertParcelSchema,
   insertDocumentSchema,
   insertAnnotationSchema,
+  insertMapBookmarkSchema,
+  insertMapPreferenceSchema,
   Parcel,
   Document,
   Annotation,
+  MapBookmark,
+  MapPreference,
+  RecentlyViewedParcel,
   ParsedLegalDescription
 } from "../shared/schema";
 import { DocumentType } from "../shared/document-types";
@@ -3883,6 +3892,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     res.json({ success: true, removed });
   }));
+  
+  // Map Bookmarks API Routes
+  app.get("/api/map-bookmarks", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access map bookmarks');
+    }
+    
+    const userId = req.session.userId;
+    const bookmarks = await storage.getMapBookmarks(userId);
+    
+    res.json(bookmarks);
+  }));
+  
+  app.get("/api/map-bookmarks/:id", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access map bookmarks');
+    }
+    
+    const bookmarkId = parseInt(req.params.id, 10);
+    if (isNaN(bookmarkId)) {
+      throw ApiError.badRequest('Invalid bookmark ID');
+    }
+    
+    const bookmark = await storage.getMapBookmark(bookmarkId);
+    
+    if (!bookmark) {
+      throw ApiError.notFound('Bookmark not found');
+    }
+    
+    // Check if the bookmark belongs to the current user
+    if (bookmark.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to access this bookmark');
+    }
+    
+    res.json(bookmark);
+  }));
+  
+  app.post("/api/map-bookmarks", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to create map bookmarks');
+    }
+    
+    // Validate request body against our schema
+    const validationResult = insertMapBookmarkSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      throw ApiError.badRequest('Invalid bookmark data', 'VALIDATION_ERROR', validationResult.error);
+    }
+    
+    // Make sure userId matches the authenticated user
+    const bookmarkData = {
+      ...validationResult.data,
+      userId: req.session.userId
+    };
+    
+    const newBookmark = await storage.createMapBookmark(bookmarkData);
+    
+    res.status(201).json(newBookmark);
+  }));
+  
+  app.patch("/api/map-bookmarks/:id", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to update map bookmarks');
+    }
+    
+    const bookmarkId = parseInt(req.params.id, 10);
+    if (isNaN(bookmarkId)) {
+      throw ApiError.badRequest('Invalid bookmark ID');
+    }
+    
+    // Check if the bookmark exists and belongs to the user
+    const existingBookmark = await storage.getMapBookmark(bookmarkId);
+    
+    if (!existingBookmark) {
+      throw ApiError.notFound('Bookmark not found');
+    }
+    
+    if (existingBookmark.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to update this bookmark');
+    }
+    
+    // Update the bookmark
+    const updatedBookmark = await storage.updateMapBookmark(bookmarkId, req.body);
+    
+    res.json(updatedBookmark);
+  }));
+  
+  app.delete("/api/map-bookmarks/:id", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to delete map bookmarks');
+    }
+    
+    const bookmarkId = parseInt(req.params.id, 10);
+    if (isNaN(bookmarkId)) {
+      throw ApiError.badRequest('Invalid bookmark ID');
+    }
+    
+    // Check if the bookmark exists and belongs to the user
+    const existingBookmark = await storage.getMapBookmark(bookmarkId);
+    
+    if (!existingBookmark) {
+      throw ApiError.notFound('Bookmark not found');
+    }
+    
+    if (existingBookmark.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to delete this bookmark');
+    }
+    
+    // Delete the bookmark
+    const success = await storage.deleteMapBookmark(bookmarkId);
+    
+    if (success) {
+      res.status(204).end();
+    } else {
+      throw ApiError.internal('Failed to delete bookmark');
+    }
+  }));
+  
+  // Map Preferences API Routes
+  app.get("/api/map-preferences", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access map preferences');
+    }
+    
+    const userId = req.session.userId;
+    const preferences = await storage.getMapPreference(userId);
+    
+    if (!preferences) {
+      // Return default preferences if none exist
+      return res.json({
+        userId,
+        defaultCenter: { lat: 44.5645, lng: -123.2620 }, // Default to Benton County
+        defaultZoom: 12,
+        baseLayer: 'streets',
+        layerVisibility: 'visible',
+        theme: 'light',
+        measurement: {
+          enabled: false,
+          unit: 'imperial'
+        },
+        snapToFeature: true,
+        showLabels: true,
+        animation: true
+      });
+    }
+    
+    res.json(preferences);
+  }));
+  
+  app.post("/api/map-preferences", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to update map preferences');
+    }
+    
+    // Validate request body against our schema
+    const validationResult = insertMapPreferenceSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      throw ApiError.badRequest('Invalid preferences data', 'VALIDATION_ERROR', validationResult.error);
+    }
+    
+    // Make sure userId matches the authenticated user
+    const preferencesData = {
+      ...validationResult.data,
+      userId: req.session.userId
+    };
+    
+    const preferences = await storage.createOrUpdateMapPreference(preferencesData);
+    
+    res.json(preferences);
+  }));
+  
+  // Recently Viewed Parcels API Routes
+  app.get("/api/recently-viewed-parcels", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access recently viewed parcels');
+    }
+    
+    const userId = req.session.userId;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    
+    const recentParcels = await storage.getRecentlyViewedParcels(userId, limit);
+    
+    res.json(recentParcels);
+  }));
+  
+  app.post("/api/recently-viewed-parcels", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to track recently viewed parcels');
+    }
+    
+    const userId = req.session.userId;
+    const { parcelId } = req.body;
+    
+    if (!parcelId || isNaN(parseInt(parcelId, 10))) {
+      throw ApiError.badRequest('Invalid parcel ID');
+    }
+    
+    const parcelIdInt = parseInt(parcelId, 10);
+    
+    // Check if the parcel exists
+    const parcel = await storage.getParcelById(parcelIdInt);
+    
+    if (!parcel) {
+      throw ApiError.notFound('Parcel not found');
+    }
+    
+    // Add the parcel to recently viewed
+    const recentlyViewed = await storage.addRecentlyViewedParcel(userId, parcelIdInt);
+    
+    res.status(201).json(recentlyViewed);
+  }));
+  
+  // Register the map feature routes from the separate module
+  registerMapFeatureRoutes(app, storage);
   
   return httpServer;
 }
