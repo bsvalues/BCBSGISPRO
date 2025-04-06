@@ -1,5 +1,23 @@
 import { 
-  type Parcel, type Document, type Annotation
+  type Parcel, type Document, type Annotation,
+  type MapBookmark, type InsertMapBookmark,
+  type MapPreference, type InsertMapPreference,
+  type User, type InsertUser,
+  type RecentlyViewedParcel, type InsertRecentlyViewedParcel,
+  type SearchHistory, type InsertSearchHistory,
+  type SearchSuggestion, type InsertSearchSuggestion,
+  type MapLayer, type InsertMapLayer,
+  type Workflow, type InsertWorkflow,
+  type WorkflowEvent, type InsertWorkflowEvent,
+  type WorkflowState, type InsertWorkflowState,
+  type ChecklistItem, type InsertChecklistItem,
+  type DocumentVersion, type InsertDocumentVersion,
+  type DocumentParcelLink, type InsertDocumentParcelLink,
+  type MapViewState,
+  users, workflows, workflowEvents, workflowStates, checklistItems,
+  documents, documentVersions, documentParcelLinks, parcels, mapLayers,
+  searchHistory, searchSuggestions, mapBookmarks, mapPreferences,
+  recentlyViewedParcels
 } from "../shared/schema";
 import { DocumentType } from "../shared/document-types";
 import session from "express-session";
@@ -119,6 +137,21 @@ export interface IStorage {
   saveSearchQuery(query: string, type: string, userId?: number, results?: number): Promise<SearchHistory>;
   getSearchSuggestions(prefix: string, type?: string, limit?: number): Promise<SearchSuggestion[]>;
   addSearchSuggestion(term: string, type: string, priority?: number, metadata?: any): Promise<SearchSuggestion>;
+  
+  // Map bookmarks operations
+  getMapBookmarks(userId: number): Promise<MapBookmark[]>;
+  getMapBookmark(id: number): Promise<MapBookmark | undefined>;
+  createMapBookmark(bookmark: InsertMapBookmark): Promise<MapBookmark>;
+  updateMapBookmark(id: number, updates: Partial<Omit<InsertMapBookmark, 'id'>>): Promise<MapBookmark>;
+  deleteMapBookmark(id: number): Promise<boolean>;
+  
+  // Map preferences operations
+  getMapPreference(userId: number): Promise<MapPreference | undefined>;
+  createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference>;
+  
+  // Recently viewed parcels operations
+  getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]>;
+  addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel>;
 }
 
 export class MemStorage implements IStorage {
@@ -133,6 +166,9 @@ export class MemStorage implements IStorage {
   private sm00Reports: Map<number, SM00Report>;
   private searchHistory: Map<number, SearchHistory>;
   private searchSuggestions: Map<number, SearchSuggestion>;
+  private mapBookmarks: Map<number, MapBookmark>;
+  private mapPreferences: Map<number, MapPreference>;
+  private recentlyViewedParcels: Map<number, RecentlyViewedParcel>;
   
   sessionStore: ReturnType<typeof createMemoryStore>;
   
@@ -147,6 +183,9 @@ export class MemStorage implements IStorage {
   reportId: number;
   searchHistoryId: number;
   searchSuggestionId: number;
+  mapBookmarkId: number;
+  mapPreferenceId: number;
+  recentlyViewedParcelId: number;
 
   constructor() {
     this.users = new Map();
@@ -160,6 +199,9 @@ export class MemStorage implements IStorage {
     this.sm00Reports = new Map();
     this.searchHistory = new Map();
     this.searchSuggestions = new Map();
+    this.mapBookmarks = new Map();
+    this.mapPreferences = new Map();
+    this.recentlyViewedParcels = new Map();
     
     this.userId = 1;
     this.workflowId = 1;
@@ -172,6 +214,9 @@ export class MemStorage implements IStorage {
     this.reportId = 1;
     this.searchHistoryId = 1;
     this.searchSuggestionId = 1;
+    this.mapBookmarkId = 1;
+    this.mapPreferenceId = 1;
+    this.recentlyViewedParcelId = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
@@ -831,6 +876,187 @@ export class MemStorage implements IStorage {
       this.mapLayers.set(id, mapLayer);
     });
   }
+  
+  // Search operations
+  async getSearchHistory(userId?: number, limit?: number): Promise<SearchHistory[]> {
+    const limitCount = limit || 10;
+    let searchEntries = Array.from(this.searchHistory.values());
+    
+    if (userId) {
+      searchEntries = searchEntries.filter(entry => entry.userId === userId);
+    }
+    
+    return searchEntries
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limitCount);
+  }
+  
+  async saveSearchQuery(query: string, type: string, userId?: number, results?: number): Promise<SearchHistory> {
+    const id = this.searchHistoryId++;
+    const searchEntry: SearchHistory = {
+      id,
+      userId: userId || null,
+      query,
+      type,
+      resultCount: results || 0,
+      createdAt: new Date()
+    };
+    
+    this.searchHistory.set(id, searchEntry);
+    return searchEntry;
+  }
+  
+  async getSearchSuggestions(prefix: string, type?: string, limit?: number): Promise<SearchSuggestion[]> {
+    const limitCount = limit || 5;
+    let suggestions = Array.from(this.searchSuggestions.values());
+    
+    if (prefix) {
+      suggestions = suggestions.filter(suggestion => 
+        suggestion.term.toLowerCase().startsWith(prefix.toLowerCase()));
+    }
+    
+    if (type) {
+      suggestions = suggestions.filter(suggestion => suggestion.type === type);
+    }
+    
+    return suggestions
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, limitCount);
+  }
+  
+  async addSearchSuggestion(term: string, type: string, priority?: number, metadata?: any): Promise<SearchSuggestion> {
+    const id = this.searchSuggestionId++;
+    const suggestion: SearchSuggestion = {
+      id,
+      term,
+      type,
+      priority: priority || 0,
+      metadata: metadata || null,
+      createdAt: new Date()
+    };
+    
+    this.searchSuggestions.set(id, suggestion);
+    return suggestion;
+  }
+  
+  // Map bookmarks operations
+  async getMapBookmarks(userId: number): Promise<MapBookmark[]> {
+    return Array.from(this.mapBookmarks.values())
+      .filter(bookmark => bookmark.userId === userId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  
+  async getMapBookmark(id: number): Promise<MapBookmark | undefined> {
+    return this.mapBookmarks.get(id);
+  }
+  
+  async createMapBookmark(bookmark: InsertMapBookmark): Promise<MapBookmark> {
+    const id = this.mapBookmarkId++;
+    const newBookmark: MapBookmark = {
+      ...bookmark,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    this.mapBookmarks.set(id, newBookmark);
+    return newBookmark;
+  }
+  
+  async updateMapBookmark(id: number, updates: Partial<Omit<InsertMapBookmark, 'id'>>): Promise<MapBookmark> {
+    const bookmark = this.mapBookmarks.get(id);
+    if (!bookmark) {
+      throw new Error(`Map bookmark with ID ${id} not found`);
+    }
+    
+    const updatedBookmark: MapBookmark = {
+      ...bookmark,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.mapBookmarks.set(id, updatedBookmark);
+    return updatedBookmark;
+  }
+  
+  async deleteMapBookmark(id: number): Promise<boolean> {
+    if (!this.mapBookmarks.has(id)) {
+      return false;
+    }
+    
+    return this.mapBookmarks.delete(id);
+  }
+  
+  // Map preferences operations
+  async getMapPreference(userId: number): Promise<MapPreference | undefined> {
+    return Array.from(this.mapPreferences.values())
+      .find(preference => preference.userId === userId);
+  }
+  
+  async createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(preference.userId);
+    
+    if (existingPreference) {
+      const updatedPreference: MapPreference = {
+        ...existingPreference,
+        ...preference,
+        updatedAt: new Date()
+      };
+      
+      this.mapPreferences.set(existingPreference.id, updatedPreference);
+      return updatedPreference;
+    } else {
+      const id = this.mapPreferenceId++;
+      const newPreference: MapPreference = {
+        ...preference,
+        id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      this.mapPreferences.set(id, newPreference);
+      return newPreference;
+    }
+  }
+  
+  // Recently viewed parcels operations
+  async getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]> {
+    const limitCount = limit || 10;
+    
+    return Array.from(this.recentlyViewedParcels.values())
+      .filter(record => record.userId === userId)
+      .sort((a, b) => b.viewedAt.getTime() - a.viewedAt.getTime())
+      .slice(0, limitCount);
+  }
+  
+  async addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel> {
+    // Check if this parcel was already viewed by this user
+    const existingRecord = Array.from(this.recentlyViewedParcels.values())
+      .find(record => record.userId === userId && record.parcelId === parcelId);
+    
+    if (existingRecord) {
+      // Update the existing record with the new timestamp
+      const updatedRecord: RecentlyViewedParcel = {
+        ...existingRecord,
+        viewedAt: new Date()
+      };
+      
+      this.recentlyViewedParcels.set(existingRecord.id, updatedRecord);
+      return updatedRecord;
+    } else {
+      // Create a new record
+      const id = this.recentlyViewedParcelId++;
+      const newRecord: RecentlyViewedParcel = {
+        id,
+        userId,
+        parcelId,
+        viewedAt: new Date()
+      };
+      
+      this.recentlyViewedParcels.set(id, newRecord);
+      return newRecord;
+    }
+  }
 }
 
 // DatabaseStorage implementation that uses Postgres/Drizzle
@@ -1437,6 +1663,194 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedLayer;
+  }
+  
+  // Search operations
+  async getSearchHistory(userId?: number, limit?: number): Promise<SearchHistory[]> {
+    let query = db.select().from(searchHistory);
+    
+    if (userId) {
+      query = query.where(eq(searchHistory.userId, userId));
+    }
+    
+    return query
+      .orderBy(desc(searchHistory.createdAt))
+      .limit(limit || 10);
+  }
+  
+  async saveSearchQuery(query: string, type: string, userId?: number, results?: number): Promise<SearchHistory> {
+    const [searchEntry] = await db.insert(searchHistory)
+      .values({
+        userId: userId || null,
+        query,
+        type,
+        resultCount: results || 0,
+        createdAt: new Date()
+      })
+      .returning();
+    
+    return searchEntry;
+  }
+  
+  async getSearchSuggestions(prefix: string, type?: string, limit?: number): Promise<SearchSuggestion[]> {
+    let query = db.select().from(searchSuggestions);
+    
+    // Filter by prefix (starts with)
+    if (prefix) {
+      query = query.where(sql`${searchSuggestions.term} ILIKE ${prefix + '%'}`);
+    }
+    
+    // Filter by type if provided
+    if (type) {
+      query = query.where(eq(searchSuggestions.type, type));
+    }
+    
+    return query
+      .orderBy(desc(searchSuggestions.priority))
+      .limit(limit || 5);
+  }
+  
+  async addSearchSuggestion(term: string, type: string, priority?: number, metadata?: any): Promise<SearchSuggestion> {
+    const [suggestion] = await db.insert(searchSuggestions)
+      .values({
+        term,
+        type,
+        priority: priority || 0,
+        metadata: metadata || null,
+        createdAt: new Date()
+      })
+      .returning();
+    
+    return suggestion;
+  }
+  
+  // Map bookmarks operations
+  async getMapBookmarks(userId: number): Promise<MapBookmark[]> {
+    return db.select()
+      .from(mapBookmarks)
+      .where(eq(mapBookmarks.userId, userId))
+      .orderBy(asc(mapBookmarks.name));
+  }
+  
+  async getMapBookmark(id: number): Promise<MapBookmark | undefined> {
+    const [bookmark] = await db.select()
+      .from(mapBookmarks)
+      .where(eq(mapBookmarks.id, id));
+    
+    return bookmark;
+  }
+  
+  async createMapBookmark(bookmark: InsertMapBookmark): Promise<MapBookmark> {
+    const [newBookmark] = await db.insert(mapBookmarks)
+      .values({
+        ...bookmark,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    
+    return newBookmark;
+  }
+  
+  async updateMapBookmark(id: number, updates: Partial<Omit<InsertMapBookmark, 'id'>>): Promise<MapBookmark> {
+    const [updatedBookmark] = await db.update(mapBookmarks)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(mapBookmarks.id, id))
+      .returning();
+    
+    if (!updatedBookmark) {
+      throw new Error(`Map bookmark with ID ${id} not found`);
+    }
+    
+    return updatedBookmark;
+  }
+  
+  async deleteMapBookmark(id: number): Promise<boolean> {
+    const result = await db.delete(mapBookmarks)
+      .where(eq(mapBookmarks.id, id));
+    
+    return result.rowCount > 0;
+  }
+  
+  // Map preferences operations
+  async getMapPreference(userId: number): Promise<MapPreference | undefined> {
+    const [preference] = await db.select()
+      .from(mapPreferences)
+      .where(eq(mapPreferences.userId, userId));
+    
+    return preference;
+  }
+  
+  async createOrUpdateMapPreference(preference: InsertMapPreference): Promise<MapPreference> {
+    const existingPreference = await this.getMapPreference(preference.userId);
+    
+    if (existingPreference) {
+      const [updatedPreference] = await db.update(mapPreferences)
+        .set({
+          ...preference,
+          updatedAt: new Date()
+        })
+        .where(eq(mapPreferences.id, existingPreference.id))
+        .returning();
+      
+      return updatedPreference;
+    } else {
+      const [newPreference] = await db.insert(mapPreferences)
+        .values({
+          ...preference,
+          updatedAt: new Date()
+        })
+        .returning();
+      
+      return newPreference;
+    }
+  }
+  
+  // Recently viewed parcels operations
+  async getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]> {
+    return db.select()
+      .from(recentlyViewedParcels)
+      .where(eq(recentlyViewedParcels.userId, userId))
+      .orderBy(desc(recentlyViewedParcels.viewedAt))
+      .limit(limit || 10);
+  }
+  
+  async addRecentlyViewedParcel(userId: number, parcelId: number): Promise<RecentlyViewedParcel> {
+    // Check if this combination already exists
+    const [existingRecord] = await db.select()
+      .from(recentlyViewedParcels)
+      .where(
+        and(
+          eq(recentlyViewedParcels.userId, userId),
+          eq(recentlyViewedParcels.parcelId, parcelId)
+        )
+      );
+    
+    if (existingRecord) {
+      // Update the viewed timestamp
+      const [updatedRecord] = await db.update(recentlyViewedParcels)
+        .set({
+          viewedAt: new Date()
+        })
+        .where(eq(recentlyViewedParcels.id, existingRecord.id))
+        .returning();
+      
+      return updatedRecord;
+    } else {
+      // Create a new record
+      const [newRecord] = await db.insert(recentlyViewedParcels)
+        .values({
+          userId,
+          parcelId,
+          viewedAt: new Date()
+        })
+        .returning();
+      
+      return newRecord;
+    }
   }
 }
 
