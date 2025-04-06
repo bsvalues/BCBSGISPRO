@@ -4,6 +4,8 @@
   height: 100vh;
   width: 100%;
   overflow: hidden;
+  background: linear-gradient(135deg, #f0f2f5, #e6eaef);
+  perspective: 1000px;
 }
 
 .content-area {
@@ -11,19 +13,82 @@
   display: flex;
   position: relative;
   overflow: hidden;
+  transform-style: preserve-3d;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 .main-content {
   flex: 1;
-  transition: margin-left 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   overflow: hidden;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .main-content.sidebar-expanded {
   margin-left: 280px;
+  transition: margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.3s ease;
 }
 
 .main-content.sidebar-collapsed {
   margin-left: 0;
+  transition: margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.3s ease;
+}
+
+/* Add 3D card styles for info panels and tool windows */
+.card, .panel, .dialog, .window {
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 20px 40px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateZ(0);
+  transition: all 0.3s ease;
+  transform-style: preserve-3d;
+  overflow: hidden;
+}
+
+.card:hover, .panel:hover, .interactive:hover {
+  transform: translateY(-2px) translateZ(5px);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.1),
+    0 2px 5px rgba(0, 0, 0, 0.08),
+    0 30px 50px rgba(0, 0, 0, 0.06);
+}
+
+/* 3D Button styles */
+button, .btn {
+  border-radius: 8px;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translateZ(0);
+  position: relative;
+  overflow: hidden;
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-2px) translateZ(5px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+button:active, .btn:active {
+  transform: translateY(1px) translateZ(0);
+}
+
+button::before, .btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  pointer-events: none;
 }
