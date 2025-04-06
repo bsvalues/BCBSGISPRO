@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './MainView.css';
 import Header from './layout/Header';
 import Sidebar from './layout/Sidebar';
-import MapView from './maps/MapView';
+import MapView from '../components/maps/MapView';
 
 const MainView: React.FC = () => {
   const [sidebarVisible, setSidebarVisible] = useState<boolean>(true);

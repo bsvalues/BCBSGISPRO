@@ -8,7 +8,7 @@ import './styles/App.css';
 const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
-  // Mock feature data for testing
+  // Feature data for Benton County, OR
   const initialFeatures = [
     {
       type: 'Feature',
@@ -20,7 +20,8 @@ const App: React.FC = () => {
         id: '1',
         name: 'Benton County Courthouse',
         address: '120 NW 4th St, Corvallis, OR 97330',
-        type: 'Government'
+        type: 'Government',
+        parcelId: 'R135792'
       }
     },
     {
@@ -39,7 +40,22 @@ const App: React.FC = () => {
         id: '2',
         name: 'OSU Campus Area',
         zone: 'Educational',
-        acres: 422
+        acres: 422,
+        parcelId: 'Multiple'
+      }
+    },
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [-123.3050, 44.5642]
+      },
+      properties: {
+        id: '3',
+        name: 'Benton County Fairgrounds',
+        address: '110 SW 53rd St, Corvallis, OR 97333',
+        type: 'Recreation',
+        parcelId: 'R193001'
       }
     }
   ];
