@@ -170,24 +170,42 @@ function App() {
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${
           headerCollapsed ? 'h-14' : 'h-auto'
         } ${
-          isImmersiveMapPage ? 'glass-panel backdrop-blur-md bg-opacity-60' : 'bg-primary text-primary-foreground'
+          isImmersiveMapPage 
+            ? 'bg-background/70 glass-panel backdrop-blur-md border-b border-primary/10' 
+            : 'bg-primary/95 backdrop-blur-sm text-primary-foreground'
         }`}
         style={{
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-          transition: 'all 0.3s ease'
+          boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-14">
             {/* Logo and title */}
             <div className="flex items-center gap-3">
-              <div className={`flex items-center bg-primary/20 p-1.5 rounded-full ${isImmersiveMapPage ? 'text-primary-700' : 'text-primary-foreground'}`}>
+              <div className={`flex items-center p-2 rounded-full 
+                ${isImmersiveMapPage ? 
+                  'bg-gradient-to-br from-primary/20 to-primary/40 text-primary shadow-sm border border-primary/10' : 
+                  'bg-primary-foreground/20 text-primary-foreground'}`}
+                style={{
+                  transform: 'translateZ(0)',
+                  boxShadow: isImmersiveMapPage ? '0 2px 8px rgba(0,0,0,0.05), inset 0 1px 1px rgba(255,255,255,0.15)' : 'none'
+                }}
+              >
                 <MapPin className="h-5 w-5" />
               </div>
               <div>
-                <h1 className={`font-bold text-xl ${isImmersiveMapPage ? 'readable-text' : ''}`}>BentonGeoPro</h1>
+                <h1 className={`font-bold text-xl ${isImmersiveMapPage ? 'readable-text' : ''}`}
+                   style={{
+                     textShadow: isImmersiveMapPage ? '0 1px 1px rgba(0,0,0,0.1)' : 'none'
+                   }}
+                >
+                  BentonGeoPro
+                </h1>
                 {!headerCollapsed && (
-                  <p className={`text-xs ${isImmersiveMapPage ? 'text-gray-700' : 'text-primary-foreground/80'}`}>
+                  <p className={`text-xs ${isImmersiveMapPage ? 
+                    'text-primary-700/80 font-medium' : 
+                    'text-primary-foreground/80'}`}>
                     GIS Workflow Solution
                   </p>
                 )}
@@ -211,16 +229,35 @@ function App() {
             </div>
             
             {/* Desktop Navigation Menu - Featured Links */}
-            <nav className="hidden lg:flex items-center space-x-1">
+            <nav className="hidden lg:flex items-center space-x-1.5">
               {featuredLinks.map((link) => (
                 <Link key={link.path} href={link.path}>
                   <Button 
                     variant={location === link.path ? "default" : isImmersiveMapPage ? "ghost" : "outline"} 
                     size="sm"
-                    className={isImmersiveMapPage ? 'btn-3d' : ''}
+                    className={`
+                      ${isImmersiveMapPage ? 'btn-3d transition-all duration-300' : ''}
+                      ${location === link.path && isImmersiveMapPage ? 
+                        'bg-primary/90 text-primary-foreground shadow-md border border-primary/20' : 
+                        isImmersiveMapPage ? 
+                          'bg-background/60 backdrop-blur-sm border border-primary/5 shadow-sm hover:bg-background/80 hover:border-primary/20' : 
+                          ''
+                      }
+                    `}
+                    style={{
+                      transform: location === link.path && isImmersiveMapPage ? 'translateY(-1px)' : 'none',
+                      boxShadow: location === link.path && isImmersiveMapPage ? '0 4px 8px rgba(0,0,0,0.05)' : ''
+                    }}
                   >
-                    {link.icon}
-                    <span className="ml-1.5">{link.label}</span>
+                    <div className={`
+                      ${location === link.path && isImmersiveMapPage ? 
+                        'bg-primary-foreground/30 p-0.5 rounded-full mr-1.5' : 
+                        'mr-1.5'
+                      }
+                    `}>
+                      {link.icon}
+                    </div>
+                    <span>{link.label}</span>
                   </Button>
                 </Link>
               ))}
@@ -230,7 +267,10 @@ function App() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setHeaderCollapsed(!headerCollapsed)}
-                className={`ml-2 ${isImmersiveMapPage ? 'btn-3d' : ''}`}
+                className={`ml-2 ${isImmersiveMapPage ? 
+                  'btn-3d bg-background/60 backdrop-blur-sm border border-primary/5 shadow-sm hover:bg-background/80 hover:border-primary/20 transition-all duration-300' : 
+                  ''
+                }`}
                 aria-label={headerCollapsed ? "Expand header" : "Collapse header"}
               >
                 {headerCollapsed ? (
@@ -249,28 +289,50 @@ function App() {
                 {featuredLinks.map((link) => (
                   <Link key={link.path} href={link.path}>
                     <div 
-                      className={`p-3 rounded-lg transition-all duration-200 ${
+                      className={`p-3 rounded-lg transition-all duration-300 ${
                         location === link.path 
                           ? isImmersiveMapPage 
-                            ? 'bg-white/30 shadow-md' 
+                            ? 'bg-background/80 backdrop-blur-md shadow-lg border border-primary/20' 
                             : 'bg-primary-foreground/20' 
                           : isImmersiveMapPage 
-                            ? 'hover:bg-white/20' 
+                            ? 'bg-background/40 backdrop-blur-sm border border-primary/5 hover:bg-background/60 hover:border-primary/20 hover:shadow-md' 
                             : 'hover:bg-primary-foreground/10'
                       }`}
+                      style={{
+                        transform: location === link.path && isImmersiveMapPage ? 'translateY(-2px)' : 'none',
+                        boxShadow: location === link.path && isImmersiveMapPage ? '0 8px 16px rgba(0,0,0,0.08)' : ''
+                      }}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-full ${
                           isImmersiveMapPage 
-                            ? 'bg-white/30 text-primary-700' 
+                            ? location === link.path
+                              ? 'bg-primary/20 text-primary shadow-sm'
+                              : 'bg-background/70 text-primary-700' 
                             : 'bg-primary-foreground/20'
-                        }`}>
+                        }`}
+                        style={{
+                          boxShadow: isImmersiveMapPage && location === link.path 
+                            ? 'inset 0 1px 1px rgba(255,255,255,0.15), 0 1px 2px rgba(0,0,0,0.05)' 
+                            : 'none'
+                        }}
+                        >
                           {link.icon}
                         </div>
                         <div>
-                          <h3 className="font-medium">{link.label}</h3>
+                          <h3 className={`font-medium ${
+                            isImmersiveMapPage && location === link.path ? 'text-primary' : ''
+                          }`}
+                          style={{
+                            textShadow: isImmersiveMapPage ? '0 1px 1px rgba(0,0,0,0.05)' : 'none'
+                          }}
+                          >{link.label}</h3>
                           <p className={`text-xs ${
-                            isImmersiveMapPage ? 'text-gray-700' : 'text-primary-foreground/70'
+                            isImmersiveMapPage 
+                              ? location === link.path 
+                                ? 'text-primary-700/90' 
+                                : 'text-gray-700/80' 
+                              : 'text-primary-foreground/70'
                           }`}>
                             {link.description}
                           </p>
@@ -281,7 +343,7 @@ function App() {
                 ))}
               </div>
               
-              <div className="mt-4 flex flex-wrap gap-1">
+              <div className="mt-4 flex flex-wrap gap-1.5">
                 {additionalLinks.map((link) => (
                   <TooltipProvider key={link.path}>
                     <Tooltip>
@@ -293,16 +355,38 @@ function App() {
                               : isImmersiveMapPage ? "ghost" : "outline"
                             } 
                             size="sm"
-                            className={isImmersiveMapPage ? 'btn-3d' : ''}
+                            className={`
+                              ${location === link.path && isImmersiveMapPage ? 
+                                'bg-primary/90 text-primary-foreground shadow-md border border-primary/20' : 
+                                isImmersiveMapPage ? 
+                                  'bg-background/60 backdrop-blur-sm border border-primary/5 shadow-sm hover:bg-background/80 hover:border-primary/20' : 
+                                  ''
+                              }
+                              transition-all duration-300
+                            `}
+                            style={{
+                              transform: location === link.path && isImmersiveMapPage ? 'translateY(-1px)' : 'none',
+                              boxShadow: location === link.path && isImmersiveMapPage ? '0 4px 8px rgba(0,0,0,0.05)' : ''
+                            }}
                           >
-                            {link.icon}
-                            <span className="ml-1">{link.label}</span>
+                            <div className={`
+                              ${location === link.path && isImmersiveMapPage ? 
+                                'bg-primary-foreground/30 p-0.5 rounded-full mr-1.5' : 
+                                'mr-1.5'
+                              }
+                            `}>
+                              {link.icon}
+                            </div>
+                            <span>{link.label}</span>
                           </Button>
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent 
                         side="bottom" 
-                        className={isImmersiveMapPage ? "tooltip-3d" : ""}
+                        className={isImmersiveMapPage ? 
+                          "bg-background/80 backdrop-blur-sm border border-primary/10 shadow-md text-sm" : 
+                          "text-sm"
+                        }
                       >
                         {link.label}
                       </TooltipContent>
@@ -315,33 +399,65 @@ function App() {
           
           {/* Mobile menu - shown only when menu is open on mobile */}
           {mobileMenuOpen && (
-            <div className="py-3 lg:hidden">
+            <div className={`py-3 lg:hidden ${isImmersiveMapPage ? 'mt-1 rounded-lg bg-background/80 backdrop-blur-md border border-primary/10 shadow-lg' : ''}`}>
               <div className="space-y-2">
                 {featuredLinks.map((link) => (
                   <Link key={link.path} href={link.path}>
                     <Button 
                       variant={location === link.path ? "default" : isImmersiveMapPage ? "ghost" : "outline"} 
                       size="sm"
-                      className="w-full justify-start"
+                      className={`
+                        w-full justify-start
+                        ${location === link.path && isImmersiveMapPage ? 
+                          'bg-primary/90 text-primary-foreground shadow-sm border border-primary/20' : 
+                          isImmersiveMapPage ? 
+                            'bg-background/60 backdrop-blur-sm border border-primary/5 hover:bg-background/80 hover:border-primary/10' : 
+                            ''
+                        }
+                        transition-all duration-200
+                      `}
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      {link.icon}
-                      <span className="ml-2">{link.label}</span>
+                      <div className={`
+                        ${location === link.path && isImmersiveMapPage ? 
+                          'bg-primary-foreground/30 p-0.5 rounded-full mr-1.5' : 
+                          'mr-1.5'
+                        }
+                      `}>
+                        {link.icon}
+                      </div>
+                      <span>{link.label}</span>
                     </Button>
                   </Link>
                 ))}
                 
-                <div className="border-t border-primary-foreground/10 my-2 pt-2">
+                <div className={`border-t my-2 pt-2 ${isImmersiveMapPage ? 'border-primary/10' : 'border-primary-foreground/10'}`}>
                   {additionalLinks.map((link) => (
                     <Link key={link.path} href={link.path}>
                       <Button 
                         variant={location === link.path ? "default" : isImmersiveMapPage ? "ghost" : "outline"} 
                         size="sm"
-                        className="w-full justify-start mt-1"
+                        className={`
+                          w-full justify-start mt-1
+                          ${location === link.path && isImmersiveMapPage ? 
+                            'bg-primary/90 text-primary-foreground shadow-sm border border-primary/20' : 
+                            isImmersiveMapPage ? 
+                              'bg-background/60 backdrop-blur-sm border border-primary/5 hover:bg-background/80 hover:border-primary/10' : 
+                              ''
+                          }
+                          transition-all duration-200
+                        `}
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        {link.icon}
-                        <span className="ml-2">{link.label}</span>
+                        <div className={`
+                          ${location === link.path && isImmersiveMapPage ? 
+                            'bg-primary-foreground/30 p-0.5 rounded-full mr-1.5' : 
+                            'mr-1.5'
+                          }
+                        `}>
+                          {link.icon}
+                        </div>
+                        <span>{link.label}</span>
                       </Button>
                     </Link>
                   ))}
