@@ -1,5 +1,5 @@
 import { Switch, Route, Link, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import MapViewerPage from "@/pages/map-viewer-page";
 import CartographerToolsPage from "@/pages/cartographer-tools-page";
 import GeospatialAnalysisPage from "@/pages/geospatial-analysis-page";
@@ -76,8 +76,9 @@ function App() {
     };
   }, [headerCollapsed]);
   
-  // Check if current route is a map page that should be immersive
-  const isImmersiveMapPage = [
+  // All pages should have the immersive map styling
+  // We'll keep track of actual map pages for specific behaviors
+  const isActualMapPage = [
     '/fullscreen-map', 
     '/map-collaboration-demo', 
     '/enhanced-map-collaboration',
@@ -85,6 +86,9 @@ function App() {
     '/map-viewer',
     '/mapbox-demo'
   ].includes(location);
+  
+  // All pages should use the immersive map styling
+  const isImmersiveMapPage = true;
 
   // Featured navigation links
   const featuredLinks = [
@@ -471,10 +475,13 @@ function App() {
       {/* Main content area with spacer for fixed header */}
       <main 
         className={`flex-grow ${
-          isImmersiveMapPage 
-            ? 'pt-14 h-screen' // Only top padding for immersive pages
-            : 'container mx-auto p-4 pt-24' // Full container with padding for regular pages
+          isActualMapPage 
+            ? 'pt-14 h-screen' // Only top padding for actual map pages
+            : 'container mx-auto p-4 pt-24 glass-panel backdrop-blur-md bg-background/40 rounded-lg border border-primary/10 shadow-lg my-4' // Enhanced glass-morphism for regular pages
         }`}
+        style={{
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
       >
         <ErrorBoundary>
           <Switch>
@@ -511,12 +518,12 @@ function App() {
         </ErrorBoundary>
       </main>
       
-      {/* Footer - Only visible on non-immersive pages */}
-      {!isImmersiveMapPage && (
-        <footer className="bg-primary/10 p-4 text-center text-sm mt-auto">
+      {/* Footer - Now with glass-morphism styling for all pages */}
+      {!isActualMapPage && (
+        <footer className="glass-panel backdrop-blur-md bg-background/40 border-t border-primary/10 p-4 text-center text-sm mt-auto">
           <div className="container mx-auto">
-            <p>BentonGeoPro &copy; 2025 - GIS Workflow Solution</p>
-            <p className="text-xs mt-1 text-muted-foreground">Simplified Development Mode</p>
+            <p className="readable-text font-medium">BentonGeoPro &copy; 2025 - GIS Workflow Solution</p>
+            <p className="text-xs mt-1 text-primary/70">Simplified Development Mode</p>
           </div>
         </footer>
       )}
