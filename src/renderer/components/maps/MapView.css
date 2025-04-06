@@ -14,146 +14,68 @@
   border-radius: 4px;
 }
 
-.map-placeholder {
+/* Leaflet map container and related styles */
+.leaflet-container {
   width: 100%;
   height: 100%;
-  position: relative;
-  background-image: linear-gradient(#e2e8f0 1px, transparent 1px),
-                    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
-  background-size: 20px 20px;
-  background-color: #f8fafc;
-}
-
-.map-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(4, 1fr);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.map-grid-cell {
-  border: 1px solid rgba(203, 213, 225, 0.3);
-}
-
-.map-center-marker {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px solid #0ea5e9;
-  background-color: rgba(14, 165, 233, 0.2);
-  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
-}
-
-.map-controls {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 10;
-}
-
-.map-control-button {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border-radius: 4px;
-  background-color: white;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  font-size: 1.25rem;
-  font-weight: bold;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-.map-control-button:hover {
-  background-color: #f8fafc;
-  color: #0ea5e9;
+.leaflet-popup-content-wrapper {
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.map-compass {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background-color: white;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
+.leaflet-popup-content {
+  margin: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.compass-n,
-.compass-e,
-.compass-s,
-.compass-w {
-  position: absolute;
-  font-size: 0.75rem;
+.feature-popup {
+  max-width: 300px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.feature-popup strong {
   font-weight: 600;
-  color: #475569;
+  color: #0c4a6e;
 }
 
-.compass-n {
-  top: 4px;
-  color: #0ea5e9;
+/* Custom zoom controls styling */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
-.compass-e {
-  right: 4px;
+.leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  border-radius: 4px !important;
+  background-color: white !important;
+  color: #475569 !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  transition: all 0.2s !important;
 }
 
-.compass-s {
-  bottom: 4px;
+.leaflet-control-zoom a:hover {
+  background-color: #f8fafc !important;
+  color: #0ea5e9 !important;
 }
 
-.compass-w {
-  left: 4px;
+/* Custom attribution styles */
+.leaflet-control-attribution {
+  padding: 4px 8px !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  font-size: 11px !important;
+  border-radius: 4px 0 0 0 !important;
 }
 
-.compass-ring {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid #cbd5e1;
-}
-
-.compass-arrow {
-  position: absolute;
-  width: 2px;
-  height: 22px;
-  background-color: #0ea5e9;
-  transform-origin: bottom center;
-}
-
-.compass-arrow::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -4px;
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 8px solid #0ea5e9;
-}
-
+/* Map overlay with Benton County text */
 .map-overlay-text {
   position: absolute;
   top: 16px;
@@ -165,43 +87,11 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: #475569;
-  z-index: 10;
+  z-index: 999; /* Above Leaflet controls */
+  pointer-events: none; /* Allow clicking through */
 }
 
-.map-scale-indicator {
-  position: absolute;
-  bottom: 16px;
-  left: 16px;
-  z-index: 10;
-}
-
-.scale-line {
-  height: 4px;
-  width: 120px;
-  background: linear-gradient(90deg, 
-    #0c4a6e 0%, #0c4a6e 20%, transparent 20%, transparent 40%, 
-    #0c4a6e 40%, #0c4a6e 60%, transparent 60%, transparent 80%, 
-    #0c4a6e 80%, #0c4a6e 100%);
-}
-
-.scale-text {
-  margin-top: 4px;
-  font-size: 0.7rem;
-  color: #475569;
-}
-
-.map-coordinates {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  padding: 6px 12px;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  color: #475569;
-  z-index: 10;
-}
-
+/* MapView tools below the map */
 .map-tools {
   height: 48px;
   display: flex;
@@ -209,6 +99,7 @@
   padding: 6px 12px;
   border-top: 1px solid #e2e8f0;
   background-color: white;
+  z-index: 400;
 }
 
 .tool-group {

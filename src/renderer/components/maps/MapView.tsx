@@ -1,5 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, ZoomControl, FeatureGroup, useMap } from 'react-leaflet';
+import { LatLngTuple, Map as LeafletMap } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
+import 'leaflet-defaulticon-compatibility';
 import './MapView.css';
+
+// This fixes the Leaflet icon issue in React
+import L from 'leaflet';
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface MapViewProps {
   initialFeatures?: any[];
@@ -7,103 +21,125 @@ interface MapViewProps {
 }
 
 const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect }) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  // Benton County, WA approximate center coordinates
+  const defaultCenter: LatLngTuple = [46.2681, -119.2815];
+  const defaultZoom = 11;
+  const mapRef = useRef<L.Map | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<any | null>(null);
   
+  // Handle feature selection
+  const handleFeatureClick = (feature: any) => {
+    setSelectedFeature(feature);
+    if (onFeatureSelect) {
+      onFeatureSelect(feature);
+    }
+  };
+
+  // Style for GeoJSON features
+  const featureStyle = {
+    color: '#3388ff',
+    weight: 2,
+    opacity: 0.8,
+    fillColor: '#3388ff',
+    fillOpacity: 0.3,
+  };
+
+  // Style for selected features
+  const selectedFeatureStyle = {
+    color: '#ff4433',
+    weight: 3,
+    opacity: 1,
+    fillColor: '#ff4433',
+    fillOpacity: 0.5,
+  };
+
+  // Feature styling function
+  const style = (feature: any) => {
+    if (selectedFeature && selectedFeature === feature) {
+      return selectedFeatureStyle;
+    }
+    return featureStyle;
+  };
+
+  // Event handlers for GeoJSON features
+  const onEachFeature = (feature: any, layer: L.Layer) => {
+    if (feature.properties) {
+      let popupContent = '<div class="feature-popup">';
+      
+      // Display feature properties in popup
+      Object.keys(feature.properties).forEach(key => {
+        popupContent += `<strong>${key}:</strong> ${feature.properties[key]}<br/>`;
+      });
+      
+      popupContent += '</div>';
+      layer.bindPopup(popupContent);
+    }
+
+    // Add click handler
+    layer.on({
+      click: () => handleFeatureClick(feature)
+    });
+  };
+
+  // Log features when they change
   useEffect(() => {
-    if (!mapContainerRef.current) return;
-    
-    // This is a placeholder for the actual map implementation
-    // In a real implementation, we would initialize Leaflet or Mapbox here
-    const mapContainer = mapContainerRef.current;
-    
-    // Log the features (would be used in the actual implementation)
     if (initialFeatures && initialFeatures.length > 0) {
       console.log('Initializing map with features:', initialFeatures);
     }
-    
-    // Create a simple map placeholder
-    const placeholderMap = document.createElement('div');
-    placeholderMap.className = 'map-placeholder';
-    
-    // Add some placeholder content
-    placeholderMap.innerHTML = `
-      <div class="map-grid">
-        ${Array(16).fill(0).map((_, i) => `<div class="map-grid-cell"></div>`).join('')}
-      </div>
-      <div class="map-center-marker"></div>
-      <div class="map-controls">
-        <button class="map-control-button zoom-in" title="Zoom in">+</button>
-        <button class="map-control-button zoom-out" title="Zoom out">−</button>
-        <button class="map-control-button home" title="Reset view">⌂</button>
-      </div>
-      <div class="map-compass">
-        <div class="compass-n">N</div>
-        <div class="compass-e">E</div>
-        <div class="compass-s">S</div>
-        <div class="compass-w">W</div>
-        <div class="compass-ring"></div>
-        <div class="compass-arrow"></div>
-      </div>
-      <div class="map-overlay-text">Benton County GIS</div>
-      <div class="map-scale-indicator">
-        <div class="scale-line"></div>
-        <div class="scale-text">0 5 10 15 20 km</div>
-      </div>
-      <div class="map-coordinates">47°32'14.5"N 123°15'16.2"W | Zoom: 12</div>
-    `;
-    
-    // Clear any existing content and add the placeholder
-    mapContainer.innerHTML = '';
-    mapContainer.appendChild(placeholderMap);
-    
-    // Add event listeners to simulate basic map interactions
-    const zoomInButton = placeholderMap.querySelector('.zoom-in');
-    const zoomOutButton = placeholderMap.querySelector('.zoom-out');
-    const homeButton = placeholderMap.querySelector('.home');
-    
-    if (zoomInButton) {
-      zoomInButton.addEventListener('click', () => {
-        console.log('Zoom in clicked');
-      });
-    }
-    
-    if (zoomOutButton) {
-      zoomOutButton.addEventListener('click', () => {
-        console.log('Zoom out clicked');
-      });
-    }
-    
-    if (homeButton) {
-      homeButton.addEventListener('click', () => {
-        console.log('Reset view clicked');
-      });
-    }
-    
-    // Cleanup function
-    return () => {
-      if (zoomInButton) {
-        zoomInButton.removeEventListener('click', () => {
-          console.log('Zoom in clicked');
-        });
-      }
-      
-      if (zoomOutButton) {
-        zoomOutButton.removeEventListener('click', () => {
-          console.log('Zoom out clicked');
-        });
-      }
-      
-      if (homeButton) {
-        homeButton.removeEventListener('click', () => {
-          console.log('Reset view clicked');
-        });
-      }
-    };
   }, [initialFeatures]);
-  
+
+  // Reset view handler
+  const handleResetView = () => {
+    if (mapRef.current) {
+      mapRef.current.setView(defaultCenter, defaultZoom);
+    }
+  };
+
+  // MapContainer reference handler component
+  const MapRef = ({ setMapRef }: { setMapRef: (map: LeafletMap) => void }) => {
+    const map = useMap();
+    
+    useEffect(() => {
+      setMapRef(map);
+    }, [map, setMapRef]);
+    
+    return null;
+  };
+
   return (
     <div className="map-view">
-      <div className="map-container" ref={mapContainerRef}></div>
+      <div className="map-container">
+        <MapContainer
+          center={defaultCenter}
+          zoom={defaultZoom}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+          ref={mapRef as React.RefObject<LeafletMap>}
+        >
+          <MapRef setMapRef={(map) => { mapRef.current = map; }} />
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <ZoomControl position="topright" />
+          
+          {/* Render GeoJSON features if available */}
+          {initialFeatures && initialFeatures.length > 0 && (
+            <FeatureGroup>
+              {initialFeatures.map((feature, index) => (
+                <GeoJSON 
+                  key={`feature-${index}`}
+                  data={feature}
+                  style={() => style(feature)}
+                  onEachFeature={onEachFeature}
+                />
+              ))}
+            </FeatureGroup>
+          )}
+        </MapContainer>
+        <div className="map-overlay-text">Benton County GIS</div>
+      </div>
+
       <div className="map-tools">
         <div className="tool-group">
           <button className="tool-button active" title="Pan">
@@ -126,6 +162,7 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
                 // For now, just simulate selecting the first feature
                 console.log('Feature selected:', initialFeatures[0]);
                 onFeatureSelect(initialFeatures[0]);
+                setSelectedFeature(initialFeatures[0]);
               }
             }}
           >
@@ -164,6 +201,14 @@ const MapView: React.FC<MapViewProps> = ({ initialFeatures = [], onFeatureSelect
         </div>
         
         <div className="tool-group">
+          <button className="tool-button" title="Reset View" onClick={handleResetView}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="8 12 12 16 16 12"></polyline>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+            </svg>
+          </button>
+          
           <button className="tool-button" title="Export">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
