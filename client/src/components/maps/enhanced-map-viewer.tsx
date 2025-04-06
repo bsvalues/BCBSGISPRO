@@ -163,13 +163,13 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
         
         {/* Floating title with premium styling */}
         <div 
-          className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[15] premium-glass px-5 py-2 rounded-full pointer-events-none floating-ui"
+          className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[15] premium-glass px-5 py-2 rounded-full pointer-events-none floating-ui benton-border"
           style={{
             backdropFilter: 'blur(8px)',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 5px 12px -3px rgba(0, 0, 0, 0.05)'
           }}
         >
-          <div className="text-sm font-semibold readable-text flex items-center gap-2">
+          <div className="text-sm font-semibold flex items-center gap-2">
             <div className="bg-primary/20 p-1 rounded-full">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -177,7 +177,7 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
                 <path d="M12 8L12 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            Benton County GIS
+            <span className="gradient-heading">BentonGeoPro</span>
           </div>
         </div>
         
@@ -247,10 +247,10 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
         
         {/* Active tool indicator with premium styling */}
         <div 
-          className="absolute bottom-3 left-3 z-[100] premium-glass px-4 py-2 rounded-full opacity-80 hover:opacity-100 transition-all duration-300 btn-3d"
+          className="absolute bottom-3 left-3 z-[100] premium-glass px-4 py-2 rounded-full opacity-80 hover:opacity-100 transition-all duration-300 btn-3d benton-border"
           style={{ transform: 'translateZ(5px)' }}
         >
-          <div className="text-xs font-medium readable-text flex items-center gap-2">
+          <div className="text-xs font-medium flex items-center gap-2">
             <div className="bg-primary/10 p-1 rounded-full flex items-center justify-center">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 12H12M16 12H12M12 12V8M12 12V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -258,7 +258,7 @@ export const EnhancedMapViewer = forwardRef<EnhancedMapViewerRef, EnhancedMapVie
               </svg>
             </div>
             <span>
-              <span className="text-primary-700 font-semibold">{activeTool}</span>
+              <span className="gradient-heading">{activeTool}</span>
               {activeTool === MapTool.MEASURE && measurementType && (
                 <span className="ml-1 text-gray-600">
                   {measurementType} • {measurementUnit}

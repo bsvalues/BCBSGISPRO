@@ -13,6 +13,12 @@
     user-select: none;
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
+    /* Add background image similar to LevyMaster */
+    background-image: linear-gradient(to bottom, rgba(0, 40, 40, 0.8), rgba(0, 60, 60, 0.5)), 
+                      url('/assets/rsmtn+sunset-composit.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
   }
 
   /* Global scrollbar styling */
@@ -54,17 +60,19 @@ button:not([aria-label]):not([title]) {
 
 /* Ultra-modern glass morphism effect for panels with light refraction */
 .glass-panel {
-  @apply bg-white/50 backdrop-blur-lg border border-white/30 shadow-lg;
+  @apply backdrop-blur-lg shadow-lg;
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background-image: linear-gradient(
     135deg, 
-    rgba(255, 255, 255, 0.5) 0%, 
-    rgba(255, 255, 255, 0.2) 100%
+    rgba(255, 255, 255, 0.25) 0%, 
+    rgba(255, 255, 255, 0.1) 100%
   );
   box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(12px);
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
 }
 
 /* Advanced 3D interactive elements with depth perception */
@@ -101,10 +109,15 @@ button:not([aria-label]):not([title]) {
   @apply glass-panel;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.6) 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0.3) 100%
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.15) 100%
   );
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    0 1px 8px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
   position: relative;
   overflow: hidden;
 }
@@ -118,7 +131,7 @@ button:not([aria-label]):not([title]) {
   height: 200%;
   background: radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.4) 0%,
     rgba(255, 255, 255, 0) 60%
   );
   opacity: 0;
@@ -187,4 +200,51 @@ button:not([aria-label]):not([title]) {
 /* Text readability enhancement for translucent cards */
 .readable-text {
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+/* Modern gradient heading for titles */
+.gradient-heading {
+  @apply font-bold;
+  background: linear-gradient(90deg, #00847E 0%, #00B4AC 50%, #00847E 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Premium card style for panels */
+.premium-card {
+  @apply rounded-xl overflow-hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    0 1px 8px rgba(0, 0, 0, 0.06);
+  transform: translateZ(0);
+}
+
+/* Benton County branded gradient border */
+.benton-border {
+  position: relative;
+  border-radius: 0.75rem;
+  padding: 1px;
+  background: linear-gradient(45deg, #00847E, #00B4AC, #2FC6BC, #00847E);
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+.benton-border::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 0.7rem;
+  z-index: -1;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }

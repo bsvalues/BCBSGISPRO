@@ -127,14 +127,16 @@ export function MapPreferencesPanel({ className, compact = false }: MapPreferenc
   };
 
   return (
-    <Card className={cn("w-full backdrop-blur-sm bg-background/75 border border-accent shadow-md", className)}>
+    <Card className={cn("w-full backdrop-blur-md bg-background/60 border border-primary/20 shadow-xl rounded-lg", className)}>
       <CardHeader className={compact ? "p-3" : "p-4"}>
-        <CardTitle className="flex items-center gap-2">
-          <Map className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-primary-foreground/90">
+          <div className="bg-primary/90 p-1.5 rounded-full flex items-center justify-center shadow-sm">
+            <Map className="h-4 w-4 text-primary-foreground" />
+          </div>
           <span>Map Preferences</span>
         </CardTitle>
         {!compact && (
-          <CardDescription>
+          <CardDescription className="text-muted-foreground/90">
             Customize your map viewing experience
           </CardDescription>
         )}
@@ -142,20 +144,25 @@ export function MapPreferencesPanel({ className, compact = false }: MapPreferenc
       <CardContent className={compact ? "p-3 pt-0" : "p-4 pt-0"}>
         {isLoading || !preferences ? (
           <div className="flex justify-center p-4">
-            <div className="animate-pulse">Loading preferences...</div>
+            <div className="animate-pulse flex items-center gap-2">
+              <span className="h-2 w-2 bg-primary/80 rounded-full animate-bounce"></span>
+              <span className="h-2 w-2 bg-primary/80 rounded-full animate-bounce delay-150"></span>
+              <span className="h-2 w-2 bg-primary/80 rounded-full animate-bounce delay-300"></span>
+              <span className="text-muted-foreground/90">Loading preferences...</span>
+            </div>
           </div>
         ) : (
           <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="grid grid-cols-3 mb-4">
-              <TabsTrigger value="general" className="flex items-center gap-1">
+            <TabsList className="grid grid-cols-3 mb-4 bg-background/50 backdrop-blur-sm p-1 rounded-lg border border-primary/10">
+              <TabsTrigger value="general" className="flex items-center gap-1 data-[state=active]:bg-primary/20 data-[state=active]:backdrop-blur-md">
                 <Map className="h-4 w-4" />
                 <span className={compact ? "sr-only" : ""}>General</span>
               </TabsTrigger>
-              <TabsTrigger value="layers" className="flex items-center gap-1">
+              <TabsTrigger value="layers" className="flex items-center gap-1 data-[state=active]:bg-primary/20 data-[state=active]:backdrop-blur-md">
                 <Layers className="h-4 w-4" />
                 <span className={compact ? "sr-only" : ""}>Layers</span>
               </TabsTrigger>
-              <TabsTrigger value="visual" className="flex items-center gap-1">
+              <TabsTrigger value="visual" className="flex items-center gap-1 data-[state=active]:bg-primary/20 data-[state=active]:backdrop-blur-md">
                 <Palette className="h-4 w-4" />
                 <span className={compact ? "sr-only" : ""}>Visual</span>
               </TabsTrigger>
@@ -167,7 +174,9 @@ export function MapPreferencesPanel({ className, compact = false }: MapPreferenc
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium flex items-center gap-1">
-                      <Compass className="h-4 w-4" />
+                      <div className="bg-primary/10 p-1 rounded-full">
+                        <Compass className="h-3.5 w-3.5 text-primary/80" />
+                      </div>
                       Base Map
                     </Label>
                   </div>
@@ -192,7 +201,9 @@ export function MapPreferencesPanel({ className, compact = false }: MapPreferenc
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium flex items-center gap-1">
-                    <Monitor className="h-4 w-4" />
+                    <div className="bg-primary/10 p-1 rounded-full">
+                      <Monitor className="h-3.5 w-3.5 text-primary/80" />
+                    </div>
                     Theme
                   </Label>
                   <div className="flex gap-2">
@@ -412,39 +423,50 @@ export function MapPreferencesPanel({ className, compact = false }: MapPreferenc
             <TabsContent value="visual">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Default Map Position</Label>
+                  <Label className="text-sm font-medium flex items-center gap-1">
+                    <Compass className="h-4 w-4 text-primary/80" />
+                    Default Map Position
+                  </Label>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded border p-2">
-                      <span className="text-muted-foreground">Latitude</span>
-                      <div>{preferences.defaultCenter.lat.toFixed(6)}</div>
+                    <div className="rounded-lg border border-primary/10 p-3 bg-background/40 backdrop-blur-sm shadow-sm">
+                      <span className="text-muted-foreground/80 uppercase tracking-wide text-[10px] font-medium">Latitude</span>
+                      <div className="text-sm mt-1 font-mono tracking-wide">{preferences.defaultCenter.lat.toFixed(6)}</div>
                     </div>
-                    <div className="rounded border p-2">
-                      <span className="text-muted-foreground">Longitude</span>
-                      <div>{preferences.defaultCenter.lng.toFixed(6)}</div>
+                    <div className="rounded-lg border border-primary/10 p-3 bg-background/40 backdrop-blur-sm shadow-sm">
+                      <span className="text-muted-foreground/80 uppercase tracking-wide text-[10px] font-medium">Longitude</span>
+                      <div className="text-sm mt-1 font-mono tracking-wide">{preferences.defaultCenter.lng.toFixed(6)}</div>
                     </div>
-                    <div className="rounded border p-2 col-span-2">
-                      <span className="text-muted-foreground">Default Zoom</span>
-                      <div>{preferences.defaultZoom.toFixed(1)}</div>
+                    <div className="rounded-lg border border-primary/10 p-3 col-span-2 bg-background/40 backdrop-blur-sm shadow-sm">
+                      <span className="text-muted-foreground/80 uppercase tracking-wide text-[10px] font-medium">Default Zoom</span>
+                      <div className="text-sm mt-1 font-mono tracking-wide">{preferences.defaultZoom.toFixed(1)}</div>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground/90 mt-2 italic">
                     Default position is set when saving a bookmark as default.
                   </p>
                 </div>
 
-                <Separator />
+                <div className="relative">
+                  <Separator className="opacity-20" />
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/4 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+                </div>
 
-                <div className="space-y-2">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full flex items-center gap-1"
-                    onClick={handleResetPreferences}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    <span>Reset All Preferences</span>
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center">
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full flex items-center gap-2 bg-destructive/90 backdrop-blur-sm border border-destructive/20 shadow-md rounded-lg hover:bg-destructive/80 transition-all"
+                      onClick={handleResetPreferences}
+                    >
+                      <div className="bg-destructive-foreground/10 p-1 rounded-full">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </div>
+                      <span>Reset All Preferences</span>
+                    </Button>
+                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-destructive/40 to-transparent"></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground/90 text-center pt-1">
                     This will restore all map preferences to their default values.
                   </p>
                 </div>
