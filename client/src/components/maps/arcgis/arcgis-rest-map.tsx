@@ -10,16 +10,7 @@ import arcgisRestService, {
   fetchServiceInfo,
   getMapImageUrl 
 } from '../../../services/arcgis-rest-service';
-
-interface Layer {
-  id: string;
-  name: string;
-  visible: boolean;
-  opacity: number;
-  serviceName: string;
-  layerId?: number;
-  serviceType: 'FeatureServer' | 'MapServer';
-}
+import { Layer, DEFAULT_PARCELS_LAYER } from '../../../constants/layer-constants';
 
 interface ArcGISRestMapProps {
   width?: string | number;
@@ -46,7 +37,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     layers: externalLayers = []
   } = props;
   const [services, setServices] = useState<any[]>([]);
-  const [layers, setLayers] = useState<Layer[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([DEFAULT_PARCELS_LAYER]); // Start with DEFAULT_PARCELS_LAYER
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +64,21 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
   useEffect(() => {
     if (externalLayers && externalLayers.length > 0) {
       console.log('External layers provided:', externalLayers);
-      setLayers(externalLayers);
+      
+      // Check if the DEFAULT_PARCELS_LAYER is included in the external layers
+      const hasDefaultParcelsLayer = externalLayers.some(
+        layer => layer.id === DEFAULT_PARCELS_LAYER.id || 
+                (layer.serviceName === DEFAULT_PARCELS_LAYER.serviceName && 
+                 layer.serviceType === DEFAULT_PARCELS_LAYER.serviceType)
+      );
+      
+      // If the default parcels layer is not included, add it to the layers
+      if (!hasDefaultParcelsLayer) {
+        console.log('Adding DEFAULT_PARCELS_LAYER to external layers');
+        setLayers([DEFAULT_PARCELS_LAYER, ...externalLayers]);
+      } else {
+        setLayers(externalLayers);
+      }
     }
   }, [externalLayers]);
   
@@ -344,9 +349,14 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     );
   };
   
-  // Remove a layer
+  // Remove a layer (but don't allow removing base layers)
   const removeLayer = (layerId: string) => {
-    setLayers(prev => prev.filter(layer => layer.id !== layerId));
+    setLayers(prev => 
+      prev.filter(layer => 
+        // Keep the layer if it's not the one to remove OR if it's a base layer
+        layer.id !== layerId || layer.isBaseLayer === true
+      )
+    );
   };
   
   // Move a layer up or down in the stack
@@ -702,7 +712,10 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             ) : (
               <div className="space-y-4">
                 {layers.map((layer, index) => (
-                  <Card key={`layer-card-${layer.id}-${index}`} className="p-2 border">
+                  <Card 
+                    key={`layer-card-${layer.id}-${index}`} 
+                    className={`p-2 border ${layer.isBaseLayer ? 'border-green-500' : ''}`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 max-w-[70%]">
                         <Checkbox 
@@ -716,6 +729,9 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                           title={layer.name}
                         >
                           {layer.name}
+                          {layer.isBaseLayer && (
+                            <span className="text-xs ml-1 px-1 bg-green-100 rounded text-green-700">base</span>
+                          )}
                         </Label>
                       </div>
                       <div className="flex items-center">
@@ -723,8 +739,9 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                           size="sm" 
                           variant="ghost" 
                           onClick={() => removeLayer(layer.id)}
-                          className="h-6 w-6 p-0 text-red-500"
-                          title="Remove Layer"
+                          className={`h-6 w-6 p-0 ${layer.isBaseLayer ? 'opacity-50 cursor-not-allowed' : 'text-red-500'}`}
+                          title={layer.isBaseLayer ? "Base layer cannot be removed" : "Remove Layer"}
+                          disabled={layer.isBaseLayer}
                         >
                           ×
                         </Button>

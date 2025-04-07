@@ -13,6 +13,7 @@ import {
   ZoomIn, ZoomOut, Home, ChevronLeft, ChevronRight,
   Globe, Database, Loader2
 } from 'lucide-react';
+import { DEFAULT_PARCELS_LAYER } from '../constants/layer-constants';
 
 /**
  * ArcGIS Map Page Component
@@ -31,7 +32,7 @@ const ArcGISMapPage: React.FC = () => {
   const [services, setServices] = useState<any[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedServiceType, setSelectedServiceType] = useState<'FeatureServer' | 'MapServer'>('FeatureServer');
-  const [activeLayers, setActiveLayers] = useState<any[]>([]);
+  const [activeLayers, setActiveLayers] = useState<any[]>([DEFAULT_PARCELS_LAYER]); // Initialize with DEFAULT_PARCELS_LAYER
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -140,21 +141,63 @@ const ArcGISMapPage: React.FC = () => {
     setError(null);
     console.log(`Adding layer from service: ${selectedService} (${selectedServiceType})`);
     
+    // Check if we're adding the Parcels layer and handle it as a base layer
+    const isParcelsLayer = selectedService === 'Parcels_and_Assess' && selectedServiceType === 'FeatureServer';
+    
+    // Check if this layer already exists to prevent duplicates
+    const layerExists = activeLayers.some(
+      layer => layer.serviceName === selectedService && layer.serviceType === selectedServiceType
+    );
+    
+    if (layerExists) {
+      console.log(`Layer ${selectedService} already exists, skipping`);
+      setError(`Layer "${selectedService}" is already added`);
+      setLoading(false);
+      setSelectedService(null);
+      return;
+    }
+    
+    // If this is the parcels layer and we're using the DEFAULT_PARCELS_LAYER constant
+    if (isParcelsLayer) {
+      // Check if we already have a base parcels layer
+      const baseLayerExists = activeLayers.some(
+        layer => layer.id === DEFAULT_PARCELS_LAYER.id || 
+                (layer.serviceName === DEFAULT_PARCELS_LAYER.serviceName && 
+                 layer.serviceType === DEFAULT_PARCELS_LAYER.serviceType)
+      );
+      
+      if (baseLayerExists) {
+        console.log('Parcels layer already exists as a base layer');
+        setError('Parcels layer is already added as a base layer');
+        setLoading(false);
+        setSelectedService(null);
+        return;
+      }
+    }
+    
     fetchServiceInfo(selectedService, selectedServiceType)
       .then(serviceInfo => {
         console.log('Service info:', serviceInfo);
         
-        const newLayer = {
-          id: `${selectedService}-${Date.now()}`,
-          name: serviceInfo.documentInfo?.Title || serviceInfo.name || selectedService,
-          serviceType: selectedServiceType,
-          serviceName: selectedService,
-          visible: true,
-          opacity: 1
-        };
+        // Use the default layer constant if this is the parcels layer
+        if (isParcelsLayer) {
+          console.log('Adding parcels as base layer using DEFAULT_PARCELS_LAYER constant');
+          setActiveLayers(prev => [...prev, DEFAULT_PARCELS_LAYER]);
+        } else {
+          const newLayer = {
+            id: `${selectedService}-${Date.now()}`,
+            name: serviceInfo.documentInfo?.Title || serviceInfo.name || selectedService,
+            serviceType: selectedServiceType,
+            serviceName: selectedService,
+            visible: true,
+            opacity: 1,
+            isBaseLayer: false // Not a base layer
+          };
+          
+          console.log('Adding new layer:', newLayer);
+          setActiveLayers(prev => [...prev, newLayer]);
+        }
         
-        console.log('Adding new layer:', newLayer);
-        setActiveLayers(prev => [...prev, newLayer]);
         setLoading(false);
         setSelectedService(null); // Clear selection after adding
       })
@@ -170,7 +213,8 @@ const ArcGISMapPage: React.FC = () => {
           serviceType: selectedServiceType,
           serviceName: selectedService,
           visible: true,
-          opacity: 1
+          opacity: 1,
+          isBaseLayer: isParcelsLayer // Mark as base layer if it's the parcels layer
         };
         
         console.log('Adding fallback layer:', fallbackLayer);
@@ -182,9 +226,14 @@ const ArcGISMapPage: React.FC = () => {
       });
   };
   
-  // Remove a layer
+  // Remove a layer (but protect base layers)
   const removeLayer = (layerId: string) => {
-    setActiveLayers(prev => prev.filter(layer => layer.id !== layerId));
+    setActiveLayers(prev => 
+      prev.filter(layer => 
+        // Keep the layer if it's not the one to remove OR if it's a base layer
+        layer.id !== layerId || layer.isBaseLayer === true
+      )
+    );
   };
   
   // Toggle layer visibility
@@ -416,6 +465,13 @@ const ArcGISMapPage: React.FC = () => {
                       <p className="text-xs text-gray-500 mb-2">
                         Select services to add from Benton County's ArcGIS server:
                       </p>
+                      <div className="p-2 mb-3 bg-green-50 border border-green-200 rounded text-xs">
+                        <p className="font-medium text-green-800">Parcels Layer</p>
+                        <p className="text-green-700 mt-1">
+                          The Parcels_and_Assess layer is maintained as a persistent 
+                          base layer and cannot be removed. It provides essential county parcel data.
+                        </p>
+                      </div>
                       
                       {/* Services selection dropdown */}
                       <div className="space-y-3">
@@ -473,15 +529,16 @@ const ArcGISMapPage: React.FC = () => {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            className="h-6 text-xs py-0 px-1"
+                            className="h-6 text-xs py-0 px-1 bg-green-50 border-green-200 text-green-700"
                             onClick={() => {
                               setSelectedService('Parcels_and_Assess');
                               setSelectedServiceType('FeatureServer');
                               setTimeout(addSelectedLayer, 0);
                             }}
                             disabled={loading}
+                            title="Adds the Parcels layer as a base layer"
                           >
-                            Add Parcels
+                            Add Parcels (Base)
                           </Button>
                           <Button 
                             size="sm" 
@@ -529,7 +586,12 @@ const ArcGISMapPage: React.FC = () => {
                           ) : (
                             <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                               {activeLayers.map(layer => (
-                                <div key={layer.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <div 
+                                  key={layer.id} 
+                                  className={`flex items-center justify-between p-2 rounded ${
+                                    layer.isBaseLayer ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
+                                  }`}
+                                >
                                   <label className="flex items-center">
                                     <input 
                                       type="checkbox" 
@@ -537,13 +599,24 @@ const ArcGISMapPage: React.FC = () => {
                                       checked={layer.visible} 
                                       onChange={() => toggleLayerVisibility(layer.id)}
                                     />
-                                    <span className="text-sm">{layer.name}</span>
+                                    <span className="text-sm">
+                                      {layer.name}
+                                      {layer.isBaseLayer && (
+                                        <span className="text-xs ml-1 text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                                          base
+                                        </span>
+                                      )}
+                                    </span>
                                   </label>
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
-                                    className="h-6 w-6 p-0"
+                                    className={`h-6 w-6 p-0 ${
+                                      layer.isBaseLayer ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
                                     onClick={() => removeLayer(layer.id)}
+                                    disabled={layer.isBaseLayer}
+                                    title={layer.isBaseLayer ? "Base layer cannot be removed" : "Remove layer"}
                                   >
                                     ×
                                   </Button>
