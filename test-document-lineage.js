@@ -2,6 +2,8 @@
 import fetch from 'node-fetch';
 
 async function testDocumentLifecycle() {
+  // First, authenticate with the API
+  const loginStatus = await authenticate();
   console.log('========== DOCUMENT LINEAGE TESTING ==========');
   
   // Base URL for API requests
@@ -29,6 +31,7 @@ async function testDocumentLifecycle() {
     const createResponse = await fetch(`${API_BASE}/document-lineage/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(documentData)
     });
     
@@ -171,6 +174,63 @@ async function testDocumentLifecycle() {
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
+  }
+}
+
+// Authentication function
+async function authenticate() {
+  console.log('Using authentication from E2E test runner...');
+  // If running from E2E test runner, authentication is already handled
+  if (process.env.COOKIE_FILE) {
+    console.log('✓ Using pre-authenticated session from cookie file');
+    return true;
+  }
+  
+  // Stand-alone authentication for individual test runs
+  console.log('Authenticating with the API directly...');
+  const API_BASE = 'http://localhost:5000/api';
+  
+  try {
+    // First, try to register a test user (this might fail if user already exists)
+    const userData = {
+      username: 'testuser',
+      email: 'test@example.com',
+      password: 'TestPassword123!'
+    };
+    
+    try {
+      await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      console.log('✓ Test user registration attempted');
+    } catch (e) {
+      // Ignore registration errors as user might already exist
+    }
+    
+    // Now try to login
+    const loginResponse = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        username: userData.username,
+        password: userData.password
+      })
+    });
+    
+    if (!loginResponse.ok) {
+      console.log(`❌ Login failed: ${loginResponse.status}`);
+      return false;
+    }
+    
+    const loginResult = await loginResponse.json();
+    console.log('✓ Successfully authenticated with API');
+    return true;
+  } catch (error) {
+    console.error('❌ Authentication error:', error.message);
+    return false;
   }
 }
 

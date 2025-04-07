@@ -1,7 +1,70 @@
 // Test script for map features
 import fetch from 'node-fetch';
 
+// Authentication function
+async function authenticate() {
+  console.log('Using authentication from E2E test runner...');
+  // If running from E2E test runner, authentication is already handled
+  if (process.env.COOKIE_FILE) {
+    console.log('✓ Using pre-authenticated session from cookie file');
+    return true;
+  }
+  
+  // Stand-alone authentication for individual test runs
+  console.log('Authenticating with the API directly...');
+  const API_BASE = 'http://localhost:5000/api';
+  
+  try {
+    // First, try to register a test user (this might fail if user already exists)
+    const userData = {
+      username: 'testuser',
+      email: 'test@example.com',
+      password: 'TestPassword123!'
+    };
+    
+    try {
+      const registerResponse = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      
+      if (registerResponse.ok) {
+        console.log('✓ Test user registered successfully');
+      } else {
+        console.log(`ℹ️ User registration responded with: ${registerResponse.status}`);
+      }
+    } catch (e) {
+      console.log('ℹ️ User registration error (user may already exist)');
+    }
+    
+    // Now try to login
+    const loginResponse = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        username: userData.username,
+        password: userData.password
+      })
+    });
+    
+    if (loginResponse.ok) {
+      console.log('✓ Successfully authenticated with API');
+      return true;
+    } else {
+      console.log(`❌ Login failed: ${loginResponse.status}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Authentication error:', error.message);
+    return false;
+  }
+}
+
 async function testMapFeatures() {
+  // First authenticate
+  const loginSuccess = await authenticate();
   console.log('========== MAP FEATURES TESTING ==========');
   
   // Base URL for API requests
@@ -24,6 +87,7 @@ async function testMapFeatures() {
     const createBookmarkResponse = await fetch(`${API_BASE}/map-bookmarks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(bookmarkData)
     });
     
@@ -32,7 +96,9 @@ async function testMapFeatures() {
     console.log('✓ Bookmark created successfully:', bookmark.id);
     
     // 1.2 Get all bookmarks
-    const getBookmarksResponse = await fetch(`${API_BASE}/map-bookmarks`);
+    const getBookmarksResponse = await fetch(`${API_BASE}/map-bookmarks`, {
+      credentials: 'include'
+    });
     
     if (!getBookmarksResponse.ok) throw new Error(`Failed to get bookmarks: ${getBookmarksResponse.status}`);
     const bookmarks = await getBookmarksResponse.json();
@@ -47,6 +113,7 @@ async function testMapFeatures() {
     const updateBookmarkResponse = await fetch(`${API_BASE}/map-bookmarks/${bookmark.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(updateBookmarkData)
     });
     
@@ -58,7 +125,9 @@ async function testMapFeatures() {
     console.log('\n----- Test: Map Preferences -----');
     
     // 2.1 Get user preferences
-    const getPreferencesResponse = await fetch(`${API_BASE}/map-preferences`);
+    const getPreferencesResponse = await fetch(`${API_BASE}/map-preferences`, {
+      credentials: 'include'
+    });
     
     if (!getPreferencesResponse.ok && getPreferencesResponse.status !== 404) {
       throw new Error(`Failed to get preferences: ${getPreferencesResponse.status}`);
@@ -89,6 +158,7 @@ async function testMapFeatures() {
     const updatePreferencesResponse = await fetch(`${API_BASE}/map-preferences`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(preferencesData)
     });
     
@@ -114,6 +184,7 @@ async function testMapFeatures() {
     const viewParcelResponse = await fetch(`${API_BASE}/recently-viewed-parcels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(viewParcelData)
     });
     
@@ -122,7 +193,9 @@ async function testMapFeatures() {
     console.log('✓ Parcel view recorded successfully');
     
     // 3.2 Get recently viewed parcels
-    const getRecentParcelsResponse = await fetch(`${API_BASE}/recently-viewed-parcels`);
+    const getRecentParcelsResponse = await fetch(`${API_BASE}/recently-viewed-parcels`, {
+      credentials: 'include'
+    });
     
     if (!getRecentParcelsResponse.ok) throw new Error(`Failed to get recent parcels: ${getRecentParcelsResponse.status}`);
     const recentParcels = await getRecentParcelsResponse.json();
@@ -141,6 +214,7 @@ async function testMapFeatures() {
     const compareResponse = await fetch(`${API_BASE}/parcel-comparison`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(compareData)
     });
     

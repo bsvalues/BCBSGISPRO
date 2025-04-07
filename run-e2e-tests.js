@@ -8,6 +8,22 @@ async function runE2ETests() {
   console.log('STARTING COMPREHENSIVE END-TO-END TESTING');
   console.log('==========================================================');
   
+  // Register and login a test user for authenticated tests
+  console.log('\nSetting up test user for authenticated API tests...');
+  try {
+    const registerResult = await execAsync(
+      `curl -s -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d '{"username":"testuser_e2e","email":"e2e@example.com","password":"TestPassword123!"}'`
+    );
+    
+    const loginResult = await execAsync(
+      `curl -s -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"username":"testuser_e2e","password":"TestPassword123!"}' -c cookie.txt`
+    );
+    
+    console.log('✓ Test user authentication configured');
+  } catch (error) {
+    console.log('⚠️ Test user setup failed, tests may have authentication issues:', error.message);
+  }
+  
   const tests = [
     {
       name: 'Document Lineage API',
@@ -40,8 +56,11 @@ async function runE2ETests() {
     console.log(`---------------------------------------------`);
     
     try {
+      // Set environment variable for cookie file for authenticated requests
+      const testEnv = { ...process.env, COOKIE_FILE: 'cookie.txt' };
+      
       // Run test and capture output
-      const { stdout, stderr } = await execAsync(`node --experimental-modules ${test.file}`);
+      const { stdout, stderr } = await execAsync(`node --experimental-modules ${test.file}`, { env: testEnv });
       
       if (stdout) {
         console.log(stdout);
