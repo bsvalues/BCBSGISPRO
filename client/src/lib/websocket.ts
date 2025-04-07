@@ -141,11 +141,29 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
  * @returns A new WebSocket instance
  */
 export function createWebSocket(path: string = '/ws'): WebSocket {
-  // Use WebSocket URL utility which handles the development vs production environments
-  const wsUrl = getWebSocketUrl();
-  
-  console.log(`Creating WebSocket connection to: ${wsUrl}`);
-  return new WebSocket(wsUrl);
+  // Get base URL and ensure the path is correctly formatted
+  try {
+    // Use WebSocket URL utility which handles the development vs production environments
+    const baseUrl = getWebSocketUrl();
+    
+    // If for some reason the URL is malformed, construct a safe fallback
+    if (!baseUrl || baseUrl.includes('undefined')) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const safeUrl = `${protocol}//${host}${path}`;
+      console.log(`Using safe fallback WebSocket URL: ${safeUrl}`);
+      return new WebSocket(safeUrl);
+    }
+    
+    console.log(`Creating WebSocket connection to: ${baseUrl}`);
+    return new WebSocket(baseUrl);
+  } catch (error) {
+    console.error('Error creating WebSocket connection:', error);
+    // Last resort fallback with minimal assumptions
+    const fallbackUrl = `ws://${window.location.hostname}/ws`;
+    console.log(`Using emergency fallback WebSocket URL: ${fallbackUrl}`);
+    return new WebSocket(fallbackUrl);
+  }
 }
 
 // Re-export the useWebSocket hook for convenience
