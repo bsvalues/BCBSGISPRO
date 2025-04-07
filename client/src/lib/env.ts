@@ -52,10 +52,20 @@ export async function getMapboxTokenAsync(): Promise<string> {
   }
   
   // Then try environment variable
+  // Check for token directly from environment variables
   const envToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   if (envToken) {
     console.log('Using Mapbox token from environment variables');
     cachedMapboxToken = envToken as string;
+    setGlobalMapboxToken(cachedMapboxToken);
+    return cachedMapboxToken;
+  }
+  
+  // Alternative: if no VITE_MAPBOX_ACCESS_TOKEN, try directly accessing from backend environment
+  const directToken = import.meta.env.MAPBOX_ACCESS_TOKEN;
+  if (directToken) {
+    console.log('Using Mapbox token directly from process.env');
+    cachedMapboxToken = directToken as string;
     setGlobalMapboxToken(cachedMapboxToken);
     return cachedMapboxToken;
   }
@@ -121,6 +131,14 @@ export function getMapboxToken(): string {
     console.log('Using Mapbox token from environment variables (sync)');
     setGlobalMapboxToken(token as string);
     return token as string;
+  }
+  
+  // Alternative: try directly accessing from backend environment
+  const directToken = import.meta.env.MAPBOX_ACCESS_TOKEN;
+  if (directToken) {
+    console.log('Using Mapbox token directly from process.env (sync)');
+    setGlobalMapboxToken(directToken as string);
+    return directToken as string;
   }
   
   // Log that we need to fetch from API, but that requires async

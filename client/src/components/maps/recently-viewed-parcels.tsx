@@ -16,9 +16,9 @@ export function RecentlyViewedParcels({ onSelectParcel, className }: RecentlyVie
   const [confirmClear, setConfirmClear] = useState(false);
   
   const { 
-    recentlyViewedParcels, 
+    recentParcels: recentlyViewedParcels, 
     isLoading, 
-    clearHistoryMutation
+    clearRecentlyViewedMutation: clearHistoryMutation
   } = useRecentlyViewedParcels();
 
   const handleClearHistory = () => {
