@@ -83,13 +83,27 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       setLoading(true);
       console.log(`Adding layer from service: ${serviceName} (${serviceType})`);
       
+      // Check if this layer already exists to prevent duplicates
+      const existingLayer = layers.find(
+        layer => layer.serviceName === serviceName && 
+                 layer.serviceType === serviceType &&
+                 (serviceType === 'MapServer' || layer.layerId === undefined)
+      );
+      
+      if (existingLayer) {
+        console.log(`Layer ${serviceName} (${serviceType}) already exists, skipping`);
+        setLoading(false);
+        return;
+      }
+      
       // Try a direct fetch for debugging
       const directUrl = `https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/${serviceName}/${serviceType}?f=json`;
       console.log('Fetching from:', directUrl);
       
+      let directInfo = null;
       try {
         const directResponse = await fetch(directUrl);
-        const directInfo = await directResponse.json();
+        directInfo = await directResponse.json();
         console.log('Direct service info:', directInfo);
       } catch (directErr) {
         console.warn('Direct fetch failed:', directErr);
@@ -104,7 +118,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         console.log('Adding MapServer layer');
         // Add the entire map service as one layer
         const newLayer: Layer = {
-          id: `${serviceName}-${serviceType}`,
+          id: `${serviceName}-${serviceType}-${Date.now()}`, // Add timestamp to ensure uniqueness
           name: serviceInfo.documentInfo?.Title || serviceInfo.mapName || serviceName,
           visible: true,
           opacity: 1,
@@ -117,15 +131,24 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       } else if (serviceInfo.layers && serviceInfo.layers.length > 0) {
         console.log(`Adding ${serviceInfo.layers.length} FeatureServer layers`);
         // Add each layer in the feature service individually
-        const newLayers = serviceInfo.layers.map((layer: any) => ({
-          id: `${serviceName}-${serviceType}-${layer.id}`,
-          name: layer.name,
-          visible: true,
-          opacity: 1,
-          serviceName,
-          layerId: layer.id,
-          serviceType
-        }));
+        // First check for any existing layers with the same IDs
+        const existingLayerIds = new Set(layers.map(l => l.id));
+        
+        const newLayers = serviceInfo.layers.map((layer: any) => {
+          // Ensure unique ID by adding a timestamp if needed
+          const baseId = `${serviceName}-${serviceType}-${layer.id}`;
+          const id = existingLayerIds.has(baseId) ? `${baseId}-${Date.now()}` : baseId;
+          
+          return {
+            id,
+            name: layer.name,
+            visible: true,
+            opacity: 1,
+            serviceName,
+            layerId: layer.id,
+            serviceType
+          };
+        });
         
         console.log('New layers:', newLayers);
         setLayers(prev => [...prev, ...newLayers]);
@@ -134,7 +157,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         
         // Add a fallback layer for testing
         const fallbackLayer: Layer = {
-          id: `${serviceName}-${serviceType}-fallback`,
+          id: `${serviceName}-${serviceType}-fallback-${Date.now()}`, // Add timestamp to ensure uniqueness
           name: `${serviceName} (Fallback)`,
           visible: true,
           opacity: 1,
@@ -155,7 +178,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       
       // Add a fallback layer for testing when errors occur
       const fallbackLayer: Layer = {
-        id: `${serviceName}-${serviceType}-error-fallback`,
+        id: `${serviceName}-${serviceType}-error-fallback-${Date.now()}`, // Add timestamp to ensure uniqueness
         name: `${serviceName} (Error Fallback)`,
         visible: true,
         opacity: 1,
