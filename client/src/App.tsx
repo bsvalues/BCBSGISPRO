@@ -22,6 +22,7 @@ import MapCollaborationStarterPage from "@/pages/map-collaboration-starter-page"
 import DocumentParcelManagementPage from "@/pages/document-parcel-management";
 import DataMigrationPage from "@/pages/data-migration";
 import { MapSettingsPage } from "@/pages/map-settings";
+import ParcelComparisonDemo from "@/pages/parcel-comparison-demo";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -120,6 +121,11 @@ function App() {
 
   // Additional navigation links
   const additionalLinks = [
+    { 
+      path: '/parcel-comparison', 
+      icon: <Map className="h-4 w-4" />, 
+      label: 'Parcel Comparison',
+    },
     { 
       path: '/collaborative-workspace', 
       icon: <Users className="h-4 w-4" />, 
@@ -509,6 +515,7 @@ function App() {
             <Route path="/project-progress" component={ProjectProgressPage} />
             <Route path="/data-migration" component={DataMigrationPage} />
             <Route path="/map-settings" component={MapSettingsPage} />
+            <Route path="/parcel-comparison" component={ParcelComparisonDemo} />
             
             {/* Default to the fullscreen map page */}
             <Route>
