@@ -1,152 +1,153 @@
-import React from 'react';
-import useRecentlyViewed from '@/hooks/use-recently-viewed';
+import { useState } from 'react';
+import useRecentlyViewedParcels from '@/hooks/use-recently-viewed';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, MapPin, Trash2, X, ExternalLink } from 'lucide-react';
+import { History, Trash2, Map, ArrowRight, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 interface RecentlyViewedParcelsProps {
-  className?: string;
   onSelectParcel?: (parcelId: number) => void;
+  className?: string;
 }
 
-export function RecentlyViewedParcels({ className, onSelectParcel }: RecentlyViewedParcelsProps) {
-  const { recentlyViewed, isLoading, clearRecentlyViewedMutation } = useRecentlyViewed();
+export function RecentlyViewedParcels({ onSelectParcel, className }: RecentlyViewedParcelsProps) {
+  const [confirmClear, setConfirmClear] = useState(false);
   
-  // Group parcels by date
-  const groupedParcels = recentlyViewed.reduce((groups, parcel) => {
-    const date = new Date(parcel.viewedAt);
-    const dateStr = format(date, 'yyyy-MM-dd');
-    
-    if (!groups[dateStr]) {
-      groups[dateStr] = [];
-    }
-    
-    groups[dateStr].push(parcel);
-    return groups;
-  }, {} as Record<string, any[]>);
-  
-  // Get dates and sort them in descending order
-  const dates = Object.keys(groupedParcels).sort((a, b) => 
-    new Date(b).getTime() - new Date(a).getTime()
-  );
-  
-  const handleClearAll = () => {
-    clearRecentlyViewedMutation.mutate();
-  };
-  
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (dateStr === format(today, 'yyyy-MM-dd')) {
-      return 'Today';
-    } else if (dateStr === format(yesterday, 'yyyy-MM-dd')) {
-      return 'Yesterday';
+  const { 
+    recentlyViewedParcels, 
+    isLoading, 
+    clearHistoryMutation
+  } = useRecentlyViewedParcels();
+
+  const handleClearHistory = () => {
+    if (confirmClear) {
+      clearHistoryMutation.mutate();
+      setConfirmClear(false);
     } else {
-      return format(date, 'MMMM d, yyyy');
+      setConfirmClear(true);
+      // Reset confirm state after 5 seconds
+      setTimeout(() => setConfirmClear(false), 5000);
     }
   };
-  
+
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            <span>Recently Viewed</span>
-          </div>
-          
-          {recentlyViewed.length > 0 && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleClearAll}
-              disabled={clearRecentlyViewedMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+    <Card className={cn("w-full backdrop-blur-md bg-white/60 dark:bg-black/60 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-lg", className)}>
+      <CardHeader className="bg-gradient-to-r from-teal-500/20 to-blue-500/20 dark:from-teal-900/20 dark:to-blue-900/20 py-3">
+        <CardTitle className="flex items-center text-lg font-semibold text-gray-800 dark:text-gray-200">
+          <History className="h-5 w-5 mr-2 text-teal-600 dark:text-teal-400" />
+          Recently Viewed Parcels
         </CardTitle>
-        <CardDescription>Parcels you've recently viewed</CardDescription>
       </CardHeader>
-      
-      <CardContent>
+
+      <CardContent className="p-3">
         {isLoading ? (
-          <div className="py-4 text-center text-muted-foreground">Loading...</div>
-        ) : recentlyViewed.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground">
-            <MapPin className="h-10 w-10 mx-auto mb-2 opacity-40" />
-            <p>No recently viewed parcels</p>
-            <p className="text-sm">Viewed parcels will appear here</p>
+          <div className="py-4 text-center text-gray-500 dark:text-gray-400">
+            Loading history...
+          </div>
+        ) : recentlyViewedParcels.length === 0 ? (
+          <div className="py-8 text-center">
+            <Map className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-2" />
+            <p className="text-gray-500 dark:text-gray-400">No recently viewed parcels</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+              Parcels you view will appear here for quick access
+            </p>
           </div>
         ) : (
-          <ScrollArea className="h-[300px] pr-4">
-            {dates.map(date => (
-              <div key={date} className="mb-4">
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">{formatDate(date)}</h3>
-                
-                {groupedParcels[date].map(parcel => (
-                  <ParcelItem 
-                    key={parcel.id} 
-                    parcel={parcel} 
-                    onSelect={() => onSelectParcel?.(parcel.parcelId)} 
-                  />
-                ))}
-              </div>
-            ))}
+          <ScrollArea className="h-[280px] pr-3">
+            <div className="space-y-2">
+              {recentlyViewedParcels.map((item) => (
+                <ParcelItem 
+                  key={item.id} 
+                  parcel={item} 
+                  onClick={() => onSelectParcel && onSelectParcel(item.parcelId)} 
+                />
+              ))}
+            </div>
           </ScrollArea>
         )}
       </CardContent>
+
+      <CardFooter className="bg-gray-50/80 dark:bg-gray-900/50 p-3 flex justify-between items-center">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {recentlyViewedParcels.length} {recentlyViewedParcels.length === 1 ? 'parcel' : 'parcels'} in history
+        </div>
+        {recentlyViewedParcels.length > 0 && (
+          <Button 
+            variant={confirmClear ? "destructive" : "outline"} 
+            size="sm" 
+            className={cn(
+              "h-8",
+              !confirmClear && "bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 border-gray-300 dark:border-gray-700"
+            )}
+            onClick={handleClearHistory}
+          >
+            {confirmClear ? (
+              <>Confirm Clear</>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear History
+              </>
+            )}
+          </Button>
+        )}
+      </CardFooter>
     </Card>
   );
 }
 
 interface ParcelItemProps {
   parcel: any;
-  onSelect: () => void;
+  onClick: () => void;
 }
 
-function ParcelItem({ parcel, onSelect }: ParcelItemProps) {
-  // In a real implementation, you might fetch more parcel details
-  // or have them included in the response
-  
-  // Calculate relative time (e.g., "2 hours ago")
-  const relativeTime = formatDistanceToNow(new Date(parcel.viewedAt), { addSuffix: true });
+function ParcelItem({ parcel, onClick }: ParcelItemProps) {
+  // Format the time relative to now (like "3 hours ago")
+  const timeAgo = formatDistanceToNow(new Date(parcel.viewedAt), { addSuffix: true });
+
+  // We'll assume we have these properties in our parcel object
+  // In a real app, you'd adjust based on your actual data structure
+  const parcelNumber = parcel.parcel?.number || `Parcel #${parcel.parcelId}`;
+  const address = parcel.parcel?.address || '123 Main St';
+  const owner = parcel.parcel?.owner || 'Property Owner';
+  const acres = parcel.parcel?.acres || '1.25';
   
   return (
-    <div 
-      className="group relative bg-card hover:bg-accent p-3 rounded-lg mb-2 transition-colors cursor-pointer"
-      onClick={onSelect}
-    >
-      <div className="flex justify-between">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" />
-            <h4 className="text-sm font-medium">Parcel #{parcel.parcelId}</h4>
-          </div>
-          
-          {parcel.parcelDetails && parcel.parcelDetails.address && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {parcel.parcelDetails.address}
-            </p>
-          )}
-          
-          <div className="text-xs text-muted-foreground mt-1">
-            {relativeTime}
+    <div className="p-3 rounded-lg hover:bg-white/70 dark:hover:bg-gray-800/70 border border-gray-200 dark:border-gray-800 transition-all">
+      <div className="flex justify-between items-start">
+        <div className="space-y-0.5">
+          <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+            <Home className="h-3.5 w-3.5 mr-1 text-blue-500 dark:text-blue-400" />
+            {parcelNumber}
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {address}
+          </p>
+          <div className="flex gap-2 mt-1">
+            <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-sm text-gray-600 dark:text-gray-300">
+              {owner}
+            </span>
+            <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-sm text-gray-600 dark:text-gray-300">
+              {acres} acres
+            </span>
           </div>
         </div>
-        
-        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ExternalLink className="h-3.5 w-3.5" />
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          className="h-8 w-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" 
+          onClick={onClick}
+        >
+          <ArrowRight className="h-4 w-4" />
         </Button>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <div className="text-xs text-gray-400 dark:text-gray-500">
+          {timeAgo}
+        </div>
       </div>
     </div>
   );
 }
-
-export default RecentlyViewedParcels;

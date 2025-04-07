@@ -1,198 +1,162 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { MapBookmark } from '../../shared/schema';
-import { apiRequest } from '@/lib/queryClient';
-import { useState } from 'react';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { z } from 'zod';
 import { toast } from '@/hooks/use-toast';
 
-export interface CreateBookmarkInput {
-  name: string;
-  latitude: number;
-  longitude: number;
-  zoom: number;
-  description?: string;
-  icon?: string;
-  color?: string;
-  tags?: string[];
-  isDefault?: boolean;
-  isPinned?: boolean;
-}
+// Schema for validating bookmark input
+export const bookmarkInputSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less'),
+  description: z.string().max(500, 'Description must be 500 characters or less').optional().nullable(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  zoom: z.number().min(1).max(22),
+  icon: z.string().max(50).optional().nullable(),
+  color: z.string().max(20).optional().nullable(),
+  tags: z.array(z.string()).optional().nullable(),
+  isDefault: z.boolean().optional(),
+  isPinned: z.boolean().optional()
+});
 
-export interface UpdateBookmarkInput extends Partial<CreateBookmarkInput> {
+// Type for bookmark input
+export type BookmarkInput = z.infer<typeof bookmarkInputSchema>;
+
+// Type for updating a bookmark
+interface BookmarkUpdateInput extends BookmarkInput {
   id: number;
 }
 
-export function useMapBookmarks() {
-  const queryClient = useQueryClient();
-  const [selectedBookmarkId, setSelectedBookmarkId] = useState<number | null>(null);
+// Type for toggling pin status
+interface TogglePinInput {
+  id: number;
+  isPinned: boolean;
+}
 
+export default function useMapBookmarks() {
   // Get all bookmarks
-  const bookmarksQuery = useQuery({
+  const { 
+    data: bookmarks = [], 
+    isLoading, 
+    isError,
+    error,
+    refetch 
+  } = useQuery<MapBookmark[]>({
     queryKey: ['/api/map-bookmarks'],
-    queryFn: async () => {
-      const response = await fetch('/api/map-bookmarks');
-      if (!response.ok) {
-        if (response.status === 401) {
-          return []; // Return empty array when not logged in
-        }
-        throw new Error('Failed to fetch bookmarks');
-      }
-      return await response.json() as MapBookmark[];
-    }
   });
 
-  // Get single bookmark by ID
-  const bookmarkQuery = useQuery({
-    queryKey: ['/api/map-bookmarks', selectedBookmarkId],
-    queryFn: async () => {
-      if (!selectedBookmarkId) return null;
-      
-      const response = await fetch(`/api/map-bookmarks/${selectedBookmarkId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch bookmark');
-      }
-      return await response.json() as MapBookmark;
-    },
-    enabled: !!selectedBookmarkId
-  });
-
-  // Create new bookmark
+  // Create a new bookmark
   const createBookmarkMutation = useMutation({
-    mutationFn: async (newBookmark: CreateBookmarkInput) => {
+    mutationFn: async (bookmark: BookmarkInput) => {
       return apiRequest('/api/map-bookmarks', {
         method: 'POST',
-        body: JSON.stringify(newBookmark),
+        body: JSON.stringify(bookmark)
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
       toast({
-        title: 'Bookmark created',
-        description: 'Your map location has been saved.',
+        title: 'Bookmark Created',
+        description: 'Your location bookmark has been saved.'
       });
     },
     onError: (error) => {
       toast({
-        title: 'Error creating bookmark',
-        description: error instanceof Error ? error.message : 'Failed to create bookmark',
-        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to create bookmark. Please try again.',
+        variant: 'destructive'
       });
+      console.error('Error creating bookmark:', error);
     }
   });
 
-  // Update bookmark
+  // Update an existing bookmark
   const updateBookmarkMutation = useMutation({
-    mutationFn: async (bookmark: UpdateBookmarkInput) => {
-      return apiRequest(`/api/map-bookmarks/${bookmark.id}`, {
+    mutationFn: async (bookmark: BookmarkUpdateInput) => {
+      const { id, ...data } = bookmark;
+      return apiRequest(`/api/map-bookmarks/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(bookmark),
+        body: JSON.stringify(data)
       });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks', variables.id] });
       toast({
-        title: 'Bookmark updated',
-        description: 'Your bookmark has been updated.',
+        title: 'Bookmark Updated',
+        description: 'Your location bookmark has been updated.'
       });
     },
     onError: (error) => {
       toast({
-        title: 'Error updating bookmark',
-        description: error instanceof Error ? error.message : 'Failed to update bookmark',
-        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update bookmark. Please try again.',
+        variant: 'destructive'
       });
+      console.error('Error updating bookmark:', error);
     }
   });
 
-  // Delete bookmark
+  // Delete a bookmark
   const deleteBookmarkMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest(`/api/map-bookmarks/${id}`, {
-        method: 'DELETE',
+        method: 'DELETE'
       });
     },
-    onSuccess: (_, id) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks', id] });
-      if (selectedBookmarkId === id) {
-        setSelectedBookmarkId(null);
-      }
       toast({
-        title: 'Bookmark deleted',
-        description: 'Your bookmark has been removed.',
+        title: 'Bookmark Deleted',
+        description: 'Your location bookmark has been removed.'
       });
     },
     onError: (error) => {
       toast({
-        title: 'Error deleting bookmark',
-        description: error instanceof Error ? error.message : 'Failed to delete bookmark',
-        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete bookmark. Please try again.',
+        variant: 'destructive'
       });
+      console.error('Error deleting bookmark:', error);
     }
   });
 
-  // Helper function to create a bookmark from the current map view
-  const createBookmarkFromMapView = (
-    mapState: { center: [number, number]; zoom: number }, 
-    name: string,
-    options: Omit<CreateBookmarkInput, 'name' | 'latitude' | 'longitude' | 'zoom'> = {}
-  ) => {
-    const [latitude, longitude] = mapState.center;
-    
-    return createBookmarkMutation.mutate({
-      name,
-      latitude,
-      longitude,
-      zoom: mapState.zoom,
-      ...options
-    });
-  };
+  // Toggle pin status for a bookmark
+  const togglePinMutation = useMutation({
+    mutationFn: async ({ id, isPinned }: TogglePinInput) => {
+      return apiRequest(`/api/map-bookmarks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isPinned })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/map-bookmarks'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update bookmark pin status.',
+        variant: 'destructive'
+      });
+      console.error('Error toggling bookmark pin:', error);
+    }
+  });
 
-  // Get default/pinned bookmarks
-  const getDefaultBookmark = () => {
-    if (!bookmarksQuery.data) return null;
-    return bookmarksQuery.data.find(bookmark => bookmark.isDefault) || null;
-  };
-
-  const getPinnedBookmarks = () => {
-    if (!bookmarksQuery.data) return [];
-    return bookmarksQuery.data.filter(bookmark => bookmark.isPinned);
-  };
-
-  const getBookmarksByTag = (tag: string) => {
-    if (!bookmarksQuery.data) return [];
-    return bookmarksQuery.data.filter(bookmark => {
-      if (!bookmark.tags) return false;
-      return (bookmark.tags as string[]).includes(tag);
-    });
-  };
+  // Get pinned bookmarks
+  const pinnedBookmarks = bookmarks.filter(bookmark => bookmark.isPinned);
+  
+  // Get default bookmark if it exists
+  const defaultBookmark = bookmarks.find(bookmark => bookmark.isDefault);
 
   return {
-    // Queries
-    bookmarksQuery,
-    bookmarkQuery,
-    
-    // State
-    selectedBookmarkId,
-    setSelectedBookmarkId,
-    
-    // Mutations
+    bookmarks,
+    pinnedBookmarks,
+    defaultBookmark,
+    isLoading,
+    isError,
+    error,
+    refetch,
     createBookmarkMutation,
     updateBookmarkMutation,
     deleteBookmarkMutation,
-    
-    // Helpers
-    createBookmarkFromMapView,
-    getDefaultBookmark,
-    getPinnedBookmarks,
-    getBookmarksByTag,
-    
-    // Combined data
-    bookmarks: bookmarksQuery.data || [],
-    selectedBookmark: bookmarkQuery.data,
-    isLoading: bookmarksQuery.isLoading || (!!selectedBookmarkId && bookmarkQuery.isLoading),
-    error: bookmarksQuery.error || bookmarkQuery.error,
+    togglePinMutation
   };
 }
-
-export default useMapBookmarks;
