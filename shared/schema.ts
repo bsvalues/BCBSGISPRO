@@ -393,63 +393,90 @@ export type EventType = typeof EVENT_TYPES[number];
 export type RelationshipType = typeof RELATIONSHIP_TYPES[number];
 export type ProcessingStageType = typeof PROCESSING_STAGE_TYPES[number];
 
-// Document Entity Interface
-export interface DocumentEntity {
-  id: string;
-  documentType: DocumentType;
-  documentName: string;
-  createdAt: Date;
-  status: string;
-  description?: string;
-  fileSize?: number;
-  fileHash?: string;
-  parcelId?: string;
-  uploadedBy?: string;
-}
+// Document Entities table for lineage tracking
+export const documentEntities = pgTable('document_entities', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('active'),
+  documentName: varchar('document_name', { length: 255 }).notNull(),
+  documentType: varchar('document_type', { length: 50 }).notNull(),
+  description: text('description'),
+  fileSize: integer('file_size'),
+  fileHash: varchar('file_hash', { length: 128 }),
+  parcelId: varchar('parcel_id', { length: 50 }),
+  uploadedBy: varchar('uploaded_by', { length: 100 })
+});
 
+export type DocumentEntity = typeof documentEntities.$inferSelect;
 export type InsertDocumentEntity = Omit<DocumentEntity, 'id' | 'createdAt' | 'status'>;
+export const insertDocumentEntitySchema = createInsertSchema(documentEntities).omit({
+  id: true,
+  createdAt: true,
+  status: true
+});
 
-// Document Lineage Event Interface
-export interface DocumentLineageEvent {
-  id: string;
-  eventType: EventType;
-  eventTimestamp: Date;
-  documentId: string;
-  performedBy?: string;
-  details?: Record<string, any>;
-  confidence?: number;
-}
+// Document Lineage Events table
+export const documentLineageEvents = pgTable('document_lineage_events', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  eventTimestamp: timestamp('event_timestamp').defaultNow().notNull(),
+  documentId: varchar('document_id', { length: 36 }).notNull()
+    .references(() => documentEntities.id),
+  eventType: varchar('event_type', { length: 50 }).notNull(),
+  performedBy: varchar('performed_by', { length: 100 }),
+  details: json('details').$type<Record<string, any>>(),
+  confidence: doublePrecision('confidence')
+});
 
+export type DocumentLineageEvent = typeof documentLineageEvents.$inferSelect;
 export type InsertDocumentLineageEvent = Omit<DocumentLineageEvent, 'id' | 'eventTimestamp'>;
+export const insertDocumentLineageEventSchema = createInsertSchema(documentLineageEvents).omit({
+  id: true,
+  eventTimestamp: true
+});
 
-// Document Relationship Interface
-export interface DocumentRelationship {
-  id: string;
-  sourceDocumentId: string;
-  targetDocumentId: string;
-  relationshipType: RelationshipType;
-  createdAt: Date;
-  notes?: string;
-  metadata?: Record<string, any>;
-}
+// Document Relationships table
+export const documentRelationships = pgTable('document_relationships', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  sourceDocumentId: varchar('source_document_id', { length: 36 }).notNull()
+    .references(() => documentEntities.id),
+  targetDocumentId: varchar('target_document_id', { length: 36 }).notNull()
+    .references(() => documentEntities.id),
+  relationshipType: varchar('relationship_type', { length: 50 }).notNull(),
+  description: text('description'),
+  metadata: json('metadata').$type<Record<string, any>>()
+});
 
+export type DocumentRelationship = typeof documentRelationships.$inferSelect;
 export type InsertDocumentRelationship = Omit<DocumentRelationship, 'id' | 'createdAt'>;
+export const insertDocumentRelationshipSchema = createInsertSchema(documentRelationships).omit({
+  id: true,
+  createdAt: true
+});
 
-// Document Processing Stage Interface
-export interface DocumentProcessingStage {
-  id: string;
-  documentId: string;
-  stageName: ProcessingStageType;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  startedAt: Date;
-  completedAt?: Date;
-  processorName?: string;
-  processorVersion?: string;
-  progress: number;
-  result?: Record<string, any>;
-}
+// Document Processing Stages table
+export const documentProcessingStages = pgTable('document_processing_stages', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  documentId: varchar('document_id', { length: 36 }).notNull()
+    .references(() => documentEntities.id),
+  stageName: varchar('stage_name', { length: 50 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+  processorName: varchar('processor_name', { length: 100 }),
+  processorVersion: varchar('processor_version', { length: 50 }),
+  progress: doublePrecision('progress').notNull().default(0),
+  result: json('result').$type<Record<string, any>>()
+});
 
+export type DocumentProcessingStage = typeof documentProcessingStages.$inferSelect;
 export type InsertDocumentProcessingStage = Omit<DocumentProcessingStage, 'id' | 'status' | 'startedAt' | 'progress'>;
+export const insertDocumentProcessingStageSchema = createInsertSchema(documentProcessingStages).omit({
+  id: true,
+  status: true,
+  startedAt: true,
+  progress: true
+});
 
 // Document Lineage Node Interface
 export interface DocumentLineageNode {

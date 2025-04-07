@@ -1,498 +1,371 @@
-import { v4 as uuidv4 } from 'uuid';
-import {
-  DocumentEntity,
-  InsertDocumentEntity,
-  DocumentLineageEvent,
-  InsertDocumentLineageEvent,
-  DocumentRelationship,
-  InsertDocumentRelationship,
-  DocumentProcessingStage,
-  InsertDocumentProcessingStage,
-  DocumentLineageGraph,
-  DocumentLineageNode,
-  DocumentLineageEdge
+import { 
+  DocumentEntity, 
+  DocumentLineageEvent, 
+  DocumentLineageGraph, 
+  DocumentLineageNode, 
+  DocumentLineageEdge,
+  DocumentNodeData,
+  EventNodeData,
+  ProcessingNodeData,
+  DocumentRelationship, 
+  DocumentProcessingStage 
 } from '../shared/document-lineage-schema';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Interface defining document lineage storage operations
+ * Document lineage storage
  */
-export interface IDocumentLineageStorage {
-  // Document Entity Operations
-  createDocument(data: InsertDocumentEntity): Promise<DocumentEntity>;
-  getDocumentById(id: string): Promise<DocumentEntity | undefined>;
-  updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined>;
-  listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]>;
-  
-  // Document Lineage Event Operations
-  createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent>;
-  getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]>;
-  
-  // Document Relationship Operations
-  createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship>;
-  getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]>;
-  
-  // Document Processing Stage Operations
-  createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage>;
-  getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]>;
-  updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined>;
-  
-  // Lineage Graph Generation
-  getDocumentLineage(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
-  getDocumentProvenance(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
-  getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph>;
-}
+export class DocumentLineageMemStorage {
+  private documentEntities: Map<string, DocumentEntity>;
+  private documentLineageEvents: Map<string, DocumentLineageEvent>;
+  private documentRelationships: Map<string, DocumentRelationship>;
+  private documentProcessingStages: Map<string, DocumentProcessingStage>;
 
-/**
- * In-memory implementation of document lineage storage
- */
-export class MemDocumentLineageStorage implements IDocumentLineageStorage {
-  private documents: Record<string, DocumentEntity> = {};
-  private lineageEvents: Record<string, DocumentLineageEvent> = {};
-  private relationships: Record<string, DocumentRelationship> = {};
-  private processingStages: Record<string, DocumentProcessingStage> = {};
+  constructor() {
+    this.documentEntities = new Map();
+    this.documentLineageEvents = new Map();
+    this.documentRelationships = new Map();
+    this.documentProcessingStages = new Map();
+  }
 
-  /**
-   * Creates a new document entity
-   */
-  async createDocument(data: InsertDocumentEntity): Promise<DocumentEntity> {
-    const document: DocumentEntity = {
-      id: uuidv4(),
+  // Document entity operations
+  async createDocument(document: Omit<DocumentEntity, 'id' | 'createdAt' | 'status'>): Promise<DocumentEntity> {
+    const id = uuidv4();
+    const newDocument: DocumentEntity = {
+      ...document,
+      id,
       createdAt: new Date(),
-      status: 'active',
-      ...data
+      status: 'active'
     };
-    
-    this.documents[document.id] = document;
-    return document;
+    this.documentEntities.set(id, newDocument);
+    return newDocument;
   }
 
-  /**
-   * Retrieves a document by its ID
-   */
   async getDocumentById(id: string): Promise<DocumentEntity | undefined> {
-    return this.documents[id];
+    return this.documentEntities.get(id);
   }
 
-  /**
-   * Updates an existing document
-   */
-  async updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined> {
-    const document = this.documents[id];
-    
+  async updateDocument(id: string, updates: Partial<DocumentEntity>): Promise<DocumentEntity> {
+    const document = this.documentEntities.get(id);
     if (!document) {
-      return undefined;
+      throw new Error(`Document not found with ID: ${id}`);
     }
     
     const updatedDocument: DocumentEntity = {
       ...document,
-      ...data
+      ...updates
     };
     
-    this.documents[id] = updatedDocument;
+    this.documentEntities.set(id, updatedDocument);
     return updatedDocument;
   }
 
-  /**
-   * Lists documents matching optional filters
-   */
-  async listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]> {
-    const documents = Object.values(this.documents);
+  async listDocuments(filter?: { 
+    documentType?: string;
+    parcelId?: string;
+    status?: 'active' | 'archived' | 'deleted';
+  }): Promise<DocumentEntity[]> {
+    let documents = Array.from(this.documentEntities.values());
     
-    if (!filters) {
-      return documents;
+    if (filter) {
+      if (filter.documentType) {
+        documents = documents.filter(doc => doc.documentType === filter.documentType);
+      }
+      
+      if (filter.parcelId) {
+        documents = documents.filter(doc => doc.parcelId === filter.parcelId);
+      }
+      
+      if (filter.status) {
+        documents = documents.filter(doc => doc.status === filter.status);
+      }
     }
     
-    return documents.filter(document => {
-      // Check each filter property
-      for (const [key, value] of Object.entries(filters)) {
-        if (document[key as keyof DocumentEntity] !== value) {
-          return false;
-        }
-      }
-      return true;
-    });
+    return documents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  /**
-   * Creates a new lineage event
-   */
-  async createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent> {
-    const event: DocumentLineageEvent = {
-      id: uuidv4(),
-      eventTimestamp: new Date(),
-      ...data
+  // Document event operations
+  async createDocumentEvent(event: Omit<DocumentLineageEvent, 'id' | 'eventTimestamp'>): Promise<DocumentLineageEvent> {
+    const id = uuidv4();
+    const newEvent: DocumentLineageEvent = {
+      ...event,
+      id,
+      eventTimestamp: new Date()
     };
-    
-    this.lineageEvents[event.id] = event;
-    return event;
+    this.documentLineageEvents.set(id, newEvent);
+    return newEvent;
   }
 
-  /**
-   * Gets lineage events for a document
-   */
-  async getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]> {
-    return Object.values(this.lineageEvents)
+  async getDocumentEvents(documentId: string): Promise<DocumentLineageEvent[]> {
+    return Array.from(this.documentLineageEvents.values())
       .filter(event => event.documentId === documentId)
-      .sort((a, b) => a.eventTimestamp.getTime() - b.eventTimestamp.getTime());
+      .sort((a, b) => b.eventTimestamp.getTime() - a.eventTimestamp.getTime());
   }
 
-  /**
-   * Creates a new document relationship
-   */
-  async createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship> {
-    const relationship: DocumentRelationship = {
-      id: uuidv4(),
-      createdAt: new Date(),
-      ...data
+  // Document relationship operations
+  async createDocumentRelationship(relationship: Omit<DocumentRelationship, 'id' | 'createdAt'>): Promise<DocumentRelationship> {
+    const id = uuidv4();
+    const newRelationship: DocumentRelationship = {
+      ...relationship,
+      id,
+      createdAt: new Date()
     };
-    
-    this.relationships[relationship.id] = relationship;
-    return relationship;
+    this.documentRelationships.set(id, newRelationship);
+    return newRelationship;
   }
 
-  /**
-   * Gets relationships for a document
-   * @param documentId - The document ID
-   * @param relationshipType - Optional relationship type filter
-   */
-  async getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]> {
-    return Object.values(this.relationships)
-      .filter(rel => 
-        (rel.sourceDocumentId === documentId || rel.targetDocumentId === documentId) &&
-        (!relationshipType || rel.relationshipType === relationshipType)
-      )
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  async getDocumentRelationships(documentId: string): Promise<DocumentRelationship[]> {
+    return Array.from(this.documentRelationships.values())
+      .filter(rel => rel.sourceDocumentId === documentId || rel.targetDocumentId === documentId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  /**
-   * Creates a new document processing stage
-   */
-  async createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage> {
-    const stage: DocumentProcessingStage = {
-      id: uuidv4(),
+  // Document processing stage operations
+  async createProcessingStage(stage: Omit<DocumentProcessingStage, 'id' | 'status' | 'progress' | 'startedAt' | 'completedAt'>): Promise<DocumentProcessingStage> {
+    const id = uuidv4();
+    const newStage: DocumentProcessingStage = {
+      ...stage,
+      id,
       status: 'pending',
-      startedAt: new Date(),
       progress: 0,
-      ...data
+      startedAt: new Date()
     };
-    
-    this.processingStages[stage.id] = stage;
-    return stage;
+    this.documentProcessingStages.set(id, newStage);
+    return newStage;
   }
 
-  /**
-   * Gets processing stages for a document
-   */
-  async getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]> {
-    return Object.values(this.processingStages)
-      .filter(stage => stage.documentId === documentId)
-      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
-  }
-
-  /**
-   * Updates an existing processing stage
-   */
-  async updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined> {
-    const stage = this.processingStages[id];
-    
+  async updateProcessingStage(id: string, updates: Partial<DocumentProcessingStage>): Promise<DocumentProcessingStage> {
+    const stage = this.documentProcessingStages.get(id);
     if (!stage) {
-      return undefined;
+      throw new Error(`Processing stage not found with ID: ${id}`);
     }
     
     const updatedStage: DocumentProcessingStage = {
       ...stage,
-      ...data
+      ...updates
     };
     
-    this.processingStages[id] = updatedStage;
+    this.documentProcessingStages.set(id, updatedStage);
     return updatedStage;
   }
 
-  /**
-   * Generates a document lineage graph
-   * Shows documents that were derived from the specified document
-   */
-  async getDocumentLineage(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
-    const document = await this.getDocumentById(documentId);
-    
-    if (!document) {
-      throw new Error(`Document with ID ${documentId} not found`);
-    }
-    
-    const graph: DocumentLineageGraph = {
-      nodes: [],
-      edges: [],
-      metadata: {
-        generatedAt: new Date(),
-        depth,
-        rootDocumentId: documentId
-      }
-    };
-    
-    // Start building the graph from the root document
-    await this.buildLineageGraph(
-      document,
-      graph,
-      depth,
-      'forward',
-      new Set<string>(),
-      {x: 0, y: 0}
-    );
-    
-    return graph;
+  async getProcessingStageById(id: string): Promise<DocumentProcessingStage | undefined> {
+    return this.documentProcessingStages.get(id);
   }
 
-  /**
-   * Generates a document provenance graph
-   * Shows documents that the specified document was derived from
-   */
-  async getDocumentProvenance(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
-    const document = await this.getDocumentById(documentId);
-    
-    if (!document) {
-      throw new Error(`Document with ID ${documentId} not found`);
-    }
-    
-    const graph: DocumentLineageGraph = {
-      nodes: [],
-      edges: [],
-      metadata: {
-        generatedAt: new Date(),
-        depth,
-        rootDocumentId: documentId
-      }
-    };
-    
-    // Start building the graph from the root document
-    await this.buildLineageGraph(
-      document,
-      graph,
-      depth,
-      'backward',
-      new Set<string>(),
-      {x: 0, y: 0}
-    );
-    
-    return graph;
+  async getDocumentProcessingStages(documentId: string): Promise<DocumentProcessingStage[]> {
+    return Array.from(this.documentProcessingStages.values())
+      .filter(stage => stage.documentId === documentId)
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
   }
 
-  /**
-   * Generates a complete document graph for multiple documents
-   */
-  async getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph> {
-    const graph: DocumentLineageGraph = {
-      nodes: [],
-      edges: [],
-      metadata: {
-        generatedAt: new Date()
+  // Document graph operations
+  async getDocumentLineageGraph(documentId: string, depth: number = 1): Promise<DocumentLineageGraph> {
+    const nodes: DocumentLineageNode[] = [];
+    const edges: DocumentLineageEdge[] = [];
+    const visited = new Set<string>();
+    
+    // Helper function to build the graph
+    const buildGraph = async (docId: string, currentDepth: number) => {
+      if (visited.has(docId) || currentDepth > depth) {
+        return;
       }
-    };
-    
-    const processedDocuments = new Set<string>();
-    const initialPositions = [
-      {x: 0, y: 0},
-      {x: 300, y: 0},
-      {x: 0, y: 300},
-      {x: 300, y: 300},
-      {x: 150, y: 150}
-    ];
-    
-    // Process each document
-    for (let i = 0; i < documentIds.length; i++) {
-      const documentId = documentIds[i];
-      const document = await this.getDocumentById(documentId);
       
+      visited.add(docId);
+      
+      // Add document node
+      const document = await this.getDocumentById(docId);
       if (!document) {
-        continue;
+        return;
       }
       
-      // Use one of the predefined positions or a default
-      const position = initialPositions[i] || {x: i * 100, y: i * 100};
+      const docNodeId = `doc_${document.id}`;
+      nodes.push({
+        id: docNodeId,
+        type: 'document',
+        label: document.documentName,
+        data: {
+          entityId: document.id,
+          documentName: document.documentName,
+          documentType: document.documentType,
+          createdAt: document.createdAt,
+          uploadedBy: document.uploadedBy,
+          parcelId: document.parcelId,
+          status: document.status,
+          description: document.description,
+          fileSize: document.fileSize,
+          fileHash: document.fileHash
+        } as DocumentNodeData
+      });
       
-      // Add the document and its connections to the graph
-      await this.buildLineageGraph(
-        document,
-        graph,
-        1, // Minimal depth
-        'both',
-        processedDocuments,
-        position
-      );
-    }
-    
-    return graph;
-  }
-
-  /**
-   * Helper method to recursively build lineage graphs
-   */
-  private async buildLineageGraph(
-    document: DocumentEntity,
-    graph: DocumentLineageGraph,
-    depth: number,
-    direction: 'forward' | 'backward' | 'both',
-    processedDocuments: Set<string>,
-    position: {x: number, y: number}
-  ): Promise<void> {
-    // If we've already processed this document or reached max depth, return
-    if (processedDocuments.has(document.id) || depth < 0) {
-      return;
-    }
-    
-    processedDocuments.add(document.id);
-    
-    // Create a node for the document
-    const documentNode: DocumentLineageNode = {
-      id: `doc_${document.id}`,
-      type: 'document',
-      label: document.documentName,
-      data: {
-        ...document,
-        entityId: document.id,
-        position
+      // Add events
+      const events = await this.getDocumentEvents(docId);
+      for (const event of events) {
+        const eventNodeId = `event_${event.id}`;
+        nodes.push({
+          id: eventNodeId,
+          type: 'event',
+          label: event.eventType,
+          data: {
+            entityId: event.id,
+            eventType: event.eventType,
+            eventTimestamp: event.eventTimestamp,
+            performedBy: event.performedBy,
+            documentId: event.documentId,
+            details: event.details,
+            confidence: event.confidence
+          } as EventNodeData
+        });
+        
+        edges.push({
+          id: `edge_${docNodeId}_${eventNodeId}`,
+          source: docNodeId,
+          target: eventNodeId,
+          type: 'has_event',
+          label: 'Has Event'
+        });
+      }
+      
+      // Add processing stages
+      const stages = await this.getDocumentProcessingStages(docId);
+      for (const stage of stages) {
+        const stageNodeId = `stage_${stage.id}`;
+        nodes.push({
+          id: stageNodeId,
+          type: 'processing',
+          label: stage.stageName,
+          data: {
+            entityId: stage.id,
+            stageName: stage.stageName,
+            status: stage.status,
+            progress: stage.progress,
+            startedAt: stage.startedAt,
+            completedAt: stage.completedAt,
+            processorName: stage.processorName,
+            processorVersion: stage.processorVersion,
+            documentId: stage.documentId,
+            result: stage.result
+          } as ProcessingNodeData
+        });
+        
+        edges.push({
+          id: `edge_${docNodeId}_${stageNodeId}`,
+          source: docNodeId,
+          target: stageNodeId,
+          type: 'has_processing',
+          label: 'Processed By'
+        });
+      }
+      
+      if (currentDepth < depth) {
+        // Add relationships
+        const relationships = await this.getDocumentRelationships(docId);
+        for (const rel of relationships) {
+          const otherDocId = rel.sourceDocumentId === docId ? rel.targetDocumentId : rel.sourceDocumentId;
+          const otherDoc = await this.getDocumentById(otherDocId);
+          
+          if (otherDoc) {
+            // Recursively build the graph for related documents
+            await buildGraph(otherDocId, currentDepth + 1);
+            
+            const sourceNodeId = `doc_${rel.sourceDocumentId}`;
+            const targetNodeId = `doc_${rel.targetDocumentId}`;
+            
+            edges.push({
+              id: `rel_${rel.id}`,
+              source: sourceNodeId,
+              target: targetNodeId,
+              type: rel.relationshipType,
+              label: rel.relationshipType,
+              data: rel.metadata
+            });
+          }
+        }
       }
     };
     
-    graph.nodes.push(documentNode);
+    // Start building the graph from the root document
+    await buildGraph(documentId, 0);
     
-    // Add events for this document
-    const events = await this.getLineageEventsForDocument(document.id);
-    for (let i = 0; i < events.length; i++) {
-      const event = events[i];
+    return {
+      nodes,
+      edges,
+      metadata: {
+        generatedAt: new Date(),
+        rootDocumentId: documentId,
+        depth,
+        documentCount: nodes.filter(n => n.type === 'document').length
+      }
+    };
+  }
+
+  async getDocumentProvenance(documentId: string): Promise<DocumentEntity[]> {
+    const visited = new Set<string>();
+    const result: DocumentEntity[] = [];
+    
+    const findProvenance = async (docId: string) => {
+      if (visited.has(docId)) {
+        return;
+      }
       
-      const eventNode: DocumentLineageNode = {
-        id: `event_${event.id}`,
-        type: 'event',
-        label: event.eventType,
-        data: {
-          ...event,
-          entityId: event.id,
-          position: {
-            x: position.x + 150,
-            y: position.y + (i * 80) - ((events.length - 1) * 40)
-          }
+      visited.add(docId);
+      
+      // Find all relationships where this document is the target
+      const relationships = Array.from(this.documentRelationships.values())
+        .filter(rel => rel.targetDocumentId === docId);
+      
+      for (const rel of relationships) {
+        const sourceDoc = await this.getDocumentById(rel.sourceDocumentId);
+        if (sourceDoc) {
+          result.push(sourceDoc);
+          // Recursively find the provenance of the source document
+          await findProvenance(rel.sourceDocumentId);
         }
-      };
-      
-      const eventEdge: DocumentLineageEdge = {
-        id: `doc_to_event_${document.id}_${event.id}`,
-        source: documentNode.id,
-        target: eventNode.id,
-        type: 'document_event'
-      };
-      
-      graph.nodes.push(eventNode);
-      graph.edges.push(eventEdge);
-    }
+      }
+    };
     
-    // Add processing stages for this document
-    const stages = await this.getProcessingStagesForDocument(document.id);
-    for (let i = 0; i < stages.length; i++) {
-      const stage = stages[i];
+    await findProvenance(documentId);
+    return result;
+  }
+
+  async getCompleteLineageGraph(documentIds: string[], depth: number = 2): Promise<DocumentLineageGraph> {
+    const mergedGraph: DocumentLineageGraph = {
+      nodes: [],
+      edges: [],
+      metadata: {
+        generatedAt: new Date(),
+        documentCount: 0,
+        depth
+      }
+    };
+    
+    const nodeMap = new Map<string, DocumentLineageNode>();
+    const edgeMap = new Map<string, DocumentLineageEdge>();
+    
+    for (const docId of documentIds) {
+      const subgraph = await this.getDocumentLineageGraph(docId, depth);
       
-      const stageNode: DocumentLineageNode = {
-        id: `stage_${stage.id}`,
-        type: 'stage',
-        label: stage.stageName,
-        data: {
-          ...stage,
-          entityId: stage.id,
-          position: {
-            x: position.x - 150,
-            y: position.y + (i * 80) - ((stages.length - 1) * 40)
-          }
+      // Merge nodes (avoid duplicates)
+      for (const node of subgraph.nodes) {
+        if (!nodeMap.has(node.id)) {
+          nodeMap.set(node.id, node);
         }
-      };
+      }
       
-      const stageEdge: DocumentLineageEdge = {
-        id: `doc_to_stage_${document.id}_${stage.id}`,
-        source: documentNode.id,
-        target: stageNode.id,
-        type: 'document_stage'
-      };
-      
-      graph.nodes.push(stageNode);
-      graph.edges.push(stageEdge);
-    }
-    
-    // Get relationships and follow them based on direction
-    if (direction === 'forward' || direction === 'both') {
-      // Find documents derived from this one
-      const relationships = await this.getRelationshipsForDocument(document.id);
-      
-      for (const relationship of relationships) {
-        // Only follow relationships where this document is the source
-        if (relationship.sourceDocumentId === document.id) {
-          const targetDocument = await this.getDocumentById(relationship.targetDocumentId);
-          
-          if (targetDocument) {
-            // Recursively process the target document
-            await this.buildLineageGraph(
-              targetDocument,
-              graph,
-              depth - 1,
-              direction,
-              processedDocuments,
-              {
-                x: position.x + 300,
-                y: position.y + Math.random() * 200 - 100
-              }
-            );
-            
-            // Add an edge between the documents
-            const edge: DocumentLineageEdge = {
-              id: `rel_${relationship.id}`,
-              source: `doc_${document.id}`,
-              target: `doc_${targetDocument.id}`,
-              type: relationship.relationshipType,
-              label: relationship.relationshipType
-            };
-            
-            graph.edges.push(edge);
-          }
+      // Merge edges (avoid duplicates)
+      for (const edge of subgraph.edges) {
+        if (!edgeMap.has(edge.id)) {
+          edgeMap.set(edge.id, edge);
         }
       }
     }
     
-    if (direction === 'backward' || direction === 'both') {
-      // Find documents this document was derived from
-      const relationships = await this.getRelationshipsForDocument(document.id);
-      
-      for (const relationship of relationships) {
-        // Only follow relationships where this document is the target
-        if (relationship.targetDocumentId === document.id) {
-          const sourceDocument = await this.getDocumentById(relationship.sourceDocumentId);
-          
-          if (sourceDocument) {
-            // Recursively process the source document
-            await this.buildLineageGraph(
-              sourceDocument,
-              graph,
-              depth - 1,
-              direction,
-              processedDocuments,
-              {
-                x: position.x - 300,
-                y: position.y + Math.random() * 200 - 100
-              }
-            );
-            
-            // Add an edge between the documents
-            const edge: DocumentLineageEdge = {
-              id: `rel_${relationship.id}`,
-              source: `doc_${sourceDocument.id}`,
-              target: `doc_${document.id}`,
-              type: relationship.relationshipType,
-              label: relationship.relationshipType
-            };
-            
-            graph.edges.push(edge);
-          }
-        }
-      }
-    }
+    mergedGraph.nodes = Array.from(nodeMap.values());
+    mergedGraph.edges = Array.from(edgeMap.values());
+    mergedGraph.metadata.documentCount = mergedGraph.nodes.filter(n => n.type === 'document').length;
+    
+    return mergedGraph;
   }
 }
 
-// Create a singleton instance for use throughout the application
-export const documentLineageStorage = new MemDocumentLineageStorage();
+export const documentLineageStorage = new DocumentLineageMemStorage();

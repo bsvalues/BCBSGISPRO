@@ -23,11 +23,11 @@ export function useDocumentLineage(documentId?: string) {
   
   // Query for fetching lineage data for a specific document
   const lineageQuery = useQuery({
-    queryKey: ['/api/document-lineage', selectedDocumentId],
+    queryKey: ['/api/document-lineage/graph', selectedDocumentId],
     queryFn: async () => {
       if (!selectedDocumentId) return null;
       
-      const response = await fetch(`/api/document-lineage/${selectedDocumentId}`);
+      const response = await fetch(`/api/document-lineage/graph/${selectedDocumentId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch document lineage for ID: ${selectedDocumentId}`);
       }
@@ -38,15 +38,15 @@ export function useDocumentLineage(documentId?: string) {
   
   // Query for fetching provenance data for a specific document
   const provenanceQuery = useQuery({
-    queryKey: ['/api/document-provenance', selectedDocumentId],
+    queryKey: ['/api/document-lineage/provenance', selectedDocumentId],
     queryFn: async () => {
       if (!selectedDocumentId) return null;
       
-      const response = await fetch(`/api/document-provenance/${selectedDocumentId}`);
+      const response = await fetch(`/api/document-lineage/provenance/${selectedDocumentId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch document provenance for ID: ${selectedDocumentId}`);
       }
-      return response.json() as Promise<DocumentLineageGraph>;
+      return response.json();
     },
     enabled: !!selectedDocumentId
   });
@@ -120,8 +120,8 @@ export function useDocumentLineage(documentId?: string) {
     },
     onSuccess: () => {
       // Invalidate relevant queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/document-lineage', selectedDocumentId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/document-provenance', selectedDocumentId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/document-lineage/graph', selectedDocumentId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/document-lineage/provenance', selectedDocumentId] });
       queryClient.invalidateQueries({ queryKey: ['/api/document-lineage/relationships', selectedDocumentId] });
     },
   });
@@ -131,7 +131,7 @@ export function useDocumentLineage(documentId?: string) {
     if (!documentIds.length) return null;
     
     try {
-      const response = await fetch('/api/document-lineage-graph', {
+      const response = await fetch('/api/document-lineage/complete-graph', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

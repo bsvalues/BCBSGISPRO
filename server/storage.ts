@@ -14,12 +14,6 @@ import {
   type DocumentVersion, type InsertDocumentVersion,
   type DocumentParcelLink, type InsertDocumentParcelLink,
   type MapViewState,
-  // Document lineage related imports
-  type DocumentEntity, type InsertDocumentEntity,
-  type DocumentLineageEvent, type InsertDocumentLineageEvent,
-  type DocumentRelationship, type InsertDocumentRelationship,
-  type DocumentProcessingStage, type InsertDocumentProcessingStage,
-  type DocumentLineageGraph,
   users, workflows, workflowEvents, workflowStates, checklistItems,
   documents, documentVersions, documentParcelLinks, parcels, mapLayers,
   searchHistory, searchSuggestions, mapBookmarks, mapPreferences,
@@ -28,6 +22,15 @@ import {
 import { DocumentType } from "../shared/document-types";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { 
+  type DocumentEntity, type InsertDocumentEntity,
+  type DocumentLineageEvent, type InsertDocumentLineageEvent,
+  type DocumentRelationship, type InsertDocumentRelationship,
+  type DocumentProcessingStage, type InsertDocumentProcessingStage,
+  type DocumentLineageGraph
+} from "../shared/document-lineage-schema";
+import { v4 as uuidv4 } from 'uuid';
+import { documentLineageStorage } from './document-lineage-storage';
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -68,6 +71,36 @@ export interface IStorage {
     completed: boolean;
     order: number;
   }>): Promise<ChecklistItem>;
+  
+  // Document Lineage operations
+  // Document entity operations
+  createDocument(document: InsertDocumentEntity): Promise<DocumentEntity>;
+  getDocumentById(id: string): Promise<DocumentEntity | undefined>;
+  updateDocument(id: string, updates: Partial<DocumentEntity>): Promise<DocumentEntity>;
+  listDocuments(filter?: { 
+    documentType?: string;
+    parcelId?: string;
+    status?: 'active' | 'archived' | 'deleted';
+  }): Promise<DocumentEntity[]>;
+  
+  // Document event operations
+  createDocumentEvent(event: InsertDocumentLineageEvent): Promise<DocumentLineageEvent>;
+  getDocumentEvents(documentId: string): Promise<DocumentLineageEvent[]>;
+  
+  // Document relationship operations
+  createDocumentRelationship(relationship: InsertDocumentRelationship): Promise<DocumentRelationship>;
+  getDocumentRelationships(documentId: string): Promise<DocumentRelationship[]>;
+  
+  // Document processing stage operations
+  createProcessingStage(stage: InsertDocumentProcessingStage): Promise<DocumentProcessingStage>;
+  updateProcessingStage(id: string, updates: Partial<DocumentProcessingStage>): Promise<DocumentProcessingStage>;
+  getProcessingStageById(id: string): Promise<DocumentProcessingStage | undefined>;
+  getDocumentProcessingStages(documentId: string): Promise<DocumentProcessingStage[]>;
+  
+  // Document graph operations
+  getDocumentLineageGraph(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
+  getDocumentProvenance(documentId: string): Promise<DocumentEntity[]>;
+  getCompleteLineageGraph(documentIds: string[], depth?: number): Promise<DocumentLineageGraph>;
   
   // Document operations
   getDocuments(workflowId?: number): Promise<Document[]>;
@@ -119,7 +152,7 @@ export interface IStorage {
   getParcelInfo(parcelId: string): Promise<any | undefined>;
   searchParcelsByAddress(address: string, city?: string, zip?: string): Promise<any[]>;
   getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined>;
-  createParcel(parcel: Omit<InsertParcel, 'id'>): Promise<Parcel>;
+  createParcel(parcel: any): Promise<Parcel>;
   getAllParcels(): Promise<Parcel[]>;
   
   // Map operations
@@ -165,30 +198,10 @@ export interface IStorage {
   removeRecentlyViewedParcel(id: number): Promise<boolean>;
   clearRecentlyViewedParcels(userId: number): Promise<boolean>;
   
-  // Document Lineage Entity Operations
-  createDocument(data: InsertDocumentEntity): Promise<DocumentEntity>;
-  getDocumentById(id: string): Promise<DocumentEntity | undefined>;
-  updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined>;
-  listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]>;
   
-  // Document Lineage Event Operations
-  createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent>;
-  getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]>;
-  
-  // Document Relationship Operations
-  createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship>;
-  getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]>;
-  
-  // Document Processing Stage Operations
-  createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage>;
-  getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]>;
-  updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined>;
-  
-  // Lineage Graph Generation
-  getDocumentLineage(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
-  getDocumentProvenance(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
-  getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph>;
 }
+
+// The document lineage imports are already available from the top of the file
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
@@ -199,7 +212,6 @@ export class MemStorage implements IStorage {
   private documents: Map<number, Document>;
   private parcels: Map<number, Parcel>;
   private mapLayers: Map<number, MapLayer>;
-  private sm00Reports: Map<number, SM00Report>;
   private searchHistory: Map<number, SearchHistory>;
   private searchSuggestions: Map<number, SearchSuggestion>;
   private mapBookmarks: Map<number, MapBookmark>;
@@ -1376,6 +1388,76 @@ export class DatabaseStorage implements IStorage {
     return newItem;
   }
 
+  // Document Lineage operations
+  // Document entity operations
+  async createDocument(document: InsertDocumentEntity): Promise<DocumentEntity> {
+    return documentLineageStorage.createDocument(document);
+  }
+
+  async getDocumentById(id: string): Promise<DocumentEntity | undefined> {
+    return documentLineageStorage.getDocumentById(id);
+  }
+
+  async updateDocument(id: string, updates: Partial<DocumentEntity>): Promise<DocumentEntity> {
+    return documentLineageStorage.updateDocument(id, updates);
+  }
+
+  async listDocuments(filter?: { 
+    documentType?: string;
+    parcelId?: string;
+    status?: 'active' | 'archived' | 'deleted';
+  }): Promise<DocumentEntity[]> {
+    return documentLineageStorage.listDocuments(filter);
+  }
+  
+  // Document event operations
+  async createDocumentEvent(event: InsertDocumentLineageEvent): Promise<DocumentLineageEvent> {
+    return documentLineageStorage.createDocumentEvent(event);
+  }
+
+  async getDocumentEvents(documentId: string): Promise<DocumentLineageEvent[]> {
+    return documentLineageStorage.getDocumentEvents(documentId);
+  }
+  
+  // Document relationship operations
+  async createDocumentRelationship(relationship: InsertDocumentRelationship): Promise<DocumentRelationship> {
+    return documentLineageStorage.createDocumentRelationship(relationship);
+  }
+
+  async getDocumentRelationships(documentId: string): Promise<DocumentRelationship[]> {
+    return documentLineageStorage.getDocumentRelationships(documentId);
+  }
+  
+  // Document processing stage operations
+  async createProcessingStage(stage: InsertDocumentProcessingStage): Promise<DocumentProcessingStage> {
+    return documentLineageStorage.createProcessingStage(stage);
+  }
+
+  async updateProcessingStage(id: string, updates: Partial<DocumentProcessingStage>): Promise<DocumentProcessingStage> {
+    return documentLineageStorage.updateProcessingStage(id, updates);
+  }
+
+  async getProcessingStageById(id: string): Promise<DocumentProcessingStage | undefined> {
+    return documentLineageStorage.getProcessingStageById(id);
+  }
+
+  async getDocumentProcessingStages(documentId: string): Promise<DocumentProcessingStage[]> {
+    return documentLineageStorage.getDocumentProcessingStages(documentId);
+  }
+  
+  // Document graph operations
+  async getDocumentLineageGraph(documentId: string, depth?: number): Promise<DocumentLineageGraph> {
+    return documentLineageStorage.getDocumentLineageGraph(documentId, depth);
+  }
+
+  async getDocumentProvenance(documentId: string): Promise<DocumentEntity[]> {
+    return documentLineageStorage.getDocumentProvenance(documentId);
+  }
+
+  async getCompleteLineageGraph(documentIds: string[], depth?: number): Promise<DocumentLineageGraph> {
+    return documentLineageStorage.getCompleteLineageGraph(documentIds, depth);
+  }
+
   // Document operations
   async getDocuments(workflowId?: number): Promise<Document[]> {
     if (workflowId === undefined) {
@@ -2519,8 +2601,237 @@ export class DatabaseStorage implements IStorage {
       }
     }
   }
+  
+  // Document Lineage methods
+  
+  /**
+   * Creates a new document entity
+   */
+  async createDocument(data: InsertDocumentEntity): Promise<DocumentEntity> {
+    const document: DocumentEntity = {
+      id: uuidv4(),
+      documentType: data.documentType,
+      documentName: data.documentName,
+      createdAt: new Date(),
+      status: 'active',
+      description: data.description,
+      fileSize: data.fileSize,
+      fileHash: data.fileHash,
+      parcelId: data.parcelId,
+      uploadedBy: data.uploadedBy
+    };
+    
+    this.documentEntities.set(document.id, document);
+    return document;
+  }
+
+  /**
+   * Retrieves a document by its ID
+   */
+  async getDocumentById(id: string): Promise<DocumentEntity | undefined> {
+    return this.documentEntities.get(id);
+  }
+
+  /**
+   * Updates an existing document
+   */
+  async updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined> {
+    const document = this.documentEntities.get(id);
+    
+    if (!document) {
+      return undefined;
+    }
+    
+    const updatedDocument: DocumentEntity = {
+      ...document,
+      ...data
+    };
+    
+    this.documentEntities.set(id, updatedDocument);
+    return updatedDocument;
+  }
+
+  /**
+   * Lists documents matching optional filters
+   */
+  async listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]> {
+    const documents = Array.from(this.documentEntities.values());
+    
+    if (!filters) {
+      return documents;
+    }
+    
+    return documents.filter(document => {
+      // Check each filter property
+      for (const [key, value] of Object.entries(filters)) {
+        if (document[key as keyof DocumentEntity] !== value) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Creates a new lineage event
+   */
+  async createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent> {
+    const event: DocumentLineageEvent = {
+      id: uuidv4(),
+      eventType: data.eventType,
+      eventTimestamp: new Date(),
+      documentId: data.documentId,
+      performedBy: data.performedBy,
+      details: data.details,
+      confidence: data.confidence
+    };
+    
+    this.documentLineageEvents.set(event.id, event);
+    return event;
+  }
+
+  /**
+   * Gets lineage events for a document
+   */
+  async getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]> {
+    return Array.from(this.documentLineageEvents.values())
+      .filter(event => event.documentId === documentId)
+      .sort((a, b) => a.eventTimestamp.getTime() - b.eventTimestamp.getTime());
+  }
+
+  /**
+   * Creates a new document relationship
+   */
+  async createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship> {
+    const relationship: DocumentRelationship = {
+      id: uuidv4(),
+      relationshipType: data.relationshipType,
+      sourceDocumentId: data.sourceDocumentId,
+      targetDocumentId: data.targetDocumentId,
+      createdAt: new Date(),
+      createdBy: data.createdBy,
+      metadata: data.metadata
+    };
+    
+    this.documentRelationships.set(relationship.id, relationship);
+    return relationship;
+  }
+
+  /**
+   * Gets relationships for a document
+   * @param documentId - The document ID
+   * @param relationshipType - Optional relationship type filter
+   */
+  async getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]> {
+    return Array.from(this.documentRelationships.values())
+      .filter(rel => 
+        (rel.sourceDocumentId === documentId || rel.targetDocumentId === documentId) &&
+        (!relationshipType || rel.relationshipType === relationshipType)
+      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  /**
+   * Creates a new document processing stage
+   */
+  async createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage> {
+    const stage: DocumentProcessingStage = {
+      id: uuidv4(),
+      documentId: data.documentId,
+      stageName: data.stageName,
+      stageType: data.stageType,
+      status: 'pending',
+      startedAt: new Date(),
+      progress: 0,
+      processorId: data.processorId,
+      processorName: data.processorName,
+      params: data.params,
+      completedAt: null
+    };
+    
+    this.documentProcessingStages.set(stage.id, stage);
+    return stage;
+  }
+
+  /**
+   * Gets processing stages for a document
+   */
+  async getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]> {
+    return Array.from(this.documentProcessingStages.values())
+      .filter(stage => stage.documentId === documentId)
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  }
+
+  /**
+   * Updates an existing processing stage
+   */
+  async updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined> {
+    const stage = this.documentProcessingStages.get(id);
+    
+    if (!stage) {
+      return undefined;
+    }
+    
+    const updatedStage: DocumentProcessingStage = {
+      ...stage,
+      ...data
+    };
+    
+    this.documentProcessingStages.set(id, updatedStage);
+    return updatedStage;
+  }
+  
+  /**
+   * Updates processing stage status and progress
+   */
+  async updateProcessingStageStatus(
+    id: string, 
+    status: 'pending' | 'running' | 'completed' | 'failed', 
+    progress?: number, 
+    completedAt?: Date | null
+  ): Promise<DocumentProcessingStage | undefined> {
+    const stage = this.documentProcessingStages.get(id);
+    
+    if (!stage) {
+      return undefined;
+    }
+    
+    const updatedStage: DocumentProcessingStage = {
+      ...stage,
+      status,
+      progress: progress !== undefined ? progress : stage.progress,
+      completedAt: (status === 'completed' || status === 'failed') 
+        ? completedAt || new Date() 
+        : stage.completedAt
+    };
+    
+    this.documentProcessingStages.set(id, updatedStage);
+    return updatedStage;
+  }
+
+  /**
+   * Generates a document lineage graph
+   * Shows documents that were derived from the specified document
+   */
+  async getDocumentLineage(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
+    return documentLineageStorage.getDocumentLineage(documentId, depth);
+  }
+
+  /**
+   * Generates a document provenance graph
+   * Shows documents that the specified document was derived from
+   */
+  async getDocumentProvenance(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
+    return documentLineageStorage.getDocumentProvenance(documentId, depth);
+  }
+
+  /**
+   * Generates a complete document graph for multiple documents
+   */
+  async getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph> {
+    return documentLineageStorage.getCompleteDocumentGraph(documentIds);
+  }
 }
 
-// Use DatabaseStorage instead of MemStorage
 // Use in-memory storage for development
 export const storage = new MemStorage();
