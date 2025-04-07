@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useQuery } from '@tanstack/react-query';
+import { getMapboxToken, getMapboxTokenAsync } from '@/lib/env';
 
 /**
  * Hook to get and manage Mapbox access token
@@ -13,19 +14,35 @@ import { useQuery } from '@tanstack/react-query';
 export function useMapboxToken() {
   const [localToken, setLocalToken] = useState<string | null>(null);
 
-  // Try to get token from localStorage on initial render
+  // Try to get token using the env utility first (checks env vars, localStorage, etc)
   useEffect(() => {
     try {
-      const storedToken = localStorage.getItem('mapbox_token');
-      if (storedToken) {
-        console.log('Found mapbox token in localStorage');
-        setLocalToken(storedToken);
-        mapboxgl.accessToken = storedToken;
+      // First check for direct token using sync method
+      const directToken = getMapboxToken();
+      
+      if (directToken) {
+        console.log('Found Mapbox token from environment or localStorage');
+        setLocalToken(directToken);
+        mapboxgl.accessToken = directToken;
       } else {
-        console.info('Mapbox token not found in cached sources, will need to fetch from API');
+        // No token found in immediate sources
+        console.log('VITE_MAPBOX_ACCESS_TOKEN not available, trying API endpoint');
+        
+        // Try async method which includes API fetch
+        getMapboxTokenAsync()
+          .then(apiToken => {
+            if (apiToken) {
+              console.log('Retrieved Mapbox token from API');
+              setLocalToken(apiToken);
+              mapboxgl.accessToken = apiToken;
+            }
+          })
+          .catch(err => {
+            console.error('Error initializing Mapbox:', err);
+          });
       }
     } catch (err) {
-      console.warn('Error accessing localStorage:', err);
+      console.warn('Error accessing token sources:', err);
     }
   }, []);
 

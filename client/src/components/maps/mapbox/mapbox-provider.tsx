@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { useMapboxToken } from '@/hooks/use-mapbox-token';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { getMapboxToken, getMapboxTokenAsync } from '@/lib/env';
 
 // Define prop types for MapboxProvider
 interface MapboxProviderProps {

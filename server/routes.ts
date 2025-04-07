@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-// Old import replaced
+import { WebSocketServer } from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from "./storage";
@@ -11,6 +11,7 @@ import { registerMapFeatureRoutes } from "./routes/map-features";
 import { registerDocumentLineageRoutes } from "./routes/document-lineage-routes";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
+import { logger } from "./logger";
 import { 
   parcels,
   documents,
