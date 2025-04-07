@@ -518,14 +518,19 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
           </div>
         )}
         
-        {/* Layers panel - Always rendered but visibility controlled by CSS */}
-        <Card 
-          className={`absolute top-20 right-10 w-80 max-h-[70vh] z-50 bg-white/90 backdrop-blur-sm border shadow-lg transition-opacity duration-300 ${
-            isLayersPanelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        {/* Layers panel - Completely rebuilt for better performance */}
+        <div 
+          className={`absolute top-20 right-10 w-80 z-50 transition-all duration-300 ${
+            isLayersPanelOpen ? 'opacity-100 translate-x-0' : 'opacity-0 pointer-events-none translate-x-10'
           }`}
           style={{
-            overflowY: 'auto',
-            maxHeight: 'calc(90vh - 40px)',
+            height: 'calc(80vh - 40px)',
+            maxHeight: '600px',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(0, 0, 0, 0.1)',
+            borderRadius: '0.5rem',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08)',
             display: 'flex',
             flexDirection: 'column'
           }}
@@ -712,7 +717,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
               </div>
             )}
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
