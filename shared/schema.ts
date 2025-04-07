@@ -274,6 +274,92 @@ export type MapLayer = typeof mapLayers.$inferSelect;
 export type InsertMapLayer = typeof mapLayers.$inferInsert;
 export const insertMapLayerSchema = createInsertSchema(mapLayers);
 
+// ArcGIS Map Configuration
+export const arcgisMapConfigs = pgTable('arcgis_map_configs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  portalUrl: varchar('portal_url', { length: 255 }).default('https://www.arcgis.com'),
+  basemapId: varchar('basemap_id', { length: 100 }).default('streets'),
+  viewConfig: json('view_config').$type<{
+    center: [number, number],
+    zoom: number,
+    rotation?: number,
+    constraints?: Record<string, any>
+  }>(),
+  isDefault: boolean('is_default').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type ArcGISMapConfig = typeof arcgisMapConfigs.$inferSelect;
+export type InsertArcGISMapConfig = typeof arcgisMapConfigs.$inferInsert;
+export const insertArcGISMapConfigSchema = createInsertSchema(arcgisMapConfigs);
+
+// ArcGIS Layers
+export const arcgisLayers = pgTable('arcgis_layers', {
+  id: serial('id').primaryKey(),
+  configId: integer('config_id').references(() => arcgisMapConfigs.id).notNull(),
+  title: varchar('title', { length: 100 }).notNull(),
+  url: varchar('url', { length: 255 }).notNull(),
+  layerType: varchar('layer_type', { length: 50 }).notNull(), // FeatureLayer, MapImageLayer, etc.
+  itemId: varchar('item_id', { length: 100 }), // ArcGIS item ID if applicable
+  portalItem: boolean('portal_item').default(false), // Whether this is from a portal item
+  visible: boolean('visible').default(true),
+  opacity: doublePrecision('opacity').default(1.0), // 0 to 1
+  definitionExpression: text('definition_expression'), // SQL-like filter
+  layerOptions: json('layer_options').$type<Record<string, any>>(), // Additional options
+  order: integer('order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type ArcGISLayer = typeof arcgisLayers.$inferSelect;
+export type InsertArcGISLayer = typeof arcgisLayers.$inferInsert;
+export const insertArcGISLayerSchema = createInsertSchema(arcgisLayers);
+
+// ArcGIS Sketches/Graphics
+export const arcgisSketches = pgTable('arcgis_sketches', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  configId: integer('config_id').references(() => arcgisMapConfigs.id).notNull(),
+  title: varchar('title', { length: 100 }),
+  sketchType: varchar('sketch_type', { length: 50 }).notNull(), // point, polyline, polygon, etc.
+  geometry: json('geometry').notNull(), // GeoJSON or ArcGIS JSON format
+  symbolProperties: json('symbol_properties').$type<{
+    type: string,
+    color?: number[],
+    outline?: Record<string, any>,
+    size?: number
+  }>(),
+  attributes: json('attributes').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type ArcGISSketch = typeof arcgisSketches.$inferSelect;
+export type InsertArcGISSketch = typeof arcgisSketches.$inferInsert;
+export const insertArcGISSketchSchema = createInsertSchema(arcgisSketches);
+
+// ArcGIS Analysis Results
+export const arcgisAnalysisResults = pgTable('arcgis_analysis_results', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  configId: integer('config_id').references(() => arcgisMapConfigs.id).notNull(),
+  title: varchar('title', { length: 100 }).notNull(),
+  analysisType: varchar('analysis_type', { length: 50 }).notNull(), // buffer, clip, overlay, etc.
+  parameters: json('parameters').$type<Record<string, any>>().notNull(),
+  resultGeometry: json('result_geometry'), // Result geometry in GeoJSON or ArcGIS JSON
+  resultAttributes: json('result_attributes').$type<Record<string, any>[]>(),
+  status: varchar('status', { length: 20 }).default('completed'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export type ArcGISAnalysisResult = typeof arcgisAnalysisResults.$inferSelect;
+export type InsertArcGISAnalysisResult = typeof arcgisAnalysisResults.$inferInsert;
+export const insertArcGISAnalysisResultSchema = createInsertSchema(arcgisAnalysisResults);
+
 // Workflows
 export const workflows = pgTable('workflows', {
   id: serial('id').primaryKey(),

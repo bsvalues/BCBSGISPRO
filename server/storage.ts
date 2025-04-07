@@ -5,6 +5,10 @@ import {
   mapBookmarks,
   mapPreferences,
   recentlyViewedParcels,
+  arcgisMapConfigs,
+  arcgisLayers,
+  arcgisSketches,
+  arcgisAnalysisResults,
   type User,
   type InsertUser,
   type MapBookmark,
@@ -12,7 +16,15 @@ import {
   type MapPreference,
   type InsertMapPreference,
   type RecentlyViewedParcel,
-  type InsertRecentlyViewedParcel
+  type InsertRecentlyViewedParcel,
+  type ArcGISMapConfig,
+  type InsertArcGISMapConfig,
+  type ArcGISLayer,
+  type InsertArcGISLayer,
+  type ArcGISSketch,
+  type InsertArcGISSketch,
+  type ArcGISAnalysisResult,
+  type InsertArcGISAnalysisResult
 } from '../shared/schema';
 
 import {
@@ -96,6 +108,33 @@ export interface IStorage {
   getDocumentLineageGraph(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
   getDocumentProvenance(documentId: string): Promise<DocumentEntity[]>;
   getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph>;
+  
+  // ArcGIS Map Config operations
+  getArcGISMapConfigs(userId: number): Promise<ArcGISMapConfig[]>;
+  getArcGISMapConfig(id: number): Promise<ArcGISMapConfig | undefined>;
+  createArcGISMapConfig(config: InsertArcGISMapConfig): Promise<ArcGISMapConfig>;
+  updateArcGISMapConfig(id: number, updates: Partial<InsertArcGISMapConfig>): Promise<ArcGISMapConfig>;
+  deleteArcGISMapConfig(id: number): Promise<boolean>;
+  
+  // ArcGIS Layer operations
+  getArcGISLayers(configId: number): Promise<ArcGISLayer[]>;
+  getArcGISLayer(id: number): Promise<ArcGISLayer | undefined>;
+  createArcGISLayer(layer: InsertArcGISLayer): Promise<ArcGISLayer>;
+  updateArcGISLayer(id: number, updates: Partial<InsertArcGISLayer>): Promise<ArcGISLayer>;
+  deleteArcGISLayer(id: number): Promise<boolean>;
+  
+  // ArcGIS Sketch operations
+  getArcGISSketches(configId: number, userId?: number): Promise<ArcGISSketch[]>;
+  getArcGISSketch(id: number): Promise<ArcGISSketch | undefined>;
+  createArcGISSketch(sketch: InsertArcGISSketch): Promise<ArcGISSketch>;
+  updateArcGISSketch(id: number, updates: Partial<InsertArcGISSketch>): Promise<ArcGISSketch>;
+  deleteArcGISSketch(id: number): Promise<boolean>;
+  
+  // ArcGIS Analysis operations
+  getArcGISAnalysisResults(configId: number, userId?: number): Promise<ArcGISAnalysisResult[]>;
+  getArcGISAnalysisResult(id: number): Promise<ArcGISAnalysisResult | undefined>;
+  createArcGISAnalysisResult(result: InsertArcGISAnalysisResult): Promise<ArcGISAnalysisResult>;
+  deleteArcGISAnalysisResult(id: number): Promise<boolean>;
 }
 
 // Implementation of storage interface using the database
@@ -321,11 +360,199 @@ export class DatabaseStorage implements IStorage {
   async getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph> {
     return documentLineageStorage.getCompleteDocumentGraph(documentIds);
   }
+  
+  // ArcGIS Map Config operations
+  async getArcGISMapConfigs(userId: number): Promise<ArcGISMapConfig[]> {
+    return db.select()
+      .from(arcgisMapConfigs)
+      .where(eq(arcgisMapConfigs.userId, userId))
+      .orderBy(desc(arcgisMapConfigs.updatedAt));
+  }
+  
+  async getArcGISMapConfig(id: number): Promise<ArcGISMapConfig | undefined> {
+    const [config] = await db.select()
+      .from(arcgisMapConfigs)
+      .where(eq(arcgisMapConfigs.id, id));
+    return config;
+  }
+  
+  async createArcGISMapConfig(config: InsertArcGISMapConfig): Promise<ArcGISMapConfig> {
+    const [newConfig] = await db.insert(arcgisMapConfigs)
+      .values(config)
+      .returning();
+    return newConfig;
+  }
+  
+  async updateArcGISMapConfig(id: number, updates: Partial<InsertArcGISMapConfig>): Promise<ArcGISMapConfig> {
+    const [updatedConfig] = await db.update(arcgisMapConfigs)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(arcgisMapConfigs.id, id))
+      .returning();
+    
+    if (!updatedConfig) {
+      throw new Error(`ArcGIS Map Config with ID ${id} not found`);
+    }
+    
+    return updatedConfig;
+  }
+  
+  async deleteArcGISMapConfig(id: number): Promise<boolean> {
+    const result = await db.delete(arcgisMapConfigs)
+      .where(eq(arcgisMapConfigs.id, id));
+    
+    return result.rowCount > 0;
+  }
+  
+  // ArcGIS Layer operations
+  async getArcGISLayers(configId: number): Promise<ArcGISLayer[]> {
+    return db.select()
+      .from(arcgisLayers)
+      .where(eq(arcgisLayers.configId, configId))
+      .orderBy(asc(arcgisLayers.layerOrder));
+  }
+  
+  async getArcGISLayer(id: number): Promise<ArcGISLayer | undefined> {
+    const [layer] = await db.select()
+      .from(arcgisLayers)
+      .where(eq(arcgisLayers.id, id));
+    return layer;
+  }
+  
+  async createArcGISLayer(layer: InsertArcGISLayer): Promise<ArcGISLayer> {
+    const [newLayer] = await db.insert(arcgisLayers)
+      .values(layer)
+      .returning();
+    return newLayer;
+  }
+  
+  async updateArcGISLayer(id: number, updates: Partial<InsertArcGISLayer>): Promise<ArcGISLayer> {
+    const [updatedLayer] = await db.update(arcgisLayers)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(arcgisLayers.id, id))
+      .returning();
+    
+    if (!updatedLayer) {
+      throw new Error(`ArcGIS Layer with ID ${id} not found`);
+    }
+    
+    return updatedLayer;
+  }
+  
+  async deleteArcGISLayer(id: number): Promise<boolean> {
+    const result = await db.delete(arcgisLayers)
+      .where(eq(arcgisLayers.id, id));
+    
+    return result.rowCount > 0;
+  }
+  
+  // ArcGIS Sketch operations
+  async getArcGISSketches(configId: number, userId?: number): Promise<ArcGISSketch[]> {
+    let query = db.select()
+      .from(arcgisSketches)
+      .where(eq(arcgisSketches.configId, configId));
+    
+    if (userId) {
+      query = query.where(eq(arcgisSketches.userId, userId));
+    }
+    
+    return query.orderBy(desc(arcgisSketches.updatedAt));
+  }
+  
+  async getArcGISSketch(id: number): Promise<ArcGISSketch | undefined> {
+    const [sketch] = await db.select()
+      .from(arcgisSketches)
+      .where(eq(arcgisSketches.id, id));
+    return sketch;
+  }
+  
+  async createArcGISSketch(sketch: InsertArcGISSketch): Promise<ArcGISSketch> {
+    const [newSketch] = await db.insert(arcgisSketches)
+      .values(sketch)
+      .returning();
+    return newSketch;
+  }
+  
+  async updateArcGISSketch(id: number, updates: Partial<InsertArcGISSketch>): Promise<ArcGISSketch> {
+    const [updatedSketch] = await db.update(arcgisSketches)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(arcgisSketches.id, id))
+      .returning();
+    
+    if (!updatedSketch) {
+      throw new Error(`ArcGIS Sketch with ID ${id} not found`);
+    }
+    
+    return updatedSketch;
+  }
+  
+  async deleteArcGISSketch(id: number): Promise<boolean> {
+    const result = await db.delete(arcgisSketches)
+      .where(eq(arcgisSketches.id, id));
+    
+    return result.rowCount > 0;
+  }
+  
+  // ArcGIS Analysis Results operations
+  async getArcGISAnalysisResults(configId: number, userId?: number): Promise<ArcGISAnalysisResult[]> {
+    let query = db.select()
+      .from(arcgisAnalysisResults)
+      .where(eq(arcgisAnalysisResults.configId, configId));
+    
+    if (userId) {
+      query = query.where(eq(arcgisAnalysisResults.userId, userId));
+    }
+    
+    return query.orderBy(desc(arcgisAnalysisResults.createdAt));
+  }
+  
+  async getArcGISAnalysisResult(id: number): Promise<ArcGISAnalysisResult | undefined> {
+    const [result] = await db.select()
+      .from(arcgisAnalysisResults)
+      .where(eq(arcgisAnalysisResults.id, id));
+    return result;
+  }
+  
+  async createArcGISAnalysisResult(analysisResult: InsertArcGISAnalysisResult): Promise<ArcGISAnalysisResult> {
+    const [newResult] = await db.insert(arcgisAnalysisResults)
+      .values(analysisResult)
+      .returning();
+    return newResult;
+  }
+  
+  async deleteArcGISAnalysisResult(id: number): Promise<boolean> {
+    const result = await db.delete(arcgisAnalysisResults)
+      .where(eq(arcgisAnalysisResults.id, id));
+    
+    return result.rowCount > 0;
+  }
 }
 
 // Class removed to simplify file
 export class MemStorage implements IStorage {
-  // Implementation removed to simplify file
+  // In-memory storage using Maps
+  private users: Map<number, User> = new Map();
+  private mapBookmarks: Map<number, MapBookmark> = new Map();
+  private mapPreferences: Map<number, MapPreference> = new Map();
+  private recentlyViewedParcels: Map<string, RecentlyViewedParcel> = new Map();
+  private documents: Map<string, DocumentEntity> = new Map();
+  private documentEvents: Map<string, DocumentLineageEvent[]> = new Map();
+  private documentRelationships: Map<string, DocumentRelationship[]> = new Map();
+  private processingStages: Map<string, DocumentProcessingStage> = new Map();
+
+  // ArcGIS in-memory storage
+  private arcgisMapConfigs: Map<number, ArcGISMapConfig> = new Map();
+  private arcgisLayers: Map<number, ArcGISLayer> = new Map();
+  private arcgisSketches: Map<number, ArcGISSketch> = new Map();
+  private arcgisAnalysisResults: Map<number, ArcGISAnalysisResult> = new Map();
   async getUser(id: number): Promise<User | undefined> {
     throw new Error('Method not implemented.');
   }
@@ -441,7 +668,224 @@ export class MemStorage implements IStorage {
   async getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph> {
     throw new Error('Method not implemented.');
   }
+  
+  // ArcGIS Map Config operations
+  async getArcGISMapConfigs(userId: number): Promise<ArcGISMapConfig[]> {
+    const results: ArcGISMapConfig[] = [];
+    for (const config of this.arcgisMapConfigs.values()) {
+      if (config.userId === userId) {
+        results.push(config);
+      }
+    }
+    // Sort by most recently updated
+    return results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+  
+  async getArcGISMapConfig(id: number): Promise<ArcGISMapConfig | undefined> {
+    return this.arcgisMapConfigs.get(id);
+  }
+  
+  async createArcGISMapConfig(config: InsertArcGISMapConfig): Promise<ArcGISMapConfig> {
+    const id = this.arcgisMapConfigs.size + 1;
+    const now = new Date();
+    const newConfig: ArcGISMapConfig = {
+      ...config,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.arcgisMapConfigs.set(id, newConfig);
+    return newConfig;
+  }
+  
+  async updateArcGISMapConfig(id: number, updates: Partial<InsertArcGISMapConfig>): Promise<ArcGISMapConfig> {
+    const config = this.arcgisMapConfigs.get(id);
+    if (!config) {
+      throw new Error(`ArcGIS map config with id ${id} not found`);
+    }
+    
+    const updatedConfig = {
+      ...config,
+      ...updates,
+      id: config.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.arcgisMapConfigs.set(id, updatedConfig);
+    return updatedConfig;
+  }
+  
+  async deleteArcGISMapConfig(id: number): Promise<boolean> {
+    // Also delete related layers, sketches, and analysis results
+    const sketch = Array.from(this.arcgisSketches.values())
+      .filter(sketch => sketch.configId === id);
+    
+    for (const item of sketch) {
+      this.arcgisSketches.delete(item.id);
+    }
+    
+    const layers = Array.from(this.arcgisLayers.values())
+      .filter(layer => layer.configId === id);
+    
+    for (const item of layers) {
+      this.arcgisLayers.delete(item.id);
+    }
+    
+    const analyses = Array.from(this.arcgisAnalysisResults.values())
+      .filter(result => result.configId === id);
+    
+    for (const item of analyses) {
+      this.arcgisAnalysisResults.delete(item.id);
+    }
+    
+    return this.arcgisMapConfigs.delete(id);
+  }
+  
+  // ArcGIS Layer operations
+  async getArcGISLayers(configId: number): Promise<ArcGISLayer[]> {
+    const results: ArcGISLayer[] = [];
+    for (const layer of this.arcgisLayers.values()) {
+      if (layer.configId === configId) {
+        results.push(layer);
+      }
+    }
+    // Sort by display order
+    return results.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  }
+  
+  async getArcGISLayer(id: number): Promise<ArcGISLayer | undefined> {
+    return this.arcgisLayers.get(id);
+  }
+  
+  async createArcGISLayer(layer: InsertArcGISLayer): Promise<ArcGISLayer> {
+    const id = this.arcgisLayers.size + 1;
+    const now = new Date();
+    const newLayer: ArcGISLayer = {
+      ...layer,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.arcgisLayers.set(id, newLayer);
+    return newLayer;
+  }
+  
+  async updateArcGISLayer(id: number, updates: Partial<InsertArcGISLayer>): Promise<ArcGISLayer> {
+    const layer = this.arcgisLayers.get(id);
+    if (!layer) {
+      throw new Error(`ArcGIS layer with id ${id} not found`);
+    }
+    
+    const updatedLayer = {
+      ...layer,
+      ...updates,
+      id: layer.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.arcgisLayers.set(id, updatedLayer);
+    return updatedLayer;
+  }
+  
+  async deleteArcGISLayer(id: number): Promise<boolean> {
+    return this.arcgisLayers.delete(id);
+  }
+  
+  // ArcGIS Sketch operations
+  async getArcGISSketches(configId: number, userId?: number): Promise<ArcGISSketch[]> {
+    const results: ArcGISSketch[] = [];
+    for (const sketch of this.arcgisSketches.values()) {
+      if (sketch.configId === configId) {
+        // If userId is provided, filter by it
+        if (userId && sketch.userId !== userId) {
+          continue;
+        }
+        results.push(sketch);
+      }
+    }
+    // Sort by most recently updated
+    return results.sort((a, b) => {
+      const dateA = a.updatedAt ? a.updatedAt.getTime() : a.createdAt.getTime();
+      const dateB = b.updatedAt ? b.updatedAt.getTime() : b.createdAt.getTime();
+      return dateB - dateA;
+    });
+  }
+  
+  async getArcGISSketch(id: number): Promise<ArcGISSketch | undefined> {
+    return this.arcgisSketches.get(id);
+  }
+  
+  async createArcGISSketch(sketch: InsertArcGISSketch): Promise<ArcGISSketch> {
+    const id = this.arcgisSketches.size + 1;
+    const now = new Date();
+    const newSketch: ArcGISSketch = {
+      ...sketch,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.arcgisSketches.set(id, newSketch);
+    return newSketch;
+  }
+  
+  async updateArcGISSketch(id: number, updates: Partial<InsertArcGISSketch>): Promise<ArcGISSketch> {
+    const sketch = this.arcgisSketches.get(id);
+    if (!sketch) {
+      throw new Error(`ArcGIS sketch with id ${id} not found`);
+    }
+    
+    const updatedSketch = {
+      ...sketch,
+      ...updates,
+      id: sketch.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.arcgisSketches.set(id, updatedSketch);
+    return updatedSketch;
+  }
+  
+  async deleteArcGISSketch(id: number): Promise<boolean> {
+    return this.arcgisSketches.delete(id);
+  }
+  
+  // ArcGIS Analysis Results operations
+  async getArcGISAnalysisResults(configId: number, userId?: number): Promise<ArcGISAnalysisResult[]> {
+    const results: ArcGISAnalysisResult[] = [];
+    for (const result of this.arcgisAnalysisResults.values()) {
+      if (result.configId === configId) {
+        // If userId is provided, filter by it
+        if (userId && result.userId !== userId) {
+          continue;
+        }
+        results.push(result);
+      }
+    }
+    // Sort by most recently created
+    return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async getArcGISAnalysisResult(id: number): Promise<ArcGISAnalysisResult | undefined> {
+    return this.arcgisAnalysisResults.get(id);
+  }
+  
+  async createArcGISAnalysisResult(analysisResult: InsertArcGISAnalysisResult): Promise<ArcGISAnalysisResult> {
+    const id = this.arcgisAnalysisResults.size + 1;
+    const now = new Date();
+    const newResult: ArcGISAnalysisResult = {
+      ...analysisResult,
+      id,
+      createdAt: now
+    };
+    this.arcgisAnalysisResults.set(id, newResult);
+    return newResult;
+  }
+  
+  async deleteArcGISAnalysisResult(id: number): Promise<boolean> {
+    return this.arcgisAnalysisResults.delete(id);
+  }
 }
 
-// Use DatabaseStorage for all storage operations
-export const storage = new DatabaseStorage();
+// Use MemStorage for all storage operations as we're currently prototyping.
+// Switch to DatabaseStorage when moving to production with persistent storage
+export const storage = new MemStorage();

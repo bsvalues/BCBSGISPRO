@@ -19,17 +19,29 @@ import {
   mapBookmarks,
   mapPreferences,
   recentlyViewedParcels,
+  arcgisMapConfigs,
+  arcgisLayers,
+  arcgisSketches,
+  arcgisAnalysisResults,
   insertParcelSchema,
   insertDocumentSchema,
   insertAnnotationSchema,
   insertMapBookmarkSchema,
   insertMapPreferenceSchema,
+  insertArcGISMapConfigSchema,
+  insertArcGISLayerSchema,
+  insertArcGISSketchSchema,
+  insertArcGISAnalysisResultSchema,
   Parcel,
   Document,
   Annotation,
   MapBookmark,
   MapPreference,
   RecentlyViewedParcel,
+  ArcGISMapConfig,
+  ArcGISLayer,
+  ArcGISSketch,
+  ArcGISAnalysisResult,
   ParsedLegalDescription
 } from "../shared/schema";
 import { DocumentType } from "../shared/document-types";
@@ -4126,6 +4138,563 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Clear all recently viewed parcels for the user
     await storage.clearRecentlyViewedParcels(userId);
+    
+    res.status(204).end();
+  }));
+  
+  // ===========================================================================
+  // ArcGIS Map Integration API Routes
+  // ===========================================================================
+  
+  // Get all ArcGIS map configurations for the current user
+  app.get("/api/arcgis/map-configs", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS map configurations');
+    }
+    
+    const userId = req.session.userId;
+    
+    const configs = await storage.getArcGISMapConfigs(userId);
+    
+    res.json(configs);
+  }));
+  
+  // Get a specific ArcGIS map configuration by ID
+  app.get("/api/arcgis/map-configs/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS map configurations');
+    }
+    
+    const configId = parseInt(req.params.id, 10);
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    const config = await storage.getArcGISMapConfig(configId);
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    // Check if the configuration belongs to the current user
+    if (config.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to access this configuration');
+    }
+    
+    res.json(config);
+  }));
+  
+  // Create a new ArcGIS map configuration
+  app.post("/api/arcgis/map-configs", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to create ArcGIS map configurations');
+    }
+    
+    const userId = req.session.userId;
+    
+    // Validate the request body using the insert schema
+    const parsedBody = insertArcGISMapConfigSchema.parse({
+      ...req.body,
+      userId
+    });
+    
+    const newConfig = await storage.createArcGISMapConfig(parsedBody);
+    
+    res.status(201).json(newConfig);
+  }));
+  
+  // Update an existing ArcGIS map configuration
+  app.put("/api/arcgis/map-configs/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to update ArcGIS map configurations');
+    }
+    
+    const configId = parseInt(req.params.id, 10);
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    // Check if the configuration exists
+    const existingConfig = await storage.getArcGISMapConfig(configId);
+    
+    if (!existingConfig) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    // Check if the configuration belongs to the current user
+    if (existingConfig.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to update this configuration');
+    }
+    
+    // Validate and update the configuration
+    // Note: remove id and userId from the update data to prevent changing them
+    const { id, userId, ...updateData } = req.body;
+    
+    const updatedConfig = await storage.updateArcGISMapConfig(configId, updateData);
+    
+    res.json(updatedConfig);
+  }));
+  
+  // Delete an ArcGIS map configuration
+  app.delete("/api/arcgis/map-configs/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to delete ArcGIS map configurations');
+    }
+    
+    const configId = parseInt(req.params.id, 10);
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    // Check if the configuration exists
+    const existingConfig = await storage.getArcGISMapConfig(configId);
+    
+    if (!existingConfig) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    // Check if the configuration belongs to the current user
+    if (existingConfig.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to delete this configuration');
+    }
+    
+    await storage.deleteArcGISMapConfig(configId);
+    
+    res.status(204).end();
+  }));
+  
+  // Get all layers for a specific ArcGIS map configuration
+  app.get("/api/arcgis/map-configs/:configId/layers", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS layers');
+    }
+    
+    const configId = parseInt(req.params.configId, 10);
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    // Check if the map configuration exists and belongs to the current user
+    const config = await storage.getArcGISMapConfig(configId);
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    if (config.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to access this configuration');
+    }
+    
+    const layers = await storage.getArcGISLayers(configId);
+    
+    res.json(layers);
+  }));
+  
+  // Get a specific ArcGIS layer by ID
+  app.get("/api/arcgis/layers/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS layers');
+    }
+    
+    const layerId = parseInt(req.params.id, 10);
+    if (isNaN(layerId)) {
+      throw ApiError.badRequest('Invalid layer ID');
+    }
+    
+    const layer = await storage.getArcGISLayer(layerId);
+    
+    if (!layer) {
+      throw ApiError.notFound('ArcGIS layer not found');
+    }
+    
+    // Check if the associated configuration belongs to the current user
+    const config = await storage.getArcGISMapConfig(layer.configId);
+    
+    if (!config || config.userId !== req.session.userId) {
+      throw ApiError.forbidden('You do not have permission to access this layer');
+    }
+    
+    res.json(layer);
+  }));
+  
+  // Create a new ArcGIS layer
+  app.post("/api/arcgis/layers", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to create ArcGIS layers');
+    }
+    
+    const userId = req.session.userId;
+    const { configId } = req.body;
+    
+    if (!configId) {
+      throw ApiError.badRequest('Configuration ID is required');
+    }
+    
+    // Check if the map configuration exists and belongs to the current user
+    const config = await storage.getArcGISMapConfig(parseInt(configId, 10));
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    if (config.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to modify this configuration');
+    }
+    
+    // Validate the request body using the insert schema
+    const parsedBody = insertArcGISLayerSchema.parse(req.body);
+    
+    const newLayer = await storage.createArcGISLayer(parsedBody);
+    
+    res.status(201).json(newLayer);
+  }));
+  
+  // Update an existing ArcGIS layer
+  app.put("/api/arcgis/layers/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to update ArcGIS layers');
+    }
+    
+    const userId = req.session.userId;
+    const layerId = parseInt(req.params.id, 10);
+    
+    if (isNaN(layerId)) {
+      throw ApiError.badRequest('Invalid layer ID');
+    }
+    
+    // Check if the layer exists
+    const existingLayer = await storage.getArcGISLayer(layerId);
+    
+    if (!existingLayer) {
+      throw ApiError.notFound('ArcGIS layer not found');
+    }
+    
+    // Check if the associated configuration belongs to the current user
+    const config = await storage.getArcGISMapConfig(existingLayer.configId);
+    
+    if (!config || config.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to update this layer');
+    }
+    
+    // Validate and update the layer
+    // Note: remove id and configId from the update data to prevent changing them
+    const { id, configId, ...updateData } = req.body;
+    
+    const updatedLayer = await storage.updateArcGISLayer(layerId, updateData);
+    
+    res.json(updatedLayer);
+  }));
+  
+  // Delete an ArcGIS layer
+  app.delete("/api/arcgis/layers/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to delete ArcGIS layers');
+    }
+    
+    const userId = req.session.userId;
+    const layerId = parseInt(req.params.id, 10);
+    
+    if (isNaN(layerId)) {
+      throw ApiError.badRequest('Invalid layer ID');
+    }
+    
+    // Check if the layer exists
+    const existingLayer = await storage.getArcGISLayer(layerId);
+    
+    if (!existingLayer) {
+      throw ApiError.notFound('ArcGIS layer not found');
+    }
+    
+    // Check if the associated configuration belongs to the current user
+    const config = await storage.getArcGISMapConfig(existingLayer.configId);
+    
+    if (!config || config.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to delete this layer');
+    }
+    
+    await storage.deleteArcGISLayer(layerId);
+    
+    res.status(204).end();
+  }));
+  
+  // Get all sketches for a specific ArcGIS map configuration
+  app.get("/api/arcgis/map-configs/:configId/sketches", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS sketches');
+    }
+    
+    const userId = req.session.userId;
+    const configId = parseInt(req.params.configId, 10);
+    
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    // Check if the map configuration exists and belongs to the current user
+    const config = await storage.getArcGISMapConfig(configId);
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    if (config.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to access this configuration');
+    }
+    
+    // Get sketches (optionally filtered to the current user's sketches)
+    const onlyUserSketches = req.query.onlyMine === 'true';
+    const sketches = await storage.getArcGISSketches(configId, onlyUserSketches ? userId : undefined);
+    
+    res.json(sketches);
+  }));
+  
+  // Get a specific sketch by ID
+  app.get("/api/arcgis/sketches/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS sketches');
+    }
+    
+    const userId = req.session.userId;
+    const sketchId = parseInt(req.params.id, 10);
+    
+    if (isNaN(sketchId)) {
+      throw ApiError.badRequest('Invalid sketch ID');
+    }
+    
+    const sketch = await storage.getArcGISSketch(sketchId);
+    
+    if (!sketch) {
+      throw ApiError.notFound('ArcGIS sketch not found');
+    }
+    
+    // Check if the sketch belongs to the current user or is public, and the associated configuration is accessible
+    const config = await storage.getArcGISMapConfig(sketch.configId);
+    
+    if (!config || config.userId !== userId) {
+      // Users can only see their own sketches or public sketches in configs they can access
+      if (sketch.userId !== userId && !sketch.isPublic) {
+        throw ApiError.forbidden('You do not have permission to access this sketch');
+      }
+    }
+    
+    res.json(sketch);
+  }));
+  
+  // Create a new ArcGIS sketch
+  app.post("/api/arcgis/sketches", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to create ArcGIS sketches');
+    }
+    
+    const userId = req.session.userId;
+    const { configId } = req.body;
+    
+    if (!configId) {
+      throw ApiError.badRequest('Configuration ID is required');
+    }
+    
+    // Check if the map configuration exists and is accessible
+    const config = await storage.getArcGISMapConfig(parseInt(configId, 10));
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    // Only the config owner or authorized users can create sketches
+    if (config.userId !== userId && !config.allowExternalEdits) {
+      throw ApiError.forbidden('You do not have permission to create sketches for this configuration');
+    }
+    
+    // Validate the request body and force the userId to be the current user
+    const parsedBody = insertArcGISSketchSchema.parse({
+      ...req.body,
+      userId
+    });
+    
+    const newSketch = await storage.createArcGISSketch(parsedBody);
+    
+    res.status(201).json(newSketch);
+  }));
+  
+  // Update an existing ArcGIS sketch
+  app.put("/api/arcgis/sketches/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to update ArcGIS sketches');
+    }
+    
+    const userId = req.session.userId;
+    const sketchId = parseInt(req.params.id, 10);
+    
+    if (isNaN(sketchId)) {
+      throw ApiError.badRequest('Invalid sketch ID');
+    }
+    
+    // Check if the sketch exists
+    const existingSketch = await storage.getArcGISSketch(sketchId);
+    
+    if (!existingSketch) {
+      throw ApiError.notFound('ArcGIS sketch not found');
+    }
+    
+    // Users can only update their own sketches
+    if (existingSketch.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to update this sketch');
+    }
+    
+    // Validate and update the sketch
+    // Note: remove id, configId, and userId from the update data to prevent changing them
+    const { id, configId, userId: _, ...updateData } = req.body;
+    
+    const updatedSketch = await storage.updateArcGISSketch(sketchId, updateData);
+    
+    res.json(updatedSketch);
+  }));
+  
+  // Delete an ArcGIS sketch
+  app.delete("/api/arcgis/sketches/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to delete ArcGIS sketches');
+    }
+    
+    const userId = req.session.userId;
+    const sketchId = parseInt(req.params.id, 10);
+    
+    if (isNaN(sketchId)) {
+      throw ApiError.badRequest('Invalid sketch ID');
+    }
+    
+    // Check if the sketch exists
+    const existingSketch = await storage.getArcGISSketch(sketchId);
+    
+    if (!existingSketch) {
+      throw ApiError.notFound('ArcGIS sketch not found');
+    }
+    
+    // Users can only delete their own sketches
+    if (existingSketch.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to delete this sketch');
+    }
+    
+    await storage.deleteArcGISSketch(sketchId);
+    
+    res.status(204).end();
+  }));
+  
+  // Get all analysis results for a specific ArcGIS map configuration
+  app.get("/api/arcgis/map-configs/:configId/analysis-results", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS analysis results');
+    }
+    
+    const userId = req.session.userId;
+    const configId = parseInt(req.params.configId, 10);
+    
+    if (isNaN(configId)) {
+      throw ApiError.badRequest('Invalid configuration ID');
+    }
+    
+    // Check if the map configuration exists and belongs to the current user
+    const config = await storage.getArcGISMapConfig(configId);
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    if (config.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to access this configuration');
+    }
+    
+    // Get analysis results (optionally filtered to the current user's results)
+    const onlyUserResults = req.query.onlyMine === 'true';
+    const results = await storage.getArcGISAnalysisResults(configId, onlyUserResults ? userId : undefined);
+    
+    res.json(results);
+  }));
+  
+  // Get a specific analysis result by ID
+  app.get("/api/arcgis/analysis-results/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to access ArcGIS analysis results');
+    }
+    
+    const userId = req.session.userId;
+    const resultId = parseInt(req.params.id, 10);
+    
+    if (isNaN(resultId)) {
+      throw ApiError.badRequest('Invalid analysis result ID');
+    }
+    
+    const result = await storage.getArcGISAnalysisResult(resultId);
+    
+    if (!result) {
+      throw ApiError.notFound('ArcGIS analysis result not found');
+    }
+    
+    // Check if the result belongs to the current user or if they own the config
+    const config = await storage.getArcGISMapConfig(result.configId);
+    
+    if (result.userId !== userId && (!config || config.userId !== userId)) {
+      throw ApiError.forbidden('You do not have permission to access this analysis result');
+    }
+    
+    res.json(result);
+  }));
+  
+  // Create a new ArcGIS analysis result
+  app.post("/api/arcgis/analysis-results", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to create ArcGIS analysis results');
+    }
+    
+    const userId = req.session.userId;
+    const { configId } = req.body;
+    
+    if (!configId) {
+      throw ApiError.badRequest('Configuration ID is required');
+    }
+    
+    // Check if the map configuration exists and is accessible
+    const config = await storage.getArcGISMapConfig(parseInt(configId, 10));
+    
+    if (!config) {
+      throw ApiError.notFound('ArcGIS map configuration not found');
+    }
+    
+    // Enforce the current user as the creator of the analysis result
+    const newAnalysisResult = await storage.createArcGISAnalysisResult({
+      ...req.body,
+      userId
+    });
+    
+    res.status(201).json(newAnalysisResult);
+  }));
+  
+  // Delete an ArcGIS analysis result
+  app.delete("/api/arcgis/analysis-results/:id", asyncHandler(async (req, res) => {
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to delete ArcGIS analysis results');
+    }
+    
+    const userId = req.session.userId;
+    const resultId = parseInt(req.params.id, 10);
+    
+    if (isNaN(resultId)) {
+      throw ApiError.badRequest('Invalid analysis result ID');
+    }
+    
+    // Check if the analysis result exists
+    const existingResult = await storage.getArcGISAnalysisResult(resultId);
+    
+    if (!existingResult) {
+      throw ApiError.notFound('ArcGIS analysis result not found');
+    }
+    
+    // Users can only delete their own analysis results
+    if (existingResult.userId !== userId) {
+      throw ApiError.forbidden('You do not have permission to delete this analysis result');
+    }
+    
+    await storage.deleteArcGISAnalysisResult(resultId);
     
     res.status(204).end();
   }));
