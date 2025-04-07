@@ -169,9 +169,10 @@ export function isProduction(): boolean {
  * Get the base URL for API requests
  */
 export function getApiBaseUrl(): string {
-  // In development, use the specific port
+  // In development, use the specific port (5000 for server)
   // In production, use relative path
-  return import.meta.env.DEV ? 'http://localhost:5000/api' : '/api';
+  const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+  return `${baseUrl}/api`;
 }
 
 /**

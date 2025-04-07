@@ -62,31 +62,45 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
       return;
     }
     
+    if (!accessToken) {
+      console.error('Cannot initialize map without a valid Mapbox token');
+      return;
+    }
+    
     console.log('Initializing map with token:', accessToken.substring(0, 10) + '...');
     
-    // Set the token for mapbox-gl
-    mapboxgl.accessToken = accessToken;
-    
-    // Initialize the map
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: mapStyle,
-      center: [initialViewState.longitude, initialViewState.latitude],
-      zoom: initialViewState.zoom,
-      interactive
-    });
-    
-    // Store map instance in ref
-    mapRef.current = map;
-    
-    // Set up event handlers
-    map.on('load', () => {
-      console.log('Map loaded successfully');
-      setMapInitialized(true);
-      if (onMapLoaded) {
-        onMapLoaded(map);
-      }
-    });
+    try {
+      // Set the token for mapbox-gl
+      mapboxgl.accessToken = accessToken;
+      
+      // Initialize the map
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: mapStyle,
+        center: [initialViewState.longitude, initialViewState.latitude],
+        zoom: initialViewState.zoom,
+        interactive
+      });
+      
+      // Store map instance in ref
+      mapRef.current = map;
+      
+      // Set up event handlers
+      map.on('load', () => {
+        console.log('Map loaded successfully');
+        setMapInitialized(true);
+        if (onMapLoaded) {
+          onMapLoaded(map);
+        }
+      });
+      
+      map.on('error', (e) => {
+        console.error('Mapbox map error:', e);
+      });
+      
+    } catch (error) {
+      console.error('Error initializing Mapbox map:', error);
+    }
   }, [
     mapStyle,
     initialViewState.longitude,

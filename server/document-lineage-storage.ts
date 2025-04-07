@@ -1,14 +1,22 @@
-import { 
-  DocumentEntity, 
-  DocumentLineageEvent, 
-  DocumentLineageGraph, 
-  DocumentLineageNode, 
+import {
+  type DocumentEntity,
+  type DocumentLineageEvent,
+  type DocumentRelationship,
+  type DocumentProcessingStage,
+  type InsertDocumentEntity,
+  type InsertDocumentLineageEvent,
+  type InsertDocumentRelationship,
+  type InsertDocumentProcessingStage
+} from '../shared/schema';
+
+// These types are still needed from document-lineage-schema
+import {
+  DocumentLineageGraph,
+  DocumentLineageNode,
   DocumentLineageEdge,
   DocumentNodeData,
   EventNodeData,
-  ProcessingNodeData,
-  DocumentRelationship, 
-  DocumentProcessingStage 
+  ProcessingNodeData
 } from '../shared/document-lineage-schema';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,7 +37,7 @@ export class DocumentLineageMemStorage {
   }
 
   // Document entity operations
-  async createDocument(document: Omit<DocumentEntity, 'id' | 'createdAt' | 'status'>): Promise<DocumentEntity> {
+  async createDocument(document: InsertDocumentEntity): Promise<DocumentEntity> {
     const id = uuidv4();
     const newDocument: DocumentEntity = {
       ...document,
@@ -85,7 +93,7 @@ export class DocumentLineageMemStorage {
   }
 
   // Document event operations
-  async createDocumentEvent(event: Omit<DocumentLineageEvent, 'id' | 'eventTimestamp'>): Promise<DocumentLineageEvent> {
+  async createDocumentEvent(event: InsertDocumentLineageEvent): Promise<DocumentLineageEvent> {
     const id = uuidv4();
     const newEvent: DocumentLineageEvent = {
       ...event,
@@ -103,7 +111,7 @@ export class DocumentLineageMemStorage {
   }
 
   // Document relationship operations
-  async createDocumentRelationship(relationship: Omit<DocumentRelationship, 'id' | 'createdAt'>): Promise<DocumentRelationship> {
+  async createDocumentRelationship(relationship: InsertDocumentRelationship): Promise<DocumentRelationship> {
     const id = uuidv4();
     const newRelationship: DocumentRelationship = {
       ...relationship,
@@ -121,14 +129,15 @@ export class DocumentLineageMemStorage {
   }
 
   // Document processing stage operations
-  async createProcessingStage(stage: Omit<DocumentProcessingStage, 'id' | 'status' | 'progress' | 'startedAt' | 'completedAt'>): Promise<DocumentProcessingStage> {
+  async createProcessingStage(stage: InsertDocumentProcessingStage): Promise<DocumentProcessingStage> {
     const id = uuidv4();
     const newStage: DocumentProcessingStage = {
       ...stage,
       id,
       status: 'pending',
       progress: 0,
-      startedAt: new Date()
+      startedAt: new Date(),
+      completedAt: null
     };
     this.documentProcessingStages.set(id, newStage);
     return newStage;
