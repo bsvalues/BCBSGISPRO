@@ -11,8 +11,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "@arcgis/core": "^4.32.9",
-    "@esri/react-arcgis": "^5.2.0",
+    "@arcgis/core": "^4.32.10",
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@mapbox/mapbox-gl-draw": "^1.5.0",

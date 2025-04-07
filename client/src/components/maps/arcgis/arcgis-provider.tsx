@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { Map as ArcGISMap } from '@esri/react-arcgis';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 
 // Define TypeScript interfaces for ArcGIS types
@@ -8,6 +7,7 @@ declare global {
     interface Map {
       add: (layer: any) => void;
       remove: (layer: any) => void;
+      basemap: string;
     }
 
     interface MapView {
@@ -16,6 +16,11 @@ declare global {
       ui: {
         components: string[];
       };
+      container: HTMLDivElement;
+      when: (callback?: () => void) => Promise<void>;
+      goTo: (target: any, options?: any) => Promise<void>;
+      on: (eventName: string, callback: (...args: any[]) => void) => any;
+      destroy: () => void;
     }
   }
 }
@@ -36,6 +41,7 @@ interface ArcGISProviderProps {
  * ArcGIS Provider Component
  * 
  * This component initializes an ArcGIS map and provides it to child components
+ * using the ArcGIS Core API directly for improved compatibility
  */
 export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
   initialViewState = { longitude: -123.3617, latitude: 44.5646, zoom: 10 }, // Benton County, Oregon
@@ -46,22 +52,82 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
 }) => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mapRef = useRef<any>(null);
+  const viewRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle map load
-  const handleMapLoad = useCallback((map: any, view: any) => {
-    console.log('ArcGIS map loaded');
-    setMapLoaded(true);
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // Using dynamic imports for better compatibility
+    const loadMap = async () => {
+      try {
+        // Import Map and MapView classes
+        const Map = await import('@arcgis/core/Map').then(m => m.default);
+        const MapView = await import('@arcgis/core/views/MapView').then(m => m.default);
+        
+        // Create a new map
+        const map = new Map({
+          basemap: 'streets-vector'
+        });
+        
+        // Create a new view
+        const view = new MapView({
+          container: containerRef.current!,
+          map: map,
+          center: [initialViewState.longitude, initialViewState.latitude],
+          zoom: initialViewState.zoom,
+          ui: {
+            components: interactive ? ['zoom', 'compass', 'attribution'] : []
+          }
+        });
+        
+        // Store references
+        mapRef.current = map;
+        viewRef.current = view;
+        
+        // Wait for the view to load
+        await view.when();
+        
+        console.log('ArcGIS map loaded');
+        setMapLoaded(true);
+        
+        if (onMapLoaded) {
+          onMapLoaded(map, view);
+        }
+      } catch (err) {
+        console.error('Error loading ArcGIS map:', err);
+        setError('Failed to load ArcGIS map');
+      }
+    };
     
-    if (onMapLoaded) {
-      onMapLoaded(map, view);
-    }
-  }, [onMapLoaded]);
+    loadMap();
+    
+    // Cleanup
+    return () => {
+      if (viewRef.current) {
+        try {
+          viewRef.current.destroy();
+        } catch (err) {
+          console.error('Error destroying ArcGIS map view:', err);
+        }
+        
+        viewRef.current = null;
+        mapRef.current = null;
+      }
+    };
+  }, [initialViewState, interactive, onMapLoaded]);
 
-  // Handle map error
-  const handleMapError = useCallback((err: any) => {
-    console.error('Error loading ArcGIS map:', err);
-    setError('Failed to load ArcGIS map');
-  }, []);
+  // Clone children with the map and view
+  const childrenWithProps = React.Children.map(children, child => {
+    if (React.isValidElement(child) && mapLoaded) {
+      return React.cloneElement(child, {
+        map: mapRef.current,
+        view: viewRef.current
+      });
+    }
+    return child;
+  });
 
   return (
     <div style={style}>
@@ -73,23 +139,9 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
           </p>
         </Card>
       ) : (
-        <ArcGISMap
-          style={{ width: '100%', height: '100%' }}
-          mapProperties={{
-            basemap: 'streets-vector'
-          }}
-          viewProperties={{
-            center: [initialViewState.longitude, initialViewState.latitude],
-            zoom: initialViewState.zoom,
-            ui: {
-              components: interactive ? ['zoom', 'compass', 'attribution'] : []
-            }
-          }}
-          onLoad={handleMapLoad}
-          onFail={handleMapError}
-        >
-          {mapLoaded && children}
-        </ArcGISMap>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+          {mapLoaded && childrenWithProps}
+        </div>
       )}
     </div>
   );
