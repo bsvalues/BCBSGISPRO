@@ -8,6 +8,7 @@ import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
 import { ApiError, asyncHandler } from "./error-handler";
 import { registerMapFeatureRoutes } from "./routes/map-features";
+import { registerDocumentLineageRoutes } from "./routes/document-lineage-routes";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { 
@@ -4116,6 +4117,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register the map feature routes from the separate module
   registerMapFeatureRoutes(app, storage);
+  
+  // Register document lineage routes
+  registerDocumentLineageRoutes(app);
   
   return httpServer;
 }
