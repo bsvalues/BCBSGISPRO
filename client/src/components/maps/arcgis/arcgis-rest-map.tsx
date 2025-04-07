@@ -59,13 +59,61 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
     const loadServices = async () => {
       try {
         setLoading(true);
+        console.log('Fetching ArcGIS services...');
+        
+        // Direct fetch without using our service for debugging
+        const response = await fetch('https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services?f=json');
+        const directData = await response.json();
+        console.log('Direct service list fetch result:', directData);
+        
+        // Using our service
         const serviceData = await fetchServiceList();
-        setServices(serviceData.services || []);
+        console.log('Service list from our module:', serviceData);
+        
+        if (serviceData && serviceData.services) {
+          console.log(`Found ${serviceData.services.length} services`);
+          setServices(serviceData.services);
+        } else {
+          console.warn('No services found in the response:', serviceData);
+          // Fallback to direct data if possible
+          if (directData && directData.services) {
+            console.log('Using direct fetch data as fallback');
+            setServices(directData.services);
+          } else {
+            // Create a sample set of services for testing
+            setServices([
+              { 
+                name: 'Parcels_and_Assess', 
+                type: 'FeatureServer',
+                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/FeatureServer'
+              },
+              {
+                name: 'Zoning',
+                type: 'FeatureServer',
+                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/FeatureServer'
+              }
+            ]);
+          }
+        }
         setLoading(false);
       } catch (err) {
         setError('Failed to load ArcGIS services');
         setLoading(false);
         console.error('Error loading services:', err);
+        
+        // Use a small set for testing when errors occur
+        setServices([
+          { 
+            name: 'Parcels_and_Assess', 
+            type: 'FeatureServer',
+            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/FeatureServer'
+          },
+          {
+            name: 'Zoning',
+            type: 'FeatureServer',
+            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/FeatureServer'
+          }
+        ]);
       }
     };
     
@@ -100,10 +148,27 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
   const addLayer = async (serviceName: string, serviceType: 'FeatureServer' | 'MapServer' = 'MapServer') => {
     try {
       setLoading(true);
+      console.log(`Adding layer from service: ${serviceName} (${serviceType})`);
       
+      // Try a direct fetch for debugging
+      const directUrl = `https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/${serviceName}/${serviceType}?f=json`;
+      console.log('Fetching from:', directUrl);
+      
+      try {
+        const directResponse = await fetch(directUrl);
+        const directInfo = await directResponse.json();
+        console.log('Direct service info:', directInfo);
+      } catch (directErr) {
+        console.warn('Direct fetch failed:', directErr);
+      }
+      
+      // Now use our module
+      console.log('Fetching using our service module...');
       const serviceInfo = await fetchServiceInfo(serviceName, serviceType);
+      console.log('Service info from our module:', serviceInfo);
       
       if (serviceType === 'MapServer') {
+        console.log('Adding MapServer layer');
         // Add the entire map service as one layer
         const newLayer: Layer = {
           id: `${serviceName}-${serviceType}`,
@@ -114,8 +179,10 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
           serviceType
         };
         
+        console.log('New layer:', newLayer);
         setLayers(prev => [...prev, newLayer]);
       } else if (serviceInfo.layers && serviceInfo.layers.length > 0) {
+        console.log(`Adding ${serviceInfo.layers.length} FeatureServer layers`);
         // Add each layer in the feature service individually
         const newLayers = serviceInfo.layers.map((layer: any) => ({
           id: `${serviceName}-${serviceType}-${layer.id}`,
@@ -127,7 +194,23 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
           serviceType
         }));
         
+        console.log('New layers:', newLayers);
         setLayers(prev => [...prev, ...newLayers]);
+      } else {
+        console.warn('No valid layers found in service info');
+        
+        // Add a fallback layer for testing
+        const fallbackLayer: Layer = {
+          id: `${serviceName}-${serviceType}-fallback`,
+          name: `${serviceName} (Fallback)`,
+          visible: true,
+          opacity: 1,
+          serviceName,
+          serviceType
+        };
+        
+        console.log('Adding fallback layer:', fallbackLayer);
+        setLayers(prev => [...prev, fallbackLayer]);
       }
       
       setLoading(false);
@@ -136,6 +219,21 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
       setError(`Failed to add layer from ${serviceName}`);
       setLoading(false);
       console.error('Error adding layer:', err);
+      
+      // Add a fallback layer for testing when errors occur
+      const fallbackLayer: Layer = {
+        id: `${serviceName}-${serviceType}-error-fallback`,
+        name: `${serviceName} (Error Fallback)`,
+        visible: true,
+        opacity: 1,
+        serviceName,
+        serviceType
+      };
+      
+      console.log('Adding error fallback layer:', fallbackLayer);
+      setLayers(prev => [...prev, fallbackLayer]);
+      setLoading(false);
+      setSelectedService(null);
     }
   };
   
