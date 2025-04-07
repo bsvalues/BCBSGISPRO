@@ -118,7 +118,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         console.log('Adding MapServer layer');
         // Add the entire map service as one layer
         const newLayer: Layer = {
-          id: `${serviceName}-${serviceType}-${Date.now()}`, // Add timestamp to ensure uniqueness
+          id: `${serviceName}-${serviceType}-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Add timestamp and random number to ensure uniqueness
           name: serviceInfo.documentInfo?.Title || serviceInfo.mapName || serviceName,
           visible: true,
           opacity: 1,
@@ -135,9 +135,11 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         const existingLayerIds = new Set(layers.map(l => l.id));
         
         const newLayers = serviceInfo.layers.map((layer: any) => {
-          // Ensure unique ID by adding a timestamp if needed
+          // Ensure unique ID by adding a timestamp and random number
           const baseId = `${serviceName}-${serviceType}-${layer.id}`;
-          const id = existingLayerIds.has(baseId) ? `${baseId}-${Date.now()}` : baseId;
+          const id = existingLayerIds.has(baseId) ? 
+            `${baseId}-${Date.now()}-${Math.floor(Math.random() * 1000)}` : 
+            `${baseId}-${Math.floor(Math.random() * 1000)}`;
           
           return {
             id,
@@ -157,7 +159,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         
         // Add a fallback layer for testing
         const fallbackLayer: Layer = {
-          id: `${serviceName}-${serviceType}-fallback-${Date.now()}`, // Add timestamp to ensure uniqueness
+          id: `${serviceName}-${serviceType}-fallback-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Add timestamp and random number to ensure uniqueness
           name: `${serviceName} (Fallback)`,
           visible: true,
           opacity: 1,
@@ -178,7 +180,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       
       // Add a fallback layer for testing when errors occur
       const fallbackLayer: Layer = {
-        id: `${serviceName}-${serviceType}-error-fallback-${Date.now()}`, // Add timestamp to ensure uniqueness
+        id: `${serviceName}-${serviceType}-error-fallback-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Add timestamp and random number to ensure uniqueness
         name: `${serviceName} (Error Fallback)`,
         visible: true,
         opacity: 1,
@@ -196,6 +198,16 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
   // Define a function to load the Parcels_and_Assess layer
   const loadParcelsLayer = React.useCallback(async () => {
     try {
+      // Check if the Parcels_and_Assess layer is already loaded
+      const parcelsLayerExists = layers.some(layer => 
+        layer.serviceName === 'Parcels_and_Assess' && layer.serviceType === 'FeatureServer'
+      );
+      
+      if (parcelsLayerExists) {
+        console.log('Parcels_and_Assess layer already loaded, skipping auto-load');
+        return true;
+      }
+      
       console.log('Auto-loading Parcels_and_Assess layer...');
       await addLayer('Parcels_and_Assess', 'FeatureServer');
       return true;
@@ -203,7 +215,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       console.error('Failed to auto-load Parcels_and_Assess layer:', err);
       return false;
     }
-  }, [addLayer]);
+  }, [addLayer, layers]);
 
   // Fetch available services when component mounts
   useEffect(() => {
@@ -272,12 +284,19 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     loadServices();
   }, []);
   
-  // Load the Parcels layer after services are loaded
+  // Load the Parcels layer after services are loaded - but only if no external layers were provided
   useEffect(() => {
-    if (services.length > 0) {
+    // Only auto-load Parcels layer if:
+    // 1. Services have been loaded
+    // 2. We have no external layers (from props)
+    // 3. No layers are currently loaded
+    if (services.length > 0 && !externalLayers?.length && layers.length === 0) {
+      console.log('No external layers provided, auto-loading Parcels layer');
       loadParcelsLayer();
+    } else if (externalLayers?.length) {
+      console.log('External layers provided, skipping auto-load of Parcels layer');
     }
-  }, [services, loadParcelsLayer]);
+  }, [services, loadParcelsLayer, externalLayers, layers]);
   
   // Calculate map dimensions
   const mapStyle: React.CSSProperties = {
@@ -683,16 +702,16 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             ) : (
               <div className="space-y-4">
                 {layers.map((layer, index) => (
-                  <Card key={layer.id} className="p-2 border">
+                  <Card key={`layer-card-${layer.id}-${index}`} className="p-2 border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 max-w-[70%]">
                         <Checkbox 
-                          id={`visible-${layer.id}`}
+                          id={`visible-${layer.id}-${index}`}
                           checked={layer.visible}
                           onCheckedChange={() => toggleLayerVisibility(layer.id)}
                         />
                         <Label 
-                          htmlFor={`visible-${layer.id}`}
+                          htmlFor={`visible-${layer.id}-${index}`}
                           className="font-medium text-sm cursor-pointer truncate"
                           title={layer.name}
                         >
