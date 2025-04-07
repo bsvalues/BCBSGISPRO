@@ -358,6 +358,15 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
       
   }, [layers, center, zoom]);
   
+  // Auto-open the layers panel when in REST mode
+  useEffect(() => {
+    // Auto-open the layers panel after services are loaded
+    if (services.length > 0 && !isLayersPanelOpen) {
+      console.log('Auto-opening layers panel');
+      setIsLayersPanelOpen(true);
+    }
+  }, [services, isLayersPanelOpen]);
+
   return (
     <div style={{ position: 'relative' }}>
       <div style={mapStyle} ref={mapContainerRef}>
@@ -408,6 +417,20 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
           </div>
         )}
         
+        {/* Number of services indicator */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          padding: '5px 10px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          zIndex: 1000
+        }}>
+          {services.length} services available
+        </div>
+        
         {/* Map controls */}
         {showControls && (
           <div style={{
@@ -419,10 +442,10 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
             <Card className="p-2 backdrop-blur-sm bg-white/80">
               <Button 
                 size="sm" 
-                variant="outline" 
+                variant={isLayersPanelOpen ? "default" : "outline"}
                 onClick={() => setIsLayersPanelOpen(!isLayersPanelOpen)}
               >
-                Layers
+                {isLayersPanelOpen ? "Hide Layers" : "Show Layers"}
               </Button>
             </Card>
           </div>
@@ -467,113 +490,164 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
           </div>
         )}
         
-        {/* Layers panel */}
-        {isLayersPanelOpen && (
-          <Card className="absolute top-20 right-10 w-80 max-h-[70vh] overflow-auto z-50 bg-white/90 backdrop-blur-sm border shadow-lg">
-            <div className="p-4 border-b">
-              <h3 className="font-medium text-lg">Layers</h3>
+        {/* Layers panel - Always rendered but visibility controlled by CSS */}
+        <Card 
+          className={`absolute top-20 right-10 w-80 max-h-[70vh] overflow-auto z-50 bg-white/90 backdrop-blur-sm border shadow-lg transition-opacity duration-300 ${
+            isLayersPanelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="p-4 border-b">
+            <h3 className="font-medium text-lg">Layers ({services.length} services)</h3>
+          </div>
+          
+          {/* Service selector */}
+          <div className="p-4 border-b">
+            <label className="block text-sm font-medium mb-2">Add Layer</label>
+            <div className="flex gap-2">
+              <select 
+                className="flex-grow border rounded px-2 py-1 text-sm"
+                value={selectedService || ''}
+                onChange={(e) => setSelectedService(e.target.value || null)}
+              >
+                <option value="">Select a service...</option>
+                {services.slice(0, 50).map(service => (
+                  <option key={service.name} value={service.name}>
+                    {service.name} ({service.type})
+                  </option>
+                ))}
+                {services.length > 50 && (
+                  <option value="" disabled>
+                    ... and {services.length - 50} more services
+                  </option>
+                )}
+              </select>
+              <Button 
+                size="sm" 
+                disabled={!selectedService}
+                onClick={() => selectedService && addLayer(selectedService)}
+              >
+                Add
+              </Button>
             </div>
             
-            {/* Service selector */}
-            <div className="p-4 border-b">
-              <label className="block text-sm font-medium mb-2">Add Layer</label>
-              <div className="flex gap-2">
-                <select 
-                  className="flex-grow border rounded px-2 py-1 text-sm"
-                  value={selectedService || ''}
-                  onChange={(e) => setSelectedService(e.target.value || null)}
-                >
-                  <option value="">Select a service...</option>
-                  {services.map(service => (
-                    <option key={service.name} value={service.name}>
-                      {service.name} ({service.type})
-                    </option>
-                  ))}
-                </select>
+            {/* Add a helper instruction */}
+            <p className="text-xs text-gray-500 mt-1">
+              Select a service from the dropdown and click "Add" to add it to the map.
+            </p>
+            
+            {/* Add some example services */}
+            <div className="mt-3">
+              <p className="text-xs font-medium">Quick add services:</p>
+              <div className="flex flex-wrap gap-1 mt-1">
                 <Button 
                   size="sm" 
-                  disabled={!selectedService}
-                  onClick={() => selectedService && addLayer(selectedService)}
+                  variant="outline" 
+                  className="h-6 text-xs py-0 px-1"
+                  onClick={() => addLayer('Parcels_and_Assess', 'FeatureServer')}
                 >
-                  Add
+                  Parcels
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-6 text-xs py-0 px-1"
+                  onClick={() => addLayer('Zoning', 'FeatureServer')}
+                >
+                  Zoning
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-6 text-xs py-0 px-1"
+                  onClick={() => addLayer('Roads', 'FeatureServer')}
+                >
+                  Roads
                 </Button>
               </div>
             </div>
-            
-            {/* Layer list */}
-            <div className="p-4">
-              {layers.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">
+          </div>
+          
+          {/* Layer list */}
+          <div className="p-4">
+            {layers.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-gray-500 text-sm mb-2">
                   No layers added. Select a service above to add layers.
                 </p>
-              ) : (
-                <div className="space-y-4">
-                  {layers.map((layer, index) => (
-                    <Card key={layer.id} className="p-3 border">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Checkbox 
-                            id={`visible-${layer.id}`}
-                            checked={layer.visible}
-                            onCheckedChange={() => toggleLayerVisibility(layer.id)}
-                          />
-                          <Label 
-                            htmlFor={`visible-${layer.id}`}
-                            className="font-medium text-sm cursor-pointer"
-                          >
-                            {layer.name}
-                          </Label>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          onClick={() => removeLayer(layer.id)}
-                          className="h-6 w-6 p-0"
-                        >
-                          ×
-                        </Button>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs w-12">Opacity:</span>
-                        <Slider
-                          value={[layer.opacity * 100]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          className="flex-grow"
-                          onValueChange={(value) => updateLayerOpacity(layer.id, value[0] / 100)}
+                <Button 
+                  size="sm" 
+                  onClick={() => addLayer('Parcels_and_Assess', 'FeatureServer')}
+                >
+                  Add Parcels Layer
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {layers.map((layer, index) => (
+                  <Card key={layer.id} className="p-3 border">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          id={`visible-${layer.id}`}
+                          checked={layer.visible}
+                          onCheckedChange={() => toggleLayerVisibility(layer.id)}
                         />
-                        <span className="text-xs w-8 text-right">{Math.round(layer.opacity * 100)}%</span>
-                      </div>
-                      
-                      <div className="flex justify-between mt-2">
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          disabled={index === 0}
-                          onClick={() => moveLayer(layer.id, 'up')}
-                          className="h-6 text-xs"
+                        <Label 
+                          htmlFor={`visible-${layer.id}`}
+                          className="font-medium text-sm cursor-pointer"
                         >
-                          Move Up
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          disabled={index === layers.length - 1}
-                          onClick={() => moveLayer(layer.id, 'down')}
-                          className="h-6 text-xs"
-                        >
-                          Move Down
-                        </Button>
+                          {layer.name}
+                        </Label>
                       </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => removeLayer(layer.id)}
+                        className="h-6 w-6 p-0"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs w-12">Opacity:</span>
+                      <Slider
+                        value={[layer.opacity * 100]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        className="flex-grow"
+                        onValueChange={(value) => updateLayerOpacity(layer.id, value[0] / 100)}
+                      />
+                      <span className="text-xs w-8 text-right">{Math.round(layer.opacity * 100)}%</span>
+                    </div>
+                    
+                    <div className="flex justify-between mt-2">
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        disabled={index === 0}
+                        onClick={() => moveLayer(layer.id, 'up')}
+                        className="h-6 text-xs"
+                      >
+                        Move Up
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        disabled={index === layers.length - 1}
+                        onClick={() => moveLayer(layer.id, 'down')}
+                        className="h-6 text-xs"
+                      >
+                        Move Down
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   );
