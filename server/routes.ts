@@ -4116,6 +4116,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(201).json(recentlyViewed);
   }));
   
+  app.delete("/api/recently-viewed-parcels", asyncHandler(async (req, res) => {
+    // Check if user is authenticated
+    if (!req.session.userId) {
+      throw ApiError.unauthorized('You must be logged in to clear recently viewed parcels');
+    }
+    
+    const userId = req.session.userId;
+    
+    // Clear all recently viewed parcels for the user
+    await storage.clearRecentlyViewedParcels(userId);
+    
+    res.status(204).end();
+  }));
+  
   // Register the map feature routes from the separate module
   registerMapFeatureRoutes(app, storage);
   

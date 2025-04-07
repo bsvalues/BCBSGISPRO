@@ -1,156 +1,234 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MapPreference } from '../../shared/schema';
 import { apiRequest } from '@/lib/queryClient';
+import { toast } from '@/hooks/use-toast';
 
-export type Theme = 'light' | 'dark' | 'system';
-export type MapBaseLayer = 'satellite' | 'streets' | 'terrain' | 'light' | 'dark' | 'custom';
+export type BaseLayerType = 'satellite' | 'streets' | 'terrain' | 'light' | 'dark' | 'custom';
+export type ThemeType = 'light' | 'dark' | 'system';
 export type MeasurementUnit = 'imperial' | 'metric';
+export type LayerVisibility = 'visible' | 'hidden' | 'custom';
 
-export interface MapLayer {
-  id: string;
-  name: string;
-  visible: boolean;
-  opacity: number;
-  type: string;
+export interface MapCenter {
+  lat: number;
+  lng: number;
 }
 
-export interface MapPreferences {
-  id: number;
-  userId: number | null;
-  updatedAt: Date | null;
-  defaultCenter: {
-    lat: number;
-    lng: number;
-  };
-  defaultZoom: number;
-  baseLayer: MapBaseLayer;
-  theme: Theme;
-  measurement: {
-    enabled: boolean;
-    unit: MeasurementUnit;
-  };
-  grid: boolean;
-  scalebar: boolean;
-  animation: boolean;
-  terrain: boolean;
-  buildings3D: boolean;
-  traffic: boolean;
-  labels: boolean;
-  layers: MapLayer[];
+export interface MeasurementSettings {
+  enabled: boolean;
+  unit: MeasurementUnit;
 }
 
-// Default preferences to use when none are set
-const defaultPreferences: MapPreferences = {
-  id: 0,
-  userId: null,
-  updatedAt: null,
-  defaultCenter: {
-    lat: 44.5646,  // Benton County, Oregon center
-    lng: -123.2620,
-  },
-  defaultZoom: 11,
-  baseLayer: 'streets',
-  theme: 'system',
-  measurement: {
-    enabled: true,
-    unit: 'imperial',
-  },
-  grid: false,
-  scalebar: true,
-  animation: true,
-  terrain: false,
-  buildings3D: false,
-  traffic: false,
-  labels: true,
-  layers: [],
-};
+export interface UpdatePreferenceInput {
+  defaultCenter?: MapCenter;
+  defaultZoom?: number;
+  baseLayer?: BaseLayerType;
+  customBaseLayer?: string;
+  layerVisibility?: LayerVisibility;
+  layerSettings?: Record<string, any>;
+  uiSettings?: Record<string, any>;
+  theme?: ThemeType;
+  measurement?: MeasurementSettings;
+  snapToFeature?: boolean;
+  showLabels?: boolean;
+  animation?: boolean;
+}
 
-/**
- * Hook for managing map preferences
- */
 export function useMapPreferences() {
   const queryClient = useQueryClient();
-  
+
   // Fetch user preferences
-  const { data: preferences, isLoading, error } = useQuery({
+  const preferencesQuery = useQuery({
     queryKey: ['/api/map-preferences'],
-    placeholderData: defaultPreferences,
-  });
-
-  // Update preferences
-  const updatePreferences = useMutation({
-    mutationFn: (updatedPrefs: Partial<MapPreferences>) => 
-      apiRequest('/api/map-preferences', {
-        method: 'PATCH',
-        body: JSON.stringify(updatedPrefs),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
-    },
-  });
-
-  // Reset preferences to default
-  const resetPreferences = useMutation({
-    mutationFn: () => 
-      apiRequest('/api/map-preferences/reset', {
-        method: 'POST',
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
-    },
-  });
-
-  // Apply theme based on preferences
-  const applyTheme = () => {
-    if (!preferences) return;
-    
-    const { theme } = preferences;
-    
-    if (theme === 'system') {
-      // Use system preference
-      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.classList.toggle('dark', prefersDarkMode);
-    } else {
-      // Use explicit setting
-      document.documentElement.classList.toggle('dark', theme === 'dark');
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/map-preferences');
+        
+        if (!response.ok) {
+          // Return default preferences if not logged in or no preferences saved
+          if (response.status === 401 || response.status === 404) {
+            return getDefaultPreferences();
+          }
+          throw new Error('Failed to fetch map preferences');
+        }
+        
+        return await response.json() as MapPreference;
+      } catch (error) {
+        console.error('Error fetching preferences:', error);
+        // Return default preferences on error
+        return getDefaultPreferences();
+      }
     }
-  };
+  });
 
-  // Get map center and zoom from preferences
-  const getDefaultMapPosition = () => {
-    if (!preferences) return { center: [44.5646, -123.2620], zoom: 11 };
+  // Create or update preferences
+  const savePreferencesMutation = useMutation({
+    mutationFn: async (preferences: UpdatePreferenceInput) => {
+      return apiRequest('/api/map-preferences', {
+        method: 'POST',
+        body: JSON.stringify(preferences),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
+      toast({
+        title: 'Preferences saved',
+        description: 'Your map preferences have been saved.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error saving preferences',
+        description: error instanceof Error ? error.message : 'Failed to save preferences',
+        variant: 'destructive',
+      });
+    }
+  });
+
+  // Reset preferences to defaults
+  const resetPreferencesMutation = useMutation({
+    mutationFn: async () => {
+      const defaults = getDefaultPreferences();
+      return apiRequest('/api/map-preferences', {
+        method: 'POST',
+        body: JSON.stringify(defaults),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
+      toast({
+        title: 'Preferences reset',
+        description: 'Your map preferences have been reset to defaults.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error resetting preferences',
+        description: error instanceof Error ? error.message : 'Failed to reset preferences',
+        variant: 'destructive',
+      });
+    }
+  });
+
+  // Set theme
+  const setTheme = (theme: ThemeType) => {
+    if (!preferencesQuery.data) return;
     
-    const { defaultCenter, defaultZoom } = preferences;
-    return {
-      center: [defaultCenter.lat, defaultCenter.lng] as [number, number],
-      zoom: defaultZoom,
-    };
-  };
-
-  // Set current position as default
-  const setCurrentPositionAsDefault = (lat: number, lng: number, zoom: number) => {
-    updatePreferences.mutate({
-      defaultCenter: { lat, lng },
-      defaultZoom: zoom,
+    savePreferencesMutation.mutate({
+      ...preferencesQuery.data,
+      theme
     });
   };
 
-  // Toggle a preference by key
-  const togglePreference = (key: keyof typeof preferences, value?: boolean) => {
-    if (!preferences) return;
+  // Set base layer
+  const setBaseLayer = (baseLayer: BaseLayerType, customUrl?: string) => {
+    if (!preferencesQuery.data) return;
     
-    const newValue = value !== undefined ? value : !preferences[key];
-    updatePreferences.mutate({ [key]: newValue });
+    const update: UpdatePreferenceInput = {
+      baseLayer
+    };
+    
+    if (baseLayer === 'custom' && customUrl) {
+      update.customBaseLayer = customUrl;
+    }
+    
+    savePreferencesMutation.mutate(update);
   };
 
+  // Set default map position
+  const setDefaultMapPosition = (center: MapCenter, zoom: number) => {
+    if (!preferencesQuery.data) return;
+    
+    savePreferencesMutation.mutate({
+      defaultCenter: center,
+      defaultZoom: zoom
+    });
+  };
+
+  // Toggle a boolean setting
+  const toggleSetting = (setting: 'snapToFeature' | 'showLabels' | 'animation') => {
+    if (!preferencesQuery.data) return;
+    
+    const currentValue = preferencesQuery.data[setting];
+    
+    savePreferencesMutation.mutate({
+      [setting]: !currentValue
+    });
+  };
+
+  // Update measurement settings
+  const updateMeasurementSettings = (settings: Partial<MeasurementSettings>) => {
+    if (!preferencesQuery.data) return;
+    
+    const currentMeasurement = preferencesQuery.data.measurement || 
+      { enabled: false, unit: 'imperial' as MeasurementUnit };
+    
+    savePreferencesMutation.mutate({
+      measurement: {
+        ...currentMeasurement,
+        ...settings
+      }
+    });
+  };
+
+  // Update UI settings
+  const updateUISettings = (settings: Record<string, any>) => {
+    if (!preferencesQuery.data) return;
+    
+    const currentUISettings = preferencesQuery.data.uiSettings || {};
+    
+    savePreferencesMutation.mutate({
+      uiSettings: {
+        ...currentUISettings,
+        ...settings
+      }
+    });
+  };
+
+  // Default preferences
+  const getDefaultPreferences = (): MapPreference => ({
+    id: 0,
+    userId: 0,
+    defaultCenter: { lat: 44.5949, lng: -123.2063 }, // Default to Benton County, Oregon
+    defaultZoom: 12,
+    baseLayer: 'streets',
+    layerVisibility: 'visible',
+    theme: 'light',
+    measurement: { enabled: false, unit: 'imperial' },
+    snapToFeature: true,
+    showLabels: true,
+    animation: true,
+    updatedAt: null,
+    layerSettings: {},
+    uiSettings: {
+      controlPosition: 'top-right',
+      autoHideControls: false,
+      showScale: true,
+      showCompass: true,
+      showLegend: true
+    },
+    customBaseLayer: null
+  });
+
   return {
-    preferences,
-    isLoading,
-    error,
-    updatePreferences,
-    resetPreferences,
-    applyTheme,
-    getDefaultMapPosition,
-    setCurrentPositionAsDefault,
-    togglePreference,
+    // Query and mutations
+    preferencesQuery,
+    savePreferencesMutation,
+    resetPreferencesMutation,
+    
+    // Helper functions
+    setTheme,
+    setBaseLayer,
+    setDefaultMapPosition,
+    toggleSetting,
+    updateMeasurementSettings,
+    updateUISettings,
+    getDefaultPreferences,
+    
+    // Combined data
+    preferences: preferencesQuery.data || getDefaultPreferences(),
+    isLoading: preferencesQuery.isLoading,
+    error: preferencesQuery.error
   };
 }
+
+export default useMapPreferences;

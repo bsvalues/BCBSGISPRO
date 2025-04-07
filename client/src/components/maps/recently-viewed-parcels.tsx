@@ -1,255 +1,152 @@
-import React, { useState } from 'react';
-import { useRecentlyViewed, RecentParcel } from '@/hooks/use-recently-viewed';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import React from 'react';
+import useRecentlyViewed from '@/hooks/use-recently-viewed';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { History, MapPin, Trash2, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MapPin, Clock, History, Trash2, Search, Home, X, Building2, Navigation, Eye } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
-export interface RecentlyViewedParcelsProps {
+interface RecentlyViewedParcelsProps {
   className?: string;
-  compact?: boolean;
-  onParcelSelect?: (parcelId: number, center: [number, number], zoom: number) => void;
+  onSelectParcel?: (parcelId: number) => void;
 }
 
-export function RecentlyViewedParcels({ className, compact = false, onParcelSelect }: RecentlyViewedParcelsProps) {
-  const { toast } = useToast();
-  const { 
-    recentParcels, 
-    isLoading, 
-    removeRecentParcel,
-    clearRecentParcels
-  } = useRecentlyViewed();
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+export function RecentlyViewedParcels({ className, onSelectParcel }: RecentlyViewedParcelsProps) {
+  const { recentlyViewed, isLoading, clearRecentlyViewedMutation } = useRecentlyViewed();
   
-  // Handle selecting a parcel
-  const handleParcelSelect = (parcel: RecentParcel) => {
-    if (onParcelSelect) {
-      onParcelSelect(parcel.parcelId, parcel.center, parcel.zoom);
-      toast({
-        title: "Parcel Selected",
-        description: `Navigating to ${parcel.parcelNumber}`,
-      });
+  // Group parcels by date
+  const groupedParcels = recentlyViewed.reduce((groups, parcel) => {
+    const date = new Date(parcel.viewedAt);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    
+    groups[dateStr].push(parcel);
+    return groups;
+  }, {} as Record<string, any[]>);
+  
+  // Get dates and sort them in descending order
+  const dates = Object.keys(groupedParcels).sort((a, b) => 
+    new Date(b).getTime() - new Date(a).getTime()
+  );
+  
+  const handleClearAll = () => {
+    clearRecentlyViewedMutation.mutate();
+  };
+  
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (dateStr === format(today, 'yyyy-MM-dd')) {
+      return 'Today';
+    } else if (dateStr === format(yesterday, 'yyyy-MM-dd')) {
+      return 'Yesterday';
+    } else {
+      return format(date, 'MMMM d, yyyy');
     }
   };
-
-  // Handle removing a parcel from history
-  const handleRemoveParcel = (parcel: RecentParcel, e: React.MouseEvent) => {
-    e.stopPropagation();
-    removeRecentParcel.mutate(parcel.id, {
-      onSuccess: () => {
-        toast({
-          title: "Removed",
-          description: `Removed ${parcel.parcelNumber} from history`,
-        });
-      }
-    });
-  };
-
-  // Handle clearing all history
-  const handleClearAll = () => {
-    clearRecentParcels.mutate(undefined, {
-      onSuccess: () => {
-        toast({
-          title: "History cleared",
-          description: "All recently viewed parcels have been cleared",
-        });
-        setIsDialogOpen(false);
-      }
-    });
-  };
-
-  // Filter parcels based on search term
-  const filteredParcels = recentParcels.filter(parcel => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      parcel.parcelNumber.toLowerCase().includes(searchLower) ||
-      (parcel.address && parcel.address.toLowerCase().includes(searchLower))
-    );
-  });
-
-  // Format relative time for viewing
-  const formatRelativeTime = (date: Date | null) => {
-    if (!date) return 'Unknown';
-    
-    const now = new Date();
-    const viewed = new Date(date);
-    const diffInMinutes = Math.floor((now.getTime() - viewed.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    
-    return format(viewed, 'MMM d, yyyy');
-  };
-
+  
   return (
-    <Card className={cn("w-full backdrop-blur-sm bg-background/75 border border-accent shadow-md", className)}>
-      <CardHeader className={compact ? "p-3" : "p-4"}>
-        <CardTitle className="flex items-center gap-2">
-          <History className="h-5 w-5" />
-          <span>Recently Viewed</span>
+    <Card className={cn("w-full", className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            <span>Recently Viewed</span>
+          </div>
+          
+          {recentlyViewed.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleClearAll}
+              disabled={clearRecentlyViewedMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </CardTitle>
-        {!compact && (
-          <CardDescription>
-            Parcels you have recently viewed
-          </CardDescription>
-        )}
+        <CardDescription>Parcels you've recently viewed</CardDescription>
       </CardHeader>
-      <CardContent className={compact ? "p-3 pt-0" : "p-4 pt-0"}>
+      
+      <CardContent>
         {isLoading ? (
-          <div className="flex justify-center p-4">
-            <div className="animate-pulse">Loading history...</div>
+          <div className="py-4 text-center text-muted-foreground">Loading...</div>
+        ) : recentlyViewed.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground">
+            <MapPin className="h-10 w-10 mx-auto mb-2 opacity-40" />
+            <p>No recently viewed parcels</p>
+            <p className="text-sm">Viewed parcels will appear here</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {recentParcels.length > 0 && (
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search parcels..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1.5 h-7 w-7"
-                    onClick={() => setSearchTerm('')}
-                  >
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Clear</span>
-                  </Button>
-                )}
+          <ScrollArea className="h-[300px] pr-4">
+            {dates.map(date => (
+              <div key={date} className="mb-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2">{formatDate(date)}</h3>
+                
+                {groupedParcels[date].map(parcel => (
+                  <ParcelItem 
+                    key={parcel.id} 
+                    parcel={parcel} 
+                    onSelect={() => onSelectParcel?.(parcel.parcelId)} 
+                  />
+                ))}
               </div>
-            )}
-            
-            {recentParcels.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <MapPin className="mx-auto h-12 w-12 opacity-20 mb-2" />
-                <p>No recently viewed parcels</p>
-                <p className="text-sm">Parcels you view will appear here</p>
-              </div>
-            ) : filteredParcels.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <Search className="mx-auto h-8 w-8 opacity-20 mb-2" />
-                <p>No matching parcels found</p>
-                <p className="text-sm">Try a different search term</p>
-              </div>
-            ) : (
-              <ScrollArea className={compact ? "h-[250px]" : "h-[350px]"}>
-                <div className="space-y-2">
-                  {filteredParcels.map((parcel) => (
-                    <div
-                      key={parcel.id}
-                      className="rounded-md border p-2 hover:bg-accent/50 cursor-pointer group relative transition-colors"
-                      onClick={() => handleParcelSelect(parcel)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium flex items-center gap-1">
-                            <Building2 className="h-3.5 w-3.5" />
-                            {parcel.parcelNumber}
-                          </h4>
-                          
-                          {parcel.address && (
-                            <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
-                              {parcel.address}
-                            </p>
-                          )}
-                          
-                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                            <div className="flex items-center gap-0.5">
-                              <Clock className="h-3 w-3" />
-                              <span>{formatRelativeTime(parcel.viewedAt)}</span>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              <Navigation className="h-3 w-3" />
-                              <span>Zoom {parcel.zoom}</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={(e) => handleRemoveParcel(parcel, e)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span className="sr-only">Remove</span>
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-1.5 flex justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs flex gap-0.5"
-                          onClick={() => handleParcelSelect(parcel)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>View Parcel</span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </div>
+            ))}
+          </ScrollArea>
         )}
       </CardContent>
-      
-      {recentParcels.length > 0 && (
-        <CardFooter className={cn("flex justify-between", compact ? "p-3 pt-0" : "p-4 pt-0")}>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full flex gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-            <span>Clear History</span>
-          </Button>
-        </CardFooter>
-      )}
-
-      {/* Confirmation Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clear History</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to clear all recently viewed parcels? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleClearAll}>
-              Clear All
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
+
+interface ParcelItemProps {
+  parcel: any;
+  onSelect: () => void;
+}
+
+function ParcelItem({ parcel, onSelect }: ParcelItemProps) {
+  // In a real implementation, you might fetch more parcel details
+  // or have them included in the response
+  
+  // Calculate relative time (e.g., "2 hours ago")
+  const relativeTime = formatDistanceToNow(new Date(parcel.viewedAt), { addSuffix: true });
+  
+  return (
+    <div 
+      className="group relative bg-card hover:bg-accent p-3 rounded-lg mb-2 transition-colors cursor-pointer"
+      onClick={onSelect}
+    >
+      <div className="flex justify-between">
+        <div>
+          <div className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5" />
+            <h4 className="text-sm font-medium">Parcel #{parcel.parcelId}</h4>
+          </div>
+          
+          {parcel.parcelDetails && parcel.parcelDetails.address && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {parcel.parcelDetails.address}
+            </p>
+          )}
+          
+          <div className="text-xs text-muted-foreground mt-1">
+            {relativeTime}
+          </div>
+        </div>
+        
+        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export default RecentlyViewedParcels;

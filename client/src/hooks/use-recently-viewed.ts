@@ -1,90 +1,73 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { RecentlyViewedParcel } from '../../shared/schema';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useState } from 'react';
 
-export interface RecentParcel {
-  id: number;
+export interface ViewParcelInput {
   parcelId: number;
-  parcelNumber: string;
-  address: string | null;
-  center: [number, number];
-  zoom: number;
-  viewedAt: Date | null;
-  userId: number | null;
 }
 
-/**
- * Hook for managing recently viewed parcels
- */
-export function useRecentlyViewed(limit?: number) {
-  const queryClient = useQueryClient();
+export default function useRecentlyViewed() {
+  const [limit, setLimit] = useState(20);
   
   // Fetch recently viewed parcels
-  const { data: recentParcels = [], isLoading, error } = useQuery({
-    queryKey: ['/api/recently-viewed-parcels', { limit }],
-    queryFn: async () => {
-      const url = limit 
-        ? `/api/recently-viewed-parcels?limit=${limit}` 
-        : '/api/recently-viewed-parcels';
-      
-      const response = await apiRequest(url);
-      return response as RecentParcel[];
-    },
-    placeholderData: [],
-  });
-
-  // Add parcel to recently viewed list
-  const addRecentParcel = useMutation({
-    mutationFn: (parcel: { 
-      parcelId: number; 
-      parcelNumber: string; 
-      center: [number, number]; 
-      zoom: number;
-      address?: string | null;
-    }) => 
-      apiRequest('/api/recently-viewed-parcels', {
-        method: 'POST',
-        body: JSON.stringify(parcel),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
-    },
-  });
-
-  // Remove a parcel from the recently viewed list
-  const removeRecentParcel = useMutation({
-    mutationFn: (id: number) => 
-      apiRequest(`/api/recently-viewed-parcels/${id}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
-    },
-  });
-
-  // Clear all parcels from recently viewed list
-  const clearRecentParcels = useMutation({
-    mutationFn: () => 
-      apiRequest('/api/recently-viewed-parcels', {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
-    },
-  });
-
-  // Sort parcels by viewed date (newest first)
-  const sortedByDate = [...recentParcels].sort((a, b) => {
-    const dateA = a.viewedAt ? new Date(a.viewedAt).getTime() : 0;
-    const dateB = b.viewedAt ? new Date(b.viewedAt).getTime() : 0;
-    return dateB - dateA;
-  });
-
-  return {
-    recentParcels: sortedByDate,
-    isLoading,
+  const { 
+    data = [], 
+    isLoading, 
+    isError,
     error,
-    addRecentParcel,
-    removeRecentParcel,
-    clearRecentParcels,
+    refetch
+  } = useQuery({
+    queryKey: ['/api/recently-viewed-parcels'],
+    select: (data: RecentlyViewedParcel[]) => {
+      // Sort by viewedAt in descending order (newest first)
+      return [...data].sort((a, b) => 
+        new Date(b.viewedAt).getTime() - new Date(a.viewedAt).getTime()
+      );
+    }
+  });
+  
+  // Add parcel to recently viewed
+  const viewParcelMutation = useMutation({
+    mutationFn: async ({ parcelId }: ViewParcelInput) => {
+      return apiRequest('/api/recently-viewed-parcels', {
+        method: 'POST',
+        body: JSON.stringify({ parcelId })
+      });
+    },
+    onSuccess: () => {
+      // Invalidate the recently viewed parcels query to refetch data
+      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
+    }
+  });
+  
+  // Clear all recently viewed parcels
+  const clearRecentlyViewedMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/recently-viewed-parcels', {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      // Invalidate the recently viewed parcels query to refetch data
+      queryClient.invalidateQueries({ queryKey: ['/api/recently-viewed-parcels'] });
+    }
+  });
+  
+  // Handle function to mark a parcel as viewed
+  const markParcelAsViewed = (parcelId: number) => {
+    viewParcelMutation.mutate({ parcelId });
+  };
+  
+  return {
+    recentlyViewed: data,
+    isLoading,
+    isError,
+    error,
+    markParcelAsViewed,
+    clearRecentlyViewedMutation,
+    viewParcelMutation,
+    refetch,
+    setLimit
   };
 }

@@ -1,483 +1,386 @@
 import React, { useState } from 'react';
-import { useMapBookmarks, Bookmark } from '@/hooks/use-map-bookmarks';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import useMapBookmarks from '@/hooks/use-map-bookmarks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { CirclePlus, Bookmark, MapPin, Trash2, Edit, Pin, Star, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Bookmark as BookmarkIcon, PlusCircle, Star, Pin, Trash, Edit, MapPin, Compass, Save } from 'lucide-react';
 
-export interface BookmarkManagerProps {
+interface BookmarkManagerProps {
+  onApplyBookmark?: (bookmark: { latitude: number; longitude: number; zoom: number }) => void;
+  currentMapState?: { center: [number, number]; zoom: number };
   className?: string;
-  compact?: boolean;
-  onBookmarkSelect?: (lat: number, lng: number, zoom: number) => void;
 }
 
-export function BookmarkManager({ className, compact = false, onBookmarkSelect }: BookmarkManagerProps) {
-  const { toast } = useToast();
-  const { 
-    bookmarks, 
-    sortedBookmarks, 
-    pinnedBookmarks,
-    defaultBookmark,
-    isLoading, 
-    createBookmark, 
-    updateBookmark, 
-    deleteBookmark,
-    togglePinned,
-    setDefaultBookmark
-  } = useMapBookmarks();
-
-  // State for the edit/create dialog
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentBookmark, setCurrentBookmark] = useState<Bookmark | null>(null);
-  const [bookmarkToDelete, setBookmarkToDelete] = useState<Bookmark | null>(null);
+export function BookmarkManager({ onApplyBookmark, currentMapState, className }: BookmarkManagerProps) {
+  const { bookmarks, isLoading, createBookmarkMutation, updateBookmarkMutation, deleteBookmarkMutation } = useMapBookmarks();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedBookmark, setSelectedBookmark] = useState<number | null>(null);
+  const [newBookmarkName, setNewBookmarkName] = useState('');
+  const [newBookmarkDescription, setNewBookmarkDescription] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
   
-  // Form state
-  const [formState, setFormState] = useState({
-    name: '',
-    description: '',
-    latitude: 0,
-    longitude: 0,
-    zoom: 14,
-    color: '#3b82f6', // Default blue color
-    tags: '',
-    isPinned: false,
-    isDefault: false
-  });
-
-  // Initialize form for new bookmark
-  const initNewBookmarkForm = (defaultLocation?: { lat: number, lng: number, zoom: number }) => {
-    setCurrentBookmark(null);
-    setFormState({
-      name: '',
-      description: '',
-      latitude: defaultLocation?.lat || 44.5638,
-      longitude: defaultLocation?.lng || -123.2794,
-      zoom: defaultLocation?.zoom || 14,
-      color: '#3b82f6',
-      tags: '',
-      isPinned: false,
-      isDefault: false
-    });
-    setIsDialogOpen(true);
-  };
-
-  // Initialize form for editing existing bookmark
-  const initEditBookmarkForm = (bookmark: Bookmark) => {
-    setCurrentBookmark(bookmark);
-    setFormState({
-      name: bookmark.name,
-      description: bookmark.description || '',
-      latitude: bookmark.latitude,
-      longitude: bookmark.longitude,
-      zoom: bookmark.zoom,
-      color: bookmark.color || '#3b82f6',
-      tags: bookmark.tags ? bookmark.tags.join(', ') : '',
-      isPinned: !!bookmark.isPinned,
-      isDefault: !!bookmark.isDefault
-    });
-    setIsDialogOpen(true);
-  };
-
-  // Update form state
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    if (type === 'checkbox') {
-      const inputElement = e.target as HTMLInputElement;
-      setFormState({ ...formState, [name]: inputElement.checked });
-    } else {
-      setFormState({ ...formState, [name]: value });
+  const pinnedBookmarks = bookmarks.filter(b => b.isPinned);
+  const regularBookmarks = bookmarks.filter(b => !b.isPinned);
+  
+  // Function to open the create dialog with current map state
+  const openCreateDialog = () => {
+    if (currentMapState) {
+      setNewBookmarkName('');
+      setNewBookmarkDescription('');
+      setIsDefault(false);
+      setIsPinned(false);
+      setTags([]);
+      setIsCreateOpen(true);
     }
   };
-
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  
+  // Function to handle creating a new bookmark
+  const handleCreateBookmark = () => {
+    if (!currentMapState || !newBookmarkName.trim()) return;
     
-    // Validate form
-    if (!formState.name.trim()) {
-      toast({ title: "Error", description: "Bookmark name is required", variant: "destructive" });
-      return;
-    }
-
-    if (isNaN(formState.latitude) || isNaN(formState.longitude) || isNaN(formState.zoom)) {
-      toast({ title: "Error", description: "Invalid coordinates or zoom level", variant: "destructive" });
-      return;
-    }
-
-    // Process tags
-    const tags = formState.tags
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(tag => tag !== '');
-
-    // Create or update bookmark
-    if (currentBookmark) {
-      // Update existing bookmark
-      updateBookmark.mutate({
-        id: currentBookmark.id,
-        name: formState.name,
-        description: formState.description || null,
-        latitude: formState.latitude,
-        longitude: formState.longitude,
-        zoom: formState.zoom,
-        color: formState.color,
-        tags: tags.length > 0 ? tags : null,
-        isPinned: formState.isPinned,
-        isDefault: formState.isDefault
-      }, {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Bookmark updated successfully" });
-          setIsDialogOpen(false);
-        },
-        onError: () => {
-          toast({ title: "Error", description: "Failed to update bookmark", variant: "destructive" });
-        }
-      });
-    } else {
-      // Create new bookmark
-      createBookmark.mutate({
-        name: formState.name,
-        description: formState.description,
-        latitude: formState.latitude,
-        longitude: formState.longitude,
-        zoom: formState.zoom,
-        color: formState.color,
-        tags: tags.length > 0 ? tags : undefined,
-        isPinned: formState.isPinned,
-        isDefault: formState.isDefault
-      }, {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Bookmark created successfully" });
-          setIsDialogOpen(false);
-        },
-        onError: () => {
-          toast({ title: "Error", description: "Failed to create bookmark", variant: "destructive" });
-        }
+    const [latitude, longitude] = currentMapState.center;
+    
+    createBookmarkMutation.mutate({
+      name: newBookmarkName.trim(),
+      description: newBookmarkDescription.trim() || undefined,
+      latitude,
+      longitude,
+      zoom: currentMapState.zoom,
+      isDefault,
+      isPinned,
+      tags: tags.length > 0 ? tags : undefined
+    });
+    
+    setIsCreateOpen(false);
+  };
+  
+  // Function to open edit dialog
+  const openEditDialog = (bookmark: any) => {
+    setSelectedBookmark(bookmark.id);
+    setNewBookmarkName(bookmark.name);
+    setNewBookmarkDescription(bookmark.description || '');
+    setIsDefault(!!bookmark.isDefault);
+    setIsPinned(!!bookmark.isPinned);
+    setTags(bookmark.tags || []);
+    setIsEditOpen(true);
+  };
+  
+  // Function to handle updating a bookmark
+  const handleUpdateBookmark = () => {
+    if (!selectedBookmark || !newBookmarkName.trim()) return;
+    
+    updateBookmarkMutation.mutate({
+      id: selectedBookmark,
+      name: newBookmarkName.trim(),
+      description: newBookmarkDescription.trim() || undefined,
+      isDefault,
+      isPinned,
+      tags: tags.length > 0 ? tags : undefined
+    });
+    
+    setIsEditOpen(false);
+  };
+  
+  // Function to handle applying a bookmark (navigating to it)
+  const handleApplyBookmark = (bookmark: any) => {
+    if (onApplyBookmark) {
+      onApplyBookmark({
+        latitude: bookmark.latitude,
+        longitude: bookmark.longitude,
+        zoom: bookmark.zoom
       });
     }
   };
-
-  // Handle delete confirmation
-  const confirmDelete = (bookmark: Bookmark) => {
-    setBookmarkToDelete(bookmark);
-    setIsDeleteDialogOpen(true);
-  };
-
-  // Handle bookmark deletion
-  const handleDelete = () => {
-    if (bookmarkToDelete) {
-      deleteBookmark.mutate(bookmarkToDelete.id, {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Bookmark deleted successfully" });
-          setIsDeleteDialogOpen(false);
-        },
-        onError: () => {
-          toast({ title: "Error", description: "Failed to delete bookmark", variant: "destructive" });
-        }
-      });
+  
+  // Function to add a tag
+  const addTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags([...tags, newTag.trim()]);
+      setNewTag('');
     }
   };
-
-  // Handle selecting a bookmark to center the map
-  const handleBookmarkSelect = (bookmark: Bookmark) => {
-    if (onBookmarkSelect) {
-      onBookmarkSelect(bookmark.latitude, bookmark.longitude, bookmark.zoom);
-    }
+  
+  // Function to remove a tag
+  const removeTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
   };
-
-  // Handle toggling pinned status
-  const handleTogglePinned = (bookmark: Bookmark) => {
-    togglePinned(bookmark.id, !bookmark.isPinned);
-  };
-
-  // Handle setting a bookmark as default
-  const handleSetDefault = (bookmark: Bookmark) => {
-    setDefaultBookmark(bookmark.id);
-  };
-
+  
   return (
-    <Card className={cn("w-full backdrop-blur-sm bg-background/75 border border-accent shadow-md", className)}>
-      <CardHeader className={compact ? "p-3" : "p-4"}>
-        <CardTitle className="flex items-center gap-2">
-          <BookmarkIcon className="h-5 w-5" />
-          <span>Bookmarks</span>
-        </CardTitle>
-        {!compact && (
-          <CardDescription>
-            Save and manage your favorite map locations
-          </CardDescription>
-        )}
-      </CardHeader>
-      <CardContent className={compact ? "p-3 pt-0" : "p-4 pt-0"}>
-        {isLoading ? (
-          <div className="flex justify-center p-4">
-            <div className="animate-pulse">Loading bookmarks...</div>
+    <Card className={cn("w-full", className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bookmark className="h-5 w-5" />
+            <span>Saved Locations</span>
           </div>
-        ) : sortedBookmarks.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
-            <BookmarkIcon className="mx-auto h-12 w-12 opacity-20 mb-2" />
-            <p>No bookmarks yet</p>
-            <p className="text-sm">Save your favorite locations for quick access</p>
+          <Button variant="ghost" size="icon" onClick={openCreateDialog} disabled={!currentMapState}>
+            <CirclePlus className="h-5 w-5" />
+          </Button>
+        </CardTitle>
+        <CardDescription>Save and manage your favorite map locations</CardDescription>
+      </CardHeader>
+      
+      <CardContent>
+        {isLoading ? (
+          <div className="py-4 text-center text-muted-foreground">Loading bookmarks...</div>
+        ) : bookmarks.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground">
+            <MapPin className="h-10 w-10 mx-auto mb-2 opacity-40" />
+            <p>No saved locations yet.</p>
+            <p className="text-sm">Use the + button to save your current view.</p>
           </div>
         ) : (
-          <ScrollArea className={compact ? "h-[250px]" : "h-[350px]"}>
-            <div className="space-y-2">
-              {defaultBookmark && (
-                <div className="mb-3">
-                  <div className="text-sm font-medium mb-1 flex items-center">
-                    <Star className="h-4 w-4 mr-1 fill-yellow-400 text-yellow-400" />
-                    <span>Default Location</span>
-                  </div>
-                  <BookmarkCard 
-                    bookmark={defaultBookmark} 
-                    onSelect={handleBookmarkSelect}
-                    onEdit={initEditBookmarkForm}
-                    onDelete={confirmDelete}
-                    onTogglePinned={handleTogglePinned}
-                    compact={compact}
+          <ScrollArea className="h-[300px] pr-4">
+            {pinnedBookmarks.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                  <Pin className="h-3.5 w-3.5" />
+                  <span>Pinned Locations</span>
+                </div>
+                
+                {pinnedBookmarks.map((bookmark) => (
+                  <BookmarkItem
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    onApply={() => handleApplyBookmark(bookmark)}
+                    onEdit={() => openEditDialog(bookmark)}
+                    onDelete={() => deleteBookmarkMutation.mutate(bookmark.id)}
                   />
+                ))}
+                
+                <Separator className="my-4" />
+              </>
+            )}
+            
+            {regularBookmarks.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span>Saved Locations</span>
                 </div>
-              )}
-              
-              {pinnedBookmarks.length > 0 && defaultBookmark && pinnedBookmarks.some(b => b.id !== defaultBookmark.id) && (
-                <div className="mb-3">
-                  <div className="text-sm font-medium mb-1 flex items-center">
-                    <Pin className="h-4 w-4 mr-1" />
-                    <span>Pinned Locations</span>
-                  </div>
-                  <div className="space-y-2">
-                    {pinnedBookmarks
-                      .filter(b => defaultBookmark && b.id !== defaultBookmark.id)
-                      .map(bookmark => (
-                        <BookmarkCard 
-                          key={bookmark.id} 
-                          bookmark={bookmark} 
-                          onSelect={handleBookmarkSelect}
-                          onEdit={initEditBookmarkForm}
-                          onDelete={confirmDelete}
-                          onTogglePinned={handleTogglePinned}
-                          compact={compact}
-                        />
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-              
-              {sortedBookmarks.some(b => !b.isPinned && (!defaultBookmark || b.id !== defaultBookmark.id)) && (
-                <div>
-                  {(defaultBookmark || pinnedBookmarks.length > 0) && (
-                    <div className="text-sm font-medium mb-1 flex items-center">
-                      <BookmarkIcon className="h-4 w-4 mr-1" />
-                      <span>All Bookmarks</span>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {sortedBookmarks
-                      .filter(b => !b.isPinned && (!defaultBookmark || b.id !== defaultBookmark.id))
-                      .map(bookmark => (
-                        <BookmarkCard 
-                          key={bookmark.id} 
-                          bookmark={bookmark} 
-                          onSelect={handleBookmarkSelect}
-                          onEdit={initEditBookmarkForm}
-                          onDelete={confirmDelete}
-                          onTogglePinned={handleTogglePinned}
-                          onSetDefault={handleSetDefault}
-                          compact={compact}
-                        />
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
+                
+                {regularBookmarks.map((bookmark) => (
+                  <BookmarkItem
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    onApply={() => handleApplyBookmark(bookmark)}
+                    onEdit={() => openEditDialog(bookmark)}
+                    onDelete={() => deleteBookmarkMutation.mutate(bookmark.id)}
+                  />
+                ))}
+              </>
+            )}
           </ScrollArea>
         )}
       </CardContent>
-      <CardFooter className={cn("flex justify-between", compact ? "p-3 pt-0" : "p-4 pt-0")}>
-        <Button 
-          onClick={() => initNewBookmarkForm()} 
-          className="w-full flex gap-1"
-          variant="outline"
-        >
-          <PlusCircle className="h-4 w-4" />
-          <span>Add New Bookmark</span>
-        </Button>
-      </CardFooter>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      
+      {/* Create Bookmark Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{currentBookmark ? 'Edit Bookmark' : 'Create New Bookmark'}</DialogTitle>
+            <DialogTitle>Create New Bookmark</DialogTitle>
             <DialogDescription>
-              {currentBookmark 
-                ? 'Update the details of your saved location' 
-                : 'Save a location for quick access later'}
+              Save your current map view as a bookmark.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Bookmark Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={formState.name}
-                  onChange={handleInputChange}
-                  placeholder="Home, Work, Favorite Park, etc."
-                  required
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={formState.description}
-                  onChange={handleInputChange}
-                  placeholder="Add notes about this location"
-                  rows={2}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="latitude">Latitude</Label>
-                  <Input
-                    id="latitude"
-                    name="latitude"
-                    type="number"
-                    step="any"
-                    value={formState.latitude}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    name="longitude"
-                    type="number"
-                    step="any"
-                    value={formState.longitude}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="zoom">Zoom Level (1-20)</Label>
-                <Input
-                  id="zoom"
-                  name="zoom"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={formState.zoom}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="color">Color</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="color"
-                    name="color"
-                    type="color"
-                    value={formState.color}
-                    onChange={handleInputChange}
-                    className="w-12 h-9 p-1"
-                  />
-                  <Input
-                    value={formState.color}
-                    onChange={handleInputChange}
-                    name="color"
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="tags">Tags (comma separated)</Label>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                placeholder="My Favorite Location"
+                value={newBookmarkName}
+                onChange={(e) => setNewBookmarkName(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description (optional)</Label>
+              <Textarea
+                id="description"
+                placeholder="Add a description..."
+                value={newBookmarkDescription}
+                onChange={(e) => setNewBookmarkDescription(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="tags">Tags (optional)</Label>
+              <div className="flex gap-2">
                 <Input
                   id="tags"
-                  name="tags"
-                  value={formState.tags}
-                  onChange={handleInputChange}
-                  placeholder="work, home, favorite"
+                  placeholder="Add a tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addTag()}
                 />
+                <Button type="button" variant="secondary" onClick={addTag}>
+                  Add
+                </Button>
               </div>
               
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="isPinned"
-                    name="isPinned"
-                    type="checkbox"
-                    checked={formState.isPinned}
-                    onChange={(e) => setFormState({ ...formState, isPinned: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="isPinned" className="text-sm font-normal">Pin to top</Label>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="flex items-center gap-1">
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        className="h-3 w-3 rounded-full text-xs"
+                        aria-label={`Remove ${tag} tag`}
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  ))}
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <input
-                    id="isDefault"
-                    name="isDefault"
-                    type="checkbox"
-                    checked={formState.isDefault}
-                    onChange={(e) => setFormState({ ...formState, isDefault: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="isDefault" className="text-sm font-normal">Set as default</Label>
-                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isDefault" 
+                  checked={isDefault}
+                  onCheckedChange={(checked) => setIsDefault(!!checked)} 
+                />
+                <Label htmlFor="isDefault" className="cursor-pointer">Set as default</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isPinned" 
+                  checked={isPinned}
+                  onCheckedChange={(checked) => setIsPinned(!!checked)} 
+                />
+                <Label htmlFor="isPinned" className="cursor-pointer">Pin to top</Label>
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {currentBookmark ? 'Update Bookmark' : 'Save Bookmark'}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+          
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button 
+              type="submit" 
+              onClick={handleCreateBookmark}
+              disabled={!newBookmarkName.trim() || createBookmarkMutation.isPending}
+            >
+              {createBookmarkMutation.isPending ? 'Saving...' : 'Save Location'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      
+      {/* Edit Bookmark Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Bookmark</DialogTitle>
+            <DialogTitle>Edit Bookmark</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the bookmark "{bookmarkToDelete?.name}"?
-              This action cannot be undone.
+              Update the details of your saved location.
             </DialogDescription>
           </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                placeholder="My Favorite Location"
+                value={newBookmarkName}
+                onChange={(e) => setNewBookmarkName(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description (optional)</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Add a description..."
+                value={newBookmarkDescription}
+                onChange={(e) => setNewBookmarkDescription(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-tags">Tags (optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="edit-tags"
+                  placeholder="Add a tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addTag()}
+                />
+                <Button type="button" variant="secondary" onClick={addTag}>
+                  Add
+                </Button>
+              </div>
+              
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="flex items-center gap-1">
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        className="h-3 w-3 rounded-full text-xs"
+                        aria-label={`Remove ${tag} tag`}
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="edit-isDefault" 
+                  checked={isDefault}
+                  onCheckedChange={(checked) => setIsDefault(!!checked)} 
+                />
+                <Label htmlFor="edit-isDefault" className="cursor-pointer">Set as default</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="edit-isPinned" 
+                  checked={isPinned}
+                  onCheckedChange={(checked) => setIsPinned(!!checked)} 
+                />
+                <Label htmlFor="edit-isPinned" className="cursor-pointer">Pin to top</Label>
+              </div>
+            </div>
+          </div>
+          
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="destructive" onClick={handleDelete}>
-              Delete
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button 
+              type="submit" 
+              onClick={handleUpdateBookmark}
+              disabled={!newBookmarkName.trim() || updateBookmarkMutation.isPending}
+            >
+              {updateBookmarkMutation.isPending ? 'Saving...' : 'Update Location'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -486,122 +389,59 @@ export function BookmarkManager({ className, compact = false, onBookmarkSelect }
   );
 }
 
-interface BookmarkCardProps {
-  bookmark: Bookmark;
-  compact?: boolean;
-  onSelect: (bookmark: Bookmark) => void;
-  onEdit: (bookmark: Bookmark) => void;
-  onDelete: (bookmark: Bookmark) => void;
-  onTogglePinned: (bookmark: Bookmark) => void;
-  onSetDefault?: (bookmark: Bookmark) => void;
+// Individual bookmark item component
+interface BookmarkItemProps {
+  bookmark: any;
+  onApply: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }
 
-function BookmarkCard({ 
-  bookmark, 
-  compact = false,
-  onSelect, 
-  onEdit, 
-  onDelete,
-  onTogglePinned,
-  onSetDefault 
-}: BookmarkCardProps) {
+function BookmarkItem({ bookmark, onApply, onEdit, onDelete }: BookmarkItemProps) {
   return (
-    <div 
-      className={cn(
-        "rounded-md border p-2 transition-colors",
-        "hover:bg-accent/50 group relative",
-        { "border-yellow-400": bookmark.isDefault },
-        { "border-accent": !bookmark.isDefault }
-      )}
-      style={{ 
-        borderLeftWidth: '4px',
-        borderLeftColor: bookmark.color || '#3b82f6'
-      }}
-    >
+    <div className="group relative bg-card hover:bg-accent p-3 rounded-lg mb-2 transition-colors">
       <div className="flex items-start justify-between">
-        <div 
-          className="flex-1 cursor-pointer" 
-          onClick={() => onSelect(bookmark)}
-        >
-          <h4 className="font-medium flex items-center gap-1">
-            {bookmark.isDefault && <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />}
-            {bookmark.isPinned && !bookmark.isDefault && <Pin className="h-3.5 w-3.5" />}
-            {bookmark.name}
-          </h4>
+        <div className="flex-1 mr-2">
+          <div className="flex items-center">
+            <h4 className="text-sm font-medium">{bookmark.name}</h4>
+            {bookmark.isDefault && (
+              <Star className="h-3.5 w-3.5 ml-1 text-amber-500" />
+            )}
+          </div>
           
-          {!compact && bookmark.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
+          {bookmark.description && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
               {bookmark.description}
             </p>
           )}
           
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              <MapPin className="h-3 w-3" />
-              <span>{bookmark.latitude.toFixed(5)}, {bookmark.longitude.toFixed(5)}</span>
-            </div>
-            <div className="flex items-center gap-0.5">
-              <Compass className="h-3 w-3" />
-              <span>Zoom {bookmark.zoom}</span>
-            </div>
-          </div>
-          
-          {!compact && bookmark.tags && bookmark.tags.length > 0 && (
+          {bookmark.tags && bookmark.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {bookmark.tags.map((tag, i) => (
-                <Badge key={i} variant="outline" className="text-xs py-0">
+              {bookmark.tags.map((tag: string) => (
+                <div key={tag} className="flex items-center bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                  <Tag className="h-2.5 w-2.5 mr-1" />
                   {tag}
-                </Badge>
+                </div>
               ))}
             </div>
           )}
         </div>
         
-        <div className="flex gap-1">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-7 w-7" 
-            onClick={() => onEdit(bookmark)}
-          >
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
             <Edit className="h-3.5 w-3.5" />
-            <span className="sr-only">Edit</span>
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-7 w-7 text-destructive" 
-            onClick={() => onDelete(bookmark)}
-          >
-            <Trash className="h-3.5 w-3.5" />
-            <span className="sr-only">Delete</span>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
           </Button>
         </div>
       </div>
       
-      <div className="flex justify-end gap-1 mt-1">
-        {!bookmark.isDefault && onSetDefault && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-7 text-xs flex gap-0.5"
-            onClick={() => onSetDefault(bookmark)}
-          >
-            <Star className="h-3.5 w-3.5" />
-            <span>Set Default</span>
-          </Button>
-        )}
-        
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-7 text-xs flex gap-0.5"
-          onClick={() => onTogglePinned(bookmark)}
-        >
-          <Pin className="h-3.5 w-3.5" />
-          <span>{bookmark.isPinned ? 'Unpin' : 'Pin'}</span>
-        </Button>
-      </div>
+      <Button variant="secondary" size="sm" className="w-full mt-2" onClick={onApply}>
+        Go to location
+      </Button>
     </div>
   );
 }
+
+export default BookmarkManager;
