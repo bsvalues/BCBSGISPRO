@@ -2,6 +2,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
+import MemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
@@ -39,8 +40,12 @@ export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET || 
     `benton-county-gis-workflow-assistant-secret-${Math.random().toString(36).substring(2, 15)}`;
   
-  // Memory store provides a more reliable session in development environment
-  const memoryStore = storage.sessionStore as any;
+  // Create a proper memory store for session handling
+  const MemoryStoreClass = MemoryStore(session);
+  const memoryStore = new MemoryStoreClass({
+    checkPeriod: 86400000, // prune expired entries every 24h
+    max: 1000 // Maximum number of sessions to store
+  });
   
   // Log every set and destroy operation for debugging
   const originalSet = memoryStore.set;
