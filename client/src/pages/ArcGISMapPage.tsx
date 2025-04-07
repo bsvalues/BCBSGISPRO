@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 // Use simplified ArcGIS components without direct dependency on ArcGIS JS API
 import ArcGISProviderSimplified from '../components/maps/arcgis/arcgis-provider-simplified';
 import ArcGISSketchSimplified from '../components/maps/arcgis/arcgis-sketch-simplified';
 import ArcGISRestMap from '../components/maps/arcgis/arcgis-rest-map';
 import ArcGISRestLayer from '../components/maps/arcgis/arcgis-rest-layer';
+import { fetchServiceList, fetchServiceInfo } from '../services/arcgis-rest-service';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { 
   Layers, Map, MapPin, PenTool, FileSearch, 
   ZoomIn, ZoomOut, Home, ChevronLeft, ChevronRight,
-  Globe, Database
+  Globe, Database, Loader2
 } from 'lucide-react';
 
 /**
@@ -25,6 +26,17 @@ const ArcGISMapPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('layers');
   const [isSketchActive, setIsSketchActive] = useState(false);
   const [mapMode, setMapMode] = useState<'simulated' | 'rest'>('simulated');
+  
+  // ArcGIS REST specific state
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedServiceType, setSelectedServiceType] = useState<'FeatureServer' | 'MapServer'>('FeatureServer');
+  const [activeLayers, setActiveLayers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Reference to map component
+  const arcgisRestMapRef = useRef<any>(null);
   
   // Handle map clicks
   const handleMapClick = (e: any) => {
@@ -76,6 +88,116 @@ const ArcGISMapPage: React.FC = () => {
     setIsSketchActive(!isSketchActive);
   };
   
+  // Load ArcGIS services when map mode changes to 'rest'
+  useEffect(() => {
+    if (mapMode === 'rest') {
+      setLoading(true);
+      console.log('Loading ArcGIS services for sidebar...');
+      
+      fetchServiceList()
+        .then(data => {
+          if (data && Array.isArray(data.services)) {
+            console.log(`Found ${data.services.length} services for sidebar`);
+            setServices(data.services);
+          } else {
+            console.warn('Invalid service list format:', data);
+            setError('Failed to load service list');
+            
+            // Provide a small set of hardcoded services for testing
+            setServices([
+              { name: 'Parcels_and_Assess', type: 'FeatureServer' },
+              { name: 'Zoning', type: 'FeatureServer' },
+              { name: 'Roads', type: 'FeatureServer' },
+              { name: 'TaxLots', type: 'FeatureServer' },
+              { name: 'Jurisdictions', type: 'FeatureServer' }
+            ]);
+          }
+        })
+        .catch(err => {
+          console.error('Error loading services:', err);
+          setError('Failed to load ArcGIS services');
+          
+          // Provide a small set of hardcoded services for testing
+          setServices([
+            { name: 'Parcels_and_Assess', type: 'FeatureServer' },
+            { name: 'Zoning', type: 'FeatureServer' },
+            { name: 'Roads', type: 'FeatureServer' },
+            { name: 'TaxLots', type: 'FeatureServer' },
+            { name: 'Jurisdictions', type: 'FeatureServer' }
+          ]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [mapMode]);
+  
+  // Add a layer from the selected service
+  const addSelectedLayer = () => {
+    if (!selectedService) return;
+    
+    setLoading(true);
+    setError(null);
+    console.log(`Adding layer from service: ${selectedService} (${selectedServiceType})`);
+    
+    fetchServiceInfo(selectedService, selectedServiceType)
+      .then(serviceInfo => {
+        console.log('Service info:', serviceInfo);
+        
+        const newLayer = {
+          id: `${selectedService}-${Date.now()}`,
+          name: serviceInfo.documentInfo?.Title || serviceInfo.name || selectedService,
+          serviceType: selectedServiceType,
+          serviceName: selectedService,
+          visible: true,
+          opacity: 1
+        };
+        
+        console.log('Adding new layer:', newLayer);
+        setActiveLayers(prev => [...prev, newLayer]);
+        setLoading(false);
+        setSelectedService(null); // Clear selection after adding
+      })
+      .catch(err => {
+        console.error('Error adding layer:', err);
+        setError(`Failed to add layer from ${selectedService}`);
+        setLoading(false);
+        
+        // Add a fallback layer for testing when error occurs
+        const fallbackLayer = {
+          id: `${selectedService}-fallback-${Date.now()}`,
+          name: selectedService,
+          serviceType: selectedServiceType,
+          serviceName: selectedService,
+          visible: true,
+          opacity: 1
+        };
+        
+        console.log('Adding fallback layer:', fallbackLayer);
+        setActiveLayers(prev => [...prev, fallbackLayer]);
+      })
+      .finally(() => {
+        setLoading(false);
+        setSelectedService(null);
+      });
+  };
+  
+  // Remove a layer
+  const removeLayer = (layerId: string) => {
+    setActiveLayers(prev => prev.filter(layer => layer.id !== layerId));
+  };
+  
+  // Toggle layer visibility
+  const toggleLayerVisibility = (layerId: string) => {
+    setActiveLayers(prev => 
+      prev.map(layer => 
+        layer.id === layerId 
+          ? { ...layer, visible: !layer.visible } 
+          : layer
+      )
+    );
+  };
+  
   return (
     <div className="flex h-screen w-full bg-gray-100 relative overflow-hidden">
       {/* Main map container */}
@@ -101,10 +223,12 @@ const ArcGISMapPage: React.FC = () => {
           </ArcGISProviderSimplified>
         ) : (
           <ArcGISRestMap
+            ref={arcgisRestMapRef}
             initialCenter={[-123.3617, 44.5646]}
             initialZoom={12}
             height="100%"
             showControls={true}
+            layers={activeLayers}
           />
         )}
         
@@ -290,12 +414,149 @@ const ArcGISMapPage: React.FC = () => {
                     <Card className="p-4">
                       <h3 className="font-medium mb-2">ArcGIS REST Services</h3>
                       <p className="text-xs text-gray-500 mb-2">
-                        Use the layers panel in the map to add and configure services from:
+                        Select services to add from Benton County's ArcGIS server:
                       </p>
-                      <code className="text-xs block bg-gray-100 p-2 rounded">
-                        https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services
-                      </code>
-                      <Button size="sm" className="mt-2 w-full">Browse Services</Button>
+                      
+                      {/* Services selection dropdown */}
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm font-medium">Available Services:</label>
+                            {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+                          </div>
+                          
+                          <select 
+                            className="w-full p-2 border rounded text-sm"
+                            value={selectedService || ''}
+                            onChange={(e) => {
+                              const serviceName = e.target.value;
+                              setSelectedService(serviceName);
+                              
+                              // Find service type
+                              const service = services.find(s => s.name === serviceName);
+                              if (service) {
+                                setSelectedServiceType(service.type as 'FeatureServer' | 'MapServer');
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            <option value="">Select a service...</option>
+                            {services.slice(0, 30).map(service => (
+                              <option key={service.name} value={service.name}>
+                                {service.name} ({service.type})
+                              </option>
+                            ))}
+                            {services.length > 30 && (
+                              <option value="" disabled>
+                                ... and {services.length - 30} more services
+                              </option>
+                            )}
+                          </select>
+                          
+                          <div className="flex justify-end">
+                            <Button 
+                              size="sm" 
+                              onClick={addSelectedLayer}
+                              disabled={!selectedService || loading}
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  Loading...
+                                </>
+                              ) : "Add Layer"}
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-1 flex-wrap">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1"
+                            onClick={() => {
+                              setSelectedService('Parcels_and_Assess');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                          >
+                            Add Parcels
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1"
+                            onClick={() => {
+                              setSelectedService('Zoning');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                          >
+                            Add Zoning
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1"
+                            onClick={() => {
+                              setSelectedService('Roads');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                          >
+                            Add Roads
+                          </Button>
+                        </div>
+                        
+                        {error && (
+                          <div className="p-2 text-xs text-red-600 bg-red-50 rounded border border-red-200">
+                            {error}
+                          </div>
+                        )}
+                        
+                        <div className="border-t pt-2">
+                          <h4 className="text-sm font-medium mb-2">
+                            Active Layers ({activeLayers.length})
+                          </h4>
+                          
+                          {activeLayers.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-2">
+                              No layers added yet. Select a service above to add a layer.
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                              {activeLayers.map(layer => (
+                                <div key={layer.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                  <label className="flex items-center">
+                                    <input 
+                                      type="checkbox" 
+                                      className="mr-2" 
+                                      checked={layer.visible} 
+                                      onChange={() => toggleLayerVisibility(layer.id)}
+                                    />
+                                    <span className="text-sm">{layer.name}</span>
+                                  </label>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => removeLayer(layer.id)}
+                                  >
+                                    ×
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 text-xs text-gray-500">
+                        Server: <code className="bg-gray-100 px-1 py-0.5 rounded">services7.arcgis.com/NURlY7V8UHl6XumF</code>
+                      </div>
                     </Card>
                   )}
                 </div>

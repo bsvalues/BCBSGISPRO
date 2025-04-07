@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Card } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Slider } from '../../../components/ui/slider';
@@ -27,6 +27,7 @@ interface ArcGISRestMapProps {
   initialCenter?: [number, number];
   initialZoom?: number;
   showControls?: boolean;
+  layers?: Layer[];
 }
 
 /**
@@ -35,13 +36,15 @@ interface ArcGISRestMapProps {
  * This component uses the ArcGIS REST service to display a map with layers
  * from the specified endpoint. It does not require the ArcGIS JavaScript API.
  */
-const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
-  width = '100%',
-  height = '600px',
-  initialCenter = [-123.3617, 44.5646], // Benton County, Oregon
-  initialZoom = 12,
-  showControls = true
-}) => {
+const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (props, ref) => {
+  const {
+    width = '100%',
+    height = '600px',
+    initialCenter = [-123.3617, 44.5646], // Benton County, Oregon
+    initialZoom = 12,
+    showControls = true,
+    layers: externalLayers = []
+  } = props;
   const [services, setServices] = useState<any[]>([]);
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -53,6 +56,26 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Expose methods to parent component via forwardRef
+  useImperativeHandle(ref, () => ({
+    addLayer,
+    removeLayer,
+    toggleLayerVisibility,
+    updateLayerOpacity,
+    moveLayer,
+    setCenter,
+    setZoom,
+    getLayers: () => layers
+  }));
+  
+  // Handle external layers when they change
+  useEffect(() => {
+    if (externalLayers && externalLayers.length > 0) {
+      console.log('External layers provided:', externalLayers);
+      setLayers(externalLayers);
+    }
+  }, [externalLayers]);
   
   // Fetch available services when component mounts
   useEffect(() => {
@@ -289,11 +312,12 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
     if (!mapRef.current) return;
     
     // Clear previous layers
-    mapRef.current.innerHTML = '';
-    
-    // Get container dimensions
-    const width = mapRef.current.clientWidth;
-    const height = mapRef.current.clientHeight;
+    if (mapRef.current) {
+      mapRef.current.innerHTML = '';
+      
+      // Get container dimensions
+      const width = mapRef.current.clientWidth;
+      const height = mapRef.current.clientHeight;
     
     // Get the current map extent
     const bbox = calculateExtent();
@@ -338,7 +362,9 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
           div.style.fontSize = '14px';
           div.textContent = `FeatureServer layer: ${layer.name}`;
           
-          mapRef.current.appendChild(div);
+          if (mapRef.current) {
+            mapRef.current.appendChild(div);
+          }
           return;
         }
         
@@ -353,9 +379,11 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
         img.style.pointerEvents = 'none';
         
         // Add the image to the map
-        mapRef.current.appendChild(img);
+        if (mapRef.current) {
+          mapRef.current.appendChild(img);
+        }
       });
-      
+    }
   }, [layers, center, zoom]);
   
   // Auto-open the layers panel when in REST mode
@@ -653,4 +681,4 @@ const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
   );
 };
 
-export default ArcGISRestMap;
+export default React.forwardRef(ArcGISRestMap);
