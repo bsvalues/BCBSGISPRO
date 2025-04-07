@@ -14,6 +14,12 @@ import {
   type DocumentVersion, type InsertDocumentVersion,
   type DocumentParcelLink, type InsertDocumentParcelLink,
   type MapViewState,
+  // Document lineage related imports
+  type DocumentEntity, type InsertDocumentEntity,
+  type DocumentLineageEvent, type InsertDocumentLineageEvent,
+  type DocumentRelationship, type InsertDocumentRelationship,
+  type DocumentProcessingStage, type InsertDocumentProcessingStage,
+  type DocumentLineageGraph,
   users, workflows, workflowEvents, workflowStates, checklistItems,
   documents, documentVersions, documentParcelLinks, parcels, mapLayers,
   searchHistory, searchSuggestions, mapBookmarks, mapPreferences,
@@ -158,6 +164,30 @@ export interface IStorage {
   addRecentlyViewedParcel(data: InsertRecentlyViewedParcel): Promise<RecentlyViewedParcel>;
   removeRecentlyViewedParcel(id: number): Promise<boolean>;
   clearRecentlyViewedParcels(userId: number): Promise<boolean>;
+  
+  // Document Lineage Entity Operations
+  createDocument(data: InsertDocumentEntity): Promise<DocumentEntity>;
+  getDocumentById(id: string): Promise<DocumentEntity | undefined>;
+  updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined>;
+  listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]>;
+  
+  // Document Lineage Event Operations
+  createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent>;
+  getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]>;
+  
+  // Document Relationship Operations
+  createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship>;
+  getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]>;
+  
+  // Document Processing Stage Operations
+  createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage>;
+  getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]>;
+  updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined>;
+  
+  // Lineage Graph Generation
+  getDocumentLineage(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
+  getDocumentProvenance(documentId: string, depth?: number): Promise<DocumentLineageGraph>;
+  getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph>;
 }
 
 export class MemStorage implements IStorage {
@@ -176,6 +206,12 @@ export class MemStorage implements IStorage {
   private mapPreferences: Map<number, MapPreference>;
   private recentlyViewedParcels: Map<number, RecentlyViewedParcel>;
   
+  // Document lineage storage
+  private documentEntities: Map<string, DocumentEntity>;
+  private documentLineageEvents: Map<string, DocumentLineageEvent>;
+  private documentRelationships: Map<string, DocumentRelationship>;
+  private documentProcessingStages: Map<string, DocumentProcessingStage>;
+  
   sessionStore: ReturnType<typeof createMemoryStore>;
   
   userId: number;
@@ -192,6 +228,12 @@ export class MemStorage implements IStorage {
   mapBookmarkId: number;
   mapPreferenceId: number;
   recentlyViewedParcelId: number;
+  
+  // Document lineage IDs (using UUIDs for string IDs)
+  private nextDocEntityId: number;
+  private nextLineageEventId: number;
+  private nextRelationshipId: number;
+  private nextProcessingStageId: number;
 
   constructor() {
     this.users = new Map();
@@ -209,6 +251,12 @@ export class MemStorage implements IStorage {
     this.mapPreferences = new Map();
     this.recentlyViewedParcels = new Map();
     
+    // Initialize document lineage storage
+    this.documentEntities = new Map();
+    this.documentLineageEvents = new Map();
+    this.documentRelationships = new Map();
+    this.documentProcessingStages = new Map();
+    
     this.userId = 1;
     this.workflowId = 1;
     this.stateId = 1;
@@ -223,6 +271,12 @@ export class MemStorage implements IStorage {
     this.mapBookmarkId = 1;
     this.mapPreferenceId = 1;
     this.recentlyViewedParcelId = 1;
+    
+    // Initialize document lineage IDs
+    this.nextDocEntityId = 1;
+    this.nextLineageEventId = 1;
+    this.nextRelationshipId = 1;
+    this.nextProcessingStageId = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
@@ -2034,6 +2088,436 @@ export class DatabaseStorage implements IStorage {
       .where(eq(recentlyViewedParcels.userId, userId));
     
     return result.rowCount > 0;
+  }
+
+  // Document Lineage Entity Operations
+  async createDocument(data: InsertDocumentEntity): Promise<DocumentEntity> {
+    const id = `doc_${this.nextDocEntityId++}`;
+    const document: DocumentEntity = {
+      id,
+      documentType: data.documentType,
+      documentName: data.documentName,
+      description: data.description,
+      fileSize: data.fileSize,
+      fileHash: data.fileHash,
+      parcelId: data.parcelId,
+      uploadedBy: data.uploadedBy,
+      createdAt: new Date(),
+      status: 'active'
+    };
+    
+    this.documentEntities.set(id, document);
+    return document;
+  }
+  
+  async getDocumentById(id: string): Promise<DocumentEntity | undefined> {
+    return this.documentEntities.get(id);
+  }
+  
+  async updateDocument(id: string, data: Partial<InsertDocumentEntity>): Promise<DocumentEntity | undefined> {
+    const document = this.documentEntities.get(id);
+    if (!document) {
+      return undefined;
+    }
+    
+    const updatedDocument: DocumentEntity = {
+      ...document,
+      documentType: data.documentType || document.documentType,
+      documentName: data.documentName || document.documentName,
+      description: data.description !== undefined ? data.description : document.description,
+      fileSize: data.fileSize !== undefined ? data.fileSize : document.fileSize,
+      fileHash: data.fileHash !== undefined ? data.fileHash : document.fileHash,
+      parcelId: data.parcelId !== undefined ? data.parcelId : document.parcelId,
+      uploadedBy: data.uploadedBy !== undefined ? data.uploadedBy : document.uploadedBy,
+    };
+    
+    this.documentEntities.set(id, updatedDocument);
+    return updatedDocument;
+  }
+  
+  async listDocuments(filters?: Partial<DocumentEntity>): Promise<DocumentEntity[]> {
+    let documents = Array.from(this.documentEntities.values());
+    
+    // Apply filters if provided
+    if (filters) {
+      documents = documents.filter(doc => {
+        for (const [key, value] of Object.entries(filters)) {
+          // Skip undefined values in filters
+          if (value === undefined) continue;
+          
+          // Handle special cases
+          if (key === 'createdAt' && doc.createdAt !== value) {
+            return false;
+          }
+          
+          // @ts-ignore - We're dynamically accessing properties
+          if (doc[key] !== value) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+    
+    return documents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  // Document Lineage Event Operations
+  async createLineageEvent(data: InsertDocumentLineageEvent): Promise<DocumentLineageEvent> {
+    const id = `event_${this.nextLineageEventId++}`;
+    const event: DocumentLineageEvent = {
+      id,
+      eventType: data.eventType,
+      documentId: data.documentId,
+      performedBy: data.performedBy,
+      details: data.details,
+      confidence: data.confidence,
+      eventTimestamp: new Date()
+    };
+    
+    this.documentLineageEvents.set(id, event);
+    return event;
+  }
+  
+  async getLineageEventsForDocument(documentId: string): Promise<DocumentLineageEvent[]> {
+    return Array.from(this.documentLineageEvents.values())
+      .filter(event => event.documentId === documentId)
+      .sort((a, b) => b.eventTimestamp.getTime() - a.eventTimestamp.getTime());
+  }
+  
+  // Document Relationship Operations
+  async createRelationship(data: InsertDocumentRelationship): Promise<DocumentRelationship> {
+    const id = `rel_${this.nextRelationshipId++}`;
+    const relationship: DocumentRelationship = {
+      id,
+      sourceDocumentId: data.sourceDocumentId,
+      targetDocumentId: data.targetDocumentId,
+      relationshipType: data.relationshipType,
+      notes: data.notes,
+      metadata: data.metadata,
+      createdAt: new Date()
+    };
+    
+    this.documentRelationships.set(id, relationship);
+    return relationship;
+  }
+  
+  async getRelationshipsForDocument(documentId: string, relationshipType?: string): Promise<DocumentRelationship[]> {
+    return Array.from(this.documentRelationships.values())
+      .filter(rel => {
+        const matchesDocument = rel.sourceDocumentId === documentId || rel.targetDocumentId === documentId;
+        const matchesType = relationshipType ? rel.relationshipType === relationshipType : true;
+        return matchesDocument && matchesType;
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  // Document Processing Stage Operations
+  async createProcessingStage(data: InsertDocumentProcessingStage): Promise<DocumentProcessingStage> {
+    const id = `stage_${this.nextProcessingStageId++}`;
+    const stage: DocumentProcessingStage = {
+      id,
+      documentId: data.documentId,
+      stageName: data.stageName,
+      processorName: data.processorName,
+      processorVersion: data.processorVersion,
+      result: data.result,
+      status: 'pending',
+      progress: 0,
+      startedAt: new Date(),
+      completedAt: undefined
+    };
+    
+    this.documentProcessingStages.set(id, stage);
+    return stage;
+  }
+  
+  async getProcessingStagesForDocument(documentId: string): Promise<DocumentProcessingStage[]> {
+    return Array.from(this.documentProcessingStages.values())
+      .filter(stage => stage.documentId === documentId)
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  }
+  
+  async updateProcessingStage(id: string, data: Partial<InsertDocumentProcessingStage>): Promise<DocumentProcessingStage | undefined> {
+    const stage = this.documentProcessingStages.get(id);
+    if (!stage) {
+      return undefined;
+    }
+    
+    // Update the specified fields
+    const updatedStage: DocumentProcessingStage = {
+      ...stage,
+      stageName: data.stageName || stage.stageName,
+      processorName: data.processorName !== undefined ? data.processorName : stage.processorName,
+      processorVersion: data.processorVersion !== undefined ? data.processorVersion : stage.processorVersion,
+      result: data.result !== undefined ? data.result : stage.result,
+    };
+    
+    this.documentProcessingStages.set(id, updatedStage);
+    return updatedStage;
+  }
+  
+  // Helper method to update a processing stage's status and progress
+  async updateProcessingStageStatus(
+    id: string, 
+    status: 'pending' | 'in_progress' | 'completed' | 'failed', 
+    progress: number, 
+    completedAt?: Date
+  ): Promise<DocumentProcessingStage | undefined> {
+    const stage = this.documentProcessingStages.get(id);
+    if (!stage) {
+      return undefined;
+    }
+    
+    const updatedStage: DocumentProcessingStage = {
+      ...stage,
+      status,
+      progress,
+      completedAt: completedAt || (status === 'completed' ? new Date() : stage.completedAt)
+    };
+    
+    this.documentProcessingStages.set(id, updatedStage);
+    return updatedStage;
+  }
+  
+  // Lineage Graph Generation
+  async getDocumentLineage(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
+    const document = await this.getDocumentById(documentId);
+    if (!document) {
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    const graph: DocumentLineageGraph = {
+      nodes: [],
+      edges: [],
+      metadata: {
+        generatedAt: new Date(),
+        depth,
+        rootDocumentId: documentId
+      }
+    };
+    
+    // Start building the graph with the source document
+    await this.buildLineageGraph(document, graph, depth, 'outgoing');
+    
+    return graph;
+  }
+  
+  async getDocumentProvenance(documentId: string, depth: number = 2): Promise<DocumentLineageGraph> {
+    const document = await this.getDocumentById(documentId);
+    if (!document) {
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    const graph: DocumentLineageGraph = {
+      nodes: [],
+      edges: [],
+      metadata: {
+        generatedAt: new Date(),
+        depth,
+        rootDocumentId: documentId
+      }
+    };
+    
+    // Start building the graph with the source document (in the 'incoming' direction)
+    await this.buildLineageGraph(document, graph, depth, 'incoming');
+    
+    return graph;
+  }
+  
+  async getCompleteDocumentGraph(documentIds: string[]): Promise<DocumentLineageGraph> {
+    const graph: DocumentLineageGraph = {
+      nodes: [],
+      edges: [],
+      metadata: {
+        generatedAt: new Date(),
+        documentCount: documentIds.length
+      }
+    };
+    
+    // Process each document
+    for (const documentId of documentIds) {
+      const document = await this.getDocumentById(documentId);
+      if (document) {
+        // Add both incoming and outgoing relationships, but with a limited depth
+        await this.buildLineageGraph(document, graph, 1, 'both');
+      }
+    }
+    
+    return graph;
+  }
+  
+  /**
+   * Helper method to recursively build lineage graphs
+   * @param document The document to process
+   * @param graph The graph to build
+   * @param remainingDepth How many more levels to traverse
+   * @param direction 'outgoing' for lineage, 'incoming' for provenance, 'both' for complete graph
+   */
+  private async buildLineageGraph(
+    document: DocumentEntity,
+    graph: DocumentLineageGraph,
+    remainingDepth: number,
+    direction: 'incoming' | 'outgoing' | 'both'
+  ): Promise<void> {
+    // Check if we've already included this document node to prevent cycles
+    const existingDocNode = graph.nodes.find(node => 
+      node.type === 'document' && node.data.entityId === document.id);
+    
+    if (!existingDocNode) {
+      // Create and add document node
+      const documentNode: DocumentLineageNode = {
+        id: `node_doc_${document.id}`,
+        type: 'document',
+        label: document.documentName,
+        data: {
+          entityId: document.id,
+          documentName: document.documentName,
+          documentType: document.documentType,
+          createdAt: document.createdAt,
+          uploadedBy: document.uploadedBy,
+          parcelId: document.parcelId,
+          status: document.status,
+          description: document.description,
+          fileSize: document.fileSize,
+          fileHash: document.fileHash
+        }
+      };
+      graph.nodes.push(documentNode);
+      
+      // Add events for this document
+      const events = await this.getLineageEventsForDocument(document.id);
+      for (const event of events) {
+        const eventNode: DocumentLineageNode = {
+          id: `node_event_${event.id}`,
+          type: 'event',
+          label: event.eventType,
+          data: {
+            entityId: event.id,
+            eventType: event.eventType,
+            eventTimestamp: event.eventTimestamp,
+            performedBy: event.performedBy,
+            documentId: event.documentId,
+            details: event.details,
+            confidence: event.confidence
+          }
+        };
+        graph.nodes.push(eventNode);
+        
+        // Add edge from document to event
+        const eventEdge: DocumentLineageEdge = {
+          id: `edge_doc_event_${document.id}_${event.id}`,
+          source: `node_doc_${document.id}`,
+          target: `node_event_${event.id}`,
+          type: 'has_event',
+          label: 'has event'
+        };
+        graph.edges.push(eventEdge);
+      }
+      
+      // Add processing stages for this document
+      const stages = await this.getProcessingStagesForDocument(document.id);
+      for (const stage of stages) {
+        const stageNode: DocumentLineageNode = {
+          id: `node_stage_${stage.id}`,
+          type: 'processing',
+          label: stage.stageName,
+          data: {
+            entityId: stage.id,
+            stageName: stage.stageName,
+            status: stage.status,
+            startedAt: stage.startedAt,
+            completedAt: stage.completedAt,
+            processorName: stage.processorName,
+            processorVersion: stage.processorVersion,
+            progress: stage.progress,
+            documentId: stage.documentId,
+            result: stage.result
+          }
+        };
+        graph.nodes.push(stageNode);
+        
+        // Add edge from document to stage
+        const stageEdge: DocumentLineageEdge = {
+          id: `edge_doc_stage_${document.id}_${stage.id}`,
+          source: `node_doc_${document.id}`,
+          target: `node_stage_${stage.id}`,
+          type: 'has_processing',
+          label: 'processed by'
+        };
+        graph.edges.push(stageEdge);
+      }
+      
+      // Stop recursion if we've reached the depth limit
+      if (remainingDepth <= 0) {
+        return;
+      }
+      
+      // Process relationships based on direction
+      const relationships = await this.getRelationshipsForDocument(document.id);
+      
+      for (const relationship of relationships) {
+        if (direction === 'outgoing' || direction === 'both') {
+          // Outgoing relationships (document is the source)
+          if (relationship.sourceDocumentId === document.id) {
+            const targetDocument = await this.getDocumentById(relationship.targetDocumentId);
+            if (targetDocument) {
+              // Add the target document and the relationship
+              await this.buildLineageGraph(targetDocument, graph, remainingDepth - 1, direction);
+              
+              // Add edge from source to target
+              const edge: DocumentLineageEdge = {
+                id: `edge_rel_${relationship.id}`,
+                source: `node_doc_${document.id}`,
+                target: `node_doc_${relationship.targetDocumentId}`,
+                type: relationship.relationshipType,
+                label: relationship.relationshipType,
+                data: {
+                  notes: relationship.notes,
+                  metadata: relationship.metadata,
+                  createdAt: relationship.createdAt
+                }
+              };
+              
+              // Check if this edge already exists to prevent duplicates
+              if (!graph.edges.some(e => e.id === edge.id)) {
+                graph.edges.push(edge);
+              }
+            }
+          }
+        }
+        
+        if (direction === 'incoming' || direction === 'both') {
+          // Incoming relationships (document is the target)
+          if (relationship.targetDocumentId === document.id) {
+            const sourceDocument = await this.getDocumentById(relationship.sourceDocumentId);
+            if (sourceDocument) {
+              // Add the source document and the relationship
+              await this.buildLineageGraph(sourceDocument, graph, remainingDepth - 1, direction);
+              
+              // Add edge from source to target
+              const edge: DocumentLineageEdge = {
+                id: `edge_rel_${relationship.id}`,
+                source: `node_doc_${relationship.sourceDocumentId}`,
+                target: `node_doc_${document.id}`,
+                type: relationship.relationshipType,
+                label: relationship.relationshipType,
+                data: {
+                  notes: relationship.notes,
+                  metadata: relationship.metadata,
+                  createdAt: relationship.createdAt
+                }
+              };
+              
+              // Check if this edge already exists to prevent duplicates
+              if (!graph.edges.some(e => e.id === edge.id)) {
+                graph.edges.push(edge);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
 

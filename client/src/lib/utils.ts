@@ -1,29 +1,83 @@
 import { type ClassValue, clsx } from "clsx";
+import { format } from 'date-fns';
 import { twMerge } from "tailwind-merge";
 
 /**
- * Combines class names using clsx and tailwind-merge
- * for a clean, optimized approach to conditional styling
+ * Combines multiple class names into a single string
+ * Uses clsx and tailwind-merge for proper handling
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Generates a random numeric ID with a specified length
- * @param length The length of the ID to generate
- * @returns A string containing the randomly generated ID
+ * Formats a date with a specified format string
+ * Defaults to "MMM d, yyyy" (e.g., Jan 1, 2023)
  */
-export function generateId(length: number = 8): string {
-  return Math.random().toString().substring(2, 2 + length);
+export function formatDate(date: Date, formatStr: string = "MMM d, yyyy"): string {
+  try {
+    return format(date, formatStr);
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "Invalid date";
+  }
 }
 
 /**
- * Debounces a function call, useful for expensive operations
- * that shouldn't be called too frequently (e.g., searches)
- * @param func The function to debounce
- * @param wait The wait time in milliseconds
- * @returns A debounced version of the function
+ * Formats a date with time
+ * Uses format "MMM d, yyyy h:mm a" (e.g., Jan 1, 2023 3:30 PM)
+ */
+export function formatDateTime(date: Date): string {
+  return formatDate(date, "MMM d, yyyy h:mm a");
+}
+
+/**
+ * Truncates a string to a specified length
+ * Adds ellipsis if truncated
+ */
+export function truncateText(text: string, maxLength: number = 100): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return `${text.substring(0, maxLength)}...`;
+}
+
+/**
+ * Capitalizes the first letter of each word in a string
+ */
+export function capitalizeWords(text: string): string {
+  if (!text) return '';
+  return text
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Formats a number as currency (USD)
+ */
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value);
+}
+
+/**
+ * Formats a number with commas for thousands separators
+ */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value);
+}
+
+/**
+ * Generates a random ID string
+ */
+export function generateId(): string {
+  return Math.random().toString(36).substring(2, 11);
+}
+
+/**
+ * Debounces a function call
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -31,7 +85,7 @@ export function debounce<T extends (...args: any[]) => any>(
 ): (...args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   
-  return (...args: Parameters<T>): void => {
+  return function(...args: Parameters<T>): void {
     const later = () => {
       timeout = null;
       func(...args);
@@ -45,122 +99,72 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
- * Throttles a function call, ensuring it's not called more frequently than the specified interval
- * Useful for events that fire rapidly (e.g., mouse movements, scrolling)
- * @param func The function to throttle
- * @param wait The minimum time between function calls in milliseconds
- * @returns A throttled version of the function
+ * Gets a value from local storage with type safety
  */
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let lastCall = 0;
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  let lastArgs: Parameters<T> | null = null;
+export function getLocalStorageItem<T>(key: string, defaultValue: T): T {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.error(`Error reading ${key} from localStorage:`, error);
+    return defaultValue;
+  }
+}
+
+/**
+ * Sets a value in local storage
+ */
+export function setLocalStorageItem<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error saving ${key} to localStorage:`, error);
+  }
+}
+
+/**
+ * Removes a value from local storage
+ */
+export function removeLocalStorageItem(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.error(`Error removing ${key} from localStorage:`, error);
+  }
+}
+
+/**
+ * Sleep utility for async functions
+ */
+export function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Creates a URL with query parameters
+ */
+export function createUrl(baseUrl: string, params: Record<string, string | number | boolean | undefined>): string {
+  const url = new URL(baseUrl, window.location.origin);
   
-  return (...args: Parameters<T>): void => {
-    const now = Date.now();
-    const remaining = wait - (now - lastCall);
-    
-    // Store the latest arguments
-    lastArgs = args;
-    
-    // If it's been longer than the wait time since last call, execute immediately
-    if (remaining <= 0) {
-      if (timeout !== null) {
-        clearTimeout(timeout);
-        timeout = null;
-      }
-      lastCall = now;
-      func(...args);
-    } 
-    // Otherwise, schedule execution at the end of the wait period
-    else if (timeout === null) {
-      timeout = setTimeout(() => {
-        lastCall = Date.now();
-        timeout = null;
-        if (lastArgs) {
-          func(...lastArgs);
-        }
-      }, remaining);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined) {
+      url.searchParams.append(key, String(value));
     }
-  };
+  });
+  
+  return url.toString();
 }
 
 /**
- * Standard button variants for consistency across the app
+ * Extracts query parameters from a URL
  */
-export const ButtonVariant = {
-  DEFAULT: "default",
-  DESTRUCTIVE: "destructive",
-  OUTLINE: "outline",
-  SECONDARY: "secondary",
-  GHOST: "ghost",
-  LINK: "link",
-} as const;
-
-/**
- * Define button sizes for consistency across the app
- */
-export const ButtonSize = {
-  DEFAULT: "default",
-  SM: "sm",
-  LG: "lg",
-  ICON: "icon",
-} as const;
-
-/**
- * Format a date in a localized, human-readable format
- * @param date The date to format
- * @param format The format to use (short, medium, long)
- * @returns A formatted date string
- */
-export function formatDate(date: Date, format: 'short' | 'medium' | 'long' = 'medium'): string {
-  try {
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      return 'Invalid date';
-    }
-    
-    switch (format) {
-      case 'short':
-        return date.toLocaleDateString();
-      case 'medium':
-        return date.toLocaleDateString(undefined, { 
-          year: 'numeric', 
-          month: 'short', 
-          day: 'numeric' 
-        });
-      case 'long':
-        return date.toLocaleDateString(undefined, { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          weekday: 'long'
-        });
-      default:
-        return date.toLocaleDateString();
-    }
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Invalid date';
-  }
-}
-
-/**
- * Formats a number as currency
- * @param value The number to format
- * @param currencyCode The currency code (default: USD)
- * @returns Formatted currency string
- */
-export function formatCurrency(value: number, currencyCode: string = 'USD'): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currencyCode,
-    }).format(value);
-  } catch (error) {
-    console.error('Error formatting currency:', error);
-    return `${value}`;
-  }
+export function getQueryParams(): Record<string, string> {
+  const params = new URLSearchParams(window.location.search);
+  const result: Record<string, string> = {};
+  
+  params.forEach((value, key) => {
+    result[key] = value;
+  });
+  
+  return result;
 }

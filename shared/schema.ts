@@ -3,6 +3,63 @@ import { integer, json, pgEnum, pgTable, serial, text, timestamp, boolean, varch
 import { z } from 'zod';
 import { DocumentType } from './document-types';
 
+// Document lineage types
+export const DOCUMENT_TYPES = [
+  'DEED',
+  'PLAT',
+  'SURVEY',
+  'EASEMENT',
+  'TAX_RECORD',
+  'LEGAL_DESCRIPTION',
+  'PERMIT',
+  'COVENANT',
+  'ASSESSMENT',
+  'TITLE_REPORT',
+  'COURT_ORDER',
+  'CORRESPONDENCE'
+] as const;
+
+export const EVENT_TYPES = [
+  'UPLOAD',
+  'DOWNLOAD',
+  'VIEW',
+  'EDIT',
+  'ANNOTATION',
+  'CLASSIFICATION',
+  'VERIFICATION',
+  'SHARING',
+  'DELETION',
+  'ARCHIVAL',
+  'EXPORT',
+  'LINK'
+] as const;
+
+export const RELATIONSHIP_TYPES = [
+  'DERIVED_FROM',
+  'SUPERSEDES',
+  'REFERS_TO',
+  'SUPPLEMENTS',
+  'CONTRADICTS',
+  'VALIDATES',
+  'PART_OF',
+  'CONTAINS',
+  'PREDECESSOR',
+  'SUCCESSOR'
+] as const;
+
+export const PROCESSING_STAGE_TYPES = [
+  'OCR',
+  'CLASSIFICATION',
+  'ENTITY_EXTRACTION',
+  'GEOCODING',
+  'VALIDATION',
+  'CONVERSION',
+  'INDEXING',
+  'QUALITY_CHECK',
+  'ANONYMIZATION',
+  'SUMMARIZATION'
+] as const;
+
 // Users table
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -328,4 +385,144 @@ export interface SM00Report {
   };
   details: any; // Detailed report data
   createdAt: Date;
+}
+
+// Document Lineage Types
+export type DocumentType = typeof DOCUMENT_TYPES[number];
+export type EventType = typeof EVENT_TYPES[number];
+export type RelationshipType = typeof RELATIONSHIP_TYPES[number];
+export type ProcessingStageType = typeof PROCESSING_STAGE_TYPES[number];
+
+// Document Entity Interface
+export interface DocumentEntity {
+  id: string;
+  documentType: DocumentType;
+  documentName: string;
+  createdAt: Date;
+  status: string;
+  description?: string;
+  fileSize?: number;
+  fileHash?: string;
+  parcelId?: string;
+  uploadedBy?: string;
+}
+
+export type InsertDocumentEntity = Omit<DocumentEntity, 'id' | 'createdAt' | 'status'>;
+
+// Document Lineage Event Interface
+export interface DocumentLineageEvent {
+  id: string;
+  eventType: EventType;
+  eventTimestamp: Date;
+  documentId: string;
+  performedBy?: string;
+  details?: Record<string, any>;
+  confidence?: number;
+}
+
+export type InsertDocumentLineageEvent = Omit<DocumentLineageEvent, 'id' | 'eventTimestamp'>;
+
+// Document Relationship Interface
+export interface DocumentRelationship {
+  id: string;
+  sourceDocumentId: string;
+  targetDocumentId: string;
+  relationshipType: RelationshipType;
+  createdAt: Date;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+export type InsertDocumentRelationship = Omit<DocumentRelationship, 'id' | 'createdAt'>;
+
+// Document Processing Stage Interface
+export interface DocumentProcessingStage {
+  id: string;
+  documentId: string;
+  stageName: ProcessingStageType;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  startedAt: Date;
+  completedAt?: Date;
+  processorName?: string;
+  processorVersion?: string;
+  progress: number;
+  result?: Record<string, any>;
+}
+
+export type InsertDocumentProcessingStage = Omit<DocumentProcessingStage, 'id' | 'status' | 'startedAt' | 'progress'>;
+
+// Document Lineage Node Interface
+export interface DocumentLineageNode {
+  id: string;
+  type: string;
+  label: string;
+  data: {
+    entityId?: string;
+    [key: string]: any;
+    position?: {
+      x: number;
+      y: number;
+    };
+  };
+}
+
+// Document Lineage Edge Interface
+export interface DocumentLineageEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  label?: string;
+  data?: {
+    [key: string]: any;
+  };
+}
+
+// Document Lineage Graph Interface
+export interface DocumentLineageGraph {
+  nodes: DocumentLineageNode[];
+  edges: DocumentLineageEdge[];
+  metadata?: {
+    generatedAt: Date;
+    depth?: number;
+    rootDocumentId?: string;
+    [key: string]: any;
+  };
+}
+
+// Node Data Interfaces
+export interface DocumentNodeData {
+  id: string;
+  documentName: string;
+  documentType: string;
+  createdAt: Date;
+  uploadedBy?: string;
+  parcelId?: string;
+  status: string;
+  description?: string;
+  fileSize?: number;
+  fileHash?: string;
+}
+
+export interface EventNodeData {
+  id: string;
+  eventType: string;
+  eventTimestamp: Date;
+  performedBy?: string;
+  documentId: string;
+  details?: Record<string, any>;
+  confidence?: number;
+}
+
+export interface ProcessingNodeData {
+  id: string;
+  stageName: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  startedAt: Date;
+  completedAt?: Date;
+  processorName?: string;
+  processorVersion?: string;
+  progress: number;
+  documentId: string;
+  result?: Record<string, any>;
 }

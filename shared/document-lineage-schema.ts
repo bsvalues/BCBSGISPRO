@@ -1,137 +1,251 @@
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { z } from 'zod';
 
 /**
- * Document Lineage Schema
+ * Document Entity Schema
  * 
- * Tracks the provenance and lineage of documents within the system
+ * Represents a document in the system that requires lineage tracking
  */
-
-// Document entity table
-export const documentEntity = sqliteTable(
-  "document_entity",
-  {
-    id: text("id").primaryKey().notNull(),
-    documentName: text("document_name").notNull(),
-    documentType: text("document_type").notNull(), // deed, survey, plat, etc.
-    fileHash: text("file_hash"), // for document integrity verification
-    fileFormat: text("file_format"), // pdf, docx, jpg, etc.
-    uploadedAt: integer("uploaded_at", { mode: "timestamp" }).notNull(),
-    uploadedBy: text("uploaded_by").notNull(),
-    status: text("status").notNull().default("active"), // active, archived, deleted
-    parcelId: text("parcel_id"), // optional reference to a parcel
-    metadata: text("metadata", { mode: "json" }),
-  },
-  (table) => {
-    return {
-      fileHashIdx: uniqueIndex("file_hash_idx").on(table.fileHash),
-    };
-  }
-);
-
-// Document lineage event table
-export const documentLineageEvent = sqliteTable(
-  "document_lineage_event",
-  {
-    id: text("id").primaryKey().notNull(),
-    documentId: text("document_id")
-      .notNull()
-      .references(() => documentEntity.id),
-    eventType: text("event_type").notNull(), // created, viewed, processed, classified, linked, etc.
-    eventTimestamp: integer("event_timestamp", { mode: "timestamp" }).notNull(),
-    performedBy: text("performed_by").notNull(), // user or system component
-    details: text("details", { mode: "json" }),
-    previousVersionId: text("previous_version_id").references(() => documentEntity.id), // for version tracking
-    relatedEntityId: text("related_entity_id"), // for tracking relationships to other entities
-    relatedEntityType: text("related_entity_type"), // type of related entity (parcel, user, workflow, etc.)
-    confidence: integer("confidence"), // for ML-based processing events
-  }
-);
-
-// Document relationship table
-export const documentRelationship = sqliteTable(
-  "document_relationship",
-  {
-    id: text("id").primaryKey().notNull(),
-    sourceDocumentId: text("source_document_id")
-      .notNull()
-      .references(() => documentEntity.id),
-    targetDocumentId: text("target_document_id")
-      .notNull()
-      .references(() => documentEntity.id),
-    relationshipType: text("relationship_type").notNull(), // derives-from, supplements, replaces, references, etc.
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    createdBy: text("created_by").notNull(),
-    confidence: integer("confidence"), // for automatically detected relationships
-    metadata: text("metadata", { mode: "json" }),
-    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  }
-);
-
-// Document processing stage table
-export const documentProcessingStage = sqliteTable(
-  "document_processing_stage",
-  {
-    id: text("id").primaryKey().notNull(),
-    documentId: text("document_id")
-      .notNull()
-      .references(() => documentEntity.id),
-    stageName: text("stage_name").notNull(), // intake, classification, validation, integration, etc.
-    stageOrder: integer("stage_order").notNull(),
-    startTime: integer("start_time", { mode: "timestamp" }),
-    completionTime: integer("completion_time", { mode: "timestamp" }),
-    status: text("status").notNull(), // pending, in-progress, completed, failed
-    processorId: text("processor_id"), // system component or user that processed this stage
-    processorType: text("processor_type"), // human, ml-model, rule-based, etc.
-    result: text("result", { mode: "json" }),
-    confidence: integer("confidence"),
-    nextStageIds: text("next_stage_ids", { mode: "json" }), // array of potential next stages
-  }
-);
-
-// Insert schemas for validation
-export const insertDocumentEntitySchema = createInsertSchema(documentEntity).omit({
-  id: true,
-});
-export const insertDocumentLineageEventSchema = createInsertSchema(documentLineageEvent).omit({
-  id: true,
-});
-export const insertDocumentRelationshipSchema = createInsertSchema(documentRelationship).omit({
-  id: true,
-});
-export const insertDocumentProcessingStageSchema = createInsertSchema(documentProcessingStage).omit({
-  id: true,
+export const documentEntitySchema = z.object({
+  id: z.string(),
+  createdAt: z.date(),
+  status: z.enum(['active', 'archived', 'deleted']),
+  documentName: z.string(),
+  documentType: z.string(),
+  fileSize: z.number().optional(),
+  fileHash: z.string().optional(),
+  uploadedBy: z.string().optional(),
+  parcelId: z.string().optional(),
+  description: z.string().optional()
 });
 
-// TypeScript types
-export type InsertDocumentEntity = z.infer<typeof insertDocumentEntitySchema>;
-export type InsertDocumentLineageEvent = z.infer<typeof insertDocumentLineageEventSchema>;
-export type InsertDocumentRelationship = z.infer<typeof insertDocumentRelationshipSchema>;
-export type InsertDocumentProcessingStage = z.infer<typeof insertDocumentProcessingStageSchema>;
+export type DocumentEntity = z.infer<typeof documentEntitySchema>;
+export type InsertDocumentEntity = Omit<DocumentEntity, 'id' | 'createdAt' | 'status'>;
 
-export type DocumentEntity = typeof documentEntity.$inferSelect;
-export type DocumentLineageEvent = typeof documentLineageEvent.$inferSelect;
-export type DocumentRelationship = typeof documentRelationship.$inferSelect;
-export type DocumentProcessingStage = typeof documentProcessingStage.$inferSelect;
+/**
+ * Document Lineage Event Schema
+ * 
+ * Represents an event in the document's history
+ */
+export const documentLineageEventSchema = z.object({
+  id: z.string(),
+  eventTimestamp: z.date(),
+  documentId: z.string(),
+  eventType: z.string(),
+  performedBy: z.string(),
+  details: z.record(z.any()).optional(),
+  confidence: z.number().optional()
+});
 
-// Custom types for UI
+export type DocumentLineageEvent = z.infer<typeof documentLineageEventSchema>;
+export type InsertDocumentLineageEvent = Omit<DocumentLineageEvent, 'id' | 'eventTimestamp'>;
+
+/**
+ * Document Relationship Schema
+ * 
+ * Represents a relationship between two documents
+ */
+export const documentRelationshipSchema = z.object({
+  id: z.string(),
+  createdAt: z.date(),
+  sourceDocumentId: z.string(),
+  targetDocumentId: z.string(),
+  relationshipType: z.string(),
+  description: z.string().optional()
+});
+
+export type DocumentRelationship = z.infer<typeof documentRelationshipSchema>;
+export type InsertDocumentRelationship = Omit<DocumentRelationship, 'id' | 'createdAt'>;
+
+/**
+ * Document Processing Stage Schema
+ * 
+ * Represents a processing stage for a document
+ */
+export const documentProcessingStageSchema = z.object({
+  id: z.string(),
+  documentId: z.string(),
+  stageName: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'failed']),
+  startedAt: z.date(),
+  completedAt: z.date().optional(),
+  processorName: z.string().optional(),
+  processorVersion: z.string().optional(),
+  progress: z.number(),
+  result: z.record(z.any()).optional()
+});
+
+export type DocumentProcessingStage = z.infer<typeof documentProcessingStageSchema>;
+export type InsertDocumentProcessingStage = Omit<DocumentProcessingStage, 'id' | 'status' | 'startedAt' | 'progress'>;
+
+/**
+ * Document Lineage Node Schema
+ * 
+ * Represents a node in the document lineage graph
+ */
 export interface DocumentLineageNode {
   id: string;
-  type: "document" | "event" | "stage" | "processor";
+  type: string;
   label: string;
-  data: DocumentEntity | DocumentLineageEvent | DocumentProcessingStage | any;
+  data: {
+    entityId?: string;
+    [key: string]: any;
+    position?: {
+      x: number;
+      y: number;
+    };
+  };
 }
 
+/**
+ * Document Lineage Edge Schema
+ * 
+ * Represents an edge in the document lineage graph
+ */
 export interface DocumentLineageEdge {
   id: string;
   source: string;
   target: string;
   type: string;
-  data?: any;
+  label?: string;
+  data?: {
+    [key: string]: any;
+  };
 }
 
+/**
+ * Document Lineage Graph Schema
+ * 
+ * Represents the entire document lineage graph
+ */
 export interface DocumentLineageGraph {
   nodes: DocumentLineageNode[];
   edges: DocumentLineageEdge[];
+  metadata?: {
+    generatedAt: Date;
+    depth?: number;
+    rootDocumentId?: string;
+    [key: string]: any;
+  };
+}
+
+/**
+ * Document Type definitions
+ */
+export const DOCUMENT_TYPES = [
+  'DEED',
+  'SURVEY',
+  'TAX_RECORD',
+  'TITLE',
+  'MORTGAGE',
+  'PLAT',
+  'LEGAL_DESCRIPTION',
+  'ASSESSMENT',
+  'EXEMPTION',
+  'APPEAL',
+  'PERMIT',
+  'OTHER'
+] as const;
+
+export type DocumentType = typeof DOCUMENT_TYPES[number];
+
+/**
+ * Event Type definitions
+ */
+export const EVENT_TYPES = [
+  'UPLOAD',
+  'CLASSIFICATION',
+  'EXTRACTION',
+  'VALIDATION',
+  'MODIFICATION',
+  'REVIEW',
+  'APPROVAL',
+  'REJECTION',
+  'LINK',
+  'ARCHIVE',
+  'DELETE',
+  'OTHER'
+] as const;
+
+export type EventType = typeof EVENT_TYPES[number];
+
+/**
+ * Relationship Type definitions
+ */
+export const RELATIONSHIP_TYPES = [
+  'DERIVED_FROM',
+  'SUPERSEDES',
+  'REFERENCES',
+  'RELATED_TO',
+  'PART_OF',
+  'PREVIOUS_VERSION',
+  'NEXT_VERSION',
+  'DEPENDS_ON',
+  'SUPPORTS',
+  'CONTRADICTS',
+  'OTHER'
+] as const;
+
+export type RelationshipType = typeof RELATIONSHIP_TYPES[number];
+
+/**
+ * Processing Stage Type definitions
+ */
+export const PROCESSING_STAGE_TYPES = [
+  'CLASSIFICATION',
+  'ENTITY_EXTRACTION',
+  'LEGAL_DESCRIPTION_EXTRACTION',
+  'PARCEL_MATCHING',
+  'QUALITY_CHECK',
+  'OCR',
+  'METADATA_EXTRACTION',
+  'VALIDATION',
+  'REVIEW',
+  'OTHER'
+] as const;
+
+export type ProcessingStageType = typeof PROCESSING_STAGE_TYPES[number];
+
+/**
+ * Document Node Data interface
+ */
+export interface DocumentNodeData {
+  id: string;
+  documentName: string;
+  documentType: string;
+  createdAt: Date;
+  uploadedBy?: string;
+  parcelId?: string;
+  status: string;
+  description?: string;
+  fileSize?: number;
+  fileHash?: string;
+}
+
+/**
+ * Event Node Data interface
+ */
+export interface EventNodeData {
+  id: string;
+  eventType: string;
+  eventTimestamp: Date;
+  performedBy?: string;
+  documentId: string;
+  details?: Record<string, any>;
+  confidence?: number;
+}
+
+/**
+ * Processing Node Data interface
+ */
+export interface ProcessingNodeData {
+  id: string;
+  stageName: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  startedAt: Date;
+  completedAt?: Date;
+  processorName?: string;
+  processorVersion?: string;
+  progress: number;
+  documentId: string;
+  result?: Record<string, any>;
 }

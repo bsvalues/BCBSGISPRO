@@ -8,7 +8,7 @@ import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
 import { ApiError, asyncHandler } from "./error-handler";
 import { registerMapFeatureRoutes } from "./routes/map-features";
-import { registerDocumentLineageRoutes } from "./routes/document-lineage-routes";
+import { registerDocumentLineageRoutes } from "./document-lineage";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
