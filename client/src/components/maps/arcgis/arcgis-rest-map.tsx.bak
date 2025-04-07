@@ -77,6 +77,8 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     }
   }, [externalLayers]);
   
+  // Fetch available services when component mounts and auto-load Parcels layer
+  // Define a function to load the Parcels_and_Assess layer
   // Add a new layer from a service
   const addLayer = async (serviceName: string, serviceType: 'FeatureServer' | 'MapServer' = 'MapServer') => {
     try {
@@ -552,8 +554,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             borderRadius: '0.5rem',
             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08)',
             display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
+            flexDirection: 'column'
           }}
         >
           <div className="p-4 border-b">
@@ -643,8 +644,8 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             </div>
           </div>
           
-          {/* Layer list with proper scrolling */}
-          <div className="flex-1 overflow-y-auto p-4">
+          {/* Layer list */}
+          <div className="p-4">
             {layers.length === 0 ? (
               <div className="text-center py-4">
                 <p className="text-gray-500 text-sm mb-2">
@@ -744,4 +745,4 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
   );
 };
 
-export default forwardRef(ArcGISRestMap);
+export default React.forwardRef(ArcGISRestMap);
