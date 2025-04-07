@@ -520,9 +520,15 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         
         {/* Layers panel - Always rendered but visibility controlled by CSS */}
         <Card 
-          className={`absolute top-20 right-10 w-80 max-h-[70vh] overflow-auto z-50 bg-white/90 backdrop-blur-sm border shadow-lg transition-opacity duration-300 ${
+          className={`absolute top-20 right-10 w-80 max-h-[70vh] z-50 bg-white/90 backdrop-blur-sm border shadow-lg transition-opacity duration-300 ${
             isLayersPanelOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
+          style={{
+            overflowY: 'auto',
+            maxHeight: 'calc(90vh - 40px)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
         >
           <div className="p-4 border-b">
             <h3 className="font-medium text-lg">Layers ({services.length} services)</h3>
@@ -531,31 +537,47 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
           {/* Service selector */}
           <div className="p-4 border-b">
             <label className="block text-sm font-medium mb-2">Add Layer</label>
-            <div className="flex gap-2">
-              <select 
-                className="flex-grow border rounded px-2 py-1 text-sm"
-                value={selectedService || ''}
-                onChange={(e) => setSelectedService(e.target.value || null)}
-              >
-                <option value="">Select a service...</option>
-                {services.slice(0, 50).map(service => (
-                  <option key={service.name} value={service.name}>
-                    {service.name} ({service.type})
-                  </option>
-                ))}
-                {services.length > 50 && (
-                  <option value="" disabled>
-                    ... and {services.length - 50} more services
-                  </option>
-                )}
-              </select>
-              <Button 
-                size="sm" 
-                disabled={!selectedService}
-                onClick={() => selectedService && addLayer(selectedService)}
-              >
-                Add
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <select 
+                  className="flex-grow border rounded px-2 py-1 text-sm"
+                  value={selectedService || ''}
+                  onChange={(e) => setSelectedService(e.target.value || null)}
+                >
+                  <option value="">Select a service...</option>
+                  {services.slice(0, 100).map(service => (
+                    <option key={service.name} value={service.name}>
+                      {service.name} ({service.type})
+                    </option>
+                  ))}
+                </select>
+                <Button 
+                  size="sm" 
+                  disabled={!selectedService}
+                  onClick={() => selectedService && addLayer(selectedService)}
+                >
+                  Add
+                </Button>
+              </div>
+              
+              {/* Add search filter if there are many services */}
+              {services.length > 10 && (
+                <div className="mt-1">
+                  <input
+                    type="text"
+                    placeholder="Filter services..."
+                    className="w-full px-2 py-1 text-sm border rounded"
+                    onChange={(e) => {
+                      const query = e.target.value.toLowerCase();
+                      const filtered = services.filter(service => 
+                        service.name.toLowerCase().includes(query)
+                      );
+                      // Just logging for now - would implement actual filtering
+                      console.log(`Found ${filtered.length} services matching "${query}"`);
+                    }}
+                  />
+                </div>
+              )}
             </div>
             
             {/* Add a helper instruction */}
@@ -612,9 +634,9 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             ) : (
               <div className="space-y-4">
                 {layers.map((layer, index) => (
-                  <Card key={layer.id} className="p-3 border">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
+                  <Card key={layer.id} className="p-2 border">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 max-w-[70%]">
                         <Checkbox 
                           id={`visible-${layer.id}`}
                           checked={layer.visible}
@@ -622,19 +644,23 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                         />
                         <Label 
                           htmlFor={`visible-${layer.id}`}
-                          className="font-medium text-sm cursor-pointer"
+                          className="font-medium text-sm cursor-pointer truncate"
+                          title={layer.name}
                         >
                           {layer.name}
                         </Label>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => removeLayer(layer.id)}
-                        className="h-6 w-6 p-0"
-                      >
-                        ×
-                      </Button>
+                      <div className="flex items-center">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => removeLayer(layer.id)}
+                          className="h-6 w-6 p-0 text-red-500"
+                          title="Remove Layer"
+                        >
+                          ×
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-2 mt-2">
@@ -656,18 +682,29 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                         variant="ghost"
                         disabled={index === 0}
                         onClick={() => moveLayer(layer.id, 'up')}
-                        className="h-6 text-xs"
+                        className="h-6 w-6 p-0"
+                        title="Move Up"
                       >
-                        Move Up
+                        ↑
                       </Button>
                       <Button 
                         size="sm" 
                         variant="ghost"
                         disabled={index === layers.length - 1}
                         onClick={() => moveLayer(layer.id, 'down')}
-                        className="h-6 text-xs"
+                        className="h-6 w-6 p-0"
+                        title="Move Down"
                       >
-                        Move Down
+                        ↓
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={layer.visible ? "default" : "ghost"}
+                        onClick={() => toggleLayerVisibility(layer.id)}
+                        className="h-6 px-2 text-xs"
+                        title={layer.visible ? "Hide Layer" : "Show Layer"}
+                      >
+                        {layer.visible ? "Visible" : "Hidden"}
                       </Button>
                     </div>
                   </Card>
