@@ -1,0 +1,484 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Card } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Slider } from '../../../components/ui/slider';
+import { Checkbox } from '../../../components/ui/checkbox';
+import { Label } from '../../../components/ui/label';
+import { Loader2 } from 'lucide-react';
+import arcgisRestService, { 
+  fetchServiceList, 
+  fetchServiceInfo,
+  getMapImageUrl 
+} from '../../../services/arcgis-rest-service';
+
+interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+  opacity: number;
+  serviceName: string;
+  layerId?: number;
+  serviceType: 'FeatureServer' | 'MapServer';
+}
+
+interface ArcGISRestMapProps {
+  width?: string | number;
+  height?: string | number;
+  initialCenter?: [number, number];
+  initialZoom?: number;
+  showControls?: boolean;
+}
+
+/**
+ * ArcGIS REST Map Component
+ * 
+ * This component uses the ArcGIS REST service to display a map with layers
+ * from the specified endpoint. It does not require the ArcGIS JavaScript API.
+ */
+const ArcGISRestMap: React.FC<ArcGISRestMapProps> = ({
+  width = '100%',
+  height = '600px',
+  initialCenter = [-123.3617, 44.5646], // Benton County, Oregon
+  initialZoom = 12,
+  showControls = true
+}) => {
+  const [services, setServices] = useState<any[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([]);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [center, setCenter] = useState<[number, number]>(initialCenter);
+  const [zoom, setZoom] = useState(initialZoom);
+  const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
+  
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Fetch available services when component mounts
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setLoading(true);
+        const serviceData = await fetchServiceList();
+        setServices(serviceData.services || []);
+        setLoading(false);
+      } catch (err) {
+        setError('Failed to load ArcGIS services');
+        setLoading(false);
+        console.error('Error loading services:', err);
+      }
+    };
+    
+    loadServices();
+  }, []);
+  
+  // Calculate map dimensions
+  const mapStyle: React.CSSProperties = {
+    width: typeof width === 'number' ? `${width}px` : width,
+    height: typeof height === 'number' ? `${height}px` : height,
+    position: 'relative',
+    overflow: 'hidden',
+    background: '#f0f0f0',
+    border: '1px solid #ddd'
+  };
+  
+  // Calculate the extent (bbox) based on center and zoom
+  const calculateExtent = (): [number, number, number, number] => {
+    // Simple calculation for demonstration
+    const [lng, lat] = center;
+    const span = 5.0 / zoom; // Adjust this value to control extent width
+    
+    return [
+      lng - span,
+      lat - span,
+      lng + span,
+      lat + span
+    ];
+  };
+  
+  // Add a new layer from a service
+  const addLayer = async (serviceName: string, serviceType: 'FeatureServer' | 'MapServer' = 'MapServer') => {
+    try {
+      setLoading(true);
+      
+      const serviceInfo = await fetchServiceInfo(serviceName, serviceType);
+      
+      if (serviceType === 'MapServer') {
+        // Add the entire map service as one layer
+        const newLayer: Layer = {
+          id: `${serviceName}-${serviceType}`,
+          name: serviceInfo.documentInfo?.Title || serviceInfo.mapName || serviceName,
+          visible: true,
+          opacity: 1,
+          serviceName,
+          serviceType
+        };
+        
+        setLayers(prev => [...prev, newLayer]);
+      } else if (serviceInfo.layers && serviceInfo.layers.length > 0) {
+        // Add each layer in the feature service individually
+        const newLayers = serviceInfo.layers.map((layer: any) => ({
+          id: `${serviceName}-${serviceType}-${layer.id}`,
+          name: layer.name,
+          visible: true,
+          opacity: 1,
+          serviceName,
+          layerId: layer.id,
+          serviceType
+        }));
+        
+        setLayers(prev => [...prev, ...newLayers]);
+      }
+      
+      setLoading(false);
+      setSelectedService(null);
+    } catch (err) {
+      setError(`Failed to add layer from ${serviceName}`);
+      setLoading(false);
+      console.error('Error adding layer:', err);
+    }
+  };
+  
+  // Update a layer's visibility
+  const toggleLayerVisibility = (layerId: string) => {
+    setLayers(prev => 
+      prev.map(layer => 
+        layer.id === layerId 
+          ? { ...layer, visible: !layer.visible } 
+          : layer
+      )
+    );
+  };
+  
+  // Update a layer's opacity
+  const updateLayerOpacity = (layerId: string, opacity: number) => {
+    setLayers(prev => 
+      prev.map(layer => 
+        layer.id === layerId 
+          ? { ...layer, opacity } 
+          : layer
+      )
+    );
+  };
+  
+  // Remove a layer
+  const removeLayer = (layerId: string) => {
+    setLayers(prev => prev.filter(layer => layer.id !== layerId));
+  };
+  
+  // Move a layer up or down in the stack
+  const moveLayer = (layerId: string, direction: 'up' | 'down') => {
+    setLayers(prev => {
+      const index = prev.findIndex(layer => layer.id === layerId);
+      if (index === -1) return prev;
+      
+      if (direction === 'up' && index > 0) {
+        const newLayers = [...prev];
+        [newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]];
+        return newLayers;
+      } else if (direction === 'down' && index < prev.length - 1) {
+        const newLayers = [...prev];
+        [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
+        return newLayers;
+      }
+      
+      return prev;
+    });
+  };
+  
+  // Render the map images
+  useEffect(() => {
+    if (!mapRef.current) return;
+    
+    // Clear previous layers
+    mapRef.current.innerHTML = '';
+    
+    // Get container dimensions
+    const width = mapRef.current.clientWidth;
+    const height = mapRef.current.clientHeight;
+    
+    // Get the current map extent
+    const bbox = calculateExtent();
+    
+    // Create and render each visible layer
+    layers
+      .filter(layer => layer.visible)
+      .forEach(layer => {
+        const img = document.createElement('img');
+        
+        let imageUrl;
+        if (layer.serviceType === 'MapServer') {
+          // For MapServer, we can use the export operation
+          const layers = layer.layerId !== undefined ? `show:${layer.layerId}` : 'show:all';
+          imageUrl = getMapImageUrl(layer.serviceName, {
+            layers,
+            bbox,
+            size: [width, height],
+            format: 'png32',
+            transparent: true
+          });
+        } else {
+          // For FeatureServer, we would need to query and render features
+          // This is a simplified approach - in a real app, we'd query features
+          // and render them as SVG/canvas elements
+          imageUrl = `https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/${layer.serviceName}/FeatureServer/${layer.layerId}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
+          // This won't directly work as an image source, just for illustration
+          
+          // Display a placeholder for FeatureServer layers
+          const div = document.createElement('div');
+          div.style.position = 'absolute';
+          div.style.left = '0';
+          div.style.top = '0';
+          div.style.width = '100%';
+          div.style.height = '100%';
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          div.style.pointerEvents = 'none';
+          div.style.opacity = layer.opacity.toString();
+          div.style.color = '#666';
+          div.style.fontSize = '14px';
+          div.textContent = `FeatureServer layer: ${layer.name}`;
+          
+          mapRef.current.appendChild(div);
+          return;
+        }
+        
+        // Set up the image
+        img.src = imageUrl;
+        img.style.position = 'absolute';
+        img.style.left = '0';
+        img.style.top = '0';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.opacity = layer.opacity.toString();
+        img.style.pointerEvents = 'none';
+        
+        // Add the image to the map
+        mapRef.current.appendChild(img);
+      });
+      
+  }, [layers, center, zoom]);
+  
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={mapStyle} ref={mapContainerRef}>
+        {/* Map container */}
+        <div 
+          ref={mapRef} 
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        />
+        
+        {/* Loading indicator */}
+        {loading && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(255, 255, 255, 0.8)',
+            padding: '10px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading...</span>
+          </div>
+        )}
+        
+        {/* Error message */}
+        {error && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(255, 0, 0, 0.1)',
+            border: '1px solid rgba(255, 0, 0, 0.3)',
+            padding: '10px',
+            borderRadius: '8px',
+            color: 'red'
+          }}>
+            {error}
+          </div>
+        )}
+        
+        {/* Map controls */}
+        {showControls && (
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            zIndex: 1000
+          }}>
+            <Card className="p-2 backdrop-blur-sm bg-white/80">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsLayersPanelOpen(!isLayersPanelOpen)}
+              >
+                Layers
+              </Button>
+            </Card>
+          </div>
+        )}
+        
+        {/* Navigation controls */}
+        {showControls && (
+          <div style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '10px',
+            zIndex: 1000
+          }}>
+            <Card className="p-2 backdrop-blur-sm bg-white/80">
+              <div className="flex flex-col gap-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setZoom(prev => Math.min(prev + 1, 20))}
+                >
+                  +
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setZoom(prev => Math.max(prev - 1, 1))}
+                >
+                  -
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setCenter(initialCenter);
+                    setZoom(initialZoom);
+                  }}
+                >
+                  Home
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+        
+        {/* Layers panel */}
+        {isLayersPanelOpen && (
+          <Card className="absolute top-20 right-10 w-80 max-h-[70vh] overflow-auto z-50 bg-white/90 backdrop-blur-sm border shadow-lg">
+            <div className="p-4 border-b">
+              <h3 className="font-medium text-lg">Layers</h3>
+            </div>
+            
+            {/* Service selector */}
+            <div className="p-4 border-b">
+              <label className="block text-sm font-medium mb-2">Add Layer</label>
+              <div className="flex gap-2">
+                <select 
+                  className="flex-grow border rounded px-2 py-1 text-sm"
+                  value={selectedService || ''}
+                  onChange={(e) => setSelectedService(e.target.value || null)}
+                >
+                  <option value="">Select a service...</option>
+                  {services.map(service => (
+                    <option key={service.name} value={service.name}>
+                      {service.name} ({service.type})
+                    </option>
+                  ))}
+                </select>
+                <Button 
+                  size="sm" 
+                  disabled={!selectedService}
+                  onClick={() => selectedService && addLayer(selectedService)}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+            
+            {/* Layer list */}
+            <div className="p-4">
+              {layers.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">
+                  No layers added. Select a service above to add layers.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {layers.map((layer, index) => (
+                    <Card key={layer.id} className="p-3 border">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            id={`visible-${layer.id}`}
+                            checked={layer.visible}
+                            onCheckedChange={() => toggleLayerVisibility(layer.id)}
+                          />
+                          <Label 
+                            htmlFor={`visible-${layer.id}`}
+                            className="font-medium text-sm cursor-pointer"
+                          >
+                            {layer.name}
+                          </Label>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => removeLayer(layer.id)}
+                          className="h-6 w-6 p-0"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs w-12">Opacity:</span>
+                        <Slider
+                          value={[layer.opacity * 100]}
+                          min={0}
+                          max={100}
+                          step={1}
+                          className="flex-grow"
+                          onValueChange={(value) => updateLayerOpacity(layer.id, value[0] / 100)}
+                        />
+                        <span className="text-xs w-8 text-right">{Math.round(layer.opacity * 100)}%</span>
+                      </div>
+                      
+                      <div className="flex justify-between mt-2">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          disabled={index === 0}
+                          onClick={() => moveLayer(layer.id, 'up')}
+                          className="h-6 text-xs"
+                        >
+                          Move Up
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          disabled={index === layers.length - 1}
+                          onClick={() => moveLayer(layer.id, 'down')}
+                          className="h-6 text-xs"
+                        >
+                          Move Down
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ArcGISRestMap;

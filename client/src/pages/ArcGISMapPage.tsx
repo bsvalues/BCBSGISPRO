@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 // Use simplified ArcGIS components without direct dependency on ArcGIS JS API
 import ArcGISProviderSimplified from '../components/maps/arcgis/arcgis-provider-simplified';
 import ArcGISSketchSimplified from '../components/maps/arcgis/arcgis-sketch-simplified';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ArcGISRestMap from '../components/maps/arcgis/arcgis-rest-map';
+import ArcGISRestLayer from '../components/maps/arcgis/arcgis-rest-layer';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { 
   Layers, Map, MapPin, PenTool, FileSearch, 
-  ZoomIn, ZoomOut, Home, ChevronLeft, ChevronRight 
+  ZoomIn, ZoomOut, Home, ChevronLeft, ChevronRight,
+  Globe, Database
 } from 'lucide-react';
 
 /**
@@ -21,6 +24,7 @@ const ArcGISMapPage: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('layers');
   const [isSketchActive, setIsSketchActive] = useState(false);
+  const [mapMode, setMapMode] = useState<'simulated' | 'rest'>('simulated');
   
   // Handle map clicks
   const handleMapClick = (e: any) => {
@@ -76,63 +80,102 @@ const ArcGISMapPage: React.FC = () => {
     <div className="flex h-screen w-full bg-gray-100 relative overflow-hidden">
       {/* Main map container */}
       <div className="flex-grow relative">
-        {/* Map provider */}
-        <ArcGISProviderSimplified
-          initialViewState={{
-            longitude: -123.3617,
-            latitude: 44.5646,
-            zoom: 12
-          }}
-          style={{ width: '100%', height: '100%' }}
-        >
-          {/* Sketch component (conditionally rendered) */}
-          {isSketchActive && (
-            <ArcGISSketchSimplified
-              view={undefined /* This will be populated automatically by the parent component */}
-              onSketchComplete={handleSketchComplete}
-              position="top-right"
-            />
-          )}
-        </ArcGISProviderSimplified>
+        {/* Map display (conditional based on mode) */}
+        {mapMode === 'simulated' ? (
+          <ArcGISProviderSimplified
+            initialViewState={{
+              longitude: -123.3617,
+              latitude: 44.5646,
+              zoom: 12
+            }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            {/* Sketch component (conditionally rendered) */}
+            {isSketchActive && (
+              <ArcGISSketchSimplified
+                view={undefined /* This will be populated automatically by the parent component */}
+                onSketchComplete={handleSketchComplete}
+                position="top-right"
+              />
+            )}
+          </ArcGISProviderSimplified>
+        ) : (
+          <ArcGISRestMap
+            initialCenter={[-123.3617, 44.5646]}
+            initialZoom={12}
+            height="100%"
+            showControls={true}
+          />
+        )}
         
-        {/* Map controls overlay */}
-        <div className="absolute bottom-6 right-6 flex flex-col gap-2">
-          <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
-            <div className="flex flex-col gap-1">
-              <Button size="sm" variant="ghost" title="Zoom In">
-                <ZoomIn size={18} />
-              </Button>
-              <Button size="sm" variant="ghost" title="Zoom Out">
-                <ZoomOut size={18} />
-              </Button>
-              <Button size="sm" variant="ghost" title="Home">
-                <Home size={18} />
-              </Button>
-            </div>
-          </Card>
-        </div>
-        
-        {/* Map tools */}
-        <div className="absolute top-6 left-1/2 transform -translate-x-1/2">
+        {/* Map mode toggle */}
+        <div className="absolute top-6 right-6 z-50">
           <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
             <div className="flex items-center gap-1">
               <Button 
                 size="sm" 
-                variant={isSketchActive ? "default" : "ghost"} 
-                onClick={toggleSketch}
-                title="Drawing Tools"
+                variant={mapMode === 'simulated' ? "default" : "outline"} 
+                onClick={() => setMapMode('simulated')}
+                title="Simulated Map"
               >
-                <PenTool size={18} />
+                <Globe size={18} className="mr-1" />
+                Simulated
               </Button>
-              <Button size="sm" variant="ghost" title="Search">
-                <FileSearch size={18} />
-              </Button>
-              <Button size="sm" variant="ghost" title="Add Location">
-                <MapPin size={18} />
+              <Button 
+                size="sm" 
+                variant={mapMode === 'rest' ? "default" : "outline"} 
+                onClick={() => setMapMode('rest')}
+                title="ArcGIS REST API"
+              >
+                <Database size={18} className="mr-1" />
+                REST API
               </Button>
             </div>
           </Card>
         </div>
+        
+        {/* Map controls overlay (only shown in simulated mode) */}
+        {mapMode === 'simulated' && (
+          <div className="absolute bottom-6 right-6 flex flex-col gap-2">
+            <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
+              <div className="flex flex-col gap-1">
+                <Button size="sm" variant="ghost" title="Zoom In">
+                  <ZoomIn size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Zoom Out">
+                  <ZoomOut size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Home">
+                  <Home size={18} />
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+        
+        {/* Map tools (only shown in simulated mode) */}
+        {mapMode === 'simulated' && (
+          <div className="absolute top-6 left-1/2 transform -translate-x-1/2">
+            <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
+              <div className="flex items-center gap-1">
+                <Button 
+                  size="sm" 
+                  variant={isSketchActive ? "default" : "ghost"} 
+                  onClick={toggleSketch}
+                  title="Drawing Tools"
+                >
+                  <PenTool size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Search">
+                  <FileSearch size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Add Location">
+                  <MapPin size={18} />
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
       
       {/* Sidebar */}
@@ -146,6 +189,12 @@ const ArcGISMapPage: React.FC = () => {
             <div className="p-4 border-b">
               <h2 className="text-lg font-semibold">Map Explorer</h2>
               <p className="text-sm text-gray-500">Benton County GIS</p>
+              <p className="text-xs text-blue-500 mt-1">
+                {mapMode === 'simulated' 
+                  ? "Using simulated map data" 
+                  : "Connected to ArcGIS REST services"
+                }
+              </p>
             </div>
             
             <Tabs defaultValue="layers" className="flex-grow flex flex-col">
@@ -236,6 +285,19 @@ const ArcGISMapPage: React.FC = () => {
                       </div>
                     </div>
                   </Card>
+                  
+                  {mapMode === 'rest' && (
+                    <Card className="p-4">
+                      <h3 className="font-medium mb-2">ArcGIS REST Services</h3>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Use the layers panel in the map to add and configure services from:
+                      </p>
+                      <code className="text-xs block bg-gray-100 p-2 rounded">
+                        https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services
+                      </code>
+                      <Button size="sm" className="mt-2 w-full">Browse Services</Button>
+                    </Card>
+                  )}
                 </div>
               </TabsContent>
               
