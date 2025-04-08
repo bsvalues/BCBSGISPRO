@@ -263,6 +263,23 @@ const ArcGISMapPage: React.FC = () => {
     );
   };
   
+  // Update layer opacity
+  const updateLayerOpacity = (layerId: string, opacity: number) => {
+    console.log(`Updating opacity for layer ${layerId} to ${opacity}`);
+    setActiveLayers(prev => 
+      prev.map(layer => 
+        layer.id === layerId 
+          ? { ...layer, opacity } 
+          : layer
+      )
+    );
+    
+    // Also update in the map component if in REST mode
+    if (mapMode === 'rest' && arcgisRestMapRef.current) {
+      arcgisRestMapRef.current.updateLayerOpacity(layerId, opacity);
+    }
+  };
+  
   return (
     <div className="flex h-screen w-full bg-gray-100 relative overflow-hidden">
       {/* Main map container */}
@@ -672,38 +689,63 @@ const ArcGISMapPage: React.FC = () => {
                               {activeLayers.map(layer => (
                                 <div 
                                   key={layer.id} 
-                                  className={`flex items-center justify-between p-2 rounded ${
+                                  className={`flex flex-col p-2 rounded ${
                                     layer.isBaseLayer ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
                                   }`}
                                 >
-                                  <label className="flex items-center">
-                                    <input 
-                                      type="checkbox" 
-                                      className="mr-2" 
-                                      checked={layer.visible} 
-                                      onChange={() => toggleLayerVisibility(layer.id)}
-                                    />
-                                    <span className="text-sm">
-                                      {layer.name}
-                                      {layer.isBaseLayer && (
-                                        <span className="text-xs ml-1 text-green-700 bg-green-100 px-1 py-0.5 rounded">
-                                          base
-                                        </span>
-                                      )}
-                                    </span>
-                                  </label>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className={`h-6 w-6 p-0 ${
-                                      layer.isBaseLayer ? 'opacity-50 cursor-not-allowed' : ''
-                                    }`}
-                                    onClick={() => removeLayer(layer.id)}
-                                    disabled={layer.isBaseLayer}
-                                    title={layer.isBaseLayer ? "Base layer cannot be removed" : "Remove layer"}
-                                  >
-                                    ×
-                                  </Button>
+                                  <div className="flex items-center justify-between">
+                                    <label className="flex items-center">
+                                      <input 
+                                        type="checkbox" 
+                                        className="mr-2" 
+                                        checked={layer.visible} 
+                                        onChange={() => toggleLayerVisibility(layer.id)}
+                                      />
+                                      <span className="text-sm">
+                                        {layer.name}
+                                        {layer.isBaseLayer && (
+                                          <span className="text-xs ml-1 text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                                            base
+                                          </span>
+                                        )}
+                                      </span>
+                                    </label>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className={`h-6 w-6 p-0 ${
+                                        layer.isBaseLayer ? 'opacity-50 cursor-not-allowed' : ''
+                                      }`}
+                                      onClick={() => removeLayer(layer.id)}
+                                      disabled={layer.isBaseLayer}
+                                      title={layer.isBaseLayer ? "Base layer cannot be removed" : "Remove layer"}
+                                    >
+                                      ×
+                                    </Button>
+                                  </div>
+                                  
+                                  {/* Opacity slider - only shown when layer is visible */}
+                                  {layer.visible && (
+                                    <div className="mt-2 px-1">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs text-gray-500">Opacity</span>
+                                        <span className="text-xs text-gray-500">{Math.round(layer.opacity * 100)}%</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs">0%</span>
+                                        <input 
+                                          type="range"
+                                          min="0"
+                                          max="1"
+                                          step="0.01"
+                                          value={layer.opacity}
+                                          onChange={(e) => updateLayerOpacity(layer.id, parseFloat(e.target.value))}
+                                          className="flex-grow h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <span className="text-xs">100%</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
