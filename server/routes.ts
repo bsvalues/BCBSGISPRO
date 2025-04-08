@@ -12,6 +12,7 @@ import { registerDocumentLineageRoutes } from "./document-lineage";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
+import mapServicesRoutes from "./routes/map-services";
 import { 
   parcels,
   documents,
@@ -4704,6 +4705,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register document lineage routes
   registerDocumentLineageRoutes(app);
+  
+  // Register map services routes
+  app.use('/api/map-services', mapServicesRoutes);
   
   return httpServer;
 }

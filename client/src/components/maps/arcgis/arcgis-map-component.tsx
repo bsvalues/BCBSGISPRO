@@ -23,27 +23,116 @@ const ArcGISMapComponent: React.FC<ArcGISMapComponentProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [serviceList, setServiceList] = useState<any[]>([]);
   
-  // Mock loading state for demonstration
+  // Get the Mapbox token from environment variables
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMapLoaded(true);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
+    // This should be using the environment variable on the server side
+    const fetchMapboxToken = async () => {
+      try {
+        // First try the new endpoint
+        const response = await fetch('/api/map-services/mapbox-token');
+        const data = await response.json();
+        
+        if (data.token) {
+          console.log('Successfully fetched Mapbox token from /api/map-services/mapbox-token');
+          setMapboxToken(data.token);
+          return;
+        }
+        
+        // If the new endpoint fails, try the legacy endpoint
+        console.log('Trying legacy endpoint for Mapbox token');
+        const legacyResponse = await fetch('/api/mapbox-token');
+        const legacyData = await legacyResponse.json();
+        
+        if (legacyData.token) {
+          console.log('Successfully fetched Mapbox token from legacy endpoint');
+          setMapboxToken(legacyData.token);
+          return;
+        }
+        
+        console.error('No Mapbox token returned from either API endpoint');
+        setError('Could not load Mapbox token. Please check your environment configuration.');
+      } catch (err) {
+        console.error('Error fetching Mapbox token:', err);
+        setError('Failed to load map services. Please try again later.');
+      }
+    };
+
+    fetchMapboxToken();
   }, []);
   
-  // In a real implementation, this would load the ArcGIS API
-  // and create a map with the specified layers
+  // Fetch ArcGIS services
+  useEffect(() => {
+    const fetchArcGISServices = async () => {
+      try {
+        console.log('Fetching ArcGIS services...');
+        // First try the new endpoint
+        try {
+          const response = await fetch('/api/map-services/arcgis-services');
+          const data = await response.json();
+          
+          if (data && data.services) {
+            console.log('Successfully fetched ArcGIS services from new endpoint');
+            console.log('Found', data.services.length, 'services for sidebar');
+            setServiceList(data.services);
+            return;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch from new endpoint, trying legacy endpoint', error);
+        }
+        
+        // If the new endpoint fails, try a legacy endpoint if it exists
+        try {
+          const legacyResponse = await fetch('/api/arcgis-services');
+          const legacyData = await legacyResponse.json();
+          
+          if (legacyData && legacyData.services) {
+            console.log('Successfully fetched ArcGIS services from legacy endpoint');
+            console.log('Found', legacyData.services.length, 'services for sidebar');
+            setServiceList(legacyData.services);
+            return;
+          }
+        } catch (legacyError) {
+          console.warn('Legacy endpoint also failed', legacyError);
+        }
+        
+        // If both endpoints fail, use hardcoded fallback data for development
+        console.log('Using fallback ArcGIS services data');
+        const fallbackServices = [
+          {
+            name: "Parcels_and_Assess",
+            type: "MapServer",
+            url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Parcels_and_Assess/MapServer"
+          },
+          {
+            name: "Streets",
+            type: "MapServer",
+            url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Streets/MapServer"
+          },
+          {
+            name: "Boundaries",
+            type: "MapServer",
+            url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Boundaries/MapServer"
+          }
+        ];
+        
+        setServiceList(fallbackServices);
+      } catch (err) {
+        console.error('Error fetching ArcGIS services:', err);
+      }
+    };
+
+    fetchArcGISServices();
+  }, []);
+  
+  // Load ArcGIS map
   useEffect(() => {
     if (!mapContainerRef.current) return;
     
-    // This is where you would use the ArcGIS API to create a map
-    // For now, this is just a mock implementation
-    
     const loadMap = async () => {
       try {
-        // Would normally load ArcGIS API and initialize map
         console.log('Loading ArcGIS map with:');
         console.log(`- Base map: ${baseMap}`);
         console.log(`- Layers: ${layers.join(', ')}`);
@@ -51,8 +140,36 @@ const ArcGISMapComponent: React.FC<ArcGISMapComponentProps> = ({
         console.log(`- Center: ${center}`);
         console.log(`- Zoom: ${zoom}`);
         
-        // Simulate map loading success
-        setMapLoaded(true);
+        // We would normally initialize the map here using ArcGIS JS API
+        // For this demo, we'll just simulate the map loading
+        setTimeout(() => {
+          console.log('ArcGIS map loaded (simulated)');
+          setMapLoaded(true);
+        }, 1500);
+        
+        // Add default layers - would normally use Benton County's services
+        const externalLayers = [
+          {
+            id: 'parcels-layer-base',
+            name: 'Parcels and Assessor Data',
+            serviceName: 'Parcels_and_Assess',
+            serviceType: 'MapServer',
+            layerId: 0,
+            visible: true,
+            opacity: 1,
+            isBaseLayer: true
+          }
+        ];
+        
+        console.log('External layers provided:', externalLayers);
+        
+        // Check if Parcels layer should be auto-loaded
+        if (externalLayers.some(layer => layer.serviceName === 'Parcels_and_Assess')) {
+          console.log('External layers provided, skipping auto-load of Parcels layer');
+        } else {
+          // Would normally load the Parcels layer here
+        }
+        
       } catch (err) {
         console.error('Error loading ArcGIS map:', err);
         setError('Failed to load the map. Please try again later.');
@@ -61,9 +178,7 @@ const ArcGISMapComponent: React.FC<ArcGISMapComponentProps> = ({
     
     loadMap();
     
-    // Cleanup function
     return () => {
-      // Would normally destroy the map instance
       console.log('Cleaning up ArcGIS map');
     };
   }, [baseMap, center, layers, showLabels, zoom]);
@@ -72,24 +187,24 @@ const ArcGISMapComponent: React.FC<ArcGISMapComponentProps> = ({
   useEffect(() => {
     if (!mapLoaded) return;
     
-    console.log('Updating map layers:', layers);
     // In a real implementation, this would update the map layers
+    // For now, we'll skip this since we don't have a real map
   }, [layers, mapLoaded]);
   
   // Update opacity when it changes
   useEffect(() => {
     if (!mapLoaded) return;
     
-    console.log('Updating layer opacity:', opacity);
     // In a real implementation, this would update layer opacity
+    // For now, we'll skip this since we don't have a real map
   }, [opacity, mapLoaded]);
   
   // Update base map when it changes
   useEffect(() => {
     if (!mapLoaded) return;
     
-    console.log('Updating base map:', baseMap);
     // In a real implementation, this would update the base map
+    // For now, we'll skip this since we don't have a real map
   }, [baseMap, mapLoaded]);
   
   return (
