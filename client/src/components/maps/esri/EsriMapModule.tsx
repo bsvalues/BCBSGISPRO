@@ -1,260 +1,166 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { loadModules } from 'esri-loader';
-import { 
-  EsriMapModuleSettings, 
-  defaultEsriMapModuleSettings,
-  BaseLayerModel,
-  ViewableLayerModel 
-} from './EsriMapModuleSettings';
+import { EsriMapModuleSettings } from './EsriMapModuleSettings';
 
 interface EsriMapModuleProps {
-  mapId?: string;
-  center?: [number, number];
-  zoom?: number;
-  mapSettings?: Partial<EsriMapModuleSettings>;
+  mapSettings: EsriMapModuleSettings;
+  className?: string;
   onMapLoaded?: (map: any) => void;
   onLayerClick?: (feature: any) => void;
-  className?: string;
 }
 
 /**
- * EsriMapModule component that renders an ESRI map
+ * EsriMapModule - The Esri Map component using ArcGIS JavaScript API
  * 
- * This component uses the ESRI JS API to render a map with configurable layers
- * from the provided mapSettings or default settings.
+ * Uses esri-loader to load the ArcGIS JavaScript API and initialize the map.
  */
 export const EsriMapModule: React.FC<EsriMapModuleProps> = ({
-  mapId = 'esri-map',
-  center = [-123.262, 44.564], // Default to Benton County coordinates
-  zoom = 12,
   mapSettings,
+  className = '',
   onMapLoaded,
   onLayerClick,
-  className = ''
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const viewInstanceRef = useRef<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Merge default settings with provided settings
-  const settings = {
-    ...defaultEsriMapModuleSettings,
-    ...mapSettings
-  };
-
+  const [viewLoaded, setViewLoaded] = useState(false);
+  const [mapView, setMapView] = useState<any>(null);
+  const [map, setMap] = useState<any>(null);
+  
   useEffect(() => {
-    if (!mapRef.current) return;
-
-    const loadMap = async () => {
+    let view: any;
+    let esriMap: any;
+    
+    const initializeMap = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
-
-        // Load ArcGIS modules
-        const [
-          Map, 
-          MapView, 
-          FeatureLayer, 
-          TileLayer,
-          BasemapToggle,
-          Basemap,
-          Search,
-          Extent,
-          Graphic,
-          GraphicsLayer
-        ] = await loadModules([
-          'esri/Map', 
-          'esri/views/MapView', 
-          'esri/layers/FeatureLayer',
-          'esri/layers/TileLayer',
-          'esri/widgets/BasemapToggle',
+        // Load the required modules
+        const [Map, MapView, Basemap, FeatureLayer] = await loadModules([
+          'esri/Map',
+          'esri/views/MapView',
           'esri/Basemap',
-          'esri/widgets/Search',
-          'esri/geometry/Extent',
-          'esri/Graphic',
-          'esri/layers/GraphicsLayer'
+          'esri/layers/FeatureLayer'
         ]);
-
-        // Create the map with base layers
-        const map = new Map({
-          basemap: settings.baseMap.type
+        
+        // Create the map with the specified basemap
+        esriMap = new Map({
+          basemap: mapSettings.baseMap.type || 'topo-vector'
         });
-
-        // Add the map to the ref for tracking
-        mapInstanceRef.current = map;
-
-        // Create the map view
-        const view = new MapView({
-          container: mapRef.current,
-          map: map,
-          center: center,
-          zoom: zoom,
-          padding: {
-            top: 50,
-            bottom: 0,
-            left: 0,
-            right: 0
+        
+        // Create the view
+        view = new MapView({
+          container: mapRef.current || '',
+          map: esriMap,
+          center: mapSettings.center || [-123.2615, 44.5646], // Default to Benton County, Oregon
+          zoom: mapSettings.zoom || 12,
+          padding: mapSettings.padding || { top: 50, right: 0, bottom: 0, left: 0 },
+          constraints: {
+            snapToZoom: true,
+            rotationEnabled: false
+          },
+          ui: {
+            components: ["attribution", "zoom"]
           }
         });
-
-        // Add the view to the ref for tracking
-        viewInstanceRef.current = view;
-
-        // Add base and viewable layers
-        await addBaseLayers(map, view, TileLayer, settings);
-        await addViewableLayers(map, view, FeatureLayer, TileLayer, settings);
-
-        // Add widgets
-        addWidgets(view, BasemapToggle, Search);
-
-        // Setup click event
+        
+        // Wait for the view to be ready
+        await view.when();
+        setViewLoaded(true);
+        setMapView(view);
+        setMap(esriMap);
+        
+        // Add the Benton County basemap feature layer if specified
+        if (mapSettings.bentonCountyBasemap?.visible) {
+          const bentonBasemap = new FeatureLayer({
+            url: "https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Basemap/FeatureServer/0",
+            title: "Benton County Basemap",
+            opacity: 0.8,
+            visible: true
+          });
+          esriMap.add(bentonBasemap, 0);
+          console.log("Added base layer: Benton County Basemap");
+        }
+        
+        // Add Benton County parcel features if specified
+        if (mapSettings.bentonCountyParcels?.visible) {
+          const parcelLayer = new FeatureLayer({
+            url: "https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Parcels/FeatureServer/0",
+            title: "Benton County Parcels",
+            visible: true
+          });
+          esriMap.add(parcelLayer);
+          console.log("Added feature layer: Benton County Parcels");
+        }
+        
+        // Add Benton County road features if specified
+        if (mapSettings.bentonCountyRoads?.visible) {
+          const roadLayer = new FeatureLayer({
+            url: "https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Roads/FeatureServer/0",
+            title: "Benton County Roads",
+            visible: true
+          });
+          esriMap.add(roadLayer);
+          console.log("Added feature layer: Benton County Roads");
+        }
+        
+        // Add Benton County building features if specified
+        if (mapSettings.bentonCountyBuildings?.visible) {
+          const buildingLayer = new FeatureLayer({
+            url: "https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Buildings/FeatureServer/0",
+            title: "Benton County Buildings",
+            visible: false
+          });
+          esriMap.add(buildingLayer);
+          console.log("Added feature layer: Benton County Buildings");
+        }
+        
+        // Set up click event handler
         if (onLayerClick) {
-          view.on('click', (event) => {
-            view.hitTest(event).then((response) => {
-              const graphics = response.results?.filter(
-                (result) => result.graphic?.layer?.type === 'feature'
-              );
-              
-              if (graphics && graphics.length > 0) {
-                const feature = graphics[0].graphic;
+          view.on("click", (event: any) => {
+            view.hitTest(event).then((hitTestResult: any) => {
+              if (hitTestResult.results.length > 0) {
+                const feature = hitTestResult.results[0].graphic;
                 onLayerClick(feature);
               }
             });
           });
         }
-
-        // When the view is loaded
-        view.when(() => {
-          setIsLoading(false);
-          
-          if (onMapLoaded) {
-            onMapLoaded(map);
-          }
-        });
-
-        // Return a cleanup function to destroy the map when component unmounts
-        return () => {
-          if (view) {
-            view.destroy();
-          }
-        };
-      } catch (err) {
-        console.error('Error loading ESRI map:', err);
-        setError('Failed to load the map.');
-        setIsLoading(false);
+        
+        // Call onMapLoaded callback
+        if (onMapLoaded) {
+          onMapLoaded(esriMap);
+        }
+      } catch (error) {
+        console.error("Error initializing Esri map:", error);
       }
     };
 
-    loadMap();
-  }, [mapRef, center, zoom, onMapLoaded, onLayerClick, settings]);
-
-  /**
-   * Add base layers to the map
-   */
-  const addBaseLayers = async (map: any, view: any, TileLayer: any, settings: EsriMapModuleSettings) => {
-    // Add base layers
-    for (const baseLayer of settings.baseLayers) {
-      try {
-        if (baseLayer.type === 'ESRITiledLayer') {
-          const layer = new TileLayer({
-            url: baseLayer.url,
-            id: baseLayer.name,
-            title: baseLayer.name,
-            visible: baseLayer.visible
-          });
-          map.add(layer, baseLayer.order);
-          console.log(`Added base layer: ${baseLayer.name}`);
-        }
-      } catch (err) {
-        console.error(`Error adding base layer ${baseLayer.name}:`, err);
-      }
+    if (mapRef.current) {
+      initializeMap();
     }
-  };
 
-  /**
-   * Add viewable layers to the map
-   */
-  const addViewableLayers = async (map: any, view: any, FeatureLayer: any, TileLayer: any, settings: EsriMapModuleSettings) => {
-    // Add viewable layers
-    for (const viewableLayer of settings.viewableLayers) {
-      try {
-        if (viewableLayer.type === 'ESRIFeatureLayer') {
-          const layer = new FeatureLayer({
-            url: viewableLayer.url,
-            outFields: ['*'],
-            id: viewableLayer.name,
-            title: viewableLayer.name,
-            visible: viewableLayer.visible
-          });
-          map.add(layer, viewableLayer.order);
-          console.log(`Added feature layer: ${viewableLayer.name}`);
-        } else if (viewableLayer.type === 'ESRIDynamicLayer') {
-          const layer = new TileLayer({
-            url: viewableLayer.url,
-            id: viewableLayer.name,
-            title: viewableLayer.name,
-            visible: viewableLayer.visible
-          });
-          map.add(layer, viewableLayer.order);
-          console.log(`Added dynamic layer: ${viewableLayer.name}`);
-        }
-      } catch (err) {
-        console.error(`Error adding viewable layer ${viewableLayer.name}:`, err);
+    // Clean up the map when component unmounts
+    return () => {
+      if (view) {
+        view.destroy();
       }
-    }
-  };
+    };
+  }, [mapSettings, onMapLoaded, onLayerClick]);
 
-  /**
-   * Add widgets to the map view
-   */
-  const addWidgets = (view: any, BasemapToggle: any, Search: any) => {
-    // Add base map toggle widget
-    const basemapToggle = new BasemapToggle({
-      view: view,
-      nextBasemap: "satellite"
-    });
+  // Additional effect to handle map settings changes
+  useEffect(() => {
+    if (!viewLoaded || !map) return;
     
-    view.ui.add(basemapToggle, "bottom-right");
-
-    // Add search widget
-    const searchWidget = new Search({
-      view: view,
-      allPlaceholder: "Search for address or place",
-      includeDefaultSources: true
-    });
+    // Update map based on new mapSettings here if needed
+    map.basemap = mapSettings.baseMap.type || 'topo-vector';
     
-    view.ui.add(searchWidget, {
-      position: "top-right",
-      index: 0
-    });
-  };
+    // Update other settings as needed
+  }, [viewLoaded, map, mapSettings]);
 
   return (
-    <div className={`relative ${className}`}>
-      <div 
-        id={mapId} 
-        ref={mapRef} 
-        className="w-full h-full"
-        style={{ minHeight: '300px' }}
-      ></div>
-      
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
-          <div className="glass-panel bg-background/60 p-4 rounded-lg shadow-md border border-primary/10 flex items-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-foreground border-t-transparent mr-3"></div>
-            <p className="text-primary font-medium">Loading map...</p>
-          </div>
-        </div>
-      )}
-      
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
-          <div className="glass-panel bg-destructive/15 p-4 rounded-lg shadow-md border border-destructive/30 text-center max-w-md">
-            <h3 className="text-destructive font-semibold mb-2">Error Loading Map</h3>
-            <p className="text-destructive/90">{error}</p>
-            <p className="text-xs mt-2 text-destructive/70">Please check your network connection and try again.</p>
+    <div className={`esri-map-container ${className}`} ref={mapRef} style={{ width: '100%', height: '100%' }}>
+      {!viewLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="mt-2 text-sm text-primary font-medium">Loading Map...</p>
           </div>
         </div>
       )}

@@ -1,122 +1,113 @@
 /**
- * EsriMapModuleSettings - Configuration for the Esri Map Module
- * 
- * This file contains the configuration settings for the Esri Map Module,
- * including base layers and viewable layers.
- */
-
-/**
- * Base layer model for Esri Map Module
- */
-export interface BaseLayerModel {
-  name: string;
-  enableSelection: boolean;
-  order: number;
-  visible: boolean;
-  url: string;
-  type: 'ESRITiledLayer' | 'ESRIDynamicLayer';
-  spatialReferenceId: number;
-}
-
-/**
- * Viewable layer model for Esri Map Module
- */
-export interface ViewableLayerModel {
-  name: string;
-  enableSelection: boolean;
-  selectionLayerId?: number;
-  order: number;
-  visible: boolean;
-  url: string;
-  type: 'ESRIDynamicLayer' | 'ESRIFeatureLayer';
-}
-
-/**
- * Settings for Esri Map Module
+ * EsriMapModuleSettings interface for configuring the EsriMap component
  */
 export interface EsriMapModuleSettings {
+  // Base map configuration
   baseMap: {
-    enableSelection: boolean;
-    order: number;
-    visible: boolean;
-    type: string;
+    type: string;  // topo-vector, satellite, streets-vector, hybrid, etc.
+    enableSelection?: boolean;
+    visible?: boolean;
+    order?: number;
   };
-  baseLayers: BaseLayerModel[];
-  viewableLayers: ViewableLayerModel[];
-  mapTitle: string;
-  autoSelectMaxRecords: number;
+  
+  // Map center and zoom
+  center?: number[];
+  zoom?: number;
+  
+  // Map padding (for UI elements)
+  padding?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
+  
+  // Benton County specific layers
+  bentonCountyBasemap?: {
+    visible: boolean;
+    opacity?: number;
+  };
+  
+  bentonCountyParcels?: {
+    visible: boolean;
+    opacity?: number;
+  };
+  
+  bentonCountyRoads?: {
+    visible: boolean;
+    opacity?: number;
+  };
+  
+  bentonCountyBuildings?: {
+    visible: boolean;
+    opacity?: number;
+  };
 }
 
 /**
- * Default settings for Esri Map Module
+ * Default map settings
  */
-export const defaultEsriMapModuleSettings: EsriMapModuleSettings = {
+const defaultMapSettings: EsriMapModuleSettings = {
   baseMap: {
+    type: 'topo-vector',
     enableSelection: true,
-    order: 0,
     visible: true,
-    type: 'topo-vector'
+    order: 0
   },
-  baseLayers: [
-    {
-      name: 'Benton County Basemap',
-      enableSelection: false,
-      order: 1,
-      visible: true,
-      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Basemap/MapServer',
-      type: 'ESRITiledLayer',
-      spatialReferenceId: 102100
-    }
-  ],
-  viewableLayers: [
-    {
-      name: 'Benton County Parcels',
-      enableSelection: true,
-      selectionLayerId: 0,
-      order: 2,
-      visible: true,
-      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Parcels/FeatureServer/0',
-      type: 'ESRIFeatureLayer'
-    },
-    {
-      name: 'Benton County Roads',
-      enableSelection: true,
-      selectionLayerId: 0,
-      order: 3,
-      visible: true,
-      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Roads/FeatureServer/0',
-      type: 'ESRIFeatureLayer'
-    },
-    {
-      name: 'Benton County Buildings',
-      enableSelection: true,
-      selectionLayerId: 0,
-      order: 4,
-      visible: false,
-      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Buildings/FeatureServer/0',
-      type: 'ESRIFeatureLayer'
-    }
-  ],
-  mapTitle: 'Benton County GIS',
-  autoSelectMaxRecords: 1000
+  center: [-123.2615, 44.5646], // Default to Benton County, Oregon
+  zoom: 12,
+  padding: { top: 50, right: 0, bottom: 0, left: 0 },
+  bentonCountyBasemap: {
+    visible: true,
+    opacity: 0.8
+  },
+  bentonCountyParcels: {
+    visible: true,
+    opacity: 1.0
+  },
+  bentonCountyRoads: {
+    visible: true,
+    opacity: 1.0
+  },
+  bentonCountyBuildings: {
+    visible: false,
+    opacity: 1.0
+  }
 };
 
 /**
- * Function to get map settings by merging default settings with provided overrides
+ * Helper function to get map settings with defaults applied
+ * @param customSettings - Custom map settings to override defaults
+ * @returns Map settings with defaults applied
  */
-export function getMapSettings(overrides?: Partial<EsriMapModuleSettings>): EsriMapModuleSettings {
-  if (!overrides) {
-    return { ...defaultEsriMapModuleSettings };
-  }
-
+export function getMapSettings(customSettings: Partial<EsriMapModuleSettings> = {}): EsriMapModuleSettings {
   return {
-    ...defaultEsriMapModuleSettings,
-    ...overrides,
-    baseLayers: overrides.baseLayers || defaultEsriMapModuleSettings.baseLayers,
-    viewableLayers: overrides.viewableLayers || defaultEsriMapModuleSettings.viewableLayers,
+    ...defaultMapSettings,
+    ...customSettings,
+    // Merge nested objects properly
     baseMap: {
-      ...defaultEsriMapModuleSettings.baseMap,
-      ...(overrides.baseMap || {})
+      ...defaultMapSettings.baseMap,
+      ...(customSettings.baseMap || {})
+    },
+    padding: {
+      ...defaultMapSettings.padding,
+      ...(customSettings.padding || {})
+    },
+    bentonCountyBasemap: {
+      ...defaultMapSettings.bentonCountyBasemap,
+      ...(customSettings.bentonCountyBasemap || {})
+    },
+    bentonCountyParcels: {
+      ...defaultMapSettings.bentonCountyParcels,
+      ...(customSettings.bentonCountyParcels || {})
+    },
+    bentonCountyRoads: {
+      ...defaultMapSettings.bentonCountyRoads,
+      ...(customSettings.bentonCountyRoads || {})
+    },
+    bentonCountyBuildings: {
+      ...defaultMapSettings.bentonCountyBuildings,
+      ...(customSettings.bentonCountyBuildings || {})
     }
   };
 }
