@@ -10,7 +10,7 @@ export const DEFAULT_PARCELS_LAYER = {
   id: 'parcels-layer-base', // Fixed ID to ensure it's recognized as the same layer
   name: 'Parcels and Assessor Data',
   serviceName: 'Parcels_and_Assess',
-  serviceType: 'FeatureServer' as const,
+  serviceType: 'MapServer' as const,
   layerId: 0,
   visible: true,
   opacity: 1,

@@ -816,25 +816,25 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                   size="sm" 
                   variant="outline" 
                   className="h-6 text-xs py-0 px-1"
-                  onClick={() => addLayer('Parcels_and_Assess', 'FeatureServer')}
+                  onClick={() => addLayer('Parcels_and_Assess', 'MapServer')}
                 >
-                  Parcels
+                  Parcels Map
                 </Button>
                 <Button 
                   size="sm" 
                   variant="outline" 
                   className="h-6 text-xs py-0 px-1"
-                  onClick={() => addLayer('Zoning', 'FeatureServer')}
+                  onClick={() => addLayer('Zoning', 'MapServer')}
                 >
-                  Zoning
+                  Zoning Map
                 </Button>
                 <Button 
                   size="sm" 
                   variant="outline" 
                   className="h-6 text-xs py-0 px-1"
-                  onClick={() => addLayer('Roads', 'FeatureServer')}
+                  onClick={() => addLayer('Roads', 'MapServer')}
                 >
-                  Roads
+                  Roads Map
                 </Button>
               </div>
             </div>
@@ -849,9 +849,9 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
                 </p>
                 <Button 
                   size="sm" 
-                  onClick={() => addLayer('Parcels_and_Assess', 'FeatureServer')}
+                  onClick={() => addLayer('Parcels_and_Assess', 'MapServer')}
                 >
-                  Add Parcels Layer
+                  Add Parcels Map Layer
                 </Button>
               </div>
             ) : (

@@ -33,7 +33,7 @@ const ArcGISMapPage: React.FC = () => {
   const [filteredServices, setFilteredServices] = useState<any[]>([]);
   const [showServicesDropdown, setShowServicesDropdown] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [selectedServiceType, setSelectedServiceType] = useState<'FeatureServer' | 'MapServer'>('FeatureServer');
+  const [selectedServiceType, setSelectedServiceType] = useState<'FeatureServer' | 'MapServer'>('MapServer');
   const [activeLayers, setActiveLayers] = useState<any[]>([DEFAULT_PARCELS_LAYER]); // Initialize with DEFAULT_PARCELS_LAYER
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,11 +122,11 @@ const ArcGISMapPage: React.FC = () => {
             
             // Provide a small set of hardcoded services for testing
             setServices([
-              { name: 'Parcels_and_Assess', type: 'FeatureServer' },
-              { name: 'Zoning', type: 'FeatureServer' },
-              { name: 'Roads', type: 'FeatureServer' },
-              { name: 'TaxLots', type: 'FeatureServer' },
-              { name: 'Jurisdictions', type: 'FeatureServer' }
+              { name: 'Parcels_and_Assess', type: 'MapServer' },
+              { name: 'Zoning', type: 'MapServer' },
+              { name: 'Roads', type: 'MapServer' },
+              { name: 'Aerials_2020', type: 'MapServer' },
+              { name: 'Fire_Districts', type: 'MapServer' }
             ]);
           }
         })
@@ -136,11 +136,11 @@ const ArcGISMapPage: React.FC = () => {
           
           // Provide a small set of hardcoded services for testing
           setServices([
-            { name: 'Parcels_and_Assess', type: 'FeatureServer' },
-            { name: 'Zoning', type: 'FeatureServer' },
-            { name: 'Roads', type: 'FeatureServer' },
-            { name: 'TaxLots', type: 'FeatureServer' },
-            { name: 'Jurisdictions', type: 'FeatureServer' }
+            { name: 'Parcels_and_Assess', type: 'MapServer' },
+            { name: 'Zoning', type: 'MapServer' },
+            { name: 'Roads', type: 'MapServer' },
+            { name: 'Aerials_2020', type: 'MapServer' },
+            { name: 'Fire_Districts', type: 'MapServer' }
           ]);
         })
         .finally(() => {
@@ -158,7 +158,7 @@ const ArcGISMapPage: React.FC = () => {
     console.log(`Adding layer from service: ${selectedService} (${selectedServiceType})`);
     
     // Check if we're adding the Parcels layer and handle it as a base layer
-    const isParcelsLayer = selectedService === 'Parcels_and_Assess' && selectedServiceType === 'FeatureServer';
+    const isParcelsLayer = selectedService === 'Parcels_and_Assess' && selectedServiceType === 'MapServer';
     
     // Check if this layer already exists to prevent duplicates
     const layerExists = activeLayers.some(
