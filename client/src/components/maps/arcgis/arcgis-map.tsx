@@ -164,4 +164,6 @@ const ArcGISMap: React.FC<ArcGISMapProps> = ({
   );
 };
 
+// Export both as default and named export to fix import issues
 export default ArcGISMap;
+export { ArcGISMap };

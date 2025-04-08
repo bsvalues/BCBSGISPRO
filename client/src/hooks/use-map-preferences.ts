@@ -1,6 +1,6 @@
 import { useLocalStorage } from './use-local-storage';
 
-interface MapPreferences {
+export interface MapPreferences {
   visibleLayers: string[];
   showLabels: boolean;
   baseMap: string;
@@ -103,3 +103,6 @@ export function useMapPreferences() {
     resetToDefaults
   };
 }
+
+// Export as both default and named export to prevent import issues
+export default useMapPreferences;

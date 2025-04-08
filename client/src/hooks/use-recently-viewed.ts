@@ -97,3 +97,6 @@ export function useRecentlyViewed() {
     getRecentItemsByDateRange
   };
 }
+
+// Export as both default and named export to prevent import issues
+export default useRecentlyViewed;

@@ -107,3 +107,6 @@ export function useMapBookmarks() {
     getBookmarksByTag
   };
 }
+
+// Export as both default and named export to prevent import issues
+export default useMapBookmarks;
