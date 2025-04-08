@@ -3,20 +3,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import ArcGISProviderSimplified from '../components/maps/arcgis/arcgis-provider-simplified';
 import ArcGISSketchSimplified from '../components/maps/arcgis/arcgis-sketch-simplified';
 import ArcGISRestMap from '../components/maps/arcgis/arcgis-rest-map';
-import SimplifiedImageMap from '../components/maps/arcgis/simplified-image-map';
 import ArcGISRestLayer from '../components/maps/arcgis/arcgis-rest-layer';
 import { fetchServiceList, fetchServiceInfo } from '../services/arcgis-rest-service';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { Slider } from '../components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { 
   Layers, Map, MapPin, PenTool, FileSearch, 
   ZoomIn, ZoomOut, Home, ChevronLeft, ChevronRight,
-  Globe, Database, Loader2, Image as ImageIcon, AlertCircle
+  Globe, Database, Loader2
 } from 'lucide-react';
-import { DEFAULT_PARCELS_LAYER, STATIC_MAP_IMAGES } from '../constants/layer-constants';
-import { Alert, AlertDescription } from '../components/ui/alert';
+import { DEFAULT_PARCELS_LAYER } from '../constants/layer-constants';
 
 /**
  * ArcGIS Map Page Component
@@ -29,7 +26,7 @@ const ArcGISMapPage: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('layers');
   const [isSketchActive, setIsSketchActive] = useState(false);
-  const [mapMode, setMapMode] = useState<'simulated' | 'rest' | 'static'>('static');
+  const [mapMode, setMapMode] = useState<'simulated' | 'rest'>('simulated');
   
   // ArcGIS REST specific state
   const [services, setServices] = useState<any[]>([]);
@@ -41,9 +38,8 @@ const ArcGISMapPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // References to map components
+  // Reference to map component
   const arcgisRestMapRef = useRef<any>(null);
-  const simplifiedMapRef = useRef<any>(null);
   
   // Handle map clicks
   const handleMapClick = (e: any) => {
@@ -109,25 +105,17 @@ const ArcGISMapPage: React.FC = () => {
     };
   }, [showServicesDropdown]);
   
-  // Fetch services when switching to REST mode
+  // Load ArcGIS services when map mode changes to 'rest'
   useEffect(() => {
     if (mapMode === 'rest') {
       setLoading(true);
-      console.log('Fetching ArcGIS services...');
+      console.log('Loading ArcGIS services for sidebar...');
       
-      // Use direct fetch for debugging
-      fetch('https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services?f=json')
-        .then(response => response.json())
+      fetchServiceList()
         .then(data => {
-          console.log('Service list fetch result:', data);
-          
-          if (data && data.services && Array.isArray(data.services)) {
+          if (data && Array.isArray(data.services)) {
             console.log(`Found ${data.services.length} services for sidebar`);
-            setServices(data.services.map((service: any) => ({
-              name: service.name,
-              type: service.type,
-              url: service.url
-            })));
+            setServices(data.services);
           } else {
             console.warn('Invalid service list format:', data);
             setError('Failed to load service list');
@@ -274,26 +262,12 @@ const ArcGISMapPage: React.FC = () => {
       )
     );
   };
-
-  // Toggle a layer in the simplified image map
-  const toggleImageMapLayer = (layerKey: string) => {
-    if (simplifiedMapRef.current) {
-      simplifiedMapRef.current.toggleLayer(layerKey);
-    }
-  };
   
-  // Set opacity for a layer in the simplified image map
-  const setImageMapLayerOpacity = (layerKey: string, opacity: number[]) => {
-    if (simplifiedMapRef.current) {
-      simplifiedMapRef.current.setLayerOpacity(layerKey, opacity[0] / 100);
-    }
-  };
-
   return (
-    <div className="flex h-screen w-full bg-gray-100">
-      {/* Map container */}
-      <div className="relative flex-grow h-full">
-        {/* Map content - render based on selected mode */}
+    <div className="flex h-screen w-full bg-gray-100 relative overflow-hidden">
+      {/* Main map container */}
+      <div className="flex-grow relative">
+        {/* Map display (conditional based on mode) */}
         {mapMode === 'simulated' ? (
           <ArcGISProviderSimplified
             initialViewState={{
@@ -303,15 +277,16 @@ const ArcGISMapPage: React.FC = () => {
             }}
             style={{ width: '100%', height: '100%' }}
           >
+            {/* Sketch component (conditionally rendered) */}
             {isSketchActive && (
               <ArcGISSketchSimplified
-                view={undefined}
+                view={undefined /* This will be populated automatically by the parent component */}
                 onSketchComplete={handleSketchComplete}
                 position="top-right"
               />
             )}
           </ArcGISProviderSimplified>
-        ) : mapMode === 'rest' ? (
+        ) : (
           <ArcGISRestMap
             ref={arcgisRestMapRef}
             initialCenter={[-123.3617, 44.5646]}
@@ -320,23 +295,15 @@ const ArcGISMapPage: React.FC = () => {
             showControls={true}
             layers={activeLayers}
           />
-        ) : (
-          // Static image-based map
-          <SimplifiedImageMap
-            ref={simplifiedMapRef}
-            width="100%"
-            height="100%"
-            showControls={false}
-          />
         )}
         
-        {/* Map controls */}
+        {/* Map mode toggle */}
         <div className="absolute top-6 right-6 z-50">
           <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
             <div className="flex items-center gap-1">
               <Button 
-                size="sm"
-                variant={mapMode === 'simulated' ? "default" : "outline"}
+                size="sm" 
+                variant={mapMode === 'simulated' ? "default" : "outline"} 
                 onClick={() => setMapMode('simulated')}
                 title="Simulated Map"
               >
@@ -344,42 +311,66 @@ const ArcGISMapPage: React.FC = () => {
                 Simulated
               </Button>
               <Button 
-                size="sm"
-                variant={mapMode === 'rest' ? "default" : "outline"}
+                size="sm" 
+                variant={mapMode === 'rest' ? "default" : "outline"} 
                 onClick={() => setMapMode('rest')}
-                title="REST Services"
+                title="ArcGIS REST API"
               >
                 <Database size={18} className="mr-1" />
                 REST API
-              </Button>
-              <Button 
-                size="sm"
-                variant={mapMode === 'static' ? "default" : "outline"}
-                onClick={() => setMapMode('static')}
-                title="Map Images"
-              >
-                <ImageIcon size={18} className="mr-1" />
-                Images
               </Button>
             </div>
           </Card>
         </div>
         
-        {/* Sidebar toggle button */}
-        <Button
-          className="absolute top-1/2 left-0 transform -translate-y-1/2 bg-white rounded-r-md rounded-l-none shadow z-10"
-          size="sm"
-          variant="ghost"
-          onClick={toggleSidebar}
-        >
-          {sidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
-        </Button>
+        {/* Map controls overlay (only shown in simulated mode) */}
+        {mapMode === 'simulated' && (
+          <div className="absolute bottom-6 right-6 flex flex-col gap-2">
+            <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
+              <div className="flex flex-col gap-1">
+                <Button size="sm" variant="ghost" title="Zoom In">
+                  <ZoomIn size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Zoom Out">
+                  <ZoomOut size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Home">
+                  <Home size={18} />
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+        
+        {/* Map tools (only shown in simulated mode) */}
+        {mapMode === 'simulated' && (
+          <div className="absolute top-6 left-1/2 transform -translate-x-1/2">
+            <Card className="p-2 bg-white/90 backdrop-blur shadow-lg">
+              <div className="flex items-center gap-1">
+                <Button 
+                  size="sm" 
+                  variant={isSketchActive ? "default" : "ghost"} 
+                  onClick={toggleSketch}
+                  title="Drawing Tools"
+                >
+                  <PenTool size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Search">
+                  <FileSearch size={18} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Add Location">
+                  <MapPin size={18} />
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
       
       {/* Sidebar */}
       <div 
-        className={`h-full bg-white shadow-lg transition-all duration-300 ${
-          sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-96'
+        className={`bg-white h-full shadow-lg transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'w-0 opacity-0' : 'w-96 opacity-100'
         }`}
       >
         {!sidebarCollapsed && (
@@ -390,9 +381,7 @@ const ArcGISMapPage: React.FC = () => {
               <p className="text-xs text-blue-500 mt-1">
                 {mapMode === 'simulated' 
                   ? "Using simulated map data" 
-                  : mapMode === 'rest'
-                    ? "Using ArcGIS REST services"
-                    : "Using direct map images"
+                  : "Connected to ArcGIS REST services"
                 }
               </p>
             </div>
@@ -411,179 +400,409 @@ const ArcGISMapPage: React.FC = () => {
               
               <TabsContent value="layers" className="flex-grow p-4 overflow-auto">
                 <div className="space-y-4">
-                  {/* Standard layers component - shown in all modes */}
                   <Card className="p-4">
-                    <h3 className="font-medium mb-2">Base Map Layers</h3>
+                    <h3 className="font-medium mb-2">Base Maps</h3>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="parcels-layer"
-                            className="mr-2"
-                            defaultChecked={true}
-                            onChange={() => mapMode === 'static' && toggleImageMapLayer('PARCELS')}
-                          />
-                          <label htmlFor="parcels-layer" className="text-sm">Parcels</label>
-                        </div>
-                        <span className="text-xs text-gray-500">Base layer</span>
+                        <label className="flex items-center">
+                          <input type="radio" name="basemap" className="mr-2" defaultChecked />
+                          Streets
+                        </label>
+                        <span className="text-xs text-gray-500">Default</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="roads-layer"
-                            className="mr-2"
-                            onChange={() => mapMode === 'static' && toggleImageMapLayer('ROADS')}
-                          />
-                          <label htmlFor="roads-layer" className="text-sm">Roads</label>
-                        </div>
-                        <div className="w-24">
-                          <Slider
-                            defaultValue={[100]}
-                            max={100}
-                            step={10}
-                            className="w-full"
-                            onValueChange={(v) => mapMode === 'static' && setImageMapLayerOpacity('ROADS', v)}
-                          />
-                        </div>
+                        <label className="flex items-center">
+                          <input type="radio" name="basemap" className="mr-2" />
+                          Imagery
+                        </label>
+                        <span className="text-xs text-gray-500">High-res</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="zoning-layer"
-                            className="mr-2"
-                            onChange={() => mapMode === 'static' && toggleImageMapLayer('ZONING')}
-                          />
-                          <label htmlFor="zoning-layer" className="text-sm">Zoning</label>
-                        </div>
-                        <div className="w-24">
-                          <Slider
-                            defaultValue={[70]}
-                            max={100}
-                            step={10}
-                            className="w-full"
-                            onValueChange={(v) => mapMode === 'static' && setImageMapLayerOpacity('ZONING', v)}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="aerial-layer"
-                            className="mr-2"
-                            onChange={() => mapMode === 'static' && toggleImageMapLayer('AERIAL')}
-                          />
-                          <label htmlFor="aerial-layer" className="text-sm">Aerial Imagery</label>
-                        </div>
-                        <div className="w-24">
-                          <Slider
-                            defaultValue={[80]}
-                            max={100}
-                            step={10}
-                            className="w-full"
-                            onValueChange={(v) => mapMode === 'static' && setImageMapLayerOpacity('AERIAL', v)}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="fire-districts-layer"
-                            className="mr-2"
-                            onChange={() => mapMode === 'static' && toggleImageMapLayer('FIRE_DISTRICTS')}
-                          />
-                          <label htmlFor="fire-districts-layer" className="text-sm">Fire Districts</label>
-                        </div>
-                        <div className="w-24">
-                          <Slider
-                            defaultValue={[70]}
-                            max={100}
-                            step={10}
-                            className="w-full"
-                            onValueChange={(v) => mapMode === 'static' && setImageMapLayerOpacity('FIRE_DISTRICTS', v)}
-                          />
-                        </div>
+                        <label className="flex items-center">
+                          <input type="radio" name="basemap" className="mr-2" />
+                          Topographic
+                        </label>
+                        <span className="text-xs text-gray-500">Contours</span>
                       </div>
                     </div>
                   </Card>
                   
-                  {/* Static image layer information */}
-                  {mapMode === 'static' && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <p className="text-sm text-blue-700">
-                        <span className="font-semibold">Map Image Mode:</span> Using pre-loaded map data from Benton County ArcGIS services. Toggle layers above to show/hide map features.
-                      </p>
-                    </Alert>
-                  )}
+                  <Card className="p-4">
+                    <h3 className="font-medium mb-2">Operational Layers</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" defaultChecked />
+                          Parcels
+                        </label>
+                        <span className="text-xs text-gray-500">100%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" defaultChecked />
+                          Roads
+                        </label>
+                        <span className="text-xs text-gray-500">100%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" />
+                          Zoning
+                        </label>
+                        <span className="text-xs text-gray-500">50%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" />
+                          Floodplain
+                        </label>
+                        <span className="text-xs text-gray-500">70%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" />
+                          Jurisdictions
+                        </label>
+                        <span className="text-xs text-gray-500">60%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center">
+                          <input type="checkbox" className="mr-2" />
+                          Tax Lots
+                        </label>
+                        <span className="text-xs text-gray-500">100%</span>
+                      </div>
+                    </div>
+                  </Card>
                   
-                  {/* Selected feature information */}
-                  {selectedFeature && (
+                  {mapMode === 'rest' && (
                     <Card className="p-4">
-                      <h3 className="font-medium mb-2">Selected Feature</h3>
-                      <div className="text-sm">
-                        <div className="flex justify-between">
-                          <span className="font-medium">Type:</span>
-                          <span>{selectedFeature.type}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">ID:</span>
-                          <span>{selectedFeature.id}</span>
+                      <h3 className="font-medium mb-2">ArcGIS REST Services</h3>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Select services to add from Benton County's ArcGIS server:
+                      </p>
+                      <div className="p-2 mb-3 bg-green-50 border border-green-200 rounded text-xs">
+                        <p className="font-medium text-green-800">Parcels Layer</p>
+                        <p className="text-green-700 mt-1">
+                          The Parcels_and_Assess layer is maintained as a persistent 
+                          base layer and cannot be removed. It provides essential county parcel data.
+                        </p>
+                      </div>
+                      
+                      {/* Services selection dropdown */}
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm font-medium">Available Services:</label>
+                            {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+                          </div>
+                          
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="w-full p-2 border rounded text-sm"
+                              placeholder="Type to search services... (349 available)"
+                              onChange={(e) => {
+                                // Filter services as user types
+                                const searchTerm = e.target.value.toLowerCase();
+                                if (searchTerm.length > 0) {
+                                  const filtered = services
+                                    .filter(service => 
+                                      service.name.toLowerCase().includes(searchTerm)
+                                    )
+                                    .slice(0, 20); // Limit to first 20 matches
+                                  
+                                  setFilteredServices(filtered);
+                                  setShowServicesDropdown(true);
+                                } else {
+                                  setFilteredServices([]);
+                                  setShowServicesDropdown(false);
+                                }
+                              }}
+                              onFocus={() => {
+                                // When focusing, show the popular services
+                                const popularServices = [
+                                  'Parcels_and_Assess', 'Zoning', 'Roads', 'TaxLots', 
+                                  'Jurisdictions', 'Floodplain'
+                                ];
+                                
+                                const filtered = services
+                                  .filter(service => 
+                                    popularServices.includes(service.name)
+                                  )
+                                  .slice(0, 10);
+                                
+                                if (filtered.length > 0) {
+                                  setFilteredServices(filtered);
+                                  setShowServicesDropdown(true);
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                // Prevent the click from closing the dropdown when clicking the input
+                                e.stopPropagation();
+                              }}
+                              disabled={loading}
+                            />
+                            
+                            {showServicesDropdown && (
+                              <div 
+                                className="absolute z-20 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+                                onMouseDown={(e) => {
+                                  // Prevent clicking inside the dropdown from closing it
+                                  e.stopPropagation();
+                                }}
+                              >
+                                {filteredServices.length > 0 ? (
+                                  filteredServices.map(service => (
+                                    <div 
+                                      key={service.name} 
+                                      className="p-2 hover:bg-gray-100 cursor-pointer text-sm border-b"
+                                      onClick={() => {
+                                        setSelectedService(service.name);
+                                        setSelectedServiceType(service.type as 'FeatureServer' | 'MapServer');
+                                        setShowServicesDropdown(false);
+                                      }}
+                                    >
+                                      <div className="font-medium">{service.name}</div>
+                                      <div className="text-xs text-gray-500">{service.type}</div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="p-3 text-center text-gray-500 text-sm">
+                                    No matching services found
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {selectedService && (
+                              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200 flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium text-sm">{selectedService}</div>
+                                  <div className="text-xs text-gray-500">{selectedServiceType}</div>
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-gray-400"
+                                  onClick={() => setSelectedService(null)}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex justify-end">
+                            <Button 
+                              size="sm" 
+                              onClick={addSelectedLayer}
+                              disabled={!selectedService || loading}
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  Loading...
+                                </>
+                              ) : "Add Layer"}
+                            </Button>
+                          </div>
                         </div>
                         
-                        {selectedFeature.attributes && Object.entries(selectedFeature.attributes).map(([key, value]) => (
-                          <div key={key} className="flex justify-between">
-                            <span className="font-medium">{key}:</span>
-                            <span>{String(value)}</span>
+                        <div className="flex gap-1 flex-wrap">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1 bg-green-50 border-green-200 text-green-700"
+                            onClick={() => {
+                              setSelectedService('Parcels_and_Assess');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                            title="Adds the Parcels layer as a base layer"
+                          >
+                            Add Parcels (Base)
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1"
+                            onClick={() => {
+                              setSelectedService('Zoning');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                          >
+                            Add Zoning
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 text-xs py-0 px-1"
+                            onClick={() => {
+                              setSelectedService('Roads');
+                              setSelectedServiceType('FeatureServer');
+                              setTimeout(addSelectedLayer, 0);
+                            }}
+                            disabled={loading}
+                          >
+                            Add Roads
+                          </Button>
+                        </div>
+                        
+                        {error && (
+                          <div className="p-2 text-xs text-red-600 bg-red-50 rounded border border-red-200">
+                            {error}
                           </div>
-                        ))}
+                        )}
+                        
+                        <div className="border-t pt-2">
+                          <h4 className="text-sm font-medium mb-2">
+                            Active Layers ({activeLayers.length})
+                          </h4>
+                          
+                          {activeLayers.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-2">
+                              No layers added yet. Select a service above to add a layer.
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                              {activeLayers.map(layer => (
+                                <div 
+                                  key={layer.id} 
+                                  className={`flex items-center justify-between p-2 rounded ${
+                                    layer.isBaseLayer ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
+                                  }`}
+                                >
+                                  <label className="flex items-center">
+                                    <input 
+                                      type="checkbox" 
+                                      className="mr-2" 
+                                      checked={layer.visible} 
+                                      onChange={() => toggleLayerVisibility(layer.id)}
+                                    />
+                                    <span className="text-sm">
+                                      {layer.name}
+                                      {layer.isBaseLayer && (
+                                        <span className="text-xs ml-1 text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                                          base
+                                        </span>
+                                      )}
+                                    </span>
+                                  </label>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className={`h-6 w-6 p-0 ${
+                                      layer.isBaseLayer ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    onClick={() => removeLayer(layer.id)}
+                                    disabled={layer.isBaseLayer}
+                                    title={layer.isBaseLayer ? "Base layer cannot be removed" : "Remove layer"}
+                                  >
+                                    ×
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 text-xs text-gray-500">
+                        Server: <code className="bg-gray-100 px-1 py-0.5 rounded">services7.arcgis.com/NURlY7V8UHl6XumF</code>
                       </div>
                     </Card>
-                  )}
-                  
-                  {/* Error messages */}
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
                   )}
                 </div>
               </TabsContent>
               
               <TabsContent value="selection" className="flex-grow p-4 overflow-auto">
-                <Card className="p-4">
-                  <h3 className="font-medium mb-2">Selected Features</h3>
-                  {selectedFeature ? (
-                    <div className="text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Type:</span>
-                        <span>{selectedFeature.type}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">ID:</span>
-                        <span>{selectedFeature.id}</span>
-                      </div>
-                      
-                      {selectedFeature.attributes && Object.entries(selectedFeature.attributes).map(([key, value]) => (
-                        <div key={key} className="flex justify-between">
-                          <span className="font-medium">{key}:</span>
-                          <span>{String(value)}</span>
-                        </div>
-                      ))}
+                {selectedFeature ? (
+                  <Card className="p-4">
+                    <h3 className="font-medium mb-2">{selectedFeature.type === 'parcel' ? 'Parcel Information' : 'Selection Information'}</h3>
+                    <div className="space-y-2 text-sm">
+                      {selectedFeature.type === 'parcel' ? (
+                        <>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Parcel ID:</span>
+                            <span className="col-span-2 font-medium">{selectedFeature.attributes.parcelNumber}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Owner:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.owner}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Address:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.address}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Acres:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.acres}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Zoning:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.zoning}</span>
+                          </div>
+                          
+                          <div className="pt-2 flex justify-end gap-2">
+                            <Button size="sm" variant="outline">View Details</Button>
+                            <Button size="sm">Related Documents</Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Selection:</span>
+                            <span className="col-span-2 font-medium">{selectedFeature.id}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Area:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.area}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Perimeter:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.perimeter}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="text-gray-500">Created:</span>
+                            <span className="col-span-2">{selectedFeature.attributes.created}</span>
+                          </div>
+                          
+                          <div className="pt-2 flex justify-end gap-2">
+                            <Button size="sm" variant="outline">Buffer</Button>
+                            <Button size="sm">Find Parcels</Button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No features selected</p>
-                  )}
-                </Card>
+                  </Card>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Map size={48} className="mx-auto mb-4 opacity-30" />
+                    <p>No features selected</p>
+                    <p className="text-sm mt-1">Click on the map or use the sketch tools to select features</p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
         )}
       </div>
+      
+      {/* Sidebar toggle button */}
+      <button
+        onClick={toggleSidebar}
+        className="absolute top-1/2 transform -translate-y-1/2 bg-white rounded-full shadow-lg p-1 z-10"
+        style={{ 
+          left: sidebarCollapsed ? '10px' : '384px',
+          transition: 'left 300ms ease-in-out'
+        }}
+      >
+        {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+      </button>
     </div>
   );
 };

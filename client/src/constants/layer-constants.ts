@@ -28,12 +28,3 @@ export interface Layer {
   opacity: number;
   isBaseLayer?: boolean;
 }
-
-// Direct URLs for static map images (for fallback or testing)
-export const STATIC_MAP_IMAGES = {
-  PARCELS: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/MapServer/export?bbox=-123.4617,44.4646,-123.2617,44.6646&bboxSR=4326&imageSR=4326&size=1200,800&dpi=96&format=png32&transparent=true&layers=show:0,1,2,3,4&f=image',
-  AERIAL: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Aerials_2020/MapServer/export?bbox=-123.4617,44.4646,-123.2617,44.6646&bboxSR=4326&imageSR=4326&size=1200,800&dpi=96&format=jpeg&transparent=false&layers=show:0&f=image',
-  ZONING: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/MapServer/export?bbox=-123.4617,44.4646,-123.2617,44.6646&bboxSR=4326&imageSR=4326&size=1200,800&dpi=96&format=png32&transparent=true&layers=show:0&f=image',
-  ROADS: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Roads/MapServer/export?bbox=-123.4617,44.4646,-123.2617,44.6646&bboxSR=4326&imageSR=4326&size=1200,800&dpi=96&format=png32&transparent=true&layers=show:0&f=image',
-  FIRE_DISTRICTS: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Fire_Districts/MapServer/export?bbox=-123.4617,44.4646,-123.2617,44.6646&bboxSR=4326&imageSR=4326&size=1200,800&dpi=96&format=png32&transparent=true&layers=show:0&f=image'
-};

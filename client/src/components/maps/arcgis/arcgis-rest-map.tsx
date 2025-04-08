@@ -205,7 +205,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     try {
       // Check if the Parcels_and_Assess layer is already loaded
       const parcelsLayerExists = layers.some(layer => 
-        layer.serviceName === 'Parcels_and_Assess' && layer.serviceType === 'FeatureServer'
+        layer.serviceName === 'Parcels_and_Assess' && layer.serviceType === 'MapServer'
       );
       
       if (parcelsLayerExists) {
@@ -214,7 +214,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       }
       
       console.log('Auto-loading Parcels_and_Assess layer...');
-      await addLayer('Parcels_and_Assess', 'FeatureServer');
+      await addLayer('Parcels_and_Assess', 'MapServer');
       return true;
     } catch (err) {
       console.error('Failed to auto-load Parcels_and_Assess layer:', err);
@@ -252,13 +252,13 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
             setServices([
               { 
                 name: 'Parcels_and_Assess', 
-                type: 'FeatureServer',
-                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/FeatureServer'
+                type: 'MapServer',
+                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/MapServer'
               },
               {
                 name: 'Zoning',
-                type: 'FeatureServer',
-                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/FeatureServer'
+                type: 'MapServer',
+                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/MapServer'
               }
             ]);
           }
@@ -274,13 +274,13 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
         setServices([
           { 
             name: 'Parcels_and_Assess', 
-            type: 'FeatureServer',
-            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/FeatureServer'
+            type: 'MapServer',
+            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Parcels_and_Assess/MapServer'
           },
           {
             name: 'Zoning',
-            type: 'FeatureServer',
-            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/FeatureServer'
+            type: 'MapServer',
+            url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Zoning/MapServer'
           }
         ]);
       }
