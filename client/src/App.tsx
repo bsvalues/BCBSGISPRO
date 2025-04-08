@@ -24,7 +24,7 @@ import DataMigrationPage from "@/pages/data-migration";
 import { MapSettingsPage } from "@/pages/map-settings";
 import ParcelComparisonDemo from "@/pages/parcel-comparison-demo";
 import ArcGISMapPage from "@/pages/ArcGISMapPage";
-import ArcGISMapPageNew from "@/pages/ArcGISMapPageNew";
+import ArcGISMapPageNew from "./pages/ArcGISMapPageNew";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -87,7 +87,9 @@ function App() {
     '/enhanced-map-collaboration',
     '/collaborative-map',
     '/map-viewer',
-    '/mapbox-demo'
+    '/mapbox-demo',
+    '/arcgis-map',
+    '/arcgis-map-new'
   ].includes(location);
   
   // All pages should use the immersive map styling

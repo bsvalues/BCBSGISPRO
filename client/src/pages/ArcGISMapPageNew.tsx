@@ -2,23 +2,23 @@ import React, { useState } from 'react';
 import MapLayout from '../components/layout/MapLayout';
 import MapToolbar from '../components/maps/MapToolbar';
 import MapSidebar from '../components/maps/MapSidebar';
-import ArcGISMap from '../components/maps/arcgis/arcgis-map';
+import { ArcGISMapComponent } from '../components/maps/arcgis/arcgis-map-component';
 import { useToggle } from '../hooks/use-toggle';
 import { useMapBookmarks } from '../hooks/use-map-bookmarks';
-import { Button } from '@/components/ui/button';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { Button } from '../components/ui/button';
+import { TooltipProvider } from '../components/ui/tooltip';
 import { useToast } from '../hooks/use-toast';
 import { useLocalStorage } from '../hooks/use-local-storage';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '../components/ui/toggle-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
+import { Slider } from '../components/ui/slider';
+import { Switch } from '../components/ui/switch';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { useMapPreferences } from '../hooks/use-map-preferences';
 import { useRecentlyViewed } from '../hooks/use-recently-viewed';
 
@@ -101,7 +101,7 @@ const ArcGISMapPageNew: React.FC = () => {
         onRightSidebarToggle={toggleSidebar}
         isRightSidebarOpen={sidebarOpen}
       >
-        <ArcGISMap 
+        <ArcGISMapComponent 
           layers={preferences.visibleLayers}
           opacity={1} 
           showLabels={preferences.showLabels}
@@ -135,7 +135,7 @@ const ArcGISMapPageNew: React.FC = () => {
               <Label className="self-center">Show Labels</Label>
               <Switch 
                 checked={preferences.showLabels} 
-                onCheckedChange={(checked) => updatePreferences({ showLabels: checked })}
+                onChange={(e) => updatePreferences({ showLabels: e.target.checked })}
               />
             </div>
           </div>

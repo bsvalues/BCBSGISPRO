@@ -1,9 +1,18 @@
 // Barrel file for ArcGIS components
-export { default as ArcGISMap } from './arcgis-map';
-export { default as ArcGISProvider } from './arcgis-provider';
+import ArcGISMap from './arcgis-map';
+import ArcGISProvider from './arcgis-provider';
+import ArcGISControls from './arcgis-controls';
+import ArcGISLayer from './arcgis-layer';
+import ArcGISSketch from './arcgis-sketch';
+import ArcGISAnalysis from './arcgis-analysis';
+import { ArcGISMapComponent } from './arcgis-map-component';
 
-// We'll need to create these components
-export { default as ArcGISControls } from './arcgis-controls';
-export { default as ArcGISLayer } from './arcgis-layer';
-export { default as ArcGISSketch } from './arcgis-sketch';
-export { default as ArcGISAnalysis } from './arcgis-analysis';
+export {
+  ArcGISMap,
+  ArcGISProvider,
+  ArcGISControls,
+  ArcGISLayer,
+  ArcGISSketch,
+  ArcGISAnalysis,
+  ArcGISMapComponent
+};
