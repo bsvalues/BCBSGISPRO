@@ -415,13 +415,18 @@ export const ArcGISProviderSimplified: React.FC<ArcGISProviderProps> = ({
     containerRef.current.appendChild(layerBtn);
   };
 
+  // Prepare props to pass to children
+  const childProps = {
+    map: mapRef.current,
+    view: viewRef.current
+  };
+
   // Clone children with the map and view
   const childrenWithProps = React.Children.map(children, child => {
+    // Cast for type safety
     if (React.isValidElement(child) && mapLoaded) {
-      return React.cloneElement(child, {
-        map: mapRef.current,
-        view: viewRef.current
-      });
+      // Type assertion to let TypeScript know we're handling this properly
+      return React.cloneElement(child as React.ReactElement<any>, childProps as any);
     }
     return child;
   });

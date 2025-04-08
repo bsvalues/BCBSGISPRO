@@ -42,7 +42,7 @@ interface QueryParams {
  * Convert an object into a URL query string
  */
 function toQueryString(params: Record<string, any>): string {
-  const parts = [];
+  const parts: string[] = [];
   
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
@@ -52,7 +52,7 @@ function toQueryString(params: Record<string, any>): string {
     } else if (typeof value === 'object') {
       parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(JSON.stringify(value))}`);
     } else {
-      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value.toString())}`);
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
     }
   }
   
@@ -143,50 +143,76 @@ export async function queryFeatures(
   }
 }
 
+// MapImageParams interface with correct types
+interface MapImageParams {
+  layers?: string;
+  layerDefs?: Record<string, string>;
+  bbox?: [number, number, number, number];
+  size?: [number, number];
+  dpi?: number;
+  imageSR?: number;
+  bboxSR?: number;
+  format?: 'png' | 'png8' | 'png24' | 'jpg' | 'pdf' | 'bmp' | 'gif' | 'svg' | 'png32';
+  transparent?: boolean;
+  time?: string;
+  layerTimeOptions?: any;
+  dynamicLayers?: any;
+  [key: string]: any;
+}
+
+// Extended params with processed string versions for URL
+interface ProcessedParams {
+  f: string;
+  format: string;
+  transparent: boolean;
+  layers?: string;
+  layerDefs?: string;
+  bbox?: string;
+  size?: string;
+  dpi?: number;
+  imageSR?: number;
+  bboxSR?: number;
+  time?: string;
+  [key: string]: any;
+}
+
 /**
  * Get map image from a MapServer
  */
 export function getMapImageUrl(
   serviceName: string,
-  params: {
-    layers?: string;
-    layerDefs?: Record<string, string>;
-    bbox?: [number, number, number, number];
-    size?: [number, number];
-    dpi?: number;
-    imageSR?: number;
-    bboxSR?: number;
-    format?: 'png' | 'png8' | 'png24' | 'jpg' | 'pdf' | 'bmp' | 'gif' | 'svg' | 'png32';
-    transparent?: boolean;
-    time?: string;
-    layerTimeOptions?: any;
-    dynamicLayers?: any;
-    [key: string]: any;
-  } = {}
+  params: MapImageParams = {}
 ): string {
-  const defaultParams = {
+  // Create a copy of params to avoid modifying the input
+  const processedParams: ProcessedParams = {
     f: 'image',
-    format: 'png',
-    transparent: true,
-    ...params
+    format: params.format || 'png',
+    transparent: params.transparent !== undefined ? params.transparent : true
   };
   
+  // Copy remaining params
+  Object.keys(params).forEach(key => {
+    if (key !== 'layerDefs' && key !== 'bbox' && key !== 'size') {
+      processedParams[key] = params[key as keyof MapImageParams];
+    }
+  });
+  
   // Convert layerDefs to the expected format
-  if (defaultParams.layerDefs && typeof defaultParams.layerDefs === 'object') {
-    defaultParams.layerDefs = JSON.stringify(defaultParams.layerDefs);
+  if (params.layerDefs) {
+    processedParams.layerDefs = JSON.stringify(params.layerDefs);
   }
   
   // Convert bbox to the expected format
-  if (defaultParams.bbox && Array.isArray(defaultParams.bbox)) {
-    defaultParams.bbox = defaultParams.bbox.join(',');
+  if (params.bbox) {
+    processedParams.bbox = params.bbox.join(',');
   }
   
   // Convert size to the expected format
-  if (defaultParams.size && Array.isArray(defaultParams.size)) {
-    defaultParams.size = defaultParams.size.join(',');
+  if (params.size) {
+    processedParams.size = params.size.join(',');
   }
   
-  const queryString = toQueryString(defaultParams);
+  const queryString = toQueryString(processedParams);
   return `${BASE_URL}/${serviceName}/MapServer/export?${queryString}`;
 }
 
@@ -210,10 +236,23 @@ export function getBoundingBox(
   return [sw[0], sw[1], ne[0], ne[1]];
 }
 
+// Basic GeoJSON type definitions
+type Position = number[];
+type Point = { type: 'Point'; coordinates: Position };
+type LineString = { type: 'LineString'; coordinates: Position[] };
+type MultiLineString = { type: 'MultiLineString'; coordinates: Position[][] };
+type Polygon = { type: 'Polygon'; coordinates: Position[][] };
+type MultiPolygon = { type: 'MultiPolygon'; coordinates: Position[][][] };
+type Geometry = Point | LineString | MultiLineString | Polygon | MultiPolygon | null;
+type GeoJSONFeature = { type: 'Feature'; id?: string | number; properties: Record<string, any>; geometry: Geometry };
+
 /**
  * Process GeoJSON from ArcGIS feature service response
  */
-export function processFeatureServiceToGeoJSON(featureResponse: any): any {
+export function processFeatureServiceToGeoJSON(featureResponse: any): { 
+  type: 'FeatureCollection'; 
+  features: GeoJSONFeature[] 
+} {
   // If the response is already in GeoJSON format, return it
   if (featureResponse.type === 'FeatureCollection') {
     return featureResponse;
@@ -226,43 +265,59 @@ export function processFeatureServiceToGeoJSON(featureResponse: any): any {
     type: 'FeatureCollection',
     features: features.map((feature: any) => {
       // Convert ESRI geometry to GeoJSON geometry
-      let geometry = null;
+      let geometry: Geometry = null;
       
       if (feature.geometry) {
         if (feature.geometry.x !== undefined && feature.geometry.y !== undefined) {
           // Point
-          geometry = {
-            type: 'Point',
-            coordinates: [feature.geometry.x, feature.geometry.y]
-          };
+          const pointCoords: Position = [feature.geometry.x, feature.geometry.y];
           
           // Add Z coordinate if present
           if (feature.geometry.z !== undefined) {
-            geometry.coordinates.push(feature.geometry.z);
+            pointCoords.push(feature.geometry.z);
           }
+          
+          geometry = {
+            type: 'Point',
+            coordinates: pointCoords
+          };
         } else if (feature.geometry.paths) {
           // Polyline
-          geometry = {
-            type: feature.geometry.paths.length === 1 ? 'LineString' : 'MultiLineString',
-            coordinates: feature.geometry.paths.length === 1 ? 
-              feature.geometry.paths[0] : feature.geometry.paths
-          };
+          if (feature.geometry.paths.length === 1) {
+            geometry = {
+              type: 'LineString',
+              coordinates: feature.geometry.paths[0]
+            };
+          } else {
+            geometry = {
+              type: 'MultiLineString',
+              coordinates: feature.geometry.paths
+            };
+          }
         } else if (feature.geometry.rings) {
           // Polygon
-          geometry = {
-            type: feature.geometry.rings.length === 1 ? 'Polygon' : 'MultiPolygon',
-            coordinates: feature.geometry.rings.length === 1 ?
-              feature.geometry.rings : feature.geometry.rings
-          };
+          if (feature.geometry.rings.length === 1) {
+            geometry = {
+              type: 'Polygon',
+              coordinates: feature.geometry.rings
+            };
+          } else {
+            geometry = {
+              type: 'MultiPolygon',
+              coordinates: feature.geometry.rings
+            };
+          }
         }
       }
       
-      return {
+      const geoJsonFeature: GeoJSONFeature = {
         type: 'Feature',
         id: feature.id || feature.attributes?.OBJECTID || feature.attributes?.FID,
         properties: feature.attributes || {},
         geometry
       };
+      
+      return geoJsonFeature;
     })
   };
 }
@@ -298,16 +353,7 @@ export class ArcGISRestClient {
     return queryFeatures(serviceName, layerId, queryParams, serviceType);
   }
   
-  getMapImageUrl(
-    serviceName: string,
-    params: {
-      layers?: string;
-      layerDefs?: Record<string, string>;
-      bbox?: [number, number, number, number];
-      size?: [number, number];
-      [key: string]: any;
-    } = {}
-  ): string {
+  getMapImageUrl(serviceName: string, params: MapImageParams = {}): string {
     return getMapImageUrl(serviceName, params);
   }
 }

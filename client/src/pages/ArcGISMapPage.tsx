@@ -30,6 +30,8 @@ const ArcGISMapPage: React.FC = () => {
   
   // ArcGIS REST specific state
   const [services, setServices] = useState<any[]>([]);
+  const [filteredServices, setFilteredServices] = useState<any[]>([]);
+  const [showServicesDropdown, setShowServicesDropdown] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedServiceType, setSelectedServiceType] = useState<'FeatureServer' | 'MapServer'>('FeatureServer');
   const [activeLayers, setActiveLayers] = useState<any[]>([DEFAULT_PARCELS_LAYER]); // Initialize with DEFAULT_PARCELS_LAYER
@@ -88,6 +90,20 @@ const ArcGISMapPage: React.FC = () => {
   const toggleSketch = () => {
     setIsSketchActive(!isSketchActive);
   };
+  
+  // Handle document click to close services dropdown when clicking outside
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (showServicesDropdown) {
+        setShowServicesDropdown(false);
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [showServicesDropdown]);
   
   // Load ArcGIS services when map mode changes to 'rest'
   useEffect(() => {
@@ -481,33 +497,101 @@ const ArcGISMapPage: React.FC = () => {
                             {loading && <Loader2 className="h-3 w-3 animate-spin" />}
                           </div>
                           
-                          <select 
-                            className="w-full p-2 border rounded text-sm"
-                            value={selectedService || ''}
-                            onChange={(e) => {
-                              const serviceName = e.target.value;
-                              setSelectedService(serviceName);
-                              
-                              // Find service type
-                              const service = services.find(s => s.name === serviceName);
-                              if (service) {
-                                setSelectedServiceType(service.type as 'FeatureServer' | 'MapServer');
-                              }
-                            }}
-                            disabled={loading}
-                          >
-                            <option value="">Select a service...</option>
-                            {services.slice(0, 30).map(service => (
-                              <option key={service.name} value={service.name}>
-                                {service.name} ({service.type})
-                              </option>
-                            ))}
-                            {services.length > 30 && (
-                              <option value="" disabled>
-                                ... and {services.length - 30} more services
-                              </option>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="w-full p-2 border rounded text-sm"
+                              placeholder="Type to search services... (349 available)"
+                              onChange={(e) => {
+                                // Filter services as user types
+                                const searchTerm = e.target.value.toLowerCase();
+                                if (searchTerm.length > 0) {
+                                  const filtered = services
+                                    .filter(service => 
+                                      service.name.toLowerCase().includes(searchTerm)
+                                    )
+                                    .slice(0, 20); // Limit to first 20 matches
+                                  
+                                  setFilteredServices(filtered);
+                                  setShowServicesDropdown(true);
+                                } else {
+                                  setFilteredServices([]);
+                                  setShowServicesDropdown(false);
+                                }
+                              }}
+                              onFocus={() => {
+                                // When focusing, show the popular services
+                                const popularServices = [
+                                  'Parcels_and_Assess', 'Zoning', 'Roads', 'TaxLots', 
+                                  'Jurisdictions', 'Floodplain'
+                                ];
+                                
+                                const filtered = services
+                                  .filter(service => 
+                                    popularServices.includes(service.name)
+                                  )
+                                  .slice(0, 10);
+                                
+                                if (filtered.length > 0) {
+                                  setFilteredServices(filtered);
+                                  setShowServicesDropdown(true);
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                // Prevent the click from closing the dropdown when clicking the input
+                                e.stopPropagation();
+                              }}
+                              disabled={loading}
+                            />
+                            
+                            {showServicesDropdown && (
+                              <div 
+                                className="absolute z-20 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+                                onMouseDown={(e) => {
+                                  // Prevent clicking inside the dropdown from closing it
+                                  e.stopPropagation();
+                                }}
+                              >
+                                {filteredServices.length > 0 ? (
+                                  filteredServices.map(service => (
+                                    <div 
+                                      key={service.name} 
+                                      className="p-2 hover:bg-gray-100 cursor-pointer text-sm border-b"
+                                      onClick={() => {
+                                        setSelectedService(service.name);
+                                        setSelectedServiceType(service.type as 'FeatureServer' | 'MapServer');
+                                        setShowServicesDropdown(false);
+                                      }}
+                                    >
+                                      <div className="font-medium">{service.name}</div>
+                                      <div className="text-xs text-gray-500">{service.type}</div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="p-3 text-center text-gray-500 text-sm">
+                                    No matching services found
+                                  </div>
+                                )}
+                              </div>
                             )}
-                          </select>
+                            
+                            {selectedService && (
+                              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200 flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium text-sm">{selectedService}</div>
+                                  <div className="text-xs text-gray-500">{selectedServiceType}</div>
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-gray-400"
+                                  onClick={() => setSelectedService(null)}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                           
                           <div className="flex justify-end">
                             <Button 

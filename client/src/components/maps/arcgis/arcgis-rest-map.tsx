@@ -379,9 +379,30 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
     });
   };
   
+  // State to track if any layers successfully loaded
+  const [layerLoadStatus, setLayerLoadStatus] = useState<{
+    loading: boolean;
+    loaded: number;
+    failed: number;
+    total: number;
+  }>({
+    loading: false,
+    loaded: 0,
+    failed: 0,
+    total: 0
+  });
+  
   // Render the map images
   useEffect(() => {
     if (!mapRef.current) return;
+    
+    // Set initial loading state
+    setLayerLoadStatus({
+      loading: true,
+      loaded: 0,
+      failed: 0,
+      total: layers.filter(layer => layer.visible).length
+    });
     
     // Clear previous layers
     if (mapRef.current) {
@@ -391,34 +412,103 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
       const width = mapRef.current.clientWidth;
       const height = mapRef.current.clientHeight;
     
-    // Get the current map extent
-    const bbox = calculateExtent();
-    
-    // Create and render each visible layer
-    layers
-      .filter(layer => layer.visible)
-      .forEach(layer => {
-        const img = document.createElement('img');
-        
-        let imageUrl;
+      // Get the current map extent
+      const bbox = calculateExtent();
+      
+      // Create and render each visible layer
+      const visibleLayers = layers.filter(layer => layer.visible);
+      let loadedCount = 0;
+      let failedCount = 0;
+      
+      visibleLayers.forEach(layer => {
         if (layer.serviceType === 'MapServer') {
           // For MapServer, we can use the export operation
-          const layers = layer.layerId !== undefined ? `show:${layer.layerId}` : 'show:all';
-          imageUrl = getMapImageUrl(layer.serviceName, {
-            layers,
+          const img = document.createElement('img');
+          const layersParam = layer.layerId !== undefined ? `show:${layer.layerId}` : 'show:all';
+          
+          const imageUrl = getMapImageUrl(layer.serviceName, {
+            layers: layersParam,
             bbox,
             size: [width, height],
             format: 'png32',
             transparent: true
           });
-        } else {
-          // For FeatureServer, we would need to query and render features
-          // This is a simplified approach - in a real app, we'd query features
-          // and render them as SVG/canvas elements
-          imageUrl = `https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/${layer.serviceName}/FeatureServer/${layer.layerId}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson`;
-          // This won't directly work as an image source, just for illustration
           
-          // Display a placeholder for FeatureServer layers
+          // Add loading indicator for this layer
+          const loadingDiv = document.createElement('div');
+          loadingDiv.style.position = 'absolute';
+          loadingDiv.style.left = '0';
+          loadingDiv.style.top = '0';
+          loadingDiv.style.width = '100%';
+          loadingDiv.style.height = '100%';
+          loadingDiv.style.display = 'flex';
+          loadingDiv.style.alignItems = 'center';
+          loadingDiv.style.justifyContent = 'center';
+          loadingDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+          loadingDiv.style.color = '#666';
+          loadingDiv.style.fontSize = '14px';
+          loadingDiv.textContent = `Loading: ${layer.name}...`;
+          
+          if (mapRef.current) {
+            mapRef.current.appendChild(loadingDiv);
+          }
+          
+          // Set up the image
+          img.src = imageUrl;
+          img.style.position = 'absolute';
+          img.style.left = '0';
+          img.style.top = '0';
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.opacity = layer.opacity.toString();
+          img.style.pointerEvents = 'none';
+          
+          // Handle successful load
+          img.onload = () => {
+            // Remove loading indicator
+            if (mapRef.current && mapRef.current.contains(loadingDiv)) {
+              mapRef.current.removeChild(loadingDiv);
+            }
+            
+            loadedCount++;
+            console.log(`Successfully loaded layer: ${layer.name}`);
+            
+            // Update status
+            setLayerLoadStatus(prev => ({
+              ...prev,
+              loading: loadedCount + failedCount < visibleLayers.length,
+              loaded: loadedCount,
+              failed: failedCount
+            }));
+          };
+          
+          // Handle load error
+          img.onerror = () => {
+            failedCount++;
+            console.error(`Failed to load layer: ${layer.name}`);
+            
+            // Update layer div to show error
+            if (mapRef.current && mapRef.current.contains(loadingDiv)) {
+              loadingDiv.style.backgroundColor = 'rgba(255, 200, 200, 0.3)';
+              loadingDiv.style.color = '#c00';
+              loadingDiv.textContent = `Error loading: ${layer.name}`;
+            }
+            
+            // Update status
+            setLayerLoadStatus(prev => ({
+              ...prev,
+              loading: loadedCount + failedCount < visibleLayers.length,
+              loaded: loadedCount,
+              failed: failedCount
+            }));
+          };
+          
+          // Add the image to the map
+          if (mapRef.current) {
+            mapRef.current.appendChild(img);
+          }
+        } else {
+          // For FeatureServer, display a placeholder
           const div = document.createElement('div');
           div.style.position = 'absolute';
           div.style.left = '0';
@@ -432,29 +522,56 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
           div.style.opacity = layer.opacity.toString();
           div.style.color = '#666';
           div.style.fontSize = '14px';
-          div.textContent = `FeatureServer layer: ${layer.name}`;
+          div.textContent = `FeatureServer layer: ${layer.name || layer.serviceName}`;
+          div.style.backgroundColor = 'rgba(200, 255, 200, 0.1)';
+          div.style.border = '2px dashed #ccc';
           
           if (mapRef.current) {
             mapRef.current.appendChild(div);
           }
-          return;
-        }
-        
-        // Set up the image
-        img.src = imageUrl;
-        img.style.position = 'absolute';
-        img.style.left = '0';
-        img.style.top = '0';
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.opacity = layer.opacity.toString();
-        img.style.pointerEvents = 'none';
-        
-        // Add the image to the map
-        if (mapRef.current) {
-          mapRef.current.appendChild(img);
+          
+          // Count this as loaded for the purpose of status tracking
+          loadedCount++;
+          
+          // Update status
+          setLayerLoadStatus(prev => ({
+            ...prev,
+            loading: loadedCount + failedCount < visibleLayers.length,
+            loaded: loadedCount,
+            failed: failedCount
+          }));
         }
       });
+      
+      // If there are no visible layers, update status to show not loading
+      if (visibleLayers.length === 0) {
+        setLayerLoadStatus({
+          loading: false,
+          loaded: 0,
+          failed: 0,
+          total: 0
+        });
+        
+        // Show a message about no layers
+        const noLayersDiv = document.createElement('div');
+        noLayersDiv.style.position = 'absolute';
+        noLayersDiv.style.left = '0';
+        noLayersDiv.style.top = '0';
+        noLayersDiv.style.width = '100%';
+        noLayersDiv.style.height = '100%';
+        noLayersDiv.style.display = 'flex';
+        noLayersDiv.style.alignItems = 'center';
+        noLayersDiv.style.justifyContent = 'center';
+        noLayersDiv.style.color = '#888';
+        noLayersDiv.style.fontSize = '16px';
+        noLayersDiv.style.fontWeight = 'bold';
+        noLayersDiv.style.backgroundColor = '#f8f8f8';
+        noLayersDiv.textContent = 'No active layers. Add layers from the sidebar.';
+        
+        if (mapRef.current) {
+          mapRef.current.appendChild(noLayersDiv);
+        }
+      }
     }
   }, [layers, center, zoom]);
   
@@ -517,7 +634,7 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
           </div>
         )}
         
-        {/* Number of services indicator */}
+        {/* Status indicator */}
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -526,9 +643,37 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
           padding: '5px 10px',
           borderRadius: '4px',
           fontSize: '12px',
-          zIndex: 1000
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px'
         }}>
-          {services.length} services available
+          <div>{services.length} services available</div>
+          
+          {/* Layer status */}
+          {layerLoadStatus.total > 0 && (
+            <div style={{ 
+              fontSize: '11px', 
+              color: layerLoadStatus.failed > 0 ? '#c00' : '#080' 
+            }}>
+              {layerLoadStatus.loading ? (
+                <>
+                  <span className="inline-block animate-spin mr-1">⟳</span>
+                  Loading layers: {layerLoadStatus.loaded}/{layerLoadStatus.total}
+                </>
+              ) : layerLoadStatus.failed > 0 ? (
+                <>
+                  <span className="mr-1">⚠️</span>
+                  {layerLoadStatus.loaded} layers loaded, {layerLoadStatus.failed} failed
+                </>
+              ) : (
+                <>
+                  <span className="mr-1">✓</span>
+                  {layerLoadStatus.loaded} layers loaded
+                </>
+              )}
+            </div>
+          )}
         </div>
         
         {/* Map controls */}
