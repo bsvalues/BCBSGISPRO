@@ -16,7 +16,7 @@ import {
   Globe, Database, Loader2, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
 import { DEFAULT_PARCELS_LAYER, STATIC_MAP_IMAGES } from '../constants/layer-constants';
-import { Alert, AlertDescription } from '../components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 /**
  * ArcGIS Map Page Component
