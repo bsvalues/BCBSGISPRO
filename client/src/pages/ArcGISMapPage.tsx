@@ -265,18 +265,32 @@ const ArcGISMapPage: React.FC = () => {
   
   // Update layer opacity
   const updateLayerOpacity = (layerId: string, opacity: number) => {
-    console.log(`Updating opacity for layer ${layerId} to ${opacity}`);
-    setActiveLayers(prev => 
-      prev.map(layer => 
+    console.log(`[ArcGISMapPage] Updating opacity for layer ${layerId} to ${opacity}`);
+    
+    // Debug: log the layer we're trying to update
+    const layerToUpdate = activeLayers.find(l => l.id === layerId);
+    console.log(`[ArcGISMapPage] Found layer to update:`, layerToUpdate);
+    
+    setActiveLayers(prev => {
+      const updated = prev.map(layer => 
         layer.id === layerId 
           ? { ...layer, opacity } 
           : layer
-      )
-    );
+      );
+      console.log(`[ArcGISMapPage] Updated layers state:`, updated);
+      return updated;
+    });
     
     // Also update in the map component if in REST mode
     if (mapMode === 'rest' && arcgisRestMapRef.current) {
-      arcgisRestMapRef.current.updateLayerOpacity(layerId, opacity);
+      console.log(`[ArcGISMapPage] Calling updateLayerOpacity on map ref`);
+      try {
+        arcgisRestMapRef.current.updateLayerOpacity(layerId, opacity);
+      } catch (err) {
+        console.error(`[ArcGISMapPage] Error calling updateLayerOpacity:`, err);
+      }
+    } else {
+      console.log(`[ArcGISMapPage] Not calling map ref, mode=${mapMode}, ref exists=${!!arcgisRestMapRef.current}`);
     }
   };
   

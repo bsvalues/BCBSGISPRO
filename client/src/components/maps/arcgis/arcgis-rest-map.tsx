@@ -340,13 +340,69 @@ const ArcGISRestMap: React.ForwardRefRenderFunction<any, ArcGISRestMapProps> = (
   
   // Update a layer's opacity
   const updateLayerOpacity = (layerId: string, opacity: number) => {
-    setLayers(prev => 
-      prev.map(layer => 
+    console.log(`[ArcGISRestMap] updateLayerOpacity called for layer ${layerId} with opacity ${opacity}`);
+    
+    // Debug: Find the layer in current state
+    const targetLayer = layers.find(l => l.id === layerId);
+    console.log(`[ArcGISRestMap] Found layer in current state:`, targetLayer);
+    
+    // For ESRI JS API implementation, we don't have mapView in this component type
+    // This section is stubbed for future use with the ESRI JavaScript API
+    console.log(`[ArcGISRestMap] This is a REST API version, not using ESRI JS API mapView`);
+    console.log(`[ArcGISRestMap] Will update opacity through DOM elements and state updates`);
+    
+    // For our DOM-based fallback approach, find and update the image element directly
+    if (mapRef.current) {
+      // Find all image and div elements that might represent our layer
+      const allLayerElements = Array.from(mapRef.current.children).filter(
+        child => (child instanceof HTMLImageElement || child instanceof HTMLDivElement) && 
+        // Only consider actual layer elements (not loading indicators)
+        !(child as HTMLElement).textContent?.includes('Loading:')
+      );
+      
+      console.log(`[ArcGISRestMap] Found ${allLayerElements.length} potential layer elements in the DOM`);
+      
+      // Loop through and find the layer element by checking if its src includes the layer ID
+      // or for div elements, check if the textContent includes the layer name
+      let layerElement: HTMLElement | null = null;
+      
+      for (const element of allLayerElements) {
+        if (element instanceof HTMLImageElement) {
+          // For image elements, check if the src contains the layer ID or service name
+          if (targetLayer && (
+              element.src.includes(targetLayer.id) || 
+              element.src.includes(targetLayer.serviceName)
+            )) {
+            layerElement = element;
+            break;
+          }
+        } else if (element instanceof HTMLDivElement) {
+          // For divs (feature server placeholders), check if the content includes the layer name
+          if (targetLayer && element.textContent?.includes(targetLayer.name || targetLayer.serviceName)) {
+            layerElement = element;
+            break;
+          }
+        }
+      }
+      
+      if (layerElement) {
+        console.log(`[ArcGISRestMap] Found layer element in the DOM, updating opacity directly`);
+        layerElement.style.opacity = opacity.toString();
+      } else {
+        console.log(`[ArcGISRestMap] Could not find layer element in the DOM to update opacity directly`);
+      }
+    }
+    
+    // Update the layers in our state regardless
+    setLayers(prev => {
+      const updated = prev.map(layer => 
         layer.id === layerId 
           ? { ...layer, opacity } 
           : layer
-      )
-    );
+      );
+      console.log(`[ArcGISRestMap] Updated layers state:`, updated);
+      return updated;
+    });
   };
   
   // Remove a layer (but don't allow removing base layers)
