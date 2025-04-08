@@ -1,8 +1,13 @@
 /**
- * EsriMapModuleSettings
- * Configuration for the Esri Map Module based on the documentation
+ * EsriMapModuleSettings - Configuration for the Esri Map Module
+ * 
+ * This file contains the configuration settings for the Esri Map Module,
+ * including base layers and viewable layers.
  */
 
+/**
+ * Base layer model for Esri Map Module
+ */
 export interface BaseLayerModel {
   name: string;
   enableSelection: boolean;
@@ -10,20 +15,26 @@ export interface BaseLayerModel {
   visible: boolean;
   url: string;
   type: 'ESRITiledLayer' | 'ESRIDynamicLayer';
-  spatialReferenceID: number;
+  spatialReferenceId: number;
 }
 
+/**
+ * Viewable layer model for Esri Map Module
+ */
 export interface ViewableLayerModel {
   name: string;
   enableSelection: boolean;
-  selectionLayerID: number;
+  selectionLayerId?: number;
   order: number;
   visible: boolean;
   url: string;
   type: 'ESRIDynamicLayer' | 'ESRIFeatureLayer';
 }
 
-export interface EsriMapModuleSettingsModel {
+/**
+ * Settings for Esri Map Module
+ */
+export interface EsriMapModuleSettings {
   baseMap: {
     enableSelection: boolean;
     order: number;
@@ -37,75 +48,75 @@ export interface EsriMapModuleSettingsModel {
 }
 
 /**
- * Default configuration based on the provided documentation
+ * Default settings for Esri Map Module
  */
-export const DEFAULT_ESRI_MAP_SETTINGS: EsriMapModuleSettingsModel = {
+export const defaultEsriMapModuleSettings: EsriMapModuleSettings = {
   baseMap: {
-    enableSelection: false,
+    enableSelection: true,
     order: 0,
-    visible: false,
-    type: 'ESRIDynamicLayer'
+    visible: true,
+    type: 'topo-vector'
   },
   baseLayers: [
     {
-      name: 'Imagery',
-      enableSelection: false,
-      order: 0,
-      visible: true,
-      url: 'https://services.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/World_Imagery/MapServer',
-      type: 'ESRITiledLayer',
-      spatialReferenceID: 3857
-    },
-    {
-      name: 'Street Map',
+      name: 'Benton County Basemap',
       enableSelection: false,
       order: 1,
       visible: true,
-      url: 'https://services.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/World_Street_Map/MapServer',
+      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Basemap/MapServer',
       type: 'ESRITiledLayer',
-      spatialReferenceID: 3857
+      spatialReferenceId: 102100
     }
   ],
   viewableLayers: [
     {
-      name: 'Parcels',
+      name: 'Benton County Parcels',
       enableSelection: true,
-      selectionLayerID: 0,
-      order: 5,
+      selectionLayerId: 0,
+      order: 2,
       visible: true,
-      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/Parcels_and_Assess/FeatureServer',
-      type: 'ESRIDynamicLayer'
+      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Parcels/FeatureServer/0',
+      type: 'ESRIFeatureLayer'
+    },
+    {
+      name: 'Benton County Roads',
+      enableSelection: true,
+      selectionLayerId: 0,
+      order: 3,
+      visible: true,
+      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Roads/FeatureServer/0',
+      type: 'ESRIFeatureLayer'
+    },
+    {
+      name: 'Benton County Buildings',
+      enableSelection: true,
+      selectionLayerId: 0,
+      order: 4,
+      visible: false,
+      url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/ArcGIS/rest/services/Benton_County_Buildings/FeatureServer/0',
+      type: 'ESRIFeatureLayer'
     }
   ],
-  mapTitle: 'Benton County Assessor Office',
-  autoSelectMaxRecords: 2000
+  mapTitle: 'Benton County GIS',
+  autoSelectMaxRecords: 1000
 };
 
 /**
- * Convert ESRI layer type to ArcGIS API type
+ * Function to get map settings by merging default settings with provided overrides
  */
-export function getArcGISLayerType(esriType: string): string {
-  switch (esriType) {
-    case 'ESRITiledLayer':
-      return 'TileLayer';
-    case 'ESRIDynamicLayer':
-      return 'MapImageLayer';
-    case 'ESRIFeatureLayer':
-      return 'FeatureLayer';
-    default:
-      return 'TileLayer';
+export function getMapSettings(overrides?: Partial<EsriMapModuleSettings>): EsriMapModuleSettings {
+  if (!overrides) {
+    return { ...defaultEsriMapModuleSettings };
   }
-}
 
-/**
- * Get URL for ArcGIS service based on type
- */
-export function getServiceUrl(url: string, type: string): string {
-  // For feature layers, we need to add /0 to the URL to get the first layer
-  if (type === 'ESRIFeatureLayer') {
-    return `${url}/0`;
-  }
-  return url;
+  return {
+    ...defaultEsriMapModuleSettings,
+    ...overrides,
+    baseLayers: overrides.baseLayers || defaultEsriMapModuleSettings.baseLayers,
+    viewableLayers: overrides.viewableLayers || defaultEsriMapModuleSettings.viewableLayers,
+    baseMap: {
+      ...defaultEsriMapModuleSettings.baseMap,
+      ...(overrides.baseMap || {})
+    }
+  };
 }
-
-export default DEFAULT_ESRI_MAP_SETTINGS;

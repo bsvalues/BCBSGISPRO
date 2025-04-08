@@ -1,354 +1,263 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
-import DEFAULT_ESRI_MAP_SETTINGS, { 
-  getArcGISLayerType, 
-  getServiceUrl,
-  EsriMapModuleSettingsModel 
+import React, { useRef, useEffect, useState } from 'react';
+import { loadModules } from 'esri-loader';
+import { 
+  EsriMapModuleSettings, 
+  defaultEsriMapModuleSettings,
+  BaseLayerModel,
+  ViewableLayerModel 
 } from './EsriMapModuleSettings';
 
-interface LayerOpacitySettings {
-  [key: string]: number;
-}
-
 interface EsriMapModuleProps {
-  className?: string;
+  mapId?: string;
   center?: [number, number];
   zoom?: number;
-  showLayerList?: boolean;
-  showBasemapToggle?: boolean;
-  enableSelection?: boolean;
-  settings?: EsriMapModuleSettingsModel;
-  layerOpacity?: LayerOpacitySettings;
+  mapSettings?: Partial<EsriMapModuleSettings>;
+  onMapLoaded?: (map: any) => void;
+  onLayerClick?: (feature: any) => void;
+  className?: string;
 }
 
-const EsriMapModule: React.FC<EsriMapModuleProps> = ({
-  className,
-  center = [-123.2, 44.5], // Default to Benton County, OR coordinates
+/**
+ * EsriMapModule component that renders an ESRI map
+ * 
+ * This component uses the ESRI JS API to render a map with configurable layers
+ * from the provided mapSettings or default settings.
+ */
+export const EsriMapModule: React.FC<EsriMapModuleProps> = ({
+  mapId = 'esri-map',
+  center = [-123.262, 44.564], // Default to Benton County coordinates
   zoom = 12,
-  showLayerList = true,
-  showBasemapToggle = true,
-  enableSelection = true,
-  settings = DEFAULT_ESRI_MAP_SETTINGS,
-  layerOpacity = {}
+  mapSettings,
+  onMapLoaded,
+  onLayerClick,
+  className = ''
 }) => {
-  const mapRef = useRef<any>(null);
-  const viewRef = useRef<any>(null);
-  const [loading, setLoading] = useState(true);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const viewInstanceRef = useRef<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [layers, setLayers] = useState<any[]>([]);
-  const [esriModules, setEsriModules] = useState<any>(null);
 
-  // Load the Esri modules
+  // Merge default settings with provided settings
+  const settings = {
+    ...defaultEsriMapModuleSettings,
+    ...mapSettings
+  };
+
   useEffect(() => {
-    const loadEsriModules = async () => {
+    if (!mapRef.current) return;
+
+    const loadMap = async () => {
       try {
-        // Dynamically import esri-loader
-        const esriLoader = await import('esri-loader');
-        
-        // Load ArcGIS API for JavaScript modules
+        setIsLoading(true);
+        setError(null);
+
+        // Load ArcGIS modules
         const [
-          Map,
-          MapView,
-          FeatureLayer,
+          Map, 
+          MapView, 
+          FeatureLayer, 
           TileLayer,
-          esriConfig,
-          LayerList,
-          BasemapToggle
-        ] = await esriLoader.loadModules([
-          'esri/Map',
-          'esri/views/MapView',
+          BasemapToggle,
+          Basemap,
+          Search,
+          Extent,
+          Graphic,
+          GraphicsLayer
+        ] = await loadModules([
+          'esri/Map', 
+          'esri/views/MapView', 
           'esri/layers/FeatureLayer',
           'esri/layers/TileLayer',
-          'esri/config',
-          'esri/widgets/LayerList',
-          'esri/widgets/BasemapToggle'
+          'esri/widgets/BasemapToggle',
+          'esri/Basemap',
+          'esri/widgets/Search',
+          'esri/geometry/Extent',
+          'esri/Graphic',
+          'esri/layers/GraphicsLayer'
         ]);
-        
-        setEsriModules({
-          Map,
-          MapView,
-          FeatureLayer,
-          TileLayer,
-          esriConfig,
-          LayerList,
-          BasemapToggle
-        });
-      } catch (err) {
-        console.error('Error loading Esri modules:', err);
-        setError('Failed to load ArcGIS API. Please check your internet connection.');
-      }
-    };
-    
-    loadEsriModules();
-  }, []);
 
-  // Effect to update layer opacity when layerOpacity prop changes
-  useEffect(() => {
-    if (!layers.length || !viewRef.current) return;
-    
-    // Apply opacity to each layer
-    layers.forEach(layer => {
-      if (!layer) return;
-      
-      const layerName = layer.title?.toLowerCase();
-      if (layerName && layerOpacity[layerName] !== undefined) {
-        // Convert from percentage (0-100) to decimal (0-1)
-        const opacityValue = layerOpacity[layerName] / 100;
-        layer.opacity = opacityValue;
-        console.log(`Setting opacity of ${layerName} to ${opacityValue}`);
-      }
-    });
-  }, [layers, layerOpacity]);
-
-  // Initialize the map once modules are loaded
-  useEffect(() => {
-    if (!esriModules) return;
-    
-    const initMap = async () => {
-      try {
-        setLoading(true);
-        console.log('Initializing Esri Map Module...');
-        
-        const {
-          Map,
-          MapView,
-          FeatureLayer,
-          TileLayer,
-          LayerList,
-          BasemapToggle
-        } = esriModules;
-
-        // Create a new map instance
+        // Create the map with base layers
         const map = new Map({
-          basemap: 'streets'
+          basemap: settings.baseMap.type
         });
-        mapRef.current = map;
+
+        // Add the map to the ref for tracking
+        mapInstanceRef.current = map;
 
         // Create the map view
         const view = new MapView({
-          container: 'esri-map-container',
+          container: mapRef.current,
           map: map,
           center: center,
           zoom: zoom,
-          ui: {
-            components: ['zoom', 'compass', 'attribution']
+          padding: {
+            top: 50,
+            bottom: 0,
+            left: 0,
+            right: 0
           }
         });
-        viewRef.current = view;
 
-        // Load layers from the ArcGIS services
-        try {
-          // Check if we are using the settings configuration
-          if (settings && settings.baseLayers && settings.viewableLayers) {
-            console.log('Using settings configuration for map layers');
-            
-            // Load base layers from settings
-            const baseLayers = settings.baseLayers.map(layerConfig => {
-              const layerType = getArcGISLayerType(layerConfig.type);
-              const layerUrl = getServiceUrl(layerConfig.url, layerConfig.type);
+        // Add the view to the ref for tracking
+        viewInstanceRef.current = view;
+
+        // Add base and viewable layers
+        await addBaseLayers(map, view, TileLayer, settings);
+        await addViewableLayers(map, view, FeatureLayer, TileLayer, settings);
+
+        // Add widgets
+        addWidgets(view, BasemapToggle, Search);
+
+        // Setup click event
+        if (onLayerClick) {
+          view.on('click', (event) => {
+            view.hitTest(event).then((response) => {
+              const graphics = response.results?.filter(
+                (result) => result.graphic?.layer?.type === 'feature'
+              );
               
-              if (layerType === 'TileLayer') {
-                return new TileLayer({
-                  url: layerUrl,
-                  title: layerConfig.name,
-                  visible: layerConfig.visible,
-                  // Add other properties as needed
-                });
-              } else if (layerType === 'MapImageLayer') {
-                // We're using TileLayer for simplicity, but you could use MapImageLayer with dynamic layers
-                return new TileLayer({
-                  url: layerUrl,
-                  title: layerConfig.name,
-                  visible: layerConfig.visible,
-                  // Add other properties as needed
-                });
+              if (graphics && graphics.length > 0) {
+                const feature = graphics[0].graphic;
+                onLayerClick(feature);
               }
-              return null;
-            }).filter(layer => layer !== null);
-            
-            // Load viewable layers from settings
-            const viewableLayers = settings.viewableLayers.map(layerConfig => {
-              const layerType = getArcGISLayerType(layerConfig.type);
-              const layerUrl = getServiceUrl(layerConfig.url, layerConfig.type);
-              
-              if (layerType === 'FeatureLayer') {
-                return new FeatureLayer({
-                  url: layerUrl,
-                  title: layerConfig.name,
-                  outFields: ['*'],
-                  popupEnabled: true,
-                  visible: layerConfig.visible,
-                  // Add other properties as needed
-                });
-              } else if (layerType === 'MapImageLayer') {
-                // We're using TileLayer for simplicity, but you could use MapImageLayer with dynamic layers
-                return new TileLayer({
-                  url: layerUrl,
-                  title: layerConfig.name,
-                  visible: layerConfig.visible,
-                  // Add other properties as needed
-                });
-              }
-              return null;
-            }).filter(layer => layer !== null);
-            
-            // Add layers to the map
-            [...baseLayers, ...viewableLayers].forEach(layer => {
-              if (layer) map.add(layer);
             });
-            
-            setLayers([...baseLayers, ...viewableLayers].filter(layer => layer !== null));
-          } else {
-            // Fetch services from our API if not using settings
-            const response = await fetch('/api/map-services/arcgis-services');
-            const data = await response.json();
-            
-            if (data && data.services && data.services.length > 0) {
-              console.log('Found', data.services.length, 'ArcGIS services');
-              
-              // Create layers for each service
-              const mapLayers = data.services.map((service: any) => {
-                if (service.type === 'MapServer') {
-                  return new TileLayer({
-                    url: service.url,
-                    title: service.name,
-                    visible: service.name === 'Parcels_and_Assess' // Make parcels visible by default
-                  });
-                } else if (service.type === 'FeatureServer') {
-                  return new FeatureLayer({
-                    url: `${service.url}/0`, // Default to first layer
-                    title: service.name,
-                    outFields: ['*'],
-                    popupEnabled: true,
-                    visible: service.name === 'Parcels_and_Assess' // Make parcels visible by default
-                  });
-                }
-                return null;
-              }).filter(layer => layer !== null);
-              
-              // Add layers to the map
-              mapLayers.forEach((layer: any) => {
-                map.add(layer);
-              });
-              
-              setLayers(mapLayers);
-            } else {
-              console.log('No ArcGIS services found, using hardcoded service URLs');
-              
-              // Fallback to hardcoded services based on the provided documentation
-              const parcelsLayer = new FeatureLayer({
-                url: 'https://services7.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/Parcels_and_Assess/FeatureServer/0',
-                title: 'Parcels and Assessor Data',
-                outFields: ['*'],
-                popupEnabled: true,
-                visible: true
-              });
-              
-              const streetsLayer = new TileLayer({
-                url: 'https://services.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/World_Street_Map/MapServer',
-                title: 'World Street Map',
-                visible: true
-              });
-              
-              const imageryLayer = new TileLayer({
-                url: 'https://services.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services/World_Imagery/MapServer',
-                title: 'World Imagery',
-                visible: false
-              });
-              
-              map.addMany([parcelsLayer, streetsLayer, imageryLayer]);
-              setLayers([parcelsLayer, streetsLayer, imageryLayer]);
-            }
+          });
+        }
+
+        // When the view is loaded
+        view.when(() => {
+          setIsLoading(false);
+          
+          if (onMapLoaded) {
+            onMapLoaded(map);
           }
-          
-          // Add layer list widget if requested
-          if (showLayerList) {
-            const layerList = new LayerList({
-              view: view,
-              container: document.createElement('div')
-            });
-            view.ui.add(layerList, 'top-right');
+        });
+
+        // Return a cleanup function to destroy the map when component unmounts
+        return () => {
+          if (view) {
+            view.destroy();
           }
-          
-          // Add basemap toggle if requested
-          if (showBasemapToggle) {
-            const basemapToggle = new BasemapToggle({
-              view: view,
-              nextBasemap: 'satellite'
-            });
-            view.ui.add(basemapToggle, 'bottom-right');
-          }
-          
-          // Wait for the view to be ready
-          await view.when();
-          console.log('Esri Map Module initialized successfully');
-          setLoading(false);
-          
-        } catch (err) {
-          console.error('Error loading ArcGIS services:', err);
-          setError('Failed to load map services. Please check your network connection.');
-          setLoading(false);
+        };
+      } catch (err) {
+        console.error('Error loading ESRI map:', err);
+        setError('Failed to load the map.');
+        setIsLoading(false);
+      }
+    };
+
+    loadMap();
+  }, [mapRef, center, zoom, onMapLoaded, onLayerClick, settings]);
+
+  /**
+   * Add base layers to the map
+   */
+  const addBaseLayers = async (map: any, view: any, TileLayer: any, settings: EsriMapModuleSettings) => {
+    // Add base layers
+    for (const baseLayer of settings.baseLayers) {
+      try {
+        if (baseLayer.type === 'ESRITiledLayer') {
+          const layer = new TileLayer({
+            url: baseLayer.url,
+            id: baseLayer.name,
+            title: baseLayer.name,
+            visible: baseLayer.visible
+          });
+          map.add(layer, baseLayer.order);
+          console.log(`Added base layer: ${baseLayer.name}`);
         }
       } catch (err) {
-        console.error('Error initializing map:', err);
-        setError('Failed to initialize the map. Please refresh the page and try again.');
-        setLoading(false);
+        console.error(`Error adding base layer ${baseLayer.name}:`, err);
       }
-    };
+    }
+  };
 
-    initMap();
-
-    // Cleanup on unmount
-    return () => {
-      console.log('Cleaning up Esri Map Module');
-      if (viewRef.current) {
-        viewRef.current.destroy();
+  /**
+   * Add viewable layers to the map
+   */
+  const addViewableLayers = async (map: any, view: any, FeatureLayer: any, TileLayer: any, settings: EsriMapModuleSettings) => {
+    // Add viewable layers
+    for (const viewableLayer of settings.viewableLayers) {
+      try {
+        if (viewableLayer.type === 'ESRIFeatureLayer') {
+          const layer = new FeatureLayer({
+            url: viewableLayer.url,
+            outFields: ['*'],
+            id: viewableLayer.name,
+            title: viewableLayer.name,
+            visible: viewableLayer.visible
+          });
+          map.add(layer, viewableLayer.order);
+          console.log(`Added feature layer: ${viewableLayer.name}`);
+        } else if (viewableLayer.type === 'ESRIDynamicLayer') {
+          const layer = new TileLayer({
+            url: viewableLayer.url,
+            id: viewableLayer.name,
+            title: viewableLayer.name,
+            visible: viewableLayer.visible
+          });
+          map.add(layer, viewableLayer.order);
+          console.log(`Added dynamic layer: ${viewableLayer.name}`);
+        }
+      } catch (err) {
+        console.error(`Error adding viewable layer ${viewableLayer.name}:`, err);
       }
-    };
-  }, [esriModules, center, zoom, showLayerList, showBasemapToggle, enableSelection, settings]);
+    }
+  };
+
+  /**
+   * Add widgets to the map view
+   */
+  const addWidgets = (view: any, BasemapToggle: any, Search: any) => {
+    // Add base map toggle widget
+    const basemapToggle = new BasemapToggle({
+      view: view,
+      nextBasemap: "satellite"
+    });
+    
+    view.ui.add(basemapToggle, "bottom-right");
+
+    // Add search widget
+    const searchWidget = new Search({
+      view: view,
+      allPlaceholder: "Search for address or place",
+      includeDefaultSources: true
+    });
+    
+    view.ui.add(searchWidget, {
+      position: "top-right",
+      index: 0
+    });
+  };
 
   return (
-    <div className={cn("relative w-full h-full", className)}>
+    <div className={`relative ${className}`}>
       <div 
-        id="esri-map-container" 
+        id={mapId} 
+        ref={mapRef} 
         className="w-full h-full"
-        style={{ position: 'relative' }}
-      />
-
-      {/* Loading indicator */}
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em]" role="status">
-              <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-            </div>
-            <p className="mt-4 text-sm text-primary-foreground">Loading map...</p>
+        style={{ minHeight: '300px' }}
+      ></div>
+      
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
+          <div className="glass-panel bg-background/60 p-4 rounded-lg shadow-md border border-primary/10 flex items-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-foreground border-t-transparent mr-3"></div>
+            <p className="text-primary font-medium">Loading map...</p>
           </div>
         </div>
       )}
-
-      {/* Error message */}
+      
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="bg-destructive text-destructive-foreground p-4 rounded-md shadow-lg max-w-xs">
-            <h3 className="font-semibold mb-2">Error Loading Map</h3>
-            <p className="text-sm">{error}</p>
-            <button 
-              className="mt-2 px-3 py-1 bg-background text-foreground rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-              onClick={() => setError(null)}
-            >
-              Retry
-            </button>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
+          <div className="glass-panel bg-destructive/15 p-4 rounded-lg shadow-md border border-destructive/30 text-center max-w-md">
+            <h3 className="text-destructive font-semibold mb-2">Error Loading Map</h3>
+            <p className="text-destructive/90">{error}</p>
+            <p className="text-xs mt-2 text-destructive/70">Please check your network connection and try again.</p>
           </div>
         </div>
       )}
-
-      {/* County identifier overlay */}
-      <div className="absolute top-4 left-4 bg-primary-foreground px-3 py-1.5 rounded-md shadow-md text-sm font-medium text-primary">
-        Benton County, Oregon
-      </div>
     </div>
   );
 };
-
-export { EsriMapModule };
