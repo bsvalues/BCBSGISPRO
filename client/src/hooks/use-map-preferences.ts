@@ -1,131 +1,105 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { MapPreference } from '../../shared/schema';
-import { apiRequest, queryClient } from '@/lib/queryClient';
-import { toast } from '@/hooks/use-toast';
+import { useLocalStorage } from './use-local-storage';
 
-export interface MapPreferenceInput {
-  defaultCenter?: { lat: number; lng: number };
-  defaultZoom?: number;
-  baseLayer?: 'satellite' | 'streets' | 'terrain' | 'light' | 'dark' | 'custom';
-  layerVisibility?: 'visible' | 'hidden' | 'custom';
-  customBaseLayer?: string;
-  layerSettings?: Record<string, { visible: boolean; opacity: number }>;
-  uiSettings?: {
-    controlPositions?: Record<string, string>;
-    autoHideControls?: boolean;
-    minimalUI?: boolean;
-    infoBarPosition?: 'top' | 'bottom' | 'hidden';
-  };
-  theme?: 'light' | 'dark' | 'system';
-  measurement?: {
-    enabled: boolean;
-    unit: 'imperial' | 'metric';
-  };
-  snapToFeature?: boolean;
-  showLabels?: boolean;
-  animation?: boolean;
+interface MapPreferences {
+  visibleLayers: string[];
+  showLabels: boolean;
+  baseMap: string;
+  layerOpacity: Record<string, number>;
+  darkMode: boolean;
+  showScale: boolean;
+  showCompass: boolean;
+  showGrid: boolean;
+  showBoundaries: boolean;
+  show3DBuildings: boolean;
+  mapRotation: number;
+  measurementUnits: 'imperial' | 'metric';
 }
 
-export interface UpdateMapPreferenceInput extends MapPreferenceInput {}
+const defaultPreferences: MapPreferences = {
+  visibleLayers: ['parcels', 'streets'],
+  showLabels: true,
+  baseMap: 'streets',
+  layerOpacity: { parcels: 1, streets: 1, boundaries: 0.8, zoning: 0.6 },
+  darkMode: false,
+  showScale: true,
+  showCompass: true,
+  showGrid: false,
+  showBoundaries: true,
+  show3DBuildings: false,
+  mapRotation: 0,
+  measurementUnits: 'imperial',
+};
 
-export default function useMapPreferences() {
-  // Get user's map preferences
-  const { 
-    data: preferences,
-    isLoading, 
-    isError,
-    error,
-    refetch 
-  } = useQuery<MapPreference>({
-    queryKey: ['/api/map-preferences'],
-  });
+export function useMapPreferences() {
+  const [preferences, setPreferences] = useLocalStorage<MapPreferences>(
+    'map-preferences',
+    defaultPreferences
+  );
 
-  // Update map preferences
-  const updatePreferencesMutation = useMutation({
-    mutationFn: async (updates: UpdateMapPreferenceInput) => {
-      return apiRequest('/api/map-preferences', {
-        method: 'PUT',
-        body: JSON.stringify(updates)
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
-      toast({
-        title: 'Preferences Updated',
-        description: 'Your map preferences have been saved.',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update preferences. Please try again.',
-        variant: 'destructive',
-      });
-      console.error('Error updating preferences:', error);
-    }
-  });
+  const updatePreferences = (newPrefs: Partial<MapPreferences>) => {
+    setPreferences(currentPrefs => ({
+      ...currentPrefs,
+      ...newPrefs
+    }));
+  };
 
-  // Reset map preferences to defaults
-  const resetPreferencesMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('/api/map-preferences/reset', {
-        method: 'POST'
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/map-preferences'] });
-      toast({
-        title: 'Preferences Reset',
-        description: 'Your map preferences have been reset to default values.',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Error',
-        description: 'Failed to reset preferences. Please try again.',
-        variant: 'destructive',
-      });
-      console.error('Error resetting preferences:', error);
-    }
-  });
+  const toggleLayer = (layerId: string) => {
+    setPreferences(currentPrefs => {
+      const layerIndex = currentPrefs.visibleLayers.indexOf(layerId);
+      let newLayers: string[];
 
-  // Default preferences to use if none are saved
-  const defaultPreferences: MapPreferenceInput = {
-    defaultCenter: { lat: 44.5439, lng: -123.2618 },  // Benton County, Oregon
-    defaultZoom: 12,
-    baseLayer: 'streets',
-    layerVisibility: 'visible',
-    customBaseLayer: '',
-    layerSettings: {},
-    uiSettings: {
-      controlPositions: {
-        zoom: 'top-right',
-        fullscreen: 'top-right',
-        layers: 'top-right',
-        search: 'top-left',
-        geolocate: 'top-right'
-      },
-      autoHideControls: true,
-      minimalUI: false,
-      infoBarPosition: 'bottom'
-    },
-    theme: 'light',
-    measurement: {
-      enabled: true,
-      unit: 'imperial'
-    },
-    snapToFeature: true,
-    showLabels: true,
-    animation: true
+      if (layerIndex === -1) {
+        // Add layer if not present
+        newLayers = [...currentPrefs.visibleLayers, layerId];
+      } else {
+        // Remove layer if present
+        newLayers = currentPrefs.visibleLayers.filter(id => id !== layerId);
+      }
+
+      return {
+        ...currentPrefs,
+        visibleLayers: newLayers
+      };
+    });
+  };
+
+  const isLayerVisible = (layerId: string) => {
+    return preferences.visibleLayers.includes(layerId);
+  };
+
+  const setLayerOpacity = (layerId: string, opacity: number) => {
+    setPreferences(currentPrefs => ({
+      ...currentPrefs,
+      layerOpacity: {
+        ...currentPrefs.layerOpacity,
+        [layerId]: opacity
+      }
+    }));
+  };
+
+  const getLayerOpacity = (layerId: string) => {
+    return preferences.layerOpacity[layerId] ?? 1;
+  };
+
+  const toggleDarkMode = () => {
+    setPreferences(currentPrefs => ({
+      ...currentPrefs,
+      darkMode: !currentPrefs.darkMode
+    }));
+  };
+
+  const resetToDefaults = () => {
+    setPreferences(defaultPreferences);
   };
 
   return {
     preferences,
-    defaultPreferences,
-    isLoading,
-    isError,
-    error,
-    updatePreferencesMutation,
-    resetPreferencesMutation
+    updatePreferences,
+    toggleLayer,
+    isLayerVisible,
+    setLayerOpacity,
+    getLayerOpacity,
+    toggleDarkMode,
+    resetToDefaults
   };
 }

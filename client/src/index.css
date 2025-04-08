@@ -2,6 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbars but maintain functionality */
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+  
+  /* Glass morphism effects */
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
+  }
+  
+  .glass-card {
+    @apply bg-white/90 backdrop-blur-sm border border-gray-200/70 shadow-md;
+  }
+  
+  /* Benton County specific styles */
+  .benton-text-primary {
+    @apply text-teal-700;
+  }
+  
+  .benton-bg-primary {
+    @apply bg-teal-700;
+  }
+  
+  .benton-border-primary {
+    @apply border-teal-700;
+  }
+  
+  .benton-accent {
+    @apply text-green-500;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

@@ -24,6 +24,7 @@ import DataMigrationPage from "@/pages/data-migration";
 import { MapSettingsPage } from "@/pages/map-settings";
 import ParcelComparisonDemo from "@/pages/parcel-comparison-demo";
 import ArcGISMapPage from "@/pages/ArcGISMapPage";
+import ArcGISMapPageNew from "@/pages/ArcGISMapPageNew";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -126,6 +127,11 @@ function App() {
       path: '/arcgis-map', 
       icon: <Globe className="h-4 w-4" />, 
       label: 'ArcGIS Map',
+    },
+    { 
+      path: '/arcgis-map-new', 
+      icon: <Globe className="h-4 w-4" />, 
+      label: 'ArcGIS New Design',
     },
     { 
       path: '/parcel-comparison', 
@@ -523,6 +529,7 @@ function App() {
             <Route path="/map-settings" component={MapSettingsPage} />
             <Route path="/parcel-comparison" component={ParcelComparisonDemo} />
             <Route path="/arcgis-map" component={ArcGISMapPage} />
+            <Route path="/arcgis-map-new" component={ArcGISMapPageNew} />
             
             {/* Default to the fullscreen map page */}
             <Route>
