@@ -26,6 +26,7 @@ import DataMigrationPage from "@/pages/data-migration";
 import { MapSettingsPage } from "@/pages/map-settings";
 import ParcelComparisonDemo from "@/pages/parcel-comparison-demo";
 import EsriMapPage from "./pages/EsriMapPage";
+import AgentMasterPromptDemo from "@/pages/agent-master-prompt-demo";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -135,6 +136,11 @@ function App() {
       path: '/compliance-dashboard', 
       icon: <CheckCircle className="h-4 w-4" />, 
       label: 'RCW Compliance',
+    },
+    {
+      path: '/agent-master-prompt-demo',
+      icon: <MessagesSquare className="h-4 w-4" />,
+      label: 'Master Prompt',
     },
     { 
       path: '/esri-map', 
@@ -539,6 +545,7 @@ function App() {
             <Route path="/esri-map" component={EsriMapPage} />
             <Route path="/data-quality-dashboard" component={DataQualityDashboardPage} />
             <Route path="/compliance-dashboard" component={ComplianceDashboardPage} />
+            <Route path="/agent-master-prompt-demo" component={AgentMasterPromptDemo} />
             
             {/* Default to the fullscreen map page */}
             <Route>
