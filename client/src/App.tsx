@@ -13,6 +13,8 @@ import LegalDescriptionAgentPage from "@/pages/legal-description-agent-page";
 import LegalDescriptionDemo from "@/pages/legal-description-demo";
 import WebSocketDemoPage from "@/pages/websocket-demo-page";
 import { CollaborativeWorkspacePage } from "@/pages/collaborative-workspace-page";
+import DataQualityDashboardPage from "@/pages/data-quality-dashboard";
+import ComplianceDashboardPage from "@/pages/compliance-dashboard";
 import CollaborativeFeaturesDemo from "@/pages/collaborative-features-demo";
 import WebSocketTestPage from "@/pages/websocket-test";
 import CollaborativeMapDemoPage from "@/pages/collaborative-map-demo";
@@ -45,7 +47,8 @@ import {
   ChevronUp,
   Menu,
   X,
-  Settings
+  Settings,
+  CheckCircle
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -123,6 +126,16 @@ function App() {
 
   // Additional navigation links
   const additionalLinks = [
+    { 
+      path: '/data-quality-dashboard', 
+      icon: <BarChart className="h-4 w-4" />, 
+      label: 'Data Quality',
+    },
+    { 
+      path: '/compliance-dashboard', 
+      icon: <CheckCircle className="h-4 w-4" />, 
+      label: 'RCW Compliance',
+    },
     { 
       path: '/esri-map', 
       icon: <Globe className="h-4 w-4" />, 
@@ -524,6 +537,8 @@ function App() {
             <Route path="/map-settings" component={MapSettingsPage} />
             <Route path="/parcel-comparison" component={ParcelComparisonDemo} />
             <Route path="/esri-map" component={EsriMapPage} />
+            <Route path="/data-quality-dashboard" component={DataQualityDashboardPage} />
+            <Route path="/compliance-dashboard" component={ComplianceDashboardPage} />
             
             {/* Default to the fullscreen map page */}
             <Route>
