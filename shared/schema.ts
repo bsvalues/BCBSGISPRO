@@ -3,6 +3,18 @@ import { integer, json, pgEnum, pgTable, serial, text, timestamp, boolean, varch
 import { z } from 'zod';
 import { DocumentType } from './document-types';
 
+// Washington RCW compliance enums
+export const complianceStatusEnum = pgEnum('compliance_status', ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW', 'EXEMPT', 'NOT_APPLICABLE']);
+export const complianceSeverityEnum = pgEnum('compliance_severity', ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
+export const complianceCategoryEnum = pgEnum('compliance_category', [
+  'VALUATION_STANDARDS', 
+  'PHYSICAL_INSPECTION', 
+  'APPEALS_PROCESS', 
+  'PUBLIC_DISCLOSURE', 
+  'EXEMPTIONS', 
+  'SPECIAL_VALUATION'
+]);
+
 // Document lineage types
 export const DOCUMENT_TYPES = [
   'DEED',
@@ -87,8 +99,30 @@ export const parcels = pgTable('parcels', {
   city: varchar('city', { length: 100 }),
   zip: varchar('zip', { length: 20 }),
   propertyType: varchar('property_type', { length: 50 }),
+  
+  // Enhanced assessment fields
   assessedValue: integer('assessed_value'),
+  marketValue: integer('market_value'),
+  landValue: integer('land_value'),
+  improvementValue: integer('improvement_value'),
   acres: integer('acres'),
+  
+  // Assessment metadata
+  assessmentYear: integer('assessment_year'),
+  lastPhysicalInspection: timestamp('last_physical_inspection'),
+  nextScheduledInspection: timestamp('next_scheduled_inspection'),
+  
+  // Washington-specific fields
+  levyCode: varchar('levy_code', { length: 10 }),
+  taxCode: varchar('tax_code', { length: 10 }),
+  exemptionType: varchar('exemption_type', { length: 50 }),
+  exemptionAmount: integer('exemption_amount'),
+  
+  // Data quality and jurisdictional fields
+  neighborhoodCode: varchar('neighborhood_code', { length: 20 }),
+  schoolDistrict: varchar('school_district', { length: 100 }),
+  dataQualityScore: integer('data_quality_score'),
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
@@ -128,6 +162,29 @@ export const annotations = pgTable('annotations', {
 export type Annotation = typeof annotations.$inferSelect;
 export type InsertAnnotation = typeof annotations.$inferInsert;
 export const insertAnnotationSchema = createInsertSchema(annotations);
+
+// Parcel value history for tracking assessment changes over time
+export const parcelValueHistory = pgTable('parcel_value_history', {
+  id: serial('id').primaryKey(),
+  parcelId: integer('parcel_id').references(() => parcels.id).notNull(),
+  assessmentYear: integer('assessment_year').notNull(),
+  marketValue: integer('market_value'),
+  landValue: integer('land_value'),
+  improvementValue: integer('improvement_value'),
+  assessedValue: integer('assessed_value'),
+  exemptionAmount: integer('exemption_amount'),
+  exemptionType: varchar('exemption_type', { length: 50 }),
+  effectiveDate: timestamp('effective_date').notNull(),
+  expirationDate: timestamp('expiration_date'),
+  reason: varchar('reason', { length: 100 }),
+  source: varchar('source', { length: 50 }),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export type ParcelValueHistory = typeof parcelValueHistory.$inferSelect;
+export type InsertParcelValueHistory = typeof parcelValueHistory.$inferInsert;
+export const insertParcelValueHistorySchema = createInsertSchema(parcelValueHistory);
 
 // Map bookmarks for saved locations
 export const mapBookmarks = pgTable('map_bookmarks', {
