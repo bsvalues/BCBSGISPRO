@@ -9,6 +9,10 @@ import {
   arcgisLayers,
   arcgisSketches,
   arcgisAnalysisResults,
+  workflows,
+  workflowEvents,
+  workflowStates,
+  checklistItems,
   type User,
   type InsertUser,
   type MapBookmark,
@@ -24,7 +28,15 @@ import {
   type ArcGISSketch,
   type InsertArcGISSketch,
   type ArcGISAnalysisResult,
-  type InsertArcGISAnalysisResult
+  type InsertArcGISAnalysisResult,
+  type Workflow,
+  type InsertWorkflow,
+  type WorkflowEvent,
+  type InsertWorkflowEvent,
+  type WorkflowState,
+  type InsertWorkflowState,
+  type ChecklistItem,
+  type InsertChecklistItem
 } from '../shared/schema';
 
 import {
@@ -135,6 +147,28 @@ export interface IStorage {
   getArcGISAnalysisResult(id: number): Promise<ArcGISAnalysisResult | undefined>;
   createArcGISAnalysisResult(result: InsertArcGISAnalysisResult): Promise<ArcGISAnalysisResult>;
   deleteArcGISAnalysisResult(id: number): Promise<boolean>;
+  
+  // Workflow operations
+  getWorkflows(userId?: number): Promise<Workflow[]>;
+  getWorkflow(id: number): Promise<Workflow | undefined>;
+  createWorkflow(workflow: InsertWorkflow): Promise<Workflow>;
+  updateWorkflow(id: number, updates: Partial<InsertWorkflow>): Promise<Workflow>;
+  
+  // Workflow state operations
+  getWorkflowState(workflowId: number): Promise<WorkflowState | undefined>;
+  createWorkflowState(state: InsertWorkflowState): Promise<WorkflowState>;
+  updateWorkflowState(workflowId: number, updates: Partial<InsertWorkflowState>): Promise<WorkflowState>;
+  
+  // Workflow event operations
+  getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]>;
+  createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent>;
+  
+  // Checklist operations
+  getChecklistItems(workflowId: number): Promise<ChecklistItem[]>;
+  getChecklistItem(id: number): Promise<ChecklistItem | undefined>;
+  createChecklistItem(item: InsertChecklistItem): Promise<ChecklistItem>;
+  updateChecklistItem(id: number, updates: Partial<InsertChecklistItem>): Promise<ChecklistItem>;
+  deleteChecklistItem(id: number): Promise<boolean>;
 }
 
 // Implementation of storage interface using the database
@@ -534,6 +568,155 @@ export class DatabaseStorage implements IStorage {
     
     return result.rowCount > 0;
   }
+  
+  // Workflow operations
+  async getWorkflows(userId?: number): Promise<Workflow[]> {
+    let query = db.select().from(workflows);
+    
+    if (userId) {
+      query = query.where(eq(workflows.userId, userId));
+    }
+    
+    return query.orderBy(desc(workflows.updatedAt));
+  }
+  
+  async getWorkflow(id: number): Promise<Workflow | undefined> {
+    const [workflow] = await db.select()
+      .from(workflows)
+      .where(eq(workflows.id, id));
+    
+    return workflow;
+  }
+  
+  async createWorkflow(workflow: InsertWorkflow): Promise<Workflow> {
+    const [newWorkflow] = await db.insert(workflows)
+      .values(workflow)
+      .returning();
+    
+    return newWorkflow;
+  }
+  
+  async updateWorkflow(id: number, updates: Partial<InsertWorkflow>): Promise<Workflow> {
+    const [updatedWorkflow] = await db.update(workflows)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(workflows.id, id))
+      .returning();
+    
+    if (!updatedWorkflow) {
+      throw new Error(`Workflow with ID ${id} not found`);
+    }
+    
+    return updatedWorkflow;
+  }
+  
+  // Workflow state operations
+  async getWorkflowState(workflowId: number): Promise<WorkflowState | undefined> {
+    const [state] = await db.select()
+      .from(workflowStates)
+      .where(eq(workflowStates.workflowId, workflowId));
+    
+    return state;
+  }
+  
+  async createWorkflowState(state: InsertWorkflowState): Promise<WorkflowState> {
+    const [newState] = await db.insert(workflowStates)
+      .values(state)
+      .returning();
+    
+    return newState;
+  }
+  
+  async updateWorkflowState(workflowId: number, updates: Partial<InsertWorkflowState>): Promise<WorkflowState> {
+    // Check if state exists
+    const existingState = await this.getWorkflowState(workflowId);
+    
+    if (existingState) {
+      // Update existing state
+      const [updatedState] = await db.update(workflowStates)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(workflowStates.workflowId, workflowId))
+        .returning();
+      
+      return updatedState;
+    } else {
+      // Create new state if it doesn't exist
+      return this.createWorkflowState({
+        workflowId,
+        currentStep: updates.currentStep || 1,
+        formData: updates.formData || {},
+        ...updates
+      });
+    }
+  }
+  
+  // Workflow event operations
+  async getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]> {
+    return db.select()
+      .from(workflowEvents)
+      .where(eq(workflowEvents.workflowId, workflowId))
+      .orderBy(desc(workflowEvents.createdAt));
+  }
+  
+  async createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent> {
+    const [newEvent] = await db.insert(workflowEvents)
+      .values(event)
+      .returning();
+    
+    return newEvent;
+  }
+  
+  // Checklist operations
+  async getChecklistItems(workflowId: number): Promise<ChecklistItem[]> {
+    return db.select()
+      .from(checklistItems)
+      .where(eq(checklistItems.workflowId, workflowId))
+      .orderBy(asc(checklistItems.order));
+  }
+  
+  async getChecklistItem(id: number): Promise<ChecklistItem | undefined> {
+    const [item] = await db.select()
+      .from(checklistItems)
+      .where(eq(checklistItems.id, id));
+    
+    return item;
+  }
+  
+  async createChecklistItem(item: InsertChecklistItem): Promise<ChecklistItem> {
+    const [newItem] = await db.insert(checklistItems)
+      .values(item)
+      .returning();
+    
+    return newItem;
+  }
+  
+  async updateChecklistItem(id: number, updates: Partial<InsertChecklistItem>): Promise<ChecklistItem> {
+    const [updatedItem] = await db.update(checklistItems)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(checklistItems.id, id))
+      .returning();
+    
+    if (!updatedItem) {
+      throw new Error(`Checklist item with ID ${id} not found`);
+    }
+    
+    return updatedItem;
+  }
+  
+  async deleteChecklistItem(id: number): Promise<boolean> {
+    const result = await db.delete(checklistItems)
+      .where(eq(checklistItems.id, id));
+    
+    return result.rowCount > 0;
+  }
 }
 
 // Class removed to simplify file
@@ -553,6 +736,12 @@ export class MemStorage implements IStorage {
   private arcgisLayers: Map<number, ArcGISLayer> = new Map();
   private arcgisSketches: Map<number, ArcGISSketch> = new Map();
   private arcgisAnalysisResults: Map<number, ArcGISAnalysisResult> = new Map();
+  
+  // Workflow in-memory storage
+  private workflows: Map<number, Workflow> = new Map();
+  private workflowStates: Map<number, WorkflowState> = new Map();
+  private workflowEvents: Map<number, WorkflowEvent[]> = new Map();
+  private checklistItems: Map<number, ChecklistItem> = new Map();
   async getUser(id: number): Promise<User | undefined> {
     throw new Error('Method not implemented.');
   }
@@ -883,6 +1072,174 @@ export class MemStorage implements IStorage {
   
   async deleteArcGISAnalysisResult(id: number): Promise<boolean> {
     return this.arcgisAnalysisResults.delete(id);
+  }
+  
+  // Workflow operations
+  async getWorkflows(userId?: number): Promise<Workflow[]> {
+    const results: Workflow[] = [];
+    for (const workflow of this.workflows.values()) {
+      if (!userId || workflow.userId === userId) {
+        results.push(workflow);
+      }
+    }
+    // Sort by most recently updated
+    return results.sort((a, b) => {
+      const dateA = a.updatedAt ? a.updatedAt.getTime() : a.createdAt.getTime();
+      const dateB = b.updatedAt ? b.updatedAt.getTime() : b.createdAt.getTime();
+      return dateB - dateA;
+    });
+  }
+  
+  async getWorkflow(id: number): Promise<Workflow | undefined> {
+    return this.workflows.get(id);
+  }
+  
+  async createWorkflow(workflow: InsertWorkflow): Promise<Workflow> {
+    const id = this.workflows.size + 1;
+    const now = new Date();
+    const newWorkflow: Workflow = {
+      ...workflow,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.workflows.set(id, newWorkflow);
+    return newWorkflow;
+  }
+  
+  async updateWorkflow(id: number, updates: Partial<InsertWorkflow>): Promise<Workflow> {
+    const workflow = this.workflows.get(id);
+    if (!workflow) {
+      throw new Error(`Workflow with id ${id} not found`);
+    }
+    
+    const updatedWorkflow = {
+      ...workflow,
+      ...updates,
+      id: workflow.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.workflows.set(id, updatedWorkflow);
+    return updatedWorkflow;
+  }
+  
+  // Workflow state operations
+  async getWorkflowState(workflowId: number): Promise<WorkflowState | undefined> {
+    return this.workflowStates.get(workflowId);
+  }
+  
+  async createWorkflowState(state: InsertWorkflowState): Promise<WorkflowState> {
+    const now = new Date();
+    const newState: WorkflowState = {
+      ...state,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.workflowStates.set(state.workflowId, newState);
+    return newState;
+  }
+  
+  async updateWorkflowState(workflowId: number, updates: Partial<InsertWorkflowState>): Promise<WorkflowState> {
+    // Check if state exists
+    const existingState = await this.getWorkflowState(workflowId);
+    
+    if (existingState) {
+      // Update existing state
+      const updatedState = {
+        ...existingState,
+        ...updates,
+        workflowId, // Ensure workflowId doesn't change
+        updatedAt: new Date()
+      };
+      
+      this.workflowStates.set(workflowId, updatedState);
+      return updatedState;
+    } else {
+      // Create new state if it doesn't exist
+      return this.createWorkflowState({
+        workflowId,
+        currentStep: updates.currentStep || 1,
+        formData: updates.formData || {},
+        ...updates
+      });
+    }
+  }
+  
+  // Workflow event operations
+  async getWorkflowEvents(workflowId: number): Promise<WorkflowEvent[]> {
+    const events = this.workflowEvents.get(workflowId) || [];
+    // Sort by most recently created
+    return [...events].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async createWorkflowEvent(event: InsertWorkflowEvent): Promise<WorkflowEvent> {
+    const id = Date.now(); // Use timestamp as unique ID
+    const now = new Date();
+    const newEvent: WorkflowEvent = {
+      ...event,
+      id,
+      createdAt: now
+    };
+    
+    // Get existing events for this workflow or create a new array
+    const events = this.workflowEvents.get(event.workflowId) || [];
+    events.push(newEvent);
+    
+    // Store the updated events
+    this.workflowEvents.set(event.workflowId, events);
+    
+    return newEvent;
+  }
+  
+  // Checklist operations
+  async getChecklistItems(workflowId: number): Promise<ChecklistItem[]> {
+    const items: ChecklistItem[] = [];
+    for (const item of this.checklistItems.values()) {
+      if (item.workflowId === workflowId) {
+        items.push(item);
+      }
+    }
+    // Sort by order
+    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+  
+  async getChecklistItem(id: number): Promise<ChecklistItem | undefined> {
+    return this.checklistItems.get(id);
+  }
+  
+  async createChecklistItem(item: InsertChecklistItem): Promise<ChecklistItem> {
+    const id = this.checklistItems.size + 1;
+    const now = new Date();
+    const newItem: ChecklistItem = {
+      ...item,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.checklistItems.set(id, newItem);
+    return newItem;
+  }
+  
+  async updateChecklistItem(id: number, updates: Partial<InsertChecklistItem>): Promise<ChecklistItem> {
+    const item = this.checklistItems.get(id);
+    if (!item) {
+      throw new Error(`Checklist item with id ${id} not found`);
+    }
+    
+    const updatedItem = {
+      ...item,
+      ...updates,
+      id: item.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.checklistItems.set(id, updatedItem);
+    return updatedItem;
+  }
+  
+  async deleteChecklistItem(id: number): Promise<boolean> {
+    return this.checklistItems.delete(id);
   }
 }
 
