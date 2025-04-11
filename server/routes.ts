@@ -4734,5 +4734,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const agentFrameworkRoutes = await import('./routes/agent-framework').then(m => m.default);
   app.use('/api/agent-framework', agentFrameworkRoutes);
   
+  // Create convenience routes that map to agent framework routes
+  // These routes match the client-side API expectations
+  
+  // Agents routes
+  app.get('/api/agents', asyncHandler(async (req, res) => {
+    // Forward to agent-framework route
+    const response = await fetch(`http://localhost:${req.socket.localPort}/api/agent-framework/agents`);
+    const data = await response.json();
+    res.json(data);
+  }));
+  
+  app.get('/api/agents/events', asyncHandler(async (req, res) => {
+    // Forward to agent-framework route with query params
+    const url = new URL(`http://localhost:${req.socket.localPort}/api/agent-framework/agents/events`);
+    
+    // Copy query parameters
+    Object.entries(req.query).forEach(([key, value]) => {
+      if (value) url.searchParams.append(key, value as string);
+    });
+    
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    res.json(data);
+  }));
+  
+  // Master prompts routes
+  app.get('/api/master-prompts', asyncHandler(async (req, res) => {
+    // Forward to agent-framework route
+    const response = await fetch(`http://localhost:${req.socket.localPort}/api/agent-framework/master-prompts`);
+    const data = await response.json();
+    res.json(data);
+  }));
+  
+  app.post('/api/master-prompts', asyncHandler(async (req, res) => {
+    // Forward to agent-framework route
+    const response = await fetch(`http://localhost:${req.socket.localPort}/api/agent-framework/master-prompts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json();
+    res.status(response.status).json(data);
+  }));
+  
+  app.get('/api/master-prompts/acknowledgments', asyncHandler(async (req, res) => {
+    // Forward to agent-framework route
+    const url = new URL(`http://localhost:${req.socket.localPort}/api/agent-framework/master-prompts/acknowledgments`);
+    
+    // Copy query parameters
+    Object.entries(req.query).forEach(([key, value]) => {
+      if (value) url.searchParams.append(key, value as string);
+    });
+    
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    res.json(data);
+  }));
+  
+  app.post('/api/master-prompts/:id/broadcast', asyncHandler(async (req, res) => {
+    const promptId = req.params.id;
+    
+    // Forward to agent-framework route
+    const response = await fetch(`http://localhost:${req.socket.localPort}/api/agent-framework/master-prompts/${promptId}/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json();
+    res.status(response.status).json(data);
+  }));
+  
   return httpServer;
 }
