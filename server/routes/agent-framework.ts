@@ -6,8 +6,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../api-utils';
-import { ApiError } from '../api-error';
+import { asyncHandler, ApiError } from '../error-handler';
 import { masterControlProgram } from '../services/master-control-program';
 import { registerAgents } from '../services/agents';
 import { AgentRequestSchema } from '../../shared/agent-framework';
@@ -67,7 +66,7 @@ router.get('/agents/:agentId/status', asyncHandler(async (req, res) => {
   const agent = masterControlProgram.registry.getAgent(agentId);
   
   if (!agent) {
-    throw new ApiError(`Agent not found: ${agentId}`, 404);
+    throw new ApiError('AGENT_NOT_FOUND', `Agent not found: ${agentId}`, 404);
   }
   
   const status = await agent.getStatus();
@@ -85,7 +84,7 @@ router.get('/agents/:agentId/capabilities', asyncHandler(async (req, res) => {
   const agent = masterControlProgram.registry.getAgent(agentId);
   
   if (!agent) {
-    throw new ApiError(`Agent not found: ${agentId}`, 404);
+    throw new ApiError('AGENT_NOT_FOUND', `Agent not found: ${agentId}`, 404);
   }
   
   const capabilities = agent.getCapabilities();

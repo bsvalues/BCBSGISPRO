@@ -15,6 +15,7 @@ import { logger } from "./logger";
 import mapServicesRoutes from "./routes/map-services";
 import complianceRoutes from "./routes/compliance";
 import dataQualityRoutes from "./routes/data-quality";
+import agentFrameworkRoutes from "./routes/agent-framework";
 import { 
   parcels,
   documents,
@@ -4721,6 +4722,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   const dataQualityRoutes = await import('./routes/data-quality').then(m => m.default);
   app.use('/api/data-quality', dataQualityRoutes);
+  
+  // Register agent framework routes
+  const agentFrameworkRoutes = await import('./routes/agent-framework').then(m => m.default);
+  app.use('/api/agent-framework', agentFrameworkRoutes);
   
   return httpServer;
 }

@@ -1,121 +1,101 @@
-import { Request, Response, NextFunction } from 'express';
-import { ZodError } from 'zod';
-import { fromZodError } from 'zod-validation-error';
-import { log } from './vite';
-
 /**
- * Standard error response structure
+ * Error Handler Module
+ * 
+ * This module provides error handling functions and classes for the server.
+ * Includes handlers for API errors, async route handlers, and 404 not found errors.
  */
-export interface ErrorResponse {
-  status: number;
-  message: string;
-  code: string;
-  details?: unknown;
-  stack?: string;
-}
+
+import { Request, Response, NextFunction } from 'express';
 
 /**
- * Custom API Error class with standardized structure
+ * API Error class that extends the built-in Error class
+ * to provide a standardized error structure for API responses.
  */
 export class ApiError extends Error {
-  status: number;
+  statusCode: number;
   code: string;
-  details?: unknown;
+  details?: any;
 
-  constructor(status: number, message: string, code = 'API_ERROR', details?: unknown) {
+  constructor(code: string, message: string, statusCode: number = 400, details?: any) {
     super(message);
     this.name = 'ApiError';
-    this.status = status;
     this.code = code;
+    this.statusCode = statusCode;
     this.details = details;
-  }
-
-  static badRequest(message = 'Bad Request', code = 'BAD_REQUEST', details?: unknown): ApiError {
-    return new ApiError(400, message, code, details);
-  }
-
-  static unauthorized(message = 'Unauthorized', code = 'UNAUTHORIZED', details?: unknown): ApiError {
-    return new ApiError(401, message, code, details);
-  }
-
-  static forbidden(message = 'Forbidden', code = 'FORBIDDEN', details?: unknown): ApiError {
-    return new ApiError(403, message, code, details);
-  }
-
-  static notFound(message = 'Not Found', code = 'NOT_FOUND', details?: unknown): ApiError {
-    return new ApiError(404, message, code, details);
-  }
-
-  static conflict(message = 'Conflict', code = 'CONFLICT', details?: unknown): ApiError {
-    return new ApiError(409, message, code, details);
-  }
-
-  static internal(message = 'Internal Server Error', code = 'INTERNAL_ERROR', details?: unknown): ApiError {
-    return new ApiError(500, message, code, details);
+    
+    // This is needed because we're extending a built-in class
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
 
 /**
- * Async handler to catch errors in async route handlers
+ * Async handler for express routes to catch errors in async functions
+ * 
+ * This function wraps an async route handler and catches any errors,
+ * passing them to the next middleware.
+ * 
+ * @param fn The async function to wrap
+ * @returns A function that handles async errors
  */
-export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function asyncHandler(fn: Function) {
+  return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
-};
+}
 
 /**
- * Global error handler middleware
+ * Error handler middleware for express
+ * 
+ * This middleware catches all errors and formats them as JSON responses.
+ * It handles ApiError instances specially, and converts other errors to
+ * a standard format.
+ * 
+ * @param err The error that was thrown
+ * @param req The request object
+ * @param res The response object
+ * @param next The next middleware function
  */
-export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction): void => {
-  let errorResponse: ErrorResponse;
-
-  // Log the error
-  log(`Error: ${err.message}`, 'error');
-  if (err.stack) {
-    log(err.stack, 'error');
-  }
-
-  // Handle specific error types
+export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
+  console.error(`Error processing request ${req.method} ${req.path}:`, err);
+  
   if (err instanceof ApiError) {
-    // Handle our custom API errors
-    errorResponse = {
-      status: err.status,
-      message: err.message,
-      code: err.code,
-      details: err.details,
-    };
-  } else if (err instanceof ZodError) {
-    // Handle Zod validation errors
-    const validationError = fromZodError(err);
-    errorResponse = {
-      status: 400,
-      message: validationError.message,
-      code: 'VALIDATION_ERROR',
-      details: err.format(),
-    };
-  } else {
-    // Handle generic errors
-    errorResponse = {
-      status: 500,
-      message: err.message || 'Internal Server Error',
-      code: 'INTERNAL_ERROR',
-    };
+    return res.status(err.statusCode).json({
+      success: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: err.details
+      }
+    });
   }
-
-  // Add stack trace for development environment
-  if (process.env.NODE_ENV !== 'production') {
-    errorResponse.stack = err.stack;
-  }
-
-  // Send the error response
-  res.status(errorResponse.status).json(errorResponse);
-};
+  
+  // Handle other types of errors
+  return res.status(500).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected error occurred',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    }
+  });
+}
 
 /**
- * Not found middleware - for handling undefined routes
+ * 404 Not Found handler middleware for express
+ * 
+ * This middleware handles requests to routes that don't exist.
+ * It returns a 404 Not Found response with a standardized format.
+ * 
+ * @param req The request object
+ * @param res The response object
+ * @param next The next middleware function
  */
-export const notFoundHandler = (req: Request, res: Response, next: NextFunction): void => {
-  const err = ApiError.notFound(`Route not found: ${req.originalUrl}`);
-  next(err);
-};
+export function notFoundHandler(req: Request, res: Response, next: NextFunction) {
+  return res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route not found: ${req.method} ${req.path}`
+    }
+  });
+}

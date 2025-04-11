@@ -11,10 +11,16 @@ import { users } from './schema';
 import { PriorityLevel, MessageStatus, AgentTypeEnum, CapabilityEnum } from './agent-framework';
 
 // Agent framework enums
-export const agentTypeEnum = pgEnum('agent_type', Object.values(AgentTypeEnum));
-export const agentCapabilityEnum = pgEnum('agent_capability', Object.values(CapabilityEnum));
-export const messagePriorityEnum = pgEnum('message_priority', Object.values(PriorityLevel));
-export const messageStatusEnum = pgEnum('message_status', Object.values(MessageStatus));
+export const agentTypeEnum = pgEnum('agent_type', [
+  'DATA_VALIDATION', 'VALUATION', 'TAX_INFORMATION', 'WORKFLOW', 'LEGAL_COMPLIANCE', 'USER_INTERACTION'
+]);
+export const agentCapabilityEnum = pgEnum('agent_capability', [
+  'VALIDATION', 'CALCULATION', 'NOTIFICATION', 'ANALYSIS', 'RECOMMENDATION', 'AUTOMATION', 'COMPLIANCE'
+]);
+export const messagePriorityEnum = pgEnum('message_priority', ['HIGH', 'MEDIUM', 'LOW']);
+export const messageStatusEnum = pgEnum('message_status', [
+  'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELED'
+]);
 
 // Agent registration table
 export const agents = pgTable('agents', {

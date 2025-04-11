@@ -199,6 +199,7 @@ export class LegalComplianceAgent implements Agent {
     const { entityType, entityId } = request.payload;
     
     try {
+      // Check if entityType and entityId are valid
       const checks = await complianceService.getComplianceChecks(entityType, entityId);
       
       return {
@@ -231,10 +232,10 @@ export class LegalComplianceAgent implements Agent {
    * Handle a request to get compliance requirements
    */
   private async handleGetComplianceRequirements(request: AgentRequest): Promise<AgentResponse> {
-    const { entityType, category, severity } = request.payload;
+    const { entityType, category } = request.payload;
     
     try {
-      const requirements = await complianceService.getRequirements(entityType, category, severity);
+      const requirements = await complianceService.getRequirements(entityType, category);
       
       return {
         success: true,
@@ -269,7 +270,7 @@ export class LegalComplianceAgent implements Agent {
     const { entityType, entityId } = request.payload;
     
     try {
-      const statistics = await complianceService.getComplianceStatistics(entityType, entityId);
+      const statistics = await complianceService.getComplianceStats(entityType, entityId);
       
       return {
         success: true,
@@ -307,7 +308,6 @@ export class LegalComplianceAgent implements Agent {
       const updatedCheck = await complianceService.updateComplianceCheck(
         checkId,
         { status },
-        userId,
         notes
       );
       
