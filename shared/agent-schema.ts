@@ -133,6 +133,9 @@ export type AgentEvent = typeof agentEvents.$inferSelect;
 export type InsertAgentEvent = typeof agentEvents.$inferInsert;
 export const insertAgentEventSchema = createInsertSchema(agentEvents);
 
+// Master prompt priority enum using existing messagePriorityEnum
+// Update: Using existing messagePriorityEnum which has LOW, MEDIUM, HIGH values
+
 // Agent experiences for replay buffer
 export const agentExperiences = pgTable('agent_experiences', {
   id: serial('id').primaryKey(),
