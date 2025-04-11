@@ -1,0 +1,128 @@
+/**
+ * Agent Framework Database Schema
+ * 
+ * This module defines the database schema for the agent-based architecture.
+ */
+
+import { pgTable, serial, text, varchar, timestamp, boolean, integer, json, pgEnum } from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
+import { users } from './schema';
+import { PriorityLevel, MessageStatus, AgentTypeEnum, CapabilityEnum } from './agent-framework';
+
+// Agent framework enums
+export const agentTypeEnum = pgEnum('agent_type', Object.values(AgentTypeEnum));
+export const agentCapabilityEnum = pgEnum('agent_capability', Object.values(CapabilityEnum));
+export const messagePriorityEnum = pgEnum('message_priority', Object.values(PriorityLevel));
+export const messageStatusEnum = pgEnum('message_status', Object.values(MessageStatus));
+
+// Agent registration table
+export const agents = pgTable('agents', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).notNull().unique(),
+  type: agentTypeEnum('type').notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  version: varchar('version', { length: 20 }).notNull(),
+  isActive: boolean('is_active').default(true),
+  settings: json('settings').$type<Record<string, any>>(),
+  lastHeartbeat: timestamp('last_heartbeat'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type Agent = typeof agents.$inferSelect;
+export type InsertAgent = typeof agents.$inferInsert;
+export const insertAgentSchema = createInsertSchema(agents);
+
+// Agent capabilities
+export const agentCapabilities = pgTable('agent_capabilities', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).notNull().references(() => agents.agentId),
+  capabilityId: varchar('capability_id', { length: 50 }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  type: agentCapabilityEnum('type').notNull(),
+  parameters: json('parameters').$type<z.ZodSchema<any>>(),
+  requiresAuth: boolean('requires_auth').default(false),
+  rateLimit: integer('rate_limit'), // requests per minute
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type AgentCapability = typeof agentCapabilities.$inferSelect;
+export type InsertAgentCapability = typeof agentCapabilities.$inferInsert;
+export const insertAgentCapabilitySchema = createInsertSchema(agentCapabilities);
+
+// Agent messages
+export const agentMessages = pgTable('agent_messages', {
+  id: serial('id').primaryKey(),
+  messageId: varchar('message_id', { length: 50 }).notNull().unique(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  sender: varchar('sender', { length: 50 }).notNull(),
+  recipient: varchar('recipient', { length: 50 }).notNull(),
+  messageType: varchar('message_type', { length: 50 }).notNull(),
+  priority: messagePriorityEnum('priority').notNull().default('MEDIUM'),
+  payload: json('payload').$type<Record<string, any>>(),
+  status: messageStatusEnum('status').notNull().default('PENDING'),
+  correlationId: varchar('correlation_id', { length: 50 }),
+  expiresAt: timestamp('expires_at'),
+  processedAt: timestamp('processed_at'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export type AgentMessage = typeof agentMessages.$inferSelect;
+export type InsertAgentMessage = typeof agentMessages.$inferInsert;
+export const insertAgentMessageSchema = createInsertSchema(agentMessages);
+
+// Agent tasks
+export const agentTasks = pgTable('agent_tasks', {
+  id: serial('id').primaryKey(),
+  taskId: varchar('task_id', { length: 50 }).notNull().unique(),
+  agentId: varchar('agent_id', { length: 50 }).notNull().references(() => agents.agentId),
+  taskType: varchar('task_type', { length: 50 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('PENDING'),
+  priority: messagePriorityEnum('priority').notNull().default('MEDIUM'),
+  parameters: json('parameters').$type<Record<string, any>>(),
+  result: json('result').$type<Record<string, any>>(),
+  error: json('error').$type<{ code: string, message: string, details?: any }>(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  assignedBy: integer('assigned_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type AgentTask = typeof agentTasks.$inferSelect;
+export type InsertAgentTask = typeof agentTasks.$inferInsert;
+export const insertAgentTaskSchema = createInsertSchema(agentTasks);
+
+// Master Control Program logs
+export const mcpLogs = pgTable('mcp_logs', {
+  id: serial('id').primaryKey(),
+  level: varchar('level', { length: 10 }).notNull().default('INFO'),
+  component: varchar('component', { length: 50 }).notNull(),
+  message: text('message').notNull(),
+  details: json('details').$type<Record<string, any>>(),
+  correlationId: varchar('correlation_id', { length: 50 }),
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
+export type McpLog = typeof mcpLogs.$inferSelect;
+export type InsertMcpLog = typeof mcpLogs.$inferInsert;
+export const insertMcpLogSchema = createInsertSchema(mcpLogs);
+
+// Agent events for monitoring
+export const agentEvents = pgTable('agent_events', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).references(() => agents.agentId),
+  eventType: varchar('event_type', { length: 50 }).notNull(),
+  severity: varchar('severity', { length: 10 }).notNull().default('INFO'),
+  details: json('details').$type<Record<string, any>>(),
+  correlationId: varchar('correlation_id', { length: 50 }),
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
+export type AgentEvent = typeof agentEvents.$inferSelect;
+export type InsertAgentEvent = typeof agentEvents.$inferInsert;
+export const insertAgentEventSchema = createInsertSchema(agentEvents);
