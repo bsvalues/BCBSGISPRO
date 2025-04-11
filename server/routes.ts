@@ -4734,6 +4734,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const dataQualityRoutes = await import('./routes/data-quality').then(m => m.default);
   app.use('/api/data-quality', dataQualityRoutes);
   
+  // Import our enhanced data quality routes for workflow compliance
+  const { dataQualityRouter } = await import('./routes/data-quality-routes');
+  app.use('/api/data-quality', dataQualityRouter);
+  
   // Register agent framework routes
   const agentFrameworkRoutes = await import('./routes/agent-framework').then(m => m.default);
   app.use('/api/agent-framework', agentFrameworkRoutes);

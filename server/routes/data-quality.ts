@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { ApiError, asyncHandler } from '../error-handler';
-import { dataQualityService } from '../services/data-quality-service';
+import { DataQualityService } from '../services/data-quality-service';
+import { storage } from '../storage';
 import { dataQualityDimensionEnum, dataQualityImportanceEnum } from '../../shared/schema';
+
+// Initialize the service
+const dataQualityService = new DataQualityService(storage);
 
 // Create router
 const router = Router();
