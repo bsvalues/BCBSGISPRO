@@ -2,6 +2,7 @@ import { createInsertSchema } from 'drizzle-zod';
 import { integer, json, pgEnum, pgTable, serial, text, timestamp, boolean, varchar, uniqueIndex, primaryKey, doublePrecision } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { DocumentType as ImportedDocumentType } from './document-types';
+import { AgentTypeEnum, CapabilityEnum, PriorityLevel, MessageStatus } from './agent-framework';
 
 // Washington RCW compliance enums
 export const complianceStatusEnum = pgEnum('compliance_status', ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW', 'EXEMPT', 'NOT_APPLICABLE']);
