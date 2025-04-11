@@ -1,7 +1,7 @@
 import { createInsertSchema } from 'drizzle-zod';
 import { integer, json, pgEnum, pgTable, serial, text, timestamp, boolean, varchar, uniqueIndex, primaryKey, doublePrecision } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { DocumentType } from './document-types';
+import { DocumentType as ImportedDocumentType } from './document-types';
 
 // Washington RCW compliance enums
 export const complianceStatusEnum = pgEnum('compliance_status', ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW', 'EXEMPT', 'NOT_APPLICABLE']);
@@ -531,7 +531,7 @@ export interface SM00Report {
 }
 
 // Document Lineage Types
-export type DocumentType = typeof DOCUMENT_TYPES[number];
+export type LocalDocumentType = typeof DOCUMENT_TYPES[number];
 export type EventType = typeof EVENT_TYPES[number];
 export type RelationshipType = typeof RELATIONSHIP_TYPES[number];
 export type ProcessingStageType = typeof PROCESSING_STAGE_TYPES[number];
@@ -659,6 +659,142 @@ export interface DocumentLineageGraph {
     [key: string]: any;
   };
 }
+
+// Washington State RCW Compliance Tables
+export const rcwRequirements = pgTable('rcw_requirements', {
+  id: serial('id').primaryKey(),
+  rcwCode: varchar('rcw_code', { length: 20 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  category: complianceCategoryEnum('category').notNull(),
+  severity: complianceSeverityEnum('severity').notNull(),
+  applicableEntityTypes: json('applicable_entity_types').$type<string[]>().notNull(),
+  validationLogic: text('validation_logic'),
+  remediation: text('remediation'),
+  reference: text('reference'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type RcwRequirement = typeof rcwRequirements.$inferSelect;
+export type InsertRcwRequirement = typeof rcwRequirements.$inferInsert;
+export const insertRcwRequirementSchema = createInsertSchema(rcwRequirements);
+
+// Compliance checks for parcels, documents, etc.
+export const complianceChecks = pgTable('compliance_checks', {
+  id: serial('id').primaryKey(),
+  requirementId: integer('requirement_id').references(() => rcwRequirements.id).notNull(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'PARCEL', 'DOCUMENT', etc.
+  entityId: integer('entity_id').notNull(),
+  status: complianceStatusEnum('status').notNull(),
+  details: json('details').$type<{
+    issues?: string[];
+    metadata?: Record<string, any>;
+    checkData?: Record<string, any>;
+  }>(),
+  lastCheckedAt: timestamp('last_checked_at').defaultNow(),
+  nextCheckDue: timestamp('next_check_due'),
+  assignedTo: integer('assigned_to').references(() => users.id),
+  remediationPlan: text('remediation_plan'),
+  remediationDueDate: timestamp('remediation_due_date'),
+  createdBy: integer('created_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type ComplianceCheck = typeof complianceChecks.$inferSelect;
+export type InsertComplianceCheck = typeof complianceChecks.$inferInsert;
+export const insertComplianceCheckSchema = createInsertSchema(complianceChecks);
+
+// Compliance audit trail
+export const complianceAuditLogs = pgTable('compliance_audit_logs', {
+  id: serial('id').primaryKey(),
+  checkId: integer('check_id').references(() => complianceChecks.id).notNull(),
+  oldStatus: complianceStatusEnum('old_status'),
+  newStatus: complianceStatusEnum('new_status').notNull(),
+  notes: text('notes'),
+  performedBy: integer('performed_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export type ComplianceAuditLog = typeof complianceAuditLogs.$inferSelect;
+export type InsertComplianceAuditLog = typeof complianceAuditLogs.$inferInsert;
+export const insertComplianceAuditLogSchema = createInsertSchema(complianceAuditLogs);
+
+// Data Quality Framework - Quality Rules and Checks
+export const dataQualityDimensionEnum = pgEnum('data_quality_dimension', [
+  'COMPLETENESS', 
+  'ACCURACY', 
+  'CONSISTENCY', 
+  'TIMELINESS', 
+  'VALIDITY', 
+  'UNIQUENESS'
+]);
+
+export const dataQualityImportanceEnum = pgEnum('data_quality_importance', ['HIGH', 'MEDIUM', 'LOW']);
+
+// Data quality rules definition
+export const dataQualityRules = pgTable('data_quality_rules', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description').notNull(),
+  dimension: dataQualityDimensionEnum('dimension').notNull(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'PARCEL', 'DOCUMENT', etc.
+  validationLogic: text('validation_logic'), // JSON or code for validation function
+  importance: dataQualityImportanceEnum('importance').notNull().default('MEDIUM'),
+  isActive: boolean('is_active').default(true),
+  parameters: json('parameters').$type<Record<string, any>>(), // Configurable parameters
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type DataQualityRule = typeof dataQualityRules.$inferSelect;
+export type InsertDataQualityRule = typeof dataQualityRules.$inferInsert;
+export const insertDataQualityRuleSchema = createInsertSchema(dataQualityRules);
+
+// Data quality evaluations
+export const dataQualityEvaluations = pgTable('data_quality_evaluations', {
+  id: serial('id').primaryKey(),
+  ruleId: integer('rule_id').references(() => dataQualityRules.id).notNull(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  entityId: integer('entity_id').notNull(),
+  passed: boolean('passed').notNull(),
+  score: doublePrecision('score').notNull(), // 0.0 to 1.0
+  details: json('details').$type<{
+    issues?: string[];
+    affectedFields?: string[];
+    metadata?: Record<string, any>;
+  }>(),
+  evaluatedAt: timestamp('evaluated_at').defaultNow(),
+  evaluatedBy: integer('evaluated_by').references(() => users.id)
+});
+
+export type DataQualityEvaluation = typeof dataQualityEvaluations.$inferSelect;
+export type InsertDataQualityEvaluation = typeof dataQualityEvaluations.$inferInsert;
+export const insertDataQualityEvaluationSchema = createInsertSchema(dataQualityEvaluations);
+
+// Aggregate quality scores for entities
+export const dataQualityScores = pgTable('data_quality_scores', {
+  id: serial('id').primaryKey(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  entityId: integer('entity_id').notNull(),
+  overallScore: doublePrecision('overall_score').notNull(), // 0.0 to 1.0
+  dimensionScores: json('dimension_scores').$type<Record<string, number>>(), // Scores by dimension
+  passedRules: integer('passed_rules').notNull(),
+  totalRules: integer('total_rules').notNull(),
+  lastEvaluatedAt: timestamp('last_evaluated_at').defaultNow(),
+  
+  // Enforce uniqueness of entity combinations
+  // and allow lookup by entity
+}, (table) => {
+  return {
+    entityIdx: uniqueIndex('entity_idx').on(table.entityType, table.entityId)
+  }
+});
+
+export type DataQualityScore = typeof dataQualityScores.$inferSelect;
+export type InsertDataQualityScore = typeof dataQualityScores.$inferInsert;
+export const insertDataQualityScoreSchema = createInsertSchema(dataQualityScores);
 
 // Node Data Interfaces
 export interface DocumentNodeData {
