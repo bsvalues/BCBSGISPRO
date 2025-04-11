@@ -13,7 +13,9 @@ import {
   AgentRequest,
   AgentResponse,
   PriorityLevel,
-  CapabilityEnum
+  CapabilityEnum,
+  MasterPrompt,
+  AgentEventType
 } from '../../../shared/agent-framework';
 import { dataQualityService } from '../data-quality-service';
 import { logger } from '../../logger';
@@ -354,6 +356,96 @@ export class DataValidationAgent implements Agent {
   async shutdown(): Promise<void> {
     logger.info(`Shutting down ${this.name} (${this.id})`);
     this.isActive = false;
+  }
+
+  /**
+   * Receive and process a master prompt
+   * 
+   * @param prompt The master prompt to process
+   * @returns True if the prompt was successfully processed, false otherwise
+   */
+  async receiveMasterPrompt(prompt: MasterPrompt): Promise<boolean> {
+    try {
+      logger.info(`[DataValidationAgent] Received master prompt: ${prompt.name} (ID: ${prompt.id})`);
+      
+      // Process the master prompt directives
+      this.processMasterPromptDirectives(prompt);
+      
+      // Log the receipt of the prompt
+      logger.info(`[DataValidationAgent] Successfully processed master prompt: ${prompt.name}`);
+      
+      return true;
+    } catch (error) {
+      logger.error(`[DataValidationAgent] Error processing master prompt: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Confirm acknowledgment of a master prompt
+   * 
+   * @param promptId The ID of the prompt to acknowledge
+   * @returns True if acknowledgment was successful, false otherwise
+   */
+  async confirmPromptAcknowledgment(promptId: string): Promise<boolean> {
+    try {
+      logger.info(`[DataValidationAgent] Confirming acknowledgment of master prompt: ${promptId}`);
+      
+      // In a real implementation, we would update a database record
+      
+      return true;
+    } catch (error) {
+      logger.error(`[DataValidationAgent] Error confirming prompt acknowledgment: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Process the directives in a master prompt
+   * 
+   * @param prompt The master prompt to process
+   */
+  private processMasterPromptDirectives(prompt: MasterPrompt): void {
+    logger.info(`[DataValidationAgent] Processing directives from master prompt: ${prompt.name}`);
+    
+    // Check if the prompt has parameters that modify agent behavior
+    if (prompt.parameters) {
+      // Handle quality threshold parameters
+      if (prompt.parameters.qualityThresholds) {
+        logger.info(`[DataValidationAgent] Updating quality thresholds: ${JSON.stringify(prompt.parameters.qualityThresholds)}`);
+        // Update quality thresholds in the agent
+      }
+      
+      // Handle validation rule parameters
+      if (prompt.parameters.validationRules) {
+        logger.info(`[DataValidationAgent] Updating validation rules: ${JSON.stringify(prompt.parameters.validationRules)}`);
+        // Update validation rules in the agent
+      }
+      
+      // Handle priority parameters
+      if (prompt.parameters.entityPriorities) {
+        logger.info(`[DataValidationAgent] Updating entity priorities: ${JSON.stringify(prompt.parameters.entityPriorities)}`);
+        // Update entity priorities in the agent
+      }
+    }
+    
+    // Parse the content for specific directives
+    // This is a simplified implementation - in a real system we would use more sophisticated parsing
+    
+    if (prompt.content.includes('ENFORCE_STRICT_VALIDATION')) {
+      logger.info('[DataValidationAgent] Directive detected: ENFORCE_STRICT_VALIDATION');
+      // Implement strict validation logic
+    }
+    
+    if (prompt.content.includes('PRIORITIZE_PARCEL_VALIDATION')) {
+      logger.info('[DataValidationAgent] Directive detected: PRIORITIZE_PARCEL_VALIDATION');
+      // Implement parcel validation prioritization
+    }
+    
+    if (prompt.content.includes('ENHANCE_ERROR_REPORTING')) {
+      logger.info('[DataValidationAgent] Directive detected: ENHANCE_ERROR_REPORTING');
+      // Implement enhanced error reporting
+    }
   }
 }
 

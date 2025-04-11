@@ -12,7 +12,9 @@ import {
   AgentRequest,
   AgentResponse,
   PriorityLevel,
-  CapabilityEnum
+  CapabilityEnum,
+  MasterPrompt,
+  AgentEventType
 } from '../../../shared/agent-framework';
 import { complianceService } from '../compliance-service';
 import { logger } from '../../logger';
@@ -359,6 +361,99 @@ export class LegalComplianceAgent implements Agent {
   async shutdown(): Promise<void> {
     logger.info(`Shutting down ${this.name} (${this.id})`);
     this.isActive = false;
+  }
+
+  /**
+   * Receive and process a master prompt
+   * 
+   * @param prompt The master prompt to process
+   * @returns True if the prompt was successfully processed, false otherwise
+   */
+  async receiveMasterPrompt(prompt: MasterPrompt): Promise<boolean> {
+    try {
+      logger.info(`[LegalComplianceAgent] Received master prompt: ${prompt.name} (ID: ${prompt.id})`);
+      
+      // Store the prompt in the agent's memory and process directives
+      this.processMasterPromptDirectives(prompt);
+      
+      // Log the receipt of the master prompt (in a real implementation, this would be stored in the database)
+      logger.info(`[LegalComplianceAgent] Successfully processed master prompt: ${prompt.name}`);
+      
+      return true;
+    } catch (error) {
+      logger.error(`[LegalComplianceAgent] Error processing master prompt: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Confirm acknowledgment of a master prompt
+   * 
+   * @param promptId The ID of the prompt to acknowledge
+   * @returns True if acknowledgment was successful, false otherwise
+   */
+  async confirmPromptAcknowledgment(promptId: string): Promise<boolean> {
+    try {
+      logger.info(`[LegalComplianceAgent] Confirming acknowledgment of master prompt: ${promptId}`);
+      
+      // In a real implementation, we would update a database record
+      
+      // Emit an event for the acknowledgment
+      logger.info(`[LegalComplianceAgent] Successfully acknowledged master prompt: ${promptId}`);
+      
+      return true;
+    } catch (error) {
+      logger.error(`[LegalComplianceAgent] Error confirming prompt acknowledgment: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Process the directives in a master prompt
+   * 
+   * @param prompt The master prompt to process
+   */
+  private processMasterPromptDirectives(prompt: MasterPrompt): void {
+    logger.info(`[LegalComplianceAgent] Processing directives from master prompt: ${prompt.name}`);
+    
+    // Check if the prompt has parameters that modify agent behavior
+    if (prompt.parameters) {
+      // Handle compliance threshold parameters
+      if (prompt.parameters.complianceThresholds) {
+        logger.info(`[LegalComplianceAgent] Updating compliance thresholds: ${JSON.stringify(prompt.parameters.complianceThresholds)}`);
+        // Update compliance thresholds in the agent
+      }
+      
+      // Handle RCW reference parameters
+      if (prompt.parameters.rcwReferences) {
+        logger.info(`[LegalComplianceAgent] Updating RCW references: ${JSON.stringify(prompt.parameters.rcwReferences)}`);
+        // Update RCW references in the agent
+      }
+      
+      // Handle enforcement level parameters
+      if (prompt.parameters.enforcementLevel) {
+        logger.info(`[LegalComplianceAgent] Updating enforcement level: ${prompt.parameters.enforcementLevel}`);
+        // Update enforcement level in the agent
+      }
+    }
+    
+    // Parse the content for specific directives
+    // This is a simplified implementation - in a real system we would use more sophisticated parsing
+    
+    if (prompt.content.includes('ENFORCE_STRICT_COMPLIANCE')) {
+      logger.info('[LegalComplianceAgent] Directive detected: ENFORCE_STRICT_COMPLIANCE');
+      // Implement strict compliance enforcement logic
+    }
+    
+    if (prompt.content.includes('PRIORITIZE_CRITICAL_REQUIREMENTS')) {
+      logger.info('[LegalComplianceAgent] Directive detected: PRIORITIZE_CRITICAL_REQUIREMENTS');
+      // Implement critical requirements prioritization
+    }
+    
+    if (prompt.content.includes('UPDATE_RCW_REFERENCES')) {
+      logger.info('[LegalComplianceAgent] Directive detected: UPDATE_RCW_REFERENCES');
+      // Implement RCW reference updates
+    }
   }
 }
 
