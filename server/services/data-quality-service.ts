@@ -61,9 +61,7 @@ export class DataQualityService {
         return true;
       });
     } catch (error) {
-      logger.error(`Error retrieving data quality rules: ${error instanceof Error ? error.message : String(error)}`, {
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error retrieving data quality rules: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -76,10 +74,7 @@ export class DataQualityService {
       const rules = await this.getRules();
       return rules.find(r => r.id === parseInt(id));
     } catch (error) {
-      logger.error(`Error retrieving data quality rule by ID: ${error instanceof Error ? error.message : String(error)}`, {
-        ruleId: id,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error retrieving data quality rule by ID: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -97,10 +92,7 @@ export class DataQualityService {
         updatedAt: new Date()
       };
     } catch (error) {
-      logger.error(`Error creating data quality rule: ${error instanceof Error ? error.message : String(error)}`, {
-        data,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error creating data quality rule: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -122,11 +114,7 @@ export class DataQualityService {
         updatedAt: new Date()
       };
     } catch (error) {
-      logger.error(`Error updating data quality rule: ${error instanceof Error ? error.message : String(error)}`, {
-        ruleId: id,
-        data,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error updating data quality rule: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -161,12 +149,7 @@ export class DataQualityService {
       
       return evaluation;
     } catch (error) {
-      logger.error(`Error evaluating rule: ${error instanceof Error ? error.message : String(error)}`, {
-        ruleId,
-        entityType,
-        entityId,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error evaluating rule: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -200,11 +183,7 @@ export class DataQualityService {
         evaluations
       };
     } catch (error) {
-      logger.error(`Error evaluating entity: ${error instanceof Error ? error.message : String(error)}`, {
-        entityType,
-        entityId,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error evaluating entity: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -239,11 +218,7 @@ export class DataQualityService {
         }
       ].slice(0, limit);
     } catch (error) {
-      logger.error(`Error getting entity evaluations: ${error instanceof Error ? error.message : String(error)}`, {
-        entityType,
-        entityId,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error getting entity evaluations: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -272,11 +247,7 @@ export class DataQualityService {
         lastEvaluatedAt: new Date()
       };
     } catch (error) {
-      logger.error(`Error getting data quality score: ${error instanceof Error ? error.message : String(error)}`, {
-        entityType,
-        entityId,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error getting data quality score: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -310,10 +281,7 @@ export class DataQualityService {
         ]
       };
     } catch (error) {
-      logger.error(`Error getting data quality metrics: ${error instanceof Error ? error.message : String(error)}`, {
-        entityType,
-        error: error instanceof Error ? error.stack : String(error)
-      });
+      logger.error(`Error getting data quality metrics: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -359,10 +327,7 @@ export class DataQualityService {
       
       return report;
     } catch (error) {
-      logger.error(`Error evaluating workflow compliance: ${error instanceof Error ? error.message : 'Unknown error'}`, {
-        workflowId,
-        error
-      });
+      logger.error(`Error evaluating workflow compliance: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
