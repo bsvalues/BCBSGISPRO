@@ -7,14 +7,28 @@ const router = Router();
 router.get('/mapbox-token', asyncHandler(async (req, res) => {
   const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
   
-  if (!mapboxToken) {
+  // Log all related environment variables for debugging
+  console.log('MAPBOX TOKEN CHECK:');
+  console.log(`  MAPBOX_ACCESS_TOKEN present: ${!!process.env.MAPBOX_ACCESS_TOKEN}`);
+  console.log(`  VITE_MAPBOX_ACCESS_TOKEN present: ${!!process.env.VITE_MAPBOX_ACCESS_TOKEN}`);
+  
+  // Try to get token from different sources
+  let token = mapboxToken;
+  if (!token) {
+    token = process.env.VITE_MAPBOX_ACCESS_TOKEN;
+    console.log('Using VITE_MAPBOX_ACCESS_TOKEN as fallback');
+  }
+  
+  if (!token) {
+    console.error('No Mapbox token found in any environment variable');
     return res.status(500).json({
       error: 'Mapbox token not configured on server',
       message: 'The Mapbox access token is not set in the server environment'
     });
   }
   
-  res.json({ token: mapboxToken });
+  console.log('Successfully sending Mapbox token to client');
+  res.json({ token });
 }));
 
 // Return mock ArcGIS services for demonstration

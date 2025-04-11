@@ -2,6 +2,34 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { errorHandler, notFoundHandler } from "./error-handler";
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+try {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    console.log('Loading environment variables from .env.local');
+    const envConfig = dotenv.parse(fs.readFileSync(envPath));
+    
+    // Copy VITE_ prefixed variables to non-prefixed for server use
+    for (const key in envConfig) {
+      if (key.startsWith('VITE_')) {
+        const serverKey = key.replace('VITE_', '');
+        process.env[serverKey] = envConfig[key];
+        console.log(`Set ${serverKey} from ${key}`);
+      }
+      
+      // Also set the original key
+      process.env[key] = envConfig[key];
+    }
+  } else {
+    console.log('.env.local file not found, using existing environment variables');
+  }
+} catch (error) {
+  console.error('Error loading .env.local file:', error);
+}
 
 // Create Express application
 const app = express();

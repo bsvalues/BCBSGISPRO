@@ -110,16 +110,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mapbox token endpoint - serves the token securely to the frontend (legacy path for compatibility)
   app.get("/api/mapbox-token", async (req, res) => {
     try {
-      // Access token directly from secret environment variables
-      const { MAPBOX_ACCESS_TOKEN } = process.env;
+      // Access token directly from secret environment variables - try multiple sources
+      let token = process.env.MAPBOX_ACCESS_TOKEN;
       
       // Log for debugging
       console.log('Legacy Mapbox token endpoint accessed');
-      console.log(`MAPBOX_ACCESS_TOKEN present: ${!!MAPBOX_ACCESS_TOKEN}`);
+      console.log(`MAPBOX_ACCESS_TOKEN present: ${!!process.env.MAPBOX_ACCESS_TOKEN}`);
+      console.log(`VITE_MAPBOX_ACCESS_TOKEN present: ${!!process.env.VITE_MAPBOX_ACCESS_TOKEN}`);
       
-      // Final check if we have a token
-      if (!MAPBOX_ACCESS_TOKEN) {
-        console.error('Mapbox token not available in environment');
+      // Try alternative sources if primary source is not available
+      if (!token) {
+        token = process.env.VITE_MAPBOX_ACCESS_TOKEN;
+        console.log('Using VITE_MAPBOX_ACCESS_TOKEN as fallback');
+      }
+      
+      // Final check if we have a token from any source
+      if (!token) {
+        console.error('Mapbox token not available in any environment variable');
         return res.status(500).json({ 
           error: 'Mapbox token not configured',
           message: 'The Mapbox access token is not available. Please add it to your environment variables.'
@@ -128,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return the token to the client
       console.log('Successfully returning Mapbox token to client via legacy endpoint');
-      return res.json({ token: MAPBOX_ACCESS_TOKEN });
+      return res.json({ token });
     } catch (error) {
       console.error('Error accessing Mapbox token:', error);
       return res.status(500).json({

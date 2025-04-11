@@ -98,6 +98,9 @@ export class MasterControlProgram implements IMasterControlProgram {
       // Initialize agent training service
       agentTrainingService.initialize();
       
+      // Register training event handlers
+      this.registerTrainingEventHandlers();
+      
       // Log initialization
       await this.logMcpEvent('SYSTEM', 'MCP initialized successfully');
       
@@ -114,6 +117,159 @@ export class MasterControlProgram implements IMasterControlProgram {
       logger.error(`MCP initialization failed: ${error}`);
       throw error;
     }
+  }
+  
+  /**
+   * Register event handlers for training-related events
+   */
+  private registerTrainingEventHandlers(): void {
+    // Handle policy update events from training service
+    this.registerEventHandler(AgentEventType.POLICY_UPDATED, async (event) => {
+      try {
+        logger.info(`Received policy update: ${event.updateId}`);
+        
+        // Get the agents that should receive this update
+        const targetAgents = this.registry.getActiveAgents().filter(agent => {
+          // If specific agents are targeted, check if this agent is in the list
+          if (event.agentIds && event.agentIds.length > 0) {
+            return event.agentIds.includes(agent.id);
+          }
+          // Otherwise, apply to all active agents
+          return true;
+        });
+        
+        if (targetAgents.length === 0) {
+          logger.warn('No active agents found to apply policy update');
+          return;
+        }
+        
+        // Apply the policy update to all targeted agents
+        let successCount = 0;
+        
+        for (const agent of targetAgents) {
+          if (agent.updateBehavior) {
+            try {
+              const success = await agent.updateBehavior(event.recommendations);
+              if (success) {
+                successCount++;
+                
+                // Log successful update
+                await this.logMcpEvent(
+                  'TRAINING', 
+                  `Policy update ${event.updateId} applied to agent ${agent.id}`,
+                  { updateId: event.updateId, agentId: agent.id },
+                  'INFO',
+                  event.correlationId
+                );
+              }
+            } catch (error) {
+              logger.error(`Error applying policy update to agent ${agent.id}: ${error}`);
+              
+              // Log failed update
+              await this.logMcpEvent(
+                'TRAINING', 
+                `Failed to apply policy update ${event.updateId} to agent ${agent.id}`,
+                { 
+                  updateId: event.updateId, 
+                  agentId: agent.id,
+                  error: error.toString()
+                },
+                'ERROR',
+                event.correlationId
+              );
+            }
+          }
+        }
+        
+        logger.info(`Policy update applied to ${successCount}/${targetAgents.length} agents`);
+      } catch (error) {
+        logger.error(`Error processing policy update event: ${error}`);
+      }
+    });
+    
+    // Handle training completion events
+    this.registerEventHandler(AgentEventType.TRAINING_COMPLETED, async (event) => {
+      await this.logMcpEvent(
+        'TRAINING', 
+        'Training cycle completed',
+        { 
+          trainingId: event.trainingId,
+          duration: event.duration,
+          samplesProcessed: event.samplesProcessed
+        },
+        'INFO',
+        event.correlationId
+      );
+      
+      logger.info(`Training cycle completed: ${event.trainingId}`);
+    });
+    
+    // Handle assistance request events
+    this.registerEventHandler(AgentEventType.ASSISTANCE_REQUESTED, async (event) => {
+      const requestingAgent = this.registry.getAgent(event.agentId);
+      
+      if (!requestingAgent) {
+        logger.warn(`Assistance requested by unknown agent: ${event.agentId}`);
+        return;
+      }
+      
+      // Find agents that can provide assistance (must implement provideAssistance)
+      const assistantAgents = this.registry.getActiveAgents().filter(agent => 
+        agent.id !== event.agentId && typeof agent.provideAssistance === 'function'
+      );
+      
+      if (assistantAgents.length === 0) {
+        logger.warn(`No agents available to assist ${event.agentId} with issue: ${event.issue}`);
+        return;
+      }
+      
+      // For now, just use the first capable agent
+      // In a more sophisticated system, we could match based on capabilities
+      const assistantAgent = assistantAgents[0];
+      
+      try {
+        // Ask the assistant agent for help
+        if (assistantAgent.provideAssistance) {
+          const assistanceResponse = await assistantAgent.provideAssistance({
+            requestingAgentId: event.agentId,
+            issue: event.issue,
+            context: event.context
+          });
+          
+          // If the requesting agent can process the assistance, forward it
+          if (requestingAgent.updateBehavior) {
+            await requestingAgent.updateBehavior(assistanceResponse.data);
+            
+            await this.logMcpEvent(
+              'ASSISTANCE', 
+              `Agent ${assistantAgent.id} provided assistance to ${event.agentId}`,
+              { 
+                assistantAgentId: assistantAgent.id,
+                requestingAgentId: event.agentId,
+                issue: event.issue,
+                response: assistanceResponse.data
+              },
+              'INFO',
+              event.correlationId
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(`Error processing assistance request: ${error}`);
+        
+        await this.logMcpEvent(
+          'ASSISTANCE', 
+          `Failed to process assistance request from ${event.agentId}`,
+          { 
+            requestingAgentId: event.agentId,
+            issue: event.issue,
+            error: error.toString()
+          },
+          'ERROR',
+          event.correlationId
+        );
+      }
+    });
   }
 
   /**
