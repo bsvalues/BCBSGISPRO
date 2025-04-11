@@ -18,7 +18,9 @@ import {
   AgentCapability, 
   AgentRequest, 
   AgentResponse,
-  PriorityLevel
+  PriorityLevel,
+  MasterPrompt,
+  AgentEventType
 } from '../../../shared/agent-framework';
 import { Agent as AgentSchema, AgentEvent, agentEvents } from '../../../shared/agent-schema';
 import { db } from '../../db';
@@ -869,6 +871,111 @@ export class MapIntelligenceAgent implements Agent {
       console.log(`[MapIntelligenceAgent] Logged event: ${eventType}`);
     } catch (error) {
       console.error(`[MapIntelligenceAgent] Error logging event:`, error);
+    }
+  }
+
+  /**
+   * Receive and process a master prompt
+   * 
+   * @param prompt The master prompt to process
+   * @returns True if the prompt was successfully processed, false otherwise
+   */
+  async receiveMasterPrompt(prompt: MasterPrompt): Promise<boolean> {
+    try {
+      logger.info(`[MapIntelligenceAgent] Received master prompt: ${prompt.name} (ID: ${prompt.id})`);
+      
+      // Store the prompt in the agent's memory
+      // In a real implementation, we would store this in a database or memory store
+      this.processMasterPromptDirectives(prompt);
+      
+      // Log receipt of the master prompt
+      await this.logEvent('MASTER_PROMPT_RECEIVED', {
+        promptId: prompt.id,
+        promptName: prompt.name,
+        promptVersion: prompt.version,
+        timestamp: new Date()
+      });
+      
+      // Return acknowledgment
+      return true;
+    } catch (error) {
+      logger.error(`[MapIntelligenceAgent] Error processing master prompt: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Confirm acknowledgment of a master prompt
+   * 
+   * @param promptId The ID of the prompt to acknowledge
+   * @returns True if acknowledgment was successful, false otherwise
+   */
+  async confirmPromptAcknowledgment(promptId: string): Promise<boolean> {
+    try {
+      logger.info(`[MapIntelligenceAgent] Confirming acknowledgment of master prompt: ${promptId}`);
+      
+      // Log acknowledgment
+      await this.logEvent('MASTER_PROMPT_ACKNOWLEDGED', {
+        promptId,
+        agentId: this.id,
+        timestamp: new Date()
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error(`[MapIntelligenceAgent] Error confirming prompt acknowledgment: ${error}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Process the directives in a master prompt
+   * 
+   * @param prompt The master prompt to process
+   */
+  private processMasterPromptDirectives(prompt: MasterPrompt): void {
+    // Extract directives from the prompt content
+    // This is a simplified implementation - in a real system, you would parse the prompt
+    // content more thoroughly and extract specific directives or parameters
+    
+    logger.info(`[MapIntelligenceAgent] Processing directives from master prompt: ${prompt.name}`);
+    
+    // Check if the prompt has parameters that might modify agent behavior
+    if (prompt.parameters) {
+      // Handle data quality focus parameters
+      if (prompt.parameters.dataQualityFocus) {
+        logger.info(`[MapIntelligenceAgent] Updating data quality focus: ${prompt.parameters.dataQualityFocus}`);
+        // In a real implementation, you would update the agent's behavior accordingly
+      }
+      
+      // Handle layer prioritization parameters
+      if (prompt.parameters.layerPriorities) {
+        logger.info(`[MapIntelligenceAgent] Updating layer priorities: ${JSON.stringify(prompt.parameters.layerPriorities)}`);
+        // In a real implementation, you would update the agent's layer priority logic
+      }
+      
+      // Handle regulatory compliance directives
+      if (prompt.parameters.complianceDirectives) {
+        logger.info(`[MapIntelligenceAgent] Updating compliance directives: ${JSON.stringify(prompt.parameters.complianceDirectives)}`);
+        // In a real implementation, you would update the agent's compliance checking logic
+      }
+    }
+    
+    // Parse the content for specific directives
+    // This is a very simplified implementation
+    if (prompt.content.includes('PRIORITIZE_DATA_QUALITY')) {
+      logger.info('[MapIntelligenceAgent] Directive detected: PRIORITIZE_DATA_QUALITY');
+      // Implementation would go here
+    }
+    
+    if (prompt.content.includes('ENFORCE_RCW_COMPLIANCE')) {
+      logger.info('[MapIntelligenceAgent] Directive detected: ENFORCE_RCW_COMPLIANCE');
+      // Implementation would go here
+    }
+    
+    if (prompt.content.includes('HIGHLIGHT_BOUNDARY_DISPUTES')) {
+      logger.info('[MapIntelligenceAgent] Directive detected: HIGHLIGHT_BOUNDARY_DISPUTES');
+      // Implementation would go here
     }
   }
 }
