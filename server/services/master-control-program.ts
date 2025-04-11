@@ -22,6 +22,8 @@ import {
   PriorityLevel,
   AgentEventType
 } from '../../shared/agent-framework';
+import { agentReplayBuffer, Experience } from './agent-replay-buffer';
+import { agentTrainingService } from './agent-training-service';
 import { 
   agents as agentsTable,
   agentCapabilities as agentCapabilitiesTable,
@@ -92,6 +94,9 @@ export class MasterControlProgram implements IMasterControlProgram {
       
       // Load persisted agents from database
       await this.loadPersistedAgents();
+      
+      // Initialize agent training service
+      agentTrainingService.initialize();
       
       // Log initialization
       await this.logMcpEvent('SYSTEM', 'MCP initialized successfully');
@@ -250,6 +255,17 @@ export class MasterControlProgram implements IMasterControlProgram {
       // Persist the message
       await this.persistMessage(message);
       
+      // Capture initial state for experience recording
+      const initialState = {
+        request: {
+          type: request.type,
+          action: request.action,
+          payload: request.payload
+        },
+        agentId: selectedAgent.id,
+        timestamp: new Date()
+      };
+      
       // Emit message received event
       this.emitEvent(AgentEventType.MESSAGE_RECEIVED, {
         messageId: message.id,
@@ -264,6 +280,36 @@ export class MasterControlProgram implements IMasterControlProgram {
       
       // Handle the request
       const response = await selectedAgent.handleRequest(request);
+      
+      // Capture final state for experience recording
+      const nextState = {
+        response: {
+          success: response.success,
+          data: response.data,
+          error: response.error
+        },
+        timestamp: new Date()
+      };
+      
+      // Record the experience
+      this.recordAgentExperience({
+        agentId: selectedAgent.id,
+        correlationId,
+        initialState,
+        action: request.action || request.type,
+        result: { 
+          success: response.success,
+          data: response.data,
+          error: response.error
+        },
+        nextState,
+        reward: response.success ? 1 : -0.5, // Simple reward function
+        metadata: {
+          messageId: message.id,
+          requestType: request.type,
+          executionTime: new Date().getTime() - message.timestamp.getTime()
+        }
+      });
       
       // Update message status based on response
       const updatedMessage: Partial<AgentMessage> = {
@@ -410,6 +456,9 @@ export class MasterControlProgram implements IMasterControlProgram {
   async shutdown(): Promise<void> {
     logger.info('Shutting down Master Control Program');
     
+    // Stop training service
+    agentTrainingService.stopPeriodicTraining();
+    
     // Shut down all agents
     const agents = this.registry.getAllAgents();
     
@@ -478,6 +527,39 @@ export class MasterControlProgram implements IMasterControlProgram {
         timestamp: new Date()
       });
     });
+  }
+  
+  /**
+   * Record an agent experience for learning
+   * 
+   * @param experience The experience to record
+   */
+  private async recordAgentExperience(experience: Experience): Promise<void> {
+    try {
+      // Determine the priority based on success/failure and other factors
+      let priority = 1;
+      
+      if (!experience.result.success) {
+        // Failed experiences are more valuable for learning
+        priority = 2;
+      }
+      
+      // Record the experience in the replay buffer
+      const experienceId = await agentReplayBuffer.recordExperience(experience, priority);
+      
+      // Emit an event about the recorded experience
+      this.emitEvent(AgentEventType.EXPERIENCE_RECORDED, {
+        experienceId,
+        agentId: experience.agentId,
+        action: experience.action,
+        success: experience.result.success,
+        timestamp: new Date()
+      });
+      
+      logger.debug(`Recorded agent experience: ${experienceId} for agent ${experience.agentId}`);
+    } catch (error) {
+      logger.error(`Error recording agent experience: ${error}`);
+    }
   }
 }
 

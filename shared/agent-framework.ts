@@ -152,6 +152,12 @@ export interface Agent {
   validateRequest(request: AgentRequest): boolean;
   getStatus(): Promise<Record<string, any>>;
   shutdown(): Promise<void>;
+  
+  // New methods for collaborative learning
+  updateBehavior?(updateData: Record<string, any>): Promise<boolean>;
+  recordExperience?(experience: Record<string, any>): Promise<void>;
+  requestAssistance?(issue: string, context: Record<string, any>): Promise<AgentResponse>;
+  provideAssistance?(request: Record<string, any>): Promise<AgentResponse>;
 }
 
 /**
@@ -208,5 +214,14 @@ export enum AgentEventType {
   MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
   MESSAGE_PROCESSED = 'MESSAGE_PROCESSED',
   ERROR_OCCURRED = 'ERROR_OCCURRED',
-  SYSTEM_STATUS_CHANGED = 'SYSTEM_STATUS_CHANGED'
+  SYSTEM_STATUS_CHANGED = 'SYSTEM_STATUS_CHANGED',
+  
+  // New events for collaborative learning
+  EXPERIENCE_RECORDED = 'EXPERIENCE_RECORDED',
+  TRAINING_STARTED = 'TRAINING_STARTED',
+  TRAINING_COMPLETED = 'TRAINING_COMPLETED',
+  POLICY_UPDATED = 'POLICY_UPDATED',
+  ASSISTANCE_REQUESTED = 'ASSISTANCE_REQUESTED',
+  ASSISTANCE_PROVIDED = 'ASSISTANCE_PROVIDED',
+  LEARNING_SHARED = 'LEARNING_SHARED'
 }
