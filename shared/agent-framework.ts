@@ -135,6 +135,26 @@ export interface AgentCapability {
 }
 
 /**
+ * Master Prompt interface
+ * 
+ * Represents a system-wide directive or instruction set that defines
+ * common goals, communication protocols, and operational guidelines
+ * for all agents in the ecosystem.
+ */
+export interface MasterPrompt {
+  id: string;
+  version: string;
+  name: string;
+  description: string;
+  content: string;
+  parameters?: Record<string, any>;
+  timestamp: Date;
+  expiresAt?: Date;
+  priority: PriorityLevel;
+  scope: AgentType[] | 'ALL'; // Target agent types or ALL for system-wide
+}
+
+/**
  * Base agent interface that all specialized agents must implement
  */
 export interface Agent {
@@ -158,6 +178,10 @@ export interface Agent {
   recordExperience?(experience: Record<string, any>): Promise<void>;
   requestAssistance?(issue: string, context: Record<string, any>): Promise<AgentResponse>;
   provideAssistance?(request: Record<string, any>): Promise<AgentResponse>;
+  
+  // Master Prompt methods
+  receiveMasterPrompt?(prompt: MasterPrompt): Promise<boolean>;
+  confirmPromptAcknowledgment?(promptId: string): Promise<boolean>;
 }
 
 /**
@@ -202,6 +226,14 @@ export interface MasterControlProgram {
   getAgentStatus(agentId: string): Promise<Record<string, any>>;
   getSystemStatus(): Promise<Record<string, any>>;
   shutdown(): Promise<void>;
+  
+  // Master Prompt methods
+  createMasterPrompt(prompt: Omit<MasterPrompt, 'id' | 'timestamp'>): Promise<MasterPrompt>;
+  updateMasterPrompt(id: string, updates: Partial<MasterPrompt>): Promise<MasterPrompt>;
+  getMasterPrompt(id: string): Promise<MasterPrompt | null>;
+  getActiveMasterPrompts(): Promise<MasterPrompt[]>;
+  broadcastMasterPrompt(promptId: string, targetAgents?: string[]): Promise<number>;
+  revokeMasterPrompt(id: string): Promise<boolean>;
 }
 
 /**
@@ -223,5 +255,10 @@ export enum AgentEventType {
   POLICY_UPDATED = 'POLICY_UPDATED',
   ASSISTANCE_REQUESTED = 'ASSISTANCE_REQUESTED',
   ASSISTANCE_PROVIDED = 'ASSISTANCE_PROVIDED',
-  LEARNING_SHARED = 'LEARNING_SHARED'
+  LEARNING_SHARED = 'LEARNING_SHARED',
+  
+  // Master Prompt events
+  MASTER_PROMPT_UPDATED = 'MASTER_PROMPT_UPDATED',
+  MASTER_PROMPT_ACKNOWLEDGED = 'MASTER_PROMPT_ACKNOWLEDGED',
+  DIRECTIVE_BROADCAST = 'DIRECTIVE_BROADCAST'
 }
