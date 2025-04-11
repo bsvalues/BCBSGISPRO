@@ -13,6 +13,8 @@ import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
 import mapServicesRoutes from "./routes/map-services";
+import complianceRoutes from "./routes/compliance";
+import dataQualityRoutes from "./routes/data-quality";
 import { 
   parcels,
   documents,
@@ -24,6 +26,12 @@ import {
   arcgisLayers,
   arcgisSketches,
   arcgisAnalysisResults,
+  rcwRequirements,
+  complianceChecks,
+  complianceAuditLogs,
+  dataQualityRules,
+  dataQualityEvaluations,
+  dataQualityScores,
   insertParcelSchema,
   insertDocumentSchema,
   insertAnnotationSchema,
@@ -4706,6 +4714,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register map services routes
   app.use('/api/map-services', mapServicesRoutes);
+  
+  // Register compliance and data quality routes
+  const complianceRoutes = await import('./routes/compliance').then(m => m.default);
+  app.use('/api/compliance', complianceRoutes);
+  
+  const dataQualityRoutes = await import('./routes/data-quality').then(m => m.default);
+  app.use('/api/data-quality', dataQualityRoutes);
   
   return httpServer;
 }
