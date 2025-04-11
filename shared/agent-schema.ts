@@ -132,3 +132,22 @@ export const agentEvents = pgTable('agent_events', {
 export type AgentEvent = typeof agentEvents.$inferSelect;
 export type InsertAgentEvent = typeof agentEvents.$inferInsert;
 export const insertAgentEventSchema = createInsertSchema(agentEvents);
+
+// Agent experiences for replay buffer
+export const agentExperiences = pgTable('agent_experiences', {
+  id: serial('id').primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).references(() => agents.agentId),
+  correlationId: varchar('correlation_id', { length: 50 }),
+  initialState: json('initial_state').$type<Record<string, any>>(),
+  action: varchar('action', { length: 100 }).notNull(),
+  result: json('result').$type<Record<string, any>>(),
+  nextState: json('next_state').$type<Record<string, any>>(),
+  reward: integer('reward').notNull().default(0),
+  priority: integer('priority').notNull().default(1),
+  metadata: json('metadata').$type<Record<string, any>>(),
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
+export type AgentExperience = typeof agentExperiences.$inferSelect;
+export type InsertAgentExperience = typeof agentExperiences.$inferInsert;
+export const insertAgentExperienceSchema = createInsertSchema(agentExperiences);
