@@ -75,7 +75,33 @@ export async function getMapboxTokenAsync(): Promise<string> {
   try {
     // Use proper API base URL depending on environment
     const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
-    const response = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
+    
+    // Try the primary endpoint first
+    try {
+      console.log('Trying primary endpoint: /api/map-services/mapbox-token');
+      const primaryResponse = await fetch(`${apiBaseUrl}/api/map-services/mapbox-token`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      if (primaryResponse.ok) {
+        const primaryData = await primaryResponse.json();
+        if (primaryData && typeof primaryData.token === 'string') {
+          console.log('Successfully retrieved Mapbox token from primary endpoint');
+          setGlobalMapboxToken(primaryData.token);
+          return primaryData.token;
+        }
+      }
+    } catch (primaryErr) {
+      console.warn('Primary endpoint failed:', primaryErr);
+    }
+    
+    // If primary endpoint fails, try fallback endpoint
+    console.log('Trying fallback endpoint: /api/mapbox-token');
+    const fallbackResponse = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -83,21 +109,21 @@ export async function getMapboxTokenAsync(): Promise<string> {
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Mapbox token: ${response.status} ${response.statusText}`);
+    if (!fallbackResponse.ok) {
+      throw new Error(`Failed to fetch Mapbox token from both endpoints: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
     }
     
-    const data = await response.json();
+    const fallbackData = await fallbackResponse.json();
     
-    if (data && typeof data.token === 'string') {
-      console.log('Successfully retrieved Mapbox token from API');
-      setGlobalMapboxToken(data.token);
-      return data.token;
+    if (fallbackData && typeof fallbackData.token === 'string') {
+      console.log('Successfully retrieved Mapbox token from fallback endpoint');
+      setGlobalMapboxToken(fallbackData.token);
+      return fallbackData.token;
     } else {
       throw new Error('No token found in API response');
     }
   } catch (error) {
-    console.error('Error fetching Mapbox token:', error);
+    console.error('Error fetching Mapbox token from all endpoints:', error);
     return '';
   }
 }

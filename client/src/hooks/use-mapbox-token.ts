@@ -54,7 +54,32 @@ export function useMapboxToken() {
       try {
         // Use proper API base URL depending on environment
         const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
-        const response = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
+        
+        // Try first with the map-services endpoint (new preferred way)
+        try {
+          console.log('Trying primary endpoint: /api/map-services/mapbox-token');
+          const primaryResponse = await fetch(`${apiBaseUrl}/api/map-services/mapbox-token`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json',
+            }
+          });
+          
+          if (primaryResponse.ok) {
+            const data = await primaryResponse.json();
+            if (data.token) {
+              console.log('Successfully retrieved Mapbox token from primary endpoint');
+              return data.token;
+            }
+          }
+        } catch (primaryErr) {
+          console.warn('Primary endpoint failed:', primaryErr);
+        }
+        
+        // If first endpoint fails, try fallback endpoint
+        console.log('Trying fallback endpoint: /api/mapbox-token');
+        const fallbackResponse = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -62,23 +87,23 @@ export function useMapboxToken() {
           }
         });
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Failed to fetch Mapbox token:', errorText);
-          throw new Error(`API response not OK: ${response.status} ${response.statusText}`);
+        if (!fallbackResponse.ok) {
+          const errorText = await fallbackResponse.text();
+          console.error('Failed to fetch Mapbox token from both endpoints:', errorText);
+          throw new Error(`API response not OK: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
         }
         
-        const data = await response.json();
+        const fallbackData = await fallbackResponse.json();
         
-        if (!data.token) {
+        if (!fallbackData.token) {
           console.error('Mapbox token not found in API response');
           throw new Error('Mapbox token not found in API response');
         }
         
-        console.log('Successfully retrieved Mapbox token from API');
-        return data.token;
+        console.log('Successfully retrieved Mapbox token from fallback endpoint');
+        return fallbackData.token;
       } catch (err) {
-        console.error('Error in Mapbox token fetch:', err);
+        console.error('Error in Mapbox token fetch from all endpoints:', err);
         throw err;
       }
     },

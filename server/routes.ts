@@ -98,17 +98,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize WebSocket server
   const wsManager = new WebSocketServerManager(httpServer);
   
-  // Mapbox token endpoint - serves the token securely to the frontend
+  // Mapbox token endpoint - serves the token securely to the frontend (legacy path for compatibility)
   app.get("/api/mapbox-token", async (req, res) => {
     try {
       // Access token directly from secret environment variables
       const { MAPBOX_ACCESS_TOKEN } = process.env;
       
-      // Enhanced logging to troubleshoot token access
-      console.log('Mapbox token endpoint accessed');
-      console.log(`Environment variables available: ${Object.keys(process.env).join(', ')}`);
+      // Log for debugging
+      console.log('Legacy Mapbox token endpoint accessed');
       console.log(`MAPBOX_ACCESS_TOKEN present: ${!!MAPBOX_ACCESS_TOKEN}`);
-      console.log(`Is token a non-empty string: ${!!MAPBOX_ACCESS_TOKEN && typeof MAPBOX_ACCESS_TOKEN === 'string' && MAPBOX_ACCESS_TOKEN.length > 0}`);
       
       // Final check if we have a token
       if (!MAPBOX_ACCESS_TOKEN) {
@@ -120,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Return the token to the client
-      console.log('Successfully returning Mapbox token to client');
+      console.log('Successfully returning Mapbox token to client via legacy endpoint');
       return res.json({ token: MAPBOX_ACCESS_TOKEN });
     } catch (error) {
       console.error('Error accessing Mapbox token:', error);
