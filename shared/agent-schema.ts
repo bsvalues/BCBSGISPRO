@@ -151,3 +151,39 @@ export const agentExperiences = pgTable('agent_experiences', {
 export type AgentExperience = typeof agentExperiences.$inferSelect;
 export type InsertAgentExperience = typeof agentExperiences.$inferInsert;
 export const insertAgentExperienceSchema = createInsertSchema(agentExperiences);
+
+// Master prompts for system-wide directives
+export const masterPrompts = pgTable('master_prompts', {
+  id: serial('id').primaryKey(),
+  promptId: varchar('prompt_id', { length: 50 }).notNull().unique(),
+  version: varchar('version', { length: 20 }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  content: text('content').notNull(),
+  parameters: json('parameters').$type<Record<string, any>>(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  expiresAt: timestamp('expires_at'),
+  priority: messagePriorityEnum('priority').notNull().default('MEDIUM'),
+  scope: json('scope').$type<Array<keyof typeof AgentTypeEnum> | 'ALL'>(),
+  isActive: boolean('is_active').default(true),
+  createdBy: integer('created_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type MasterPrompt = typeof masterPrompts.$inferSelect;
+export type InsertMasterPrompt = typeof masterPrompts.$inferInsert;
+export const insertMasterPromptSchema = createInsertSchema(masterPrompts);
+
+// Master prompt acknowledgments
+export const masterPromptAcknowledgments = pgTable('master_prompt_acknowledgments', {
+  id: serial('id').primaryKey(),
+  promptId: varchar('prompt_id', { length: 50 }).notNull().references(() => masterPrompts.promptId),
+  agentId: varchar('agent_id', { length: 50 }).notNull().references(() => agents.agentId),
+  acknowledgedAt: timestamp('acknowledged_at').defaultNow(),
+  status: varchar('status', { length: 20 }).notNull().default('ACKNOWLEDGED'),
+  metadata: json('metadata').$type<Record<string, any>>()
+});
+
+export type MasterPromptAcknowledgment = typeof masterPromptAcknowledgments.$inferSelect;
+export type InsertMasterPromptAcknowledgment = typeof masterPromptAcknowledgments.$inferInsert;
+export const insertMasterPromptAcknowledgmentSchema = createInsertSchema(masterPromptAcknowledgments);

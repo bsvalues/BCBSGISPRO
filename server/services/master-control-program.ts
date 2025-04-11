@@ -20,7 +20,8 @@ import {
   MasterControlProgram as IMasterControlProgram,
   MessageStatus,
   PriorityLevel,
-  AgentEventType
+  AgentEventType,
+  MasterPrompt
 } from '../../shared/agent-framework';
 import { agentReplayBuffer, Experience } from './agent-replay-buffer';
 import { agentTrainingService } from './agent-training-service';
@@ -31,10 +32,13 @@ import {
   agentTasks as agentTasksTable,
   mcpLogs as mcpLogsTable,
   agentEvents as agentEventsTable,
+  masterPrompts,
+  masterPromptAcknowledgments,
   insertAgentSchema,
   insertAgentMessageSchema,
   insertMcpLogSchema,
-  insertAgentEventSchema
+  insertAgentEventSchema,
+  InsertMasterPrompt
 } from '../../shared/agent-schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -535,6 +539,26 @@ export class MasterControlProgram implements IMasterControlProgram {
    * Broadcast a message to all active agents
    */
   async broadcastMessage(message: Omit<AgentMessage, 'recipient'>): Promise<void> {
+    // Check if this is a special master prompt broadcast message
+    if (message.messageType === 'MASTER_PROMPT' && message.payload && message.payload.masterPromptId) {
+      try {
+        // Use the Master Prompt broadcasting mechanism
+        const masterPromptId = message.payload.masterPromptId as string;
+        const targetAgentIds = message.payload.targetAgentIds as string[] | undefined;
+        
+        await this.broadcastMasterPrompt(masterPromptId, targetAgentIds);
+        
+        // Log the broadcast via message system
+        logger.info(`Broadcast master prompt ${masterPromptId} via message system`);
+        
+        return;
+      } catch (error) {
+        logger.error(`Error broadcasting master prompt: ${error}`);
+        // Fall back to normal broadcasting
+      }
+    }
+    
+    // Standard broadcast to all active agents
     const activeAgents = this.registry.getActiveAgents();
     
     for (const agent of activeAgents) {
@@ -715,6 +739,306 @@ export class MasterControlProgram implements IMasterControlProgram {
       logger.debug(`Recorded agent experience: ${experienceId} for agent ${experience.agentId}`);
     } catch (error) {
       logger.error(`Error recording agent experience: ${error}`);
+    }
+  }
+
+  /**
+   * Master Prompt Methods
+   */
+
+  /**
+   * Create a new master prompt
+   * 
+   * @param prompt The master prompt to create (without id and timestamp)
+   * @returns The created master prompt with id and timestamp
+   */
+  async createMasterPrompt(prompt: Omit<MasterPrompt, 'id' | 'timestamp'>): Promise<MasterPrompt> {
+    try {
+      logger.info(`Creating new master prompt: ${prompt.name}`);
+      
+      // Generate a unique ID for the prompt
+      const promptId = uuidv4();
+      
+      // Prepare prompt for insertion
+      const newPrompt: InsertMasterPrompt = {
+        promptId,
+        version: prompt.version,
+        name: prompt.name,
+        description: prompt.description,
+        content: prompt.content,
+        parameters: prompt.parameters,
+        expiresAt: prompt.expiresAt,
+        priority: prompt.priority,
+        scope: prompt.scope,
+        isActive: true,
+        createdBy: null, // Could set based on user context in a real implementation
+        timestamp: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Persist to database
+      await withRetry(() => db.insert(masterPrompts).values(newPrompt));
+      
+      // Log the creation
+      await this.logMcpEvent(
+        'MASTER_PROMPT', 
+        `Created master prompt "${prompt.name}" (ID: ${promptId})`,
+        { promptId, promptName: prompt.name }
+      );
+      
+      // Retrieve the full prompt
+      const result = await withRetry(() => 
+        db.select().from(masterPrompts).where(eq(masterPrompts.promptId, promptId))
+      );
+      
+      if (result.length === 0) {
+        throw new Error(`Failed to retrieve newly created master prompt: ${promptId}`);
+      }
+      
+      // Emit master prompt updated event
+      this.emitEvent(AgentEventType.MASTER_PROMPT_UPDATED, {
+        promptId,
+        name: prompt.name,
+        version: prompt.version,
+        timestamp: new Date()
+      });
+      
+      return result[0] as MasterPrompt;
+    } catch (error) {
+      logger.error(`Error creating master prompt: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update an existing master prompt
+   * 
+   * @param id The ID of the prompt to update
+   * @param updates The fields to update
+   * @returns The updated master prompt
+   */
+  async updateMasterPrompt(id: string, updates: Partial<MasterPrompt>): Promise<MasterPrompt> {
+    try {
+      logger.info(`Updating master prompt: ${id}`);
+      
+      // Prepare updates object
+      const promptUpdates: Partial<InsertMasterPrompt> = {
+        ...updates,
+        updatedAt: new Date()
+      };
+      
+      // Update in database
+      await withRetry(() => 
+        db.update(masterPrompts)
+          .set(promptUpdates)
+          .where(eq(masterPrompts.promptId, id))
+      );
+      
+      // Log the update
+      await this.logMcpEvent(
+        'MASTER_PROMPT', 
+        `Updated master prompt (ID: ${id})`,
+        { promptId: id, updates }
+      );
+      
+      // Retrieve the updated prompt
+      const result = await withRetry(() => 
+        db.select().from(masterPrompts).where(eq(masterPrompts.promptId, id))
+      );
+      
+      if (result.length === 0) {
+        throw new Error(`Master prompt not found: ${id}`);
+      }
+      
+      // Emit master prompt updated event
+      this.emitEvent(AgentEventType.MASTER_PROMPT_UPDATED, {
+        promptId: id,
+        name: result[0].name,
+        version: result[0].version,
+        timestamp: new Date()
+      });
+      
+      return result[0] as MasterPrompt;
+    } catch (error) {
+      logger.error(`Error updating master prompt: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get a master prompt by ID
+   * 
+   * @param id The ID of the prompt to retrieve
+   * @returns The master prompt or null if not found
+   */
+  async getMasterPrompt(id: string): Promise<MasterPrompt | null> {
+    try {
+      const result = await withRetry(() => 
+        db.select().from(masterPrompts).where(eq(masterPrompts.promptId, id))
+      );
+      
+      if (result.length === 0) {
+        return null;
+      }
+      
+      return result[0] as MasterPrompt;
+    } catch (error) {
+      logger.error(`Error retrieving master prompt: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get all active master prompts
+   * 
+   * @returns Array of active master prompts
+   */
+  async getActiveMasterPrompts(): Promise<MasterPrompt[]> {
+    try {
+      const result = await withRetry(() => 
+        db.select()
+          .from(masterPrompts)
+          .where(eq(masterPrompts.isActive, true))
+          .orderBy(masterPrompts.timestamp)
+      );
+      
+      return result as MasterPrompt[];
+    } catch (error) {
+      logger.error(`Error retrieving active master prompts: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Broadcast a master prompt to target agents
+   * 
+   * @param promptId The ID of the prompt to broadcast
+   * @param targetAgents Optional list of specific agent IDs to target, otherwise uses the prompt's scope
+   * @returns Number of agents the prompt was sent to
+   */
+  async broadcastMasterPrompt(promptId: string, targetAgents?: string[]): Promise<number> {
+    try {
+      // Get the prompt
+      const prompt = await this.getMasterPrompt(promptId);
+      
+      if (!prompt) {
+        throw new Error(`Master prompt not found: ${promptId}`);
+      }
+      
+      logger.info(`Broadcasting master prompt "${prompt.name}" to agents`);
+      
+      // Determine target agents
+      let agents: Agent[] = [];
+      
+      if (targetAgents && targetAgents.length > 0) {
+        // If specific agents are provided, get those
+        agents = targetAgents
+          .map(id => this.registry.getAgent(id))
+          .filter((agent): agent is Agent => !!agent);
+      } else if (prompt.scope === 'ALL') {
+        // If scope is ALL, broadcast to all active agents
+        agents = this.registry.getActiveAgents();
+      } else if (Array.isArray(prompt.scope)) {
+        // If scope is an array of agent types, get active agents of those types
+        const agentTypes = prompt.scope as AgentType[];
+        agents = agentTypes.flatMap(type => this.registry.getAgentsByType(type))
+          .filter(agent => agent.isActive);
+      }
+      
+      if (agents.length === 0) {
+        logger.warn(`No target agents found for master prompt: ${promptId}`);
+        return 0;
+      }
+      
+      // Broadcast the prompt to each agent
+      let successCount = 0;
+      
+      for (const agent of agents) {
+        try {
+          // Check if agent implements receiveMasterPrompt
+          if (agent.receiveMasterPrompt) {
+            const success = await agent.receiveMasterPrompt(prompt);
+            
+            if (success) {
+              successCount++;
+              
+              // Record acknowledgment in database
+              await withRetry(() => 
+                db.insert(masterPromptAcknowledgments).values({
+                  promptId: prompt.promptId,
+                  agentId: agent.id,
+                  acknowledgedAt: new Date(),
+                  status: 'ACKNOWLEDGED',
+                  metadata: {
+                    agentType: agent.type,
+                    agentVersion: agent.version
+                  }
+                })
+              );
+              
+              logger.debug(`Agent ${agent.id} (${agent.type}) acknowledged master prompt: ${promptId}`);
+            }
+          }
+        } catch (error) {
+          logger.error(`Error sending master prompt to agent ${agent.id}: ${error}`);
+        }
+      }
+      
+      // Emit directive broadcast event
+      this.emitEvent(AgentEventType.DIRECTIVE_BROADCAST, {
+        promptId: prompt.promptId,
+        promptName: prompt.name,
+        targetCount: agents.length,
+        successCount,
+        timestamp: new Date()
+      });
+      
+      // Log the broadcast
+      await this.logMcpEvent(
+        'MASTER_PROMPT', 
+        `Broadcast master prompt "${prompt.name}" to ${successCount}/${agents.length} agents`,
+        { 
+          promptId: prompt.promptId,
+          targetCount: agents.length,
+          successCount
+        }
+      );
+      
+      return successCount;
+    } catch (error) {
+      logger.error(`Error broadcasting master prompt: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Revoke an active master prompt
+   * 
+   * @param id The ID of the prompt to revoke
+   * @returns True if successful, false otherwise
+   */
+  async revokeMasterPrompt(id: string): Promise<boolean> {
+    try {
+      // Set prompt as inactive
+      await withRetry(() => 
+        db.update(masterPrompts)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(masterPrompts.promptId, id))
+      );
+      
+      // Log the revocation
+      await this.logMcpEvent(
+        'MASTER_PROMPT', 
+        `Revoked master prompt (ID: ${id})`,
+        { promptId: id }
+      );
+      
+      logger.info(`Revoked master prompt: ${id}`);
+      
+      return true;
+    } catch (error) {
+      logger.error(`Error revoking master prompt: ${error}`);
+      return false;
     }
   }
 }
