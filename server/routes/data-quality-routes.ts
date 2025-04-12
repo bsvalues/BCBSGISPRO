@@ -6,6 +6,7 @@ import { DataQualityService } from '../services/data-quality-service';
 import { storage } from '../storage';
 import { logger } from '../logger';
 import { dataQualityDimensionEnum, dataQualityImportanceEnum } from '../../shared/schema';
+import { validateDocumentRetention } from '../../shared/validation';
 import passport from 'passport';
 
 // Create the router and initialize the service
@@ -355,7 +356,6 @@ dataQualityRouter.get('/document-retention/:type', asyncHandler(async (req, res)
   const documentType = req.params.type.toUpperCase();
   
   // Use the validation utility to get retention requirements
-  const { validateDocumentRetention } = require('../../shared/validation');
   const retentionRequirements = validateDocumentRetention(documentType);
   
   res.status(200).json({

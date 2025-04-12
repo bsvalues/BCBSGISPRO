@@ -4727,15 +4727,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register map services routes
   app.use('/api/map-services', mapServicesRoutes);
   
-  // Register compliance and data quality routes
+  // Register compliance routes
   const complianceRoutes = await import('./routes/compliance').then(m => m.default);
   app.use('/api/compliance', complianceRoutes);
   
-  const dataQualityRoutes = await import('./routes/data-quality').then(m => m.default);
-  app.use('/api/data-quality', dataQualityRoutes);
-  
-  // Import our enhanced data quality routes for workflow compliance
-  const { dataQualityRouter } = await import('./routes/data-quality-routes');
+  // Register consolidated data quality routes
   app.use('/api/data-quality', dataQualityRouter);
   
   // Register agent framework routes
