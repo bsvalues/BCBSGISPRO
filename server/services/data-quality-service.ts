@@ -318,11 +318,7 @@ export class DataQualityService {
       
       // Log compliance issues for auditing
       if (report.overallCompliance !== 'COMPLIANT') {
-        logger.info(`Compliance issues detected for workflow ${workflowId}`, {
-          workflowId,
-          complianceStatus: report.overallCompliance,
-          findings: report.findings
-        });
+        logger.info(`Compliance issues detected for workflow ${workflowId} with status ${report.overallCompliance}`);
       }
       
       return report;
@@ -395,10 +391,7 @@ export class DataQualityService {
       
       return result;
     } catch (error) {
-      logger.error(`Error calculating data quality: ${error instanceof Error ? error.message : 'Unknown error'}`, {
-        workflowId,
-        error
-      });
+      logger.error(`Error calculating data quality for workflow ${workflowId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
@@ -413,10 +406,7 @@ export class DataQualityService {
     try {
       return validateWorkflowCompliance(workflowData, type);
     } catch (error) {
-      logger.error(`Error validating workflow data: ${error instanceof Error ? error.message : 'Unknown error'}`, {
-        workflowType: type,
-        error
-      });
+      logger.error(`Error validating workflow data of type ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
