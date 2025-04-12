@@ -13,6 +13,9 @@ import {
   workflowEvents,
   workflowStates,
   checklistItems,
+  dataQualityRules,
+  dataQualityEvaluations,
+  dataQualityScores,
   type User,
   type InsertUser,
   type MapBookmark,
@@ -36,7 +39,13 @@ import {
   type WorkflowState,
   type InsertWorkflowState,
   type ChecklistItem,
-  type InsertChecklistItem
+  type InsertChecklistItem,
+  type DataQualityRule,
+  type InsertDataQualityRule,
+  type DataQualityEvaluation,
+  type InsertDataQualityEvaluation,
+  type DataQualityScore,
+  type InsertDataQualityScore
 } from '../shared/schema';
 
 import {
@@ -169,6 +178,20 @@ export interface IStorage {
   createChecklistItem(item: InsertChecklistItem): Promise<ChecklistItem>;
   updateChecklistItem(id: number, updates: Partial<InsertChecklistItem>): Promise<ChecklistItem>;
   deleteChecklistItem(id: number): Promise<boolean>;
+  
+  // Data Quality Rule operations
+  getDataQualityRules(dimension?: string, entityType?: string, importance?: string): Promise<DataQualityRule[]>;
+  getDataQualityRule(id: number): Promise<DataQualityRule | undefined>;
+  createDataQualityRule(rule: InsertDataQualityRule): Promise<DataQualityRule>;
+  updateDataQualityRule(id: number, updates: Partial<InsertDataQualityRule>): Promise<DataQualityRule>;
+  
+  // Data Quality Evaluation operations
+  evaluateDataQualityRule(ruleId: number, entityType: string, entityId: number, userId?: number): Promise<DataQualityEvaluation>;
+  getDataQualityEvaluations(entityType: string, entityId: number, limit?: number): Promise<DataQualityEvaluation[]>;
+  
+  // Data Quality Score operations
+  getDataQualityScore(entityType: string, entityId: number): Promise<DataQualityScore | undefined>;
+  updateDataQualityScore(entityType: string, entityId: number, score: Partial<InsertDataQualityScore>): Promise<DataQualityScore>;
 }
 
 // Implementation of storage interface using the database
