@@ -473,7 +473,7 @@ export class DataQualityService {
         workflowsWithIssues: workflowsWithIssues.slice(0, 10) // Limit to top 10 for report brevity
       };
     } catch (error) {
-      logger.error(`Error monitoring system data quality: ${error instanceof Error ? error.message : 'Unknown error'}`, { error });
+      logger.error(`Error monitoring system data quality: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
