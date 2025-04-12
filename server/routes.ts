@@ -14,7 +14,7 @@ import multer from "multer";
 import { logger } from "./logger";
 import mapServicesRoutes from "./routes/map-services";
 import complianceRoutes from "./routes/compliance";
-import dataQualityRoutes from "./routes/data-quality";
+import { dataQualityRouter } from "./routes/data-quality-routes";
 import agentFrameworkRoutes from "./routes/agent-framework";
 import { 
   parcels,

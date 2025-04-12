@@ -196,6 +196,200 @@ export interface IStorage {
 
 // Implementation of storage interface using the database
 export class DatabaseStorage implements IStorage {
+  // Data Quality methods - to be implemented when migrating to production
+  async getDataQualityRules(dimension?: string, entityType?: string, importance?: string): Promise<DataQualityRule[]> {
+    let query = db.select().from(dataQualityRules);
+    
+    if (dimension) {
+      query = query.where(eq(dataQualityRules.dimension, dimension));
+    }
+    
+    if (entityType) {
+      query = query.where(eq(dataQualityRules.entityType, entityType));
+    }
+    
+    if (importance) {
+      query = query.where(eq(dataQualityRules.importance, importance));
+    }
+    
+    return query;
+  }
+
+  async getDataQualityRule(id: number): Promise<DataQualityRule | undefined> {
+    const [rule] = await db.select()
+      .from(dataQualityRules)
+      .where(eq(dataQualityRules.id, id));
+    return rule;
+  }
+
+  async createDataQualityRule(rule: InsertDataQualityRule): Promise<DataQualityRule> {
+    const [newRule] = await db.insert(dataQualityRules)
+      .values(rule)
+      .returning();
+    return newRule;
+  }
+
+  async updateDataQualityRule(id: number, updates: Partial<InsertDataQualityRule>): Promise<DataQualityRule> {
+    const [updatedRule] = await db.update(dataQualityRules)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(dataQualityRules.id, id))
+      .returning();
+      
+    if (!updatedRule) {
+      throw new Error(`Data quality rule with ID ${id} not found`);
+    }
+    
+    return updatedRule;
+  }
+
+  async evaluateDataQualityRule(ruleId: number, entityType: string, entityId: number, userId?: number): Promise<DataQualityEvaluation> {
+    // Get the rule
+    const rule = await this.getDataQualityRule(ruleId);
+    
+    if (!rule) {
+      throw new Error(`Data quality rule with ID ${ruleId} not found`);
+    }
+    
+    // In a production implementation, this would apply the rule's validation logic
+    // For now, simulate a rule evaluation with a simple pass/fail
+    const passed = Math.random() > 0.3; // 70% pass rate for simulation
+    const score = passed ? 1.0 : 0.0;
+    
+    // Create evaluation record
+    const [evaluation] = await db.insert(dataQualityEvaluations)
+      .values({
+        ruleId,
+        entityType,
+        entityId,
+        passed,
+        score,
+        details: {
+          issues: passed ? [] : [`Simulated issue for ${entityType} ${entityId}`],
+          affectedFields: passed ? [] : ['field1', 'field2'],
+          metadata: { simulatedEvaluation: true }
+        },
+        evaluatedAt: new Date(),
+        evaluatedBy: userId
+      })
+      .returning();
+    
+    // Update the entity's quality score
+    await this.updateEntityQualityScore(entityType, entityId);
+    
+    return evaluation;
+  }
+
+  async getDataQualityEvaluations(entityType: string, entityId: number, limit: number = 10): Promise<DataQualityEvaluation[]> {
+    return db.select()
+      .from(dataQualityEvaluations)
+      .where(and(
+        eq(dataQualityEvaluations.entityType, entityType),
+        eq(dataQualityEvaluations.entityId, entityId)
+      ))
+      .orderBy(desc(dataQualityEvaluations.evaluatedAt))
+      .limit(limit);
+  }
+
+  async getDataQualityScore(entityType: string, entityId: number): Promise<DataQualityScore | undefined> {
+    const [score] = await db.select()
+      .from(dataQualityScores)
+      .where(and(
+        eq(dataQualityScores.entityType, entityType),
+        eq(dataQualityScores.entityId, entityId)
+      ));
+      
+    return score;
+  }
+
+  async updateDataQualityScore(entityType: string, entityId: number, scoreData: Partial<InsertDataQualityScore>): Promise<DataQualityScore> {
+    // Check if a score exists
+    const existingScore = await this.getDataQualityScore(entityType, entityId);
+    
+    if (existingScore) {
+      // Update existing score
+      const [updatedScore] = await db.update(dataQualityScores)
+        .set({
+          ...scoreData,
+          lastEvaluatedAt: new Date()
+        })
+        .where(and(
+          eq(dataQualityScores.entityType, entityType),
+          eq(dataQualityScores.entityId, entityId)
+        ))
+        .returning();
+        
+      return updatedScore;
+    } else {
+      // Create new score
+      const [newScore] = await db.insert(dataQualityScores)
+        .values({
+          entityType,
+          entityId,
+          overallScore: scoreData.overallScore || 0,
+          dimensionScores: scoreData.dimensionScores || {},
+          passedRules: scoreData.passedRules || 0,
+          totalRules: scoreData.totalRules || 0,
+          lastEvaluatedAt: new Date()
+        })
+        .returning();
+        
+      return newScore;
+    }
+  }
+
+  // Helper method to update entity quality score based on evaluations
+  private async updateEntityQualityScore(entityType: string, entityId: number): Promise<void> {
+    // Get all evaluations for this entity
+    const evaluations = await this.getDataQualityEvaluations(entityType, entityId, 1000);
+    
+    if (evaluations.length === 0) {
+      return; // No evaluations to calculate score from
+    }
+    
+    // Calculate overall score
+    const passedRules = evaluations.filter(e => e.passed).length;
+    const totalRules = evaluations.length;
+    const overallScore = totalRules > 0 ? passedRules / totalRules : 0;
+    
+    // Calculate dimension scores
+    const dimensionScores: Record<string, number> = {};
+    const dimensionCounts: Record<string, { passed: number, total: number }> = {};
+    
+    for (const evaluation of evaluations) {
+      const rule = await this.getDataQualityRule(evaluation.ruleId);
+      
+      if (rule) {
+        const dimension = rule.dimension;
+        
+        if (!dimensionCounts[dimension]) {
+          dimensionCounts[dimension] = { passed: 0, total: 0 };
+        }
+        
+        dimensionCounts[dimension].total++;
+        
+        if (evaluation.passed) {
+          dimensionCounts[dimension].passed++;
+        }
+      }
+    }
+    
+    // Calculate score for each dimension
+    for (const [dimension, counts] of Object.entries(dimensionCounts)) {
+      dimensionScores[dimension] = counts.total > 0 ? counts.passed / counts.total : 0;
+    }
+    
+    // Update the score
+    await this.updateDataQualityScore(entityType, entityId, {
+      overallScore,
+      dimensionScores,
+      passedRules,
+      totalRules
+    });
+  }
+  
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -1263,6 +1457,215 @@ export class MemStorage implements IStorage {
   
   async deleteChecklistItem(id: number): Promise<boolean> {
     return this.checklistItems.delete(id);
+  }
+
+  // Data Quality Rule operations
+  private dataQualityRules = new Map<number, DataQualityRule>();
+  private dataQualityEvaluations = new Map<number, DataQualityEvaluation>();
+  private dataQualityScores = new Map<string, DataQualityScore>(); // Key is `${entityType}-${entityId}`
+
+  async getDataQualityRules(dimension?: string, entityType?: string, importance?: string): Promise<DataQualityRule[]> {
+    const rules: DataQualityRule[] = [];
+    
+    for (const rule of this.dataQualityRules.values()) {
+      let matches = true;
+      
+      if (dimension && rule.dimension !== dimension) {
+        matches = false;
+      }
+      
+      if (entityType && rule.entityType !== entityType) {
+        matches = false;
+      }
+      
+      if (importance && rule.importance !== importance) {
+        matches = false;
+      }
+      
+      if (matches) {
+        rules.push(rule);
+      }
+    }
+    
+    return rules;
+  }
+
+  async getDataQualityRule(id: number): Promise<DataQualityRule | undefined> {
+    return this.dataQualityRules.get(id);
+  }
+
+  async createDataQualityRule(rule: InsertDataQualityRule): Promise<DataQualityRule> {
+    const id = this.dataQualityRules.size + 1;
+    const now = new Date();
+    
+    const newRule: DataQualityRule = {
+      ...rule,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    this.dataQualityRules.set(id, newRule);
+    return newRule;
+  }
+
+  async updateDataQualityRule(id: number, updates: Partial<InsertDataQualityRule>): Promise<DataQualityRule> {
+    const rule = this.dataQualityRules.get(id);
+    
+    if (!rule) {
+      throw new Error(`Data quality rule with ID ${id} not found`);
+    }
+    
+    const updatedRule: DataQualityRule = {
+      ...rule,
+      ...updates,
+      id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.dataQualityRules.set(id, updatedRule);
+    return updatedRule;
+  }
+
+  // Data Quality Evaluation operations
+  async evaluateDataQualityRule(ruleId: number, entityType: string, entityId: number, userId?: number): Promise<DataQualityEvaluation> {
+    const rule = await this.getDataQualityRule(ruleId);
+    
+    if (!rule) {
+      throw new Error(`Data quality rule with ID ${ruleId} not found`);
+    }
+    
+    // In a real implementation, this would apply the rule's validation logic
+    // For now, simulate a rule evaluation with a simple pass/fail
+    const passed = Math.random() > 0.3; // 70% pass rate for simulation
+    const score = passed ? 1.0 : 0.0;
+    
+    const id = this.dataQualityEvaluations.size + 1;
+    const evaluation: DataQualityEvaluation = {
+      id,
+      ruleId,
+      entityType,
+      entityId,
+      passed,
+      score,
+      details: {
+        issues: passed ? [] : [`Simulated issue for ${entityType} ${entityId}`],
+        affectedFields: passed ? [] : ['field1', 'field2'],
+        metadata: { simulatedEvaluation: true }
+      },
+      evaluatedAt: new Date(),
+      evaluatedBy: userId
+    };
+    
+    this.dataQualityEvaluations.set(id, evaluation);
+    
+    // Update the entity's overall quality score
+    await this.updateEntityQualityScore(entityType, entityId);
+    
+    return evaluation;
+  }
+
+  async getDataQualityEvaluations(entityType: string, entityId: number, limit: number = 10): Promise<DataQualityEvaluation[]> {
+    const evaluations: DataQualityEvaluation[] = [];
+    
+    for (const evaluation of this.dataQualityEvaluations.values()) {
+      if (evaluation.entityType === entityType && evaluation.entityId === entityId) {
+        evaluations.push(evaluation);
+      }
+    }
+    
+    // Sort by most recent first and apply limit
+    return evaluations
+      .sort((a, b) => b.evaluatedAt.getTime() - a.evaluatedAt.getTime())
+      .slice(0, limit);
+  }
+
+  // Data Quality Score operations
+  async getDataQualityScore(entityType: string, entityId: number): Promise<DataQualityScore | undefined> {
+    const key = `${entityType}-${entityId}`;
+    return this.dataQualityScores.get(key);
+  }
+
+  async updateDataQualityScore(entityType: string, entityId: number, scoreData: Partial<InsertDataQualityScore>): Promise<DataQualityScore> {
+    const key = `${entityType}-${entityId}`;
+    const existingScore = this.dataQualityScores.get(key);
+    
+    if (existingScore) {
+      const updatedScore: DataQualityScore = {
+        ...existingScore,
+        ...scoreData,
+        lastEvaluatedAt: new Date()
+      };
+      
+      this.dataQualityScores.set(key, updatedScore);
+      return updatedScore;
+    } else {
+      // Create new score entry
+      const id = this.dataQualityScores.size + 1;
+      const newScore: DataQualityScore = {
+        id,
+        entityType,
+        entityId,
+        overallScore: scoreData.overallScore || 0,
+        dimensionScores: scoreData.dimensionScores || {},
+        passedRules: scoreData.passedRules || 0,
+        totalRules: scoreData.totalRules || 0,
+        lastEvaluatedAt: new Date()
+      };
+      
+      this.dataQualityScores.set(key, newScore);
+      return newScore;
+    }
+  }
+
+  // Helper methods
+  private async updateEntityQualityScore(entityType: string, entityId: number): Promise<void> {
+    // Get all evaluations for this entity
+    const evaluations = await this.getDataQualityEvaluations(entityType, entityId, Number.MAX_SAFE_INTEGER);
+    
+    if (evaluations.length === 0) {
+      return; // No evaluations to calculate score from
+    }
+    
+    // Calculate overall score and dimension scores
+    const passedRules = evaluations.filter(e => e.passed).length;
+    const totalRules = evaluations.length;
+    const overallScore = totalRules > 0 ? passedRules / totalRules : 0;
+    
+    // Calculate dimension scores
+    const dimensionScores: Record<string, number> = {};
+    const dimensionCounts: Record<string, { passed: number, total: number }> = {};
+    
+    for (const evaluation of evaluations) {
+      const rule = await this.getDataQualityRule(evaluation.ruleId);
+      
+      if (rule) {
+        const dimension = rule.dimension;
+        
+        if (!dimensionCounts[dimension]) {
+          dimensionCounts[dimension] = { passed: 0, total: 0 };
+        }
+        
+        dimensionCounts[dimension].total++;
+        
+        if (evaluation.passed) {
+          dimensionCounts[dimension].passed++;
+        }
+      }
+    }
+    
+    // Calculate score for each dimension
+    for (const [dimension, counts] of Object.entries(dimensionCounts)) {
+      dimensionScores[dimension] = counts.total > 0 ? counts.passed / counts.total : 0;
+    }
+    
+    // Update the score
+    await this.updateDataQualityScore(entityType, entityId, {
+      overallScore,
+      dimensionScores,
+      passedRules,
+      totalRules
+    });
   }
 }
 
