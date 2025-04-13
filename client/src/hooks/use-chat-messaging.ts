@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useWebSocket } from '@/hooks/use-websocket';
+import { useWebSocket } from './use-websocket';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from './use-user';
 

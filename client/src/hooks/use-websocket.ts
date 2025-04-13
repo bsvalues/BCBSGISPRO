@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createWebSocket } from '@/lib/websocket';
+import { createWebSocket } from '../lib/websocket';
 
 /**
  * WebSocket hook options

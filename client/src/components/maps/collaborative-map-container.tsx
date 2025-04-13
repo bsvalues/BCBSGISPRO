@@ -3,7 +3,7 @@ import { CollaborativeMap, CollaborativeFeature } from './collaborative-map-enha
 import { MapboxMap } from './mapbox/mapbox-map';
 import { MapProviderSelector, MapProviderType } from './map-provider-selector';
 import mapboxgl from 'mapbox-gl';
-import { ConnectionStatusEnum } from '@/lib/websocket';
+import { ConnectionStatusEnum } from '../../lib/websocket';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';

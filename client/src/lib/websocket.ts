@@ -1,7 +1,7 @@
 /**
  * WebSocket message types and utilities
  */
-import { getWebSocketUrl } from '../lib/env';
+import { getWebSocketUrl } from './env';
 
 /**
  * WebSocket connection status enum

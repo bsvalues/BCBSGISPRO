@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as mapboxgl from 'mapbox-gl';
-import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
+import { useWebSocket } from '../../hooks/use-websocket';
+import { MessageTypeEnum, ConnectionStatusEnum } from '../../lib/websocket';
 
 interface CursorPosition {
   userId: string;

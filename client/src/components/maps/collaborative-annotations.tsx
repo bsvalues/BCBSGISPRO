@@ -4,7 +4,7 @@ import {
   useCollaborativeAnnotations, 
   AnnotationType
 } from '@/hooks/use-collaborative-annotations';
-import { ConnectionStatusEnum } from '@/lib/websocket';
+import { ConnectionStatusEnum } from '../../lib/websocket';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

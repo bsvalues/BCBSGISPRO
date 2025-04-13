@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '@/lib/websocket';
+import { useWebSocket, MessageTypeEnum, ConnectionStatusEnum } from '../lib/websocket';
 
 // Annotation types
 export enum AnnotationType {
@@ -18,7 +18,7 @@ export enum AnnotationActionType {
 }
 
 // Re-export connection status
-export { ConnectionStatusEnum } from '@/lib/websocket';
+export { ConnectionStatusEnum } from '../lib/websocket';
 
 // Annotation interface
 export interface Annotation {
