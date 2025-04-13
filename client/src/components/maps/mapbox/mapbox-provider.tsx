@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { useMapboxToken } from '@/hooks/use-mapbox-token';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useMapboxToken } from '../../../hooks/use-mapbox-token';
+import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 // Define prop types for MapboxProvider
@@ -26,13 +26,13 @@ interface MapboxContextValue {
   isLoaded: boolean;
 }
 
-export const MapboxContext = React.createContext<MapboxContextValue>({
+const MapboxContext = React.createContext<MapboxContextValue>({
   map: null,
   isLoaded: false
 });
 
 // Custom hook to use Mapbox context
-export function useMapbox() {
+function useMapbox() {
   return React.useContext(MapboxContext);
 }
 
@@ -42,7 +42,7 @@ export function useMapbox() {
  * This component initializes a Mapbox GL JS map and provides it to child components.
  * It manages token retrieval with multiple fallback strategies to ensure map functionality.
  */
-export const MapboxProvider: React.FC<MapboxProviderProps> = ({
+const MapboxProvider: React.FC<MapboxProviderProps> = ({
   initialViewState = { longitude: -121.3153, latitude: 44.0582, zoom: 13 },
   style = { width: '100%', height: '100%' },
   mapStyle = 'mapbox://styles/mapbox/streets-v12',
@@ -240,4 +240,5 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   );
 };
 
-export default MapboxProvider;
+// Export everything in one place
+export { MapboxProvider, MapboxContext, useMapbox };

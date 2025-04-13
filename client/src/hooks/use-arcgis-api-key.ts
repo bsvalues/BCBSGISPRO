@@ -1,92 +1,134 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useCallback } from 'react';
 
 /**
- * Hook to get and manage ArcGIS API key
+ * Hook for managing ArcGIS API key
  * 
- * This hook will:
- * 1. Try to get the key from local storage first
- * 2. If not available, fetch from API endpoint
- * 3. Manage loading and error states
+ * This hook provides a way to get and manage an ArcGIS API key from various sources:
+ * 1. Cache (in-memory during session)
+ * 2. LocalStorage
+ * 3. Environment variables
+ * 4. Server API endpoint
+ * 
+ * @returns The ArcGIS API key, loading state, and error state
  */
 export function useArcgisApiKey() {
-  const [localKey, setLocalKey] = useState<string | null>(null);
-
-  // Try to get key from localStorage
-  useEffect(() => {
+  // State for the ArcGIS API key
+  const [apiKey, setApiKey] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  /**
+   * Get the ArcGIS API key
+   */
+  const getApiKey = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
+      // Check localStorage first for fast loading
       const storedKey = localStorage.getItem('arcgis_api_key');
       if (storedKey) {
-        console.log('Found ArcGIS API key in localStorage');
-        setLocalKey(storedKey);
-      } else {
-        console.log('No ArcGIS API key found in localStorage');
+        console.log('Using ArcGIS API key from localStorage');
+        setApiKey(storedKey);
+        setIsLoading(false);
+        return storedKey;
       }
-    } catch (err) {
-      console.warn('Error accessing token sources:', err);
-    }
-  }, []);
-
-  // Fetch key from API if not found in localStorage
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['arcgis-api-key'],
-    queryFn: async () => {
-      console.log('Fetching ArcGIS API key from API...');
+      
+      // Check environment variables
       try {
-        const apiBaseUrl = '';
-        
-        const response = await fetch(`${apiBaseUrl}/api/map-services/arcgis-api-key`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ArcGIS API key: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        if (data && typeof data.apiKey === 'string') {
-          console.log('Successfully retrieved ArcGIS API key');
+        // Try different ways to access environment variables
+        const envKey = (window as any).ENV?.ARCGIS_API_KEY || 
+                       (window as any).VITE_ARCGIS_API_KEY ||
+                       (window as any).ARCGIS_API_KEY;
+                         
+        if (envKey) {
+          console.log('Using ArcGIS API key from environment variables');
+          setApiKey(envKey);
           
           // Store in localStorage for future use
           try {
-            localStorage.setItem('arcgis_api_key', data.apiKey);
+            localStorage.setItem('arcgis_api_key', envKey);
           } catch (storageError) {
-            console.warn('Could not store ArcGIS API key in localStorage:', storageError);
+            console.warn('Could not store API key in localStorage:', storageError);
           }
           
-          return data.apiKey;
-        } else {
-          throw new Error('Invalid API key response');
+          setIsLoading(false);
+          return envKey;
         }
-      } catch (err) {
-        console.error('Error fetching ArcGIS API key:', err);
-        throw err;
+      } catch (envErr) {
+        console.warn('Error accessing environment variables:', envErr);
       }
-    },
-    enabled: !localKey && typeof window !== 'undefined', // Only run if no local key and in browser
-    retry: 1, // Only retry once to avoid excessive requests
-    staleTime: 24 * 60 * 60 * 1000, // Consider the key fresh for 24 hours
-  });
-
-  // Log errors for debugging
-  useEffect(() => {
-    if (isError) {
+      
+      // If no key is found locally, fetch from the server
+      console.log('Fetching ArcGIS API key from server...');
+      const apiBaseUrl = location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+      
+      // Try the primary endpoint
+      const response = await fetch(`${apiBaseUrl}/api/map-services/arcgis-api-key`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ArcGIS API key: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.success && data.apiKey) {
+        console.log('Successfully retrieved ArcGIS API key from server');
+        setApiKey(data.apiKey);
+        
+        // Store in localStorage for future use
+        try {
+          localStorage.setItem('arcgis_api_key', data.apiKey);
+        } catch (storageError) {
+          console.warn('Could not store API key in localStorage:', storageError);
+        }
+        
+        setIsLoading(false);
+        return data.apiKey;
+      } else if (data && data.error) {
+        throw new Error(`API returned error: ${data.error.message}`);
+      } else {
+        throw new Error('No valid API key found in response');
+      }
+    } catch (error) {
       console.error('Error fetching ArcGIS API key:', error);
+      setError(error instanceof Error ? error.message : String(error));
+      setIsLoading(false);
+      return '';
     }
-  }, [isError, error]);
-
-  // The key to return is either from localStorage or the API
-  const apiKey = localKey || data || '';
-
-  return { 
-    apiKey, 
-    isLoading, 
-    error: isError ? error : null 
+  }, []);
+  
+  // Fetch API key on component mount
+  useEffect(() => {
+    getApiKey();
+  }, [getApiKey]);
+  
+  // Function to manually refresh the API key
+  const refreshApiKey = useCallback(async () => {
+    return getApiKey();
+  }, [getApiKey]);
+  
+  // Function to clear the API key from storage
+  const clearApiKey = useCallback(() => {
+    try {
+      localStorage.removeItem('arcgis_api_key');
+      setApiKey('');
+    } catch (error) {
+      console.error('Error clearing ArcGIS API key:', error);
+    }
+  }, []);
+  
+  return {
+    apiKey,
+    isLoading,
+    error,
+    refreshApiKey,
+    clearApiKey
   };
 }
-
-export default useArcgisApiKey;

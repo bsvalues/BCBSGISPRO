@@ -1,159 +1,149 @@
-import { useState, useEffect } from 'react';
-import mapboxgl from 'mapbox-gl';
-import { useQuery } from '@tanstack/react-query';
-import { getMapboxToken, getMapboxTokenAsync } from '@/lib/env';
+import { useState, useEffect, useCallback } from 'react';
 
 /**
- * Hook to get and manage Mapbox access token
+ * Hook for managing Mapbox token
  * 
- * This hook will:
- * 1. Try to get the token from local storage first
- * 2. If not available, fetch from API endpoint
- * 3. Manage loading and error states
+ * This hook provides a way to get and manage a Mapbox token from various sources:
+ * 1. Cache (in-memory during session)
+ * 2. LocalStorage 
+ * 3. Environment variables
+ * 4. Server API endpoint
+ * 
+ * @returns The Mapbox token, loading state, and error state
  */
 export function useMapboxToken() {
-  const [localToken, setLocalToken] = useState<string | null>(null);
-
-  // Try to get token using the env utility first (checks env vars, localStorage, etc)
-  useEffect(() => {
+  // State for the Mapbox token
+  const [token, setToken] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  /**
+   * Get the Mapbox token
+   */
+  const getToken = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      // First check for direct token using sync method
-      const directToken = getMapboxToken();
-      
-      if (directToken) {
-        console.log('Found Mapbox token in localStorage (sync)');
-        setLocalToken(directToken);
-        mapboxgl.accessToken = directToken;
-      } else {
-        // No token found in immediate sources
-        console.log('VITE_MAPBOX_ACCESS_TOKEN not available, trying API endpoint');
-        
-        // Try async method which includes API fetch
-        getMapboxTokenAsync()
-          .then(apiToken => {
-            if (apiToken) {
-              console.log('Retrieved Mapbox token from API');
-              setLocalToken(apiToken);
-              mapboxgl.accessToken = apiToken;
-            }
-          })
-          .catch(err => {
-            console.error('Error initializing Mapbox:', err);
-          });
-      }
-    } catch (err) {
-      console.warn('Error accessing token sources:', err);
-    }
-  }, []);
-
-  // Fetch token from API if not found in localStorage
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['mapbox-token'],
-    queryFn: async () => {
-      console.log('Fetching Mapbox token from API...');
+      // Try to get from localStorage first (for fast loading)
       try {
-        // Use proper API base URL depending on environment
-        const apiBaseUrl = '';
-        
-        // Try first with the map-services endpoint (new preferred way)
-        try {
-          console.log('Trying primary endpoint: /api/map-services/mapbox-token');
-          const primaryResponse = await fetch(`${apiBaseUrl}/api/map-services/mapbox-token`, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Accept': 'application/json',
-            }
-          });
-          
-          if (primaryResponse.ok) {
-            const data = await primaryResponse.json();
-            if (data.token) {
-              console.log('Successfully retrieved Mapbox token from primary endpoint');
-              return data.token;
-            }
-          }
-        } catch (primaryErr) {
-          console.warn('Primary endpoint failed:', primaryErr);
+        const localToken = localStorage.getItem('mapbox_token');
+        if (localToken) {
+          console.log('Found Mapbox token in localStorage');
+          setToken(localToken);
+          setIsLoading(false);
+          return localToken;
         }
-        
-        // If first endpoint fails, try fallback endpoint
-        console.log('Trying fallback endpoint: /api/mapbox-token');
-        const fallbackResponse = await fetch(`${apiBaseUrl}/api/mapbox-token`, {
+      } catch (err) {
+        console.warn('Error accessing localStorage:', err);
+      }
+      
+      // Then try environment variable
+      try {
+        const envToken = (window as any).ENV?.MAPBOX_ACCESS_TOKEN || 
+                         (window as any).MAPBOX_ACCESS_TOKEN;
+                         
+        if (envToken) {
+          console.log('Using Mapbox token from environment variables');
+          setToken(envToken);
+          try {
+            localStorage.setItem('mapbox_token', envToken);
+          } catch (storageErr) {
+            console.warn('Could not store token in localStorage:', storageErr);
+          }
+          setIsLoading(false);
+          return envToken;
+        }
+      } catch (envErr) {
+        console.warn('Error accessing environment variables:', envErr);
+      }
+      
+      // If both failed, fetch from API
+      console.log('Fetching Mapbox token from API endpoint');
+      try {
+        // Try the primary endpoint first
+        const primaryResponse = await fetch('/api/map-services/mapbox-token', {
           method: 'GET',
           credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-          }
         });
         
-        if (!fallbackResponse.ok) {
-          const errorText = await fallbackResponse.text();
-          console.error('Failed to fetch Mapbox token from both endpoints:', errorText);
-          throw new Error(`API response not OK: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+        if (primaryResponse.ok) {
+          const primaryData = await primaryResponse.json();
+          if (primaryData && typeof primaryData.token === 'string') {
+            console.log('Successfully retrieved Mapbox token from primary endpoint');
+            setToken(primaryData.token);
+            try {
+              localStorage.setItem('mapbox_token', primaryData.token);
+            } catch (storageErr) {
+              console.warn('Could not store token in localStorage:', storageErr);
+            }
+            setIsLoading(false);
+            return primaryData.token;
+          }
         }
-        
-        const fallbackData = await fallbackResponse.json();
-        
-        if (!fallbackData.token) {
-          console.error('Mapbox token not found in API response');
-          throw new Error('Mapbox token not found in API response');
-        }
-        
+      } catch (primaryErr) {
+        console.warn('Primary endpoint failed:', primaryErr);
+      }
+      
+      // If primary endpoint fails, try fallback endpoint
+      console.log('Trying fallback endpoint: /api/mapbox-token');
+      const fallbackResponse = await fetch('/api/mapbox-token', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (!fallbackResponse.ok) {
+        throw new Error(`Failed to fetch Mapbox token: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+      }
+      
+      const fallbackData = await fallbackResponse.json();
+      
+      if (fallbackData && typeof fallbackData.token === 'string') {
         console.log('Successfully retrieved Mapbox token from fallback endpoint');
+        setToken(fallbackData.token);
+        try {
+          localStorage.setItem('mapbox_token', fallbackData.token);
+        } catch (storageErr) {
+          console.warn('Could not store token in localStorage:', storageErr);
+        }
+        setIsLoading(false);
         return fallbackData.token;
-      } catch (err) {
-        console.error('Error in Mapbox token fetch from all endpoints:', err);
-        throw err;
+      } else {
+        throw new Error('No token found in API response');
       }
-    },
-    enabled: !localToken, // Only run query if we don't have a token from localStorage
-    retry: 3,
-    retryDelay: 1000
-  });
-  
-  // Handle successful token retrieval
-  useEffect(() => {
-    if (data) {
-      console.log('Setting Mapbox token from API response');
-      
-      // Set the token in mapboxgl directly
-      mapboxgl.accessToken = data;
-      
-      // Store in localStorage for future use
-      try {
-        localStorage.setItem('mapbox_token', data);
-      } catch (err) {
-        console.warn('Could not store Mapbox token in localStorage:', err);
-      }
-      
-      setLocalToken(data);
-    }
-  }, [data]);
-  
-  // Handle errors
-  useEffect(() => {
-    if (isError && error) {
+    } catch (error) {
       console.error('Error fetching Mapbox token:', error);
+      setError(error instanceof Error ? error : new Error(String(error)));
+      setIsLoading(false);
+      return '';
     }
-  }, [isError, error]);
-
-  // The token to return is either from localStorage or the API
-  const token = localToken || data || '';
-
-  // Set token globally when it changes
+  }, []);
+  
+  // Fetch token on component mount
   useEffect(() => {
-    if (token) {
-      console.log('Setting global Mapbox token');
-      mapboxgl.accessToken = token;
+    getToken();
+  }, [getToken]);
+  
+  // Function to manually refresh the token
+  const refreshToken = useCallback(async () => {
+    return getToken();
+  }, [getToken]);
+  
+  // Function to clear the token from storage
+  const clearToken = useCallback(() => {
+    try {
+      localStorage.removeItem('mapbox_token');
+      setToken('');
+    } catch (error) {
+      console.error('Error clearing Mapbox token:', error);
     }
-  }, [token]);
-
-  return { 
-    token, 
-    isLoading, 
-    error: isError ? error : null 
+  }, []);
+  
+  return {
+    token,
+    isLoading,
+    error,
+    refreshToken,
+    clearToken
   };
 }
-
-export default useMapboxToken;

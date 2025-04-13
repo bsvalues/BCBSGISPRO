@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { MapboxMap } from './mapbox/mapbox-map';
 import { ArcGISMap } from './arcgis/arcgis-map';
-import { useMapboxToken } from '@/hooks/use-mapbox-token';
-import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { useMapboxToken } from '../../hooks/use-mapbox-token';
+import { Card, CardContent } from '../../components/ui/card';
+import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+import { Label } from '../../components/ui/label';
 import { Globe, Map as MapIcon, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../../components/ui/button';
 
 export type MapProviderType = 'mapbox' | 'arcgis';
 

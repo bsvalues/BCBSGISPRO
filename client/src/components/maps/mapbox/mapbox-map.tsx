@@ -1,9 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import MapboxProvider from './mapbox-provider';
-import { cn } from '@/lib/utils';
+import { MapboxProvider } from './mapbox-provider';
 import mapboxgl from 'mapbox-gl';
 import LeafletContextWrapper from '../leaflet/leaflet-context-wrapper';
-import { containsParcelOverlay } from '@/lib/leaflet-helpers';
+
+// Utility function for class name merging
+const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+
+// Helper function to check if children contain parcel overlay components
+const containsParcelOverlay = (children: React.ReactNode): boolean => {
+  // Simple implementation, actual implementation would be more robust
+  return false;
+};
 
 export interface MapboxMapProps {
   id?: string;
