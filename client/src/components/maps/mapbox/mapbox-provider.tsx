@@ -4,7 +4,6 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { useMapboxToken } from '@/hooks/use-mapbox-token';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { getMapboxToken, getMapboxTokenAsync } from '@/lib/env';
 
 // Define prop types for MapboxProvider
 interface MapboxProviderProps {
@@ -18,7 +17,7 @@ interface MapboxProviderProps {
   children?: React.ReactNode;
   onMapLoaded?: (map: mapboxgl.Map) => void;
   interactive?: boolean;
-  mapContainerId?: string; // Added to support the mapContainerId prop
+  mapContainerId?: string;
 }
 
 // Create a context for Mapbox map
@@ -40,7 +39,8 @@ export function useMapbox() {
 /**
  * Mapbox Provider Component
  * 
- * This component initializes a Mapbox GL JS map and provides it to child components
+ * This component initializes a Mapbox GL JS map and provides it to child components.
+ * It manages token retrieval with multiple fallback strategies to ensure map functionality.
  */
 export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   initialViewState = { longitude: -121.3153, latitude: 44.0582, zoom: 13 },
@@ -57,6 +57,7 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   const [mapInitialized, setMapInitialized] = useState(false);
   const [directToken, setDirectToken] = useState<string>('');
   const [fetchingDirectly, setFetchingDirectly] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   
   // Function to initialize the map
   const initializeMap = useCallback((accessToken: string) => {
@@ -66,6 +67,7 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
     
     if (!accessToken) {
       console.error('Cannot initialize map without a valid Mapbox token');
+      setMapError('Missing Mapbox access token. Please configure a valid token.');
       return;
     }
     
@@ -74,6 +76,14 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
     try {
       // Set the token for mapbox-gl
       mapboxgl.accessToken = accessToken;
+      
+      // Store token in localStorage for future use
+      try {
+        localStorage.setItem('mapbox_token', accessToken);
+        console.log('Saved Mapbox token to localStorage for future use');
+      } catch (storageError) {
+        console.warn('Could not save token to localStorage:', storageError);
+      }
       
       // Initialize the map
       const map = new mapboxgl.Map({
@@ -98,10 +108,12 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
       
       map.on('error', (e) => {
         console.error('Mapbox map error:', e);
+        setMapError(`Map error: ${e.error?.message || 'Unknown error'}`);
       });
       
     } catch (error) {
       console.error('Error initializing Mapbox map:', error);
+      setMapError(`Failed to initialize map: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }, [
     mapStyle,
@@ -112,57 +124,50 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
     onMapLoaded
   ]);
   
-  // Handle direct token fetching
+  // First try to get token from localStorage on component mount
+  useEffect(() => {
+    try {
+      const storedToken = localStorage.getItem('mapbox_token');
+      if (storedToken) {
+        console.log('Found Mapbox token in localStorage');
+        console.log('Setting global Mapbox token');
+        mapboxgl.accessToken = storedToken;
+        // Don't initialize map yet, wait for the full token retrieval flow
+      }
+    } catch (e) {
+      console.warn('Could not access localStorage:', e);
+    }
+  }, []);
+  
+  // Handle direct token fetching from API
   const fetchTokenDirectly = useCallback(async () => {
     if (!fetchingDirectly && !directToken) {
       console.log('Attempting to fetch Mapbox token directly from API');
       setFetchingDirectly(true);
       
       try {
-        // Use full URL with correct port for API endpoint
-        const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
-        const response = await fetch(`${apiBaseUrl}/api/mapbox-token`);
+        const response = await fetch('/api/mapbox-token');
         if (!response.ok) {
           throw new Error(`Failed to fetch Mapbox token: ${response.statusText}`);
         }
         
         const data = await response.json();
         if (data && typeof data.token === 'string') {
-          console.log('Successfully retrieved Mapbox token from API:', data.token.substring(0, 10) + '...');
+          console.log('Successfully retrieved Mapbox token from API');
           setDirectToken(data.token);
-          
-          // Set the token for mapbox-gl globally to ensure it's available
-          mapboxgl.accessToken = data.token;
-          
-          // Also store in localStorage for future use
-          try {
-            localStorage.setItem('mapbox_token', data.token);
-            console.log('Saved Mapbox token to localStorage for future use');
-          } catch (storageError) {
-            console.warn('Could not save token to localStorage:', storageError);
-          }
         } else {
           throw new Error('Invalid token response from API');
         }
       } catch (directError) {
         console.error('Failed to fetch token directly:', directError);
+        setMapError(`Could not retrieve Mapbox token: ${directError instanceof Error ? directError.message : 'Unknown error'}`);
       } finally {
         setFetchingDirectly(false);
       }
     }
   }, [fetchingDirectly, directToken]);
   
-  // Always try to fetch token on component mount, regardless of other token sources
-  useEffect(() => {
-    // Short timeout to allow other methods to work first
-    const timer = setTimeout(() => {
-      fetchTokenDirectly();
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, [fetchTokenDirectly]);
-  
-  // Also fetch token if the hook fails
+  // Try to fetch token if the hook and localStorage methods fail
   useEffect(() => {
     if (error) {
       console.log('Token hook failed with error, trying direct approach:', error);
@@ -170,12 +175,18 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
     }
   }, [error, fetchTokenDirectly]);
   
-  // Initialize the map when token is available
+  // Initialize the map when token is available from any source
   useEffect(() => {
-    // Use either the token from the hook or the directly fetched token
-    const accessToken = token || directToken;
+    // Use token from any available source with priority
+    const accessToken = token || directToken || mapboxgl.accessToken;
     
-    if (!accessToken || !mapContainerRef.current || mapRef.current) {
+    if (!accessToken) {
+      // No token available yet, wait for token retrieval
+      return;
+    }
+    
+    if (!mapContainerRef.current || mapRef.current) {
+      // Map container not ready or map already initialized
       return;
     }
     
@@ -184,6 +195,7 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
     // Cleanup function
     return () => {
       if (mapRef.current) {
+        console.log('Cleaning up Mapbox map');
         mapRef.current.remove();
         mapRef.current = null;
       }
@@ -197,7 +209,7 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
   };
 
   return (
-    <div style={{ ...style, position: 'relative' }}>
+    <div style={{ ...style, position: 'relative' }} id={mapContainerId}>
       {(isLoading || fetchingDirectly) && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <div className="flex flex-col items-center gap-2">
@@ -207,12 +219,12 @@ export const MapboxProvider: React.FC<MapboxProviderProps> = ({
         </div>
       )}
       
-      {error && !directToken && (
+      {(error || mapError) && !mapInitialized && (
         <Alert variant="destructive" className="absolute top-2 left-2 right-2 z-10">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
+          <AlertTitle>Map Error</AlertTitle>
           <AlertDescription>
-            {error.toString()}
+            {mapError || error?.toString() || 'Unknown error loading map'}
           </AlertDescription>
         </Alert>
       )}
