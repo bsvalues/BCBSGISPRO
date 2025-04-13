@@ -5,7 +5,7 @@
  * converting them into GeoJSON geometries for visualization on maps.
  */
 
-import { Parcel } from "@shared/schema";
+import { Parcel } from "../../shared/schema";
 
 // Geographic coordinate reference
 export interface Coordinate {
@@ -17,7 +17,7 @@ export interface Coordinate {
 export interface DescriptionPoint {
   coordinate: Coordinate;
   description?: string;
-  type: "corner" | "midpoint" | "reference";
+  type: "corner" | "midpoint" | "reference" | string;
 }
 
 // A line segment in a legal description
@@ -31,13 +31,17 @@ export interface DescriptionSegment {
 }
 
 // A parsed legal description result
-export interface ParsedLegalDescription {
+// This interface is used internally by the parser
+export interface ParsedLegalDescriptionDetails {
   points: DescriptionPoint[];
   segments: DescriptionSegment[];
   polygon?: GeoJSON.Polygon;
   confidence: number; // 0-1 scale of how confident the parser is
   issues?: string[]; // Any issues found during parsing
 }
+
+// Re-export the schema interface for compatibility
+import type { ParsedLegalDescription } from "../../shared/schema";
 
 /**
  * Common patterns found in legal descriptions
@@ -55,16 +59,37 @@ export enum LegalDescriptionPattern {
  * @param text The legal description text
  * @returns ParsedLegalDescription object containing points, segments, and polygon
  */
+/**
+ * Helper function to safely work with extended properties that aren't in the schema
+ */
+function extendedProp<T>(obj: ParsedLegalDescription, prop: string, defaultValue: T): T {
+  return (obj as any)[prop] !== undefined ? (obj as any)[prop] : defaultValue;
+}
+
+/**
+ * Helper function to safely set extended properties on ParsedLegalDescription
+ */
+function setExtendedProp<T>(obj: ParsedLegalDescription, prop: string, value: T): void {
+  (obj as any)[prop] = value;
+}
+
 export function parseLegalDescription(text: string): ParsedLegalDescription {
   // Detect the pattern type
   const patternType = detectDescriptionPattern(text);
   
+  // Create a default result with base fields required by the shared schema
   let result: ParsedLegalDescription = {
-    points: [],
-    segments: [],
-    confidence: 0,
-    issues: []
+    township: '',
+    range: '',
+    section: '',
+    description: text
   };
+  
+  // Initialize extended properties
+  setExtendedProp(result, 'points', []);
+  setExtendedProp(result, 'segments', []);
+  setExtendedProp(result, 'confidence', 0);
+  setExtendedProp(result, 'issues', []);
   
   try {
     switch (patternType) {
@@ -81,20 +106,27 @@ export function parseLegalDescription(text: string): ParsedLegalDescription {
         result = parseInformalDescription(text);
         break;
       default:
-        result.issues?.push("Unable to determine description pattern");
-        result.confidence = 0.1;
+        const issues = extendedProp(result, 'issues', []);
+        issues.push("Unable to determine description pattern");
+        setExtendedProp(result, 'issues', issues);
+        setExtendedProp(result, 'confidence', 0.1);
     }
   } catch (error) {
-    result.issues?.push(`Error parsing description: ${error instanceof Error ? error.message : String(error)}`);
-    result.confidence = 0;
+    const issues = extendedProp(result, 'issues', []);
+    issues.push(`Error parsing description: ${error instanceof Error ? error.message : String(error)}`);
+    setExtendedProp(result, 'issues', issues);
+    setExtendedProp(result, 'confidence', 0);
   }
   
   // If parsing produced points but no polygon, try to create one
-  if (result.points.length > 2 && !result.polygon) {
+  const points = extendedProp(result, 'points', []);
+  if (points.length > 2 && !extendedProp(result, 'polygon', null)) {
     try {
-      result.polygon = createPolygonFromPoints(result.points.map(p => p.coordinate));
+      setExtendedProp(result, 'polygon', createPolygonFromPoints(points.map(p => p.coordinate)));
     } catch (error) {
-      result.issues?.push(`Error creating polygon: ${error instanceof Error ? error.message : String(error)}`);
+      const issues = extendedProp(result, 'issues', []);
+      issues.push(`Error creating polygon: ${error instanceof Error ? error.message : String(error)}`);
+      setExtendedProp(result, 'issues', issues);
     }
   }
   
@@ -132,12 +164,19 @@ function detectDescriptionPattern(text: string): LegalDescriptionPattern {
  * Parse a metes and bounds description
  */
 function parseMetesAndBounds(text: string): ParsedLegalDescription {
+  // Create the base object based on the shared schema definition
   const result: ParsedLegalDescription = {
-    points: [],
-    segments: [],
-    confidence: 0.7, // Default confidence
-    issues: []
+    township: '',
+    range: '',
+    section: '',
+    description: text
   };
+  
+  // Add additional properties for internal use using helper functions
+  setExtendedProp(result, 'points', []);
+  setExtendedProp(result, 'segments', []);
+  setExtendedProp(result, 'confidence', 0.7); // Default confidence
+  setExtendedProp(result, 'issues', []);
   
   // Simple parsing for demonstration - in reality, this would be much more complex
   // This is a placeholder implementation
@@ -151,16 +190,24 @@ function parseMetesAndBounds(text: string): ParsedLegalDescription {
       description: "Point of Beginning",
       type: "corner"
     };
-    result.points.push(startPoint);
+    const points = extendedProp(result, 'points', []);
+    points.push(startPoint);
+    setExtendedProp(result, 'points', points);
   } else {
-    result.issues?.push("No clear point of beginning found");
-    result.confidence -= 0.2;
+    const issues = extendedProp(result, 'issues', []);
+    issues.push("No clear point of beginning found");
+    setExtendedProp(result, 'issues', issues);
+    
+    const confidence = extendedProp(result, 'confidence', 0.7);
+    setExtendedProp(result, 'confidence', confidence - 0.2);
   }
   
   // Extract bearings and distances
   const bearingMatches = text.matchAll(/(?:thence|then)?\s*(north|south|east|west|n|s|e|w)(?:\s*(\d+)(?:°|degrees|deg))?(?:\s*(east|west|north|south|e|w|n|s))?(?:\s*(\d+(?:\.\d+)?)\s*(feet|foot|ft|meters|m|chains))/gi);
   
-  let lastPoint = result.points[0] || {
+  // Get current points from extended properties
+  const parsedPoints = extendedProp(result, 'points', []);
+  let lastPoint = parsedPoints.length > 0 ? parsedPoints[0] : {
     coordinate: { lat: 47.586, lng: -122.347 }, // Default if no POB
     type: "corner"
   };
@@ -199,24 +246,38 @@ function parseMetesAndBounds(text: string): ParsedLegalDescription {
       type: "boundary"
     };
     
-    result.points.push(nextPoint);
-    result.segments.push(segment);
+    // Add points and segments safely
+    const points = extendedProp(result, 'points', []);
+    points.push(nextPoint);
+    setExtendedProp(result, 'points', points);
+    
+    const segments = extendedProp(result, 'segments', []);
+    segments.push(segment);
+    setExtendedProp(result, 'segments', segments);
+    
     lastPoint = nextPoint;
   }
   
   // If we found at least 3 points, we can create a polygon
-  if (result.points.length >= 3) {
-    const coordinates = result.points.map(p => [p.coordinate.lng, p.coordinate.lat]);
+  const parsedPointsForPolygon = extendedProp(result, 'points', []);
+  if (parsedPointsForPolygon.length >= 3) {
+    const coordinates = parsedPointsForPolygon.map(p => [p.coordinate.lng, p.coordinate.lat]);
     // Close the polygon by adding the first point again
-    coordinates.push([result.points[0].coordinate.lng, result.points[0].coordinate.lat]);
+    if (parsedPointsForPolygon[0]) {
+      coordinates.push([parsedPointsForPolygon[0].coordinate.lng, parsedPointsForPolygon[0].coordinate.lat]);
+    }
     
-    result.polygon = {
+    setExtendedProp(result, 'polygon', {
       type: "Polygon",
       coordinates: [coordinates]
-    };
+    });
   } else {
-    result.issues?.push("Not enough points to create a polygon");
-    result.confidence -= 0.3;
+    const issues = extendedProp(result, 'issues', []);
+    issues.push("Not enough points to create a polygon");
+    setExtendedProp(result, 'issues', issues);
+    
+    const confidence = extendedProp(result, 'confidence', 0.7);
+    setExtendedProp(result, 'confidence', confidence - 0.3);
   }
   
   return result;
@@ -226,12 +287,19 @@ function parseMetesAndBounds(text: string): ParsedLegalDescription {
  * Parse a rectangular survey system description (Township/Range/Section)
  */
 function parseRectangularSurvey(text: string): ParsedLegalDescription {
+  // Create result using schema properties
   const result: ParsedLegalDescription = {
-    points: [],
-    segments: [],
-    confidence: 0.6,
-    issues: []
+    township: '',
+    range: '',
+    section: '',
+    description: text
   };
+  
+  // Add extended properties using helper functions
+  setExtendedProp(result, 'points', []);
+  setExtendedProp(result, 'segments', []);
+  setExtendedProp(result, 'confidence', 0.6);
+  setExtendedProp(result, 'issues', []);
   
   // This is a placeholder implementation - would need real algorithms for:
   // 1. Parsing township, range, section references
@@ -266,13 +334,16 @@ function parseRectangularSurvey(text: string): ParsedLegalDescription {
     ];
     
     // Add points and segments
+    const pointsArray = [];
+    const segmentsArray = [];
+    
     corners.forEach((corner, index) => {
       const point: DescriptionPoint = {
         coordinate: corner,
         description: `Corner ${index + 1}`,
         type: "corner"
       };
-      result.points.push(point);
+      pointsArray.push(point);
       
       // Add segment (connecting this point to the next)
       if (index < corners.length - 1) {
@@ -281,19 +352,25 @@ function parseRectangularSurvey(text: string): ParsedLegalDescription {
           end: { coordinate: corners[index + 1], type: "corner" },
           type: "boundary"
         };
-        result.segments.push(segment);
+        segmentsArray.push(segment);
       }
     });
     
-    // Add the closing segment
-    result.segments.push({
-      start: result.points[corners.length - 1],
-      end: result.points[0],
-      type: "boundary"
-    });
+    // Add the closing segment if we have at least 2 points
+    if (pointsArray.length >= 2) {
+      segmentsArray.push({
+        start: pointsArray[pointsArray.length - 1],
+        end: pointsArray[0],
+        type: "boundary"
+      });
+    }
+    
+    // Set the extended properties
+    setExtendedProp(result, 'points', pointsArray);
+    setExtendedProp(result, 'segments', segmentsArray);
     
     // Create the polygon
-    result.polygon = {
+    setExtendedProp(result, 'polygon', {
       type: "Polygon",
       coordinates: [[
         [corners[0].lng, corners[0].lat],
@@ -302,10 +379,12 @@ function parseRectangularSurvey(text: string): ParsedLegalDescription {
         [corners[3].lng, corners[3].lat],
         [corners[0].lng, corners[0].lat] // Close the polygon
       ]]
-    };
+    });
   } else {
-    result.issues?.push("Could not parse township/range information");
-    result.confidence = 0.2;
+    const issues = extendedProp(result, 'issues', []);
+    issues.push("Could not parse township/range information");
+    setExtendedProp(result, 'issues', issues);
+    setExtendedProp(result, 'confidence', 0.2);
   }
   
   return result;
@@ -315,26 +394,42 @@ function parseRectangularSurvey(text: string): ParsedLegalDescription {
  * Parse a lot and block description
  */
 function parseLotAndBlock(text: string): ParsedLegalDescription {
-  // This is a placeholder implementation
-  return {
-    points: [],
-    segments: [],
-    confidence: 0.4,
-    issues: ["Lot and block parsing not fully implemented"]
+  // Create result using schema properties
+  const result: ParsedLegalDescription = {
+    township: '',
+    range: '',
+    section: '',
+    description: text
   };
+  
+  // Add extended properties using helper functions
+  setExtendedProp(result, 'points', []);
+  setExtendedProp(result, 'segments', []);
+  setExtendedProp(result, 'confidence', 0.4);
+  setExtendedProp(result, 'issues', ["Lot and block parsing not fully implemented"]);
+  
+  return result;
 }
 
 /**
  * Parse an informal description without standard format
  */
 function parseInformalDescription(text: string): ParsedLegalDescription {
-  // This is a placeholder implementation
-  return {
-    points: [],
-    segments: [],
-    confidence: 0.2,
-    issues: ["Informal description parsing not fully implemented"]
+  // Create result using schema properties
+  const result: ParsedLegalDescription = {
+    township: '',
+    range: '',
+    section: '',
+    description: text
   };
+  
+  // Add extended properties using helper functions
+  setExtendedProp(result, 'points', []);
+  setExtendedProp(result, 'segments', []);
+  setExtendedProp(result, 'confidence', 0.2);
+  setExtendedProp(result, 'issues', ["Informal description parsing not fully implemented"]);
+  
+  return result;
 }
 
 /**

@@ -16,6 +16,9 @@ import {
   dataQualityRules,
   dataQualityEvaluations,
   dataQualityScores,
+  parcels,
+  documents,
+  documentParcelLinks,
   type User,
   type InsertUser,
   type MapBookmark,
@@ -45,7 +48,11 @@ import {
   type DataQualityEvaluation,
   type InsertDataQualityEvaluation,
   type DataQualityScore,
-  type InsertDataQualityScore
+  type InsertDataQualityScore,
+  type Parcel,
+  type InsertParcel,
+  type Document,
+  type InsertDocument
 } from '../shared/schema';
 
 import {
@@ -84,6 +91,27 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
+  // Parcel operations
+  getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined>;
+  getParcelById(id: number): Promise<Parcel | undefined>; 
+  getParcelInfo(id: number): Promise<Parcel | undefined>;
+  createParcel(parcel: InsertParcel): Promise<Parcel>;
+  searchParcelsByAddress(address: string): Promise<Parcel[]>;
+  searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]>;
+  getAllParcels(): Promise<Parcel[]>;
+  
+  // Document operations
+  getDocument(id: number): Promise<Document | undefined>;
+  getDocuments(filter?: any): Promise<Document[]>;
+  getDocumentsForParcel(parcelId: number): Promise<Document[]>;
+  
+  // Document Parcel Link operations
+  getDocumentParcelLink(documentId: number, parcelId: number): Promise<any | undefined>;
+  createDocumentParcelLink(link: any): Promise<any>;
+  removeDocumentParcelLinks(documentId: number): Promise<boolean>;
+  getParcelsForDocument(documentId: number): Promise<Parcel[]>;
+  updateDocumentClassification(id: number, classification: string): Promise<Document>;
+  
   // Map bookmarks operations
   getMapBookmarks(userId: number): Promise<MapBookmark[]>;
   getMapBookmark(id: number): Promise<MapBookmark | undefined>;
@@ -91,10 +119,41 @@ export interface IStorage {
   updateMapBookmark(id: number, updates: Partial<InsertMapBookmark>): Promise<MapBookmark>;
   deleteMapBookmark(id: number): Promise<boolean>;
   
+  // Map layer operations
+  getMapLayers(): Promise<any[]>;
+  updateMapLayer(id: number, data: any): Promise<any>;
+  getVisibleMapLayers(): Promise<any[]>;
+  
   // Map preferences operations
   getMapPreferences(userId: number): Promise<MapPreference | undefined>;
   createMapPreferences(preferences: InsertMapPreference): Promise<MapPreference>;
   updateMapPreferences(userId: number, updates: Partial<InsertMapPreference>): Promise<MapPreference>;
+  getMapPreference(id: number): Promise<MapPreference | undefined>;
+  createOrUpdateMapPreference(data: any): Promise<MapPreference>;
+  
+  // Report operations
+  getReportTemplates(): Promise<any[]>;
+  getReportTemplate(id: number): Promise<any>;
+  createReportTemplate(template: any): Promise<any>;
+  getReport(id: number): Promise<any>;
+  getReports(userId: number): Promise<any[]>;
+  createReport(report: any): Promise<any>;
+  updateReport(id: number, data: any): Promise<any>;
+  generateReportData(reportId: number): Promise<any>;
+  getReportData(reportId: number): Promise<any>;
+  exportReport(reportId: number, format: string): Promise<any>;
+  getReportExport(exportId: number): Promise<any>;
+  generateReportPreview(templateId: number, data: any): Promise<any>;
+  getReportSchedules(userId: number): Promise<any[]>;
+  getReportSchedule(id: number): Promise<any>;
+  createReportSchedule(schedule: any): Promise<any>;
+  updateReportSchedule(id: number, data: any): Promise<any>;
+  deleteReportSchedule(id: number): Promise<boolean>;
+  
+  // Additional operations
+  generateParcelNumbers(count: number): Promise<string[]>;
+  queryAssistant(query: string): Promise<any>;
+  generateSM00Report(parcelIds: number[]): Promise<any>;
   
   // Recently viewed parcels operations
   getRecentlyViewedParcels(userId: number, limit?: number): Promise<RecentlyViewedParcel[]>;
@@ -947,6 +1006,18 @@ export class MemStorage implements IStorage {
   private documentEvents: Map<string, DocumentLineageEvent[]> = new Map();
   private documentRelationships: Map<string, DocumentRelationship[]> = new Map();
   private processingStages: Map<string, DocumentProcessingStage> = new Map();
+  
+  // Additional storage for direct document and parcel operations 
+  private parcels: Map<number, Parcel> = new Map();
+  private parcelsByNumber: Map<string, Parcel> = new Map();
+  private standardDocuments: Map<number, Document> = new Map();
+  private documentParcelLinks: Map<string, any> = new Map();
+  private mapLayers: Map<number, any> = new Map();
+  private reportTemplates: Map<number, any> = new Map();
+  private reports: Map<number, any> = new Map();
+  private reportData: Map<number, any> = new Map();
+  private reportExports: Map<number, any> = new Map();
+  private reportSchedules: Map<number, any> = new Map();
 
   // ArcGIS in-memory storage
   private arcgisMapConfigs: Map<number, ArcGISMapConfig> = new Map();
@@ -1666,6 +1737,485 @@ export class MemStorage implements IStorage {
       passedRules,
       totalRules
     });
+  }
+
+  // Parcel operations
+  async getParcelByNumber(parcelNumber: string): Promise<Parcel | undefined> {
+    return this.parcelsByNumber.get(parcelNumber);
+  }
+
+  async getParcelById(id: number): Promise<Parcel | undefined> {
+    return this.parcels.get(id);
+  }
+
+  async getParcelInfo(id: number): Promise<Parcel | undefined> {
+    return this.parcels.get(id);
+  }
+
+  async createParcel(parcel: InsertParcel): Promise<Parcel> {
+    const id = parcel.id || this.parcels.size + 1;
+    const now = new Date();
+    const newParcel: Parcel = {
+      ...parcel,
+      id,
+      createdAt: parcel.createdAt || now,
+      updatedAt: now
+    };
+    
+    this.parcels.set(id, newParcel);
+    
+    // Also store by parcel number for quick lookups
+    if (newParcel.parcelNumber) {
+      this.parcelsByNumber.set(newParcel.parcelNumber, newParcel);
+    }
+    
+    return newParcel;
+  }
+
+  async searchParcelsByAddress(address: string): Promise<Parcel[]> {
+    const searchTerm = address.toLowerCase();
+    const results: Parcel[] = [];
+    
+    for (const parcel of this.parcels.values()) {
+      if (parcel.address && parcel.address.toLowerCase().includes(searchTerm)) {
+        results.push(parcel);
+      }
+    }
+    
+    return results;
+  }
+
+  async searchParcelsByNumber(parcelNumber: string): Promise<Parcel[]> {
+    const searchTerm = parcelNumber.toLowerCase();
+    const results: Parcel[] = [];
+    
+    for (const parcel of this.parcels.values()) {
+      if (parcel.parcelNumber && parcel.parcelNumber.toLowerCase().includes(searchTerm)) {
+        results.push(parcel);
+      }
+    }
+    
+    return results;
+  }
+
+  async getAllParcels(): Promise<Parcel[]> {
+    return Array.from(this.parcels.values());
+  }
+
+  // Document operations
+  async getDocument(id: number): Promise<Document | undefined> {
+    return this.standardDocuments.get(id);
+  }
+
+  async getDocuments(filter?: any): Promise<Document[]> {
+    const results: Document[] = [];
+    
+    for (const doc of this.standardDocuments.values()) {
+      let matches = true;
+      
+      if (filter) {
+        for (const [key, value] of Object.entries(filter)) {
+          if (doc[key as keyof Document] !== value) {
+            matches = false;
+            break;
+          }
+        }
+      }
+      
+      if (matches) {
+        results.push(doc);
+      }
+    }
+    
+    return results;
+  }
+
+  async getDocumentsForParcel(parcelId: number): Promise<Document[]> {
+    const results: Document[] = [];
+    
+    for (const doc of this.standardDocuments.values()) {
+      if (doc.parcelId === parcelId) {
+        results.push(doc);
+      }
+    }
+    
+    return results;
+  }
+
+  // Document-Parcel Link operations
+  async getDocumentParcelLink(documentId: number, parcelId: number): Promise<any | undefined> {
+    const key = `${documentId}-${parcelId}`;
+    return this.documentParcelLinks.get(key);
+  }
+
+  async createDocumentParcelLink(link: any): Promise<any> {
+    const { documentId, parcelId } = link;
+    const key = `${documentId}-${parcelId}`;
+    
+    // Check if the link already exists
+    const existingLink = await this.getDocumentParcelLink(documentId, parcelId);
+    
+    if (existingLink) {
+      return { ...existingLink, alreadyExists: true };
+    }
+    
+    this.documentParcelLinks.set(key, link);
+    return link;
+  }
+
+  async removeDocumentParcelLinks(documentId: number): Promise<boolean> {
+    let removed = false;
+    
+    for (const [key, link] of this.documentParcelLinks.entries()) {
+      if (key.startsWith(`${documentId}-`)) {
+        this.documentParcelLinks.delete(key);
+        removed = true;
+      }
+    }
+    
+    return removed;
+  }
+
+  async getParcelsForDocument(documentId: number): Promise<Parcel[]> {
+    const results: Parcel[] = [];
+    
+    for (const [key, link] of this.documentParcelLinks.entries()) {
+      if (key.startsWith(`${documentId}-`)) {
+        const parcelId = link.parcelId;
+        const parcel = await this.getParcelById(parcelId);
+        
+        if (parcel) {
+          results.push(parcel);
+        }
+      }
+    }
+    
+    return results;
+  }
+
+  async updateDocumentClassification(id: number, classification: string): Promise<Document> {
+    const document = await this.getDocument(id);
+    
+    if (!document) {
+      throw new Error(`Document with id ${id} not found`);
+    }
+    
+    const updatedDocument = {
+      ...document,
+      classification
+    };
+    
+    this.standardDocuments.set(id, updatedDocument);
+    return updatedDocument;
+  }
+
+  // Map layer operations
+  async getMapLayers(): Promise<any[]> {
+    return Array.from(this.mapLayers.values());
+  }
+
+  async updateMapLayer(id: number, data: any): Promise<any> {
+    const layer = this.mapLayers.get(id);
+    
+    if (!layer) {
+      throw new Error(`Map layer with id ${id} not found`);
+    }
+    
+    const updatedLayer = {
+      ...layer,
+      ...data,
+      id: layer.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.mapLayers.set(id, updatedLayer);
+    return updatedLayer;
+  }
+
+  async getVisibleMapLayers(): Promise<any[]> {
+    const layers = await this.getMapLayers();
+    return layers.filter(layer => layer.visible);
+  }
+
+  // Additional Map Preference operations
+  async getMapPreference(id: number): Promise<MapPreference | undefined> {
+    return this.mapPreferences.get(id);
+  }
+
+  async createOrUpdateMapPreference(data: any): Promise<MapPreference> {
+    const { userId } = data;
+    
+    // Check if a preference already exists for this user
+    const existingPrefs = await this.getMapPreferences(userId);
+    
+    if (existingPrefs) {
+      return this.updateMapPreferences(userId, data);
+    } else {
+      return this.createMapPreferences(data);
+    }
+  }
+
+  // Report operations
+  private reportTemplates = new Map<number, any>();
+  private reports = new Map<number, any>();
+  private reportData = new Map<number, any>();
+  private reportExports = new Map<number, any>();
+  private reportSchedules = new Map<number, any>();
+
+  async getReportTemplates(): Promise<any[]> {
+    return Array.from(this.reportTemplates.values());
+  }
+
+  async getReportTemplate(id: number): Promise<any> {
+    const template = this.reportTemplates.get(id);
+    
+    if (!template) {
+      throw new Error(`Report template with id ${id} not found`);
+    }
+    
+    return template;
+  }
+
+  async createReportTemplate(template: any): Promise<any> {
+    const id = template.id || this.reportTemplates.size + 1;
+    const now = new Date();
+    const newTemplate = {
+      ...template,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    this.reportTemplates.set(id, newTemplate);
+    return newTemplate;
+  }
+
+  async getReport(id: number): Promise<any> {
+    const report = this.reports.get(id);
+    
+    if (!report) {
+      throw new Error(`Report with id ${id} not found`);
+    }
+    
+    return report;
+  }
+
+  async getReports(userId: number): Promise<any[]> {
+    const results: any[] = [];
+    
+    for (const report of this.reports.values()) {
+      if (report.userId === userId) {
+        results.push(report);
+      }
+    }
+    
+    return results;
+  }
+
+  async createReport(report: any): Promise<any> {
+    const id = report.id || this.reports.size + 1;
+    const now = new Date();
+    const newReport = {
+      ...report,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      status: report.status || 'pending'
+    };
+    
+    this.reports.set(id, newReport);
+    return newReport;
+  }
+
+  async updateReport(id: number, data: any): Promise<any> {
+    const report = this.reports.get(id);
+    
+    if (!report) {
+      throw new Error(`Report with id ${id} not found`);
+    }
+    
+    const updatedReport = {
+      ...report,
+      ...data,
+      id: report.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.reports.set(id, updatedReport);
+    return updatedReport;
+  }
+
+  async generateReportData(reportId: number): Promise<any> {
+    const report = await this.getReport(reportId);
+    
+    // Simulate report data generation
+    const data = {
+      reportId,
+      generatedAt: new Date(),
+      data: {
+        summary: `Generated data for report: ${report.title}`,
+        sections: [
+          {
+            title: 'Section 1',
+            content: 'Sample content for section 1'
+          },
+          {
+            title: 'Section 2',
+            content: 'Sample content for section 2'
+          }
+        ]
+      }
+    };
+    
+    this.reportData.set(reportId, data);
+    return data;
+  }
+
+  async getReportData(reportId: number): Promise<any> {
+    const data = this.reportData.get(reportId);
+    
+    if (!data) {
+      throw new Error(`Report data for report id ${reportId} not found`);
+    }
+    
+    return data;
+  }
+
+  async exportReport(reportId: number, format: string): Promise<any> {
+    await this.getReport(reportId);
+    
+    // Simulate report export generation
+    const exportId = Date.now();
+    const exportData = {
+      id: exportId,
+      reportId,
+      format,
+      createdAt: new Date(),
+      downloadUrl: `/api/report-exports/${exportId}/download`,
+      status: 'completed'
+    };
+    
+    this.reportExports.set(exportId, exportData);
+    return exportData;
+  }
+
+  async getReportExport(exportId: number): Promise<any> {
+    const exportData = this.reportExports.get(exportId);
+    
+    if (!exportData) {
+      throw new Error(`Report export with id ${exportId} not found`);
+    }
+    
+    return exportData;
+  }
+
+  async generateReportPreview(templateId: number, data: any): Promise<any> {
+    const template = await this.getReportTemplate(templateId);
+    
+    // Simulate preview generation
+    return {
+      templateId,
+      previewedAt: new Date(),
+      preview: `Preview of ${template.name} with data: ${JSON.stringify(data).substring(0, 100)}...`
+    };
+  }
+
+  async getReportSchedules(userId: number): Promise<any[]> {
+    const results: any[] = [];
+    
+    for (const schedule of this.reportSchedules.values()) {
+      if (schedule.userId === userId) {
+        results.push(schedule);
+      }
+    }
+    
+    return results;
+  }
+
+  async getReportSchedule(id: number): Promise<any> {
+    const schedule = this.reportSchedules.get(id);
+    
+    if (!schedule) {
+      throw new Error(`Report schedule with id ${id} not found`);
+    }
+    
+    return schedule;
+  }
+
+  async createReportSchedule(schedule: any): Promise<any> {
+    const id = schedule.id || this.reportSchedules.size + 1;
+    const now = new Date();
+    const newSchedule = {
+      ...schedule,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    this.reportSchedules.set(id, newSchedule);
+    return newSchedule;
+  }
+
+  async updateReportSchedule(id: number, data: any): Promise<any> {
+    const schedule = this.reportSchedules.get(id);
+    
+    if (!schedule) {
+      throw new Error(`Report schedule with id ${id} not found`);
+    }
+    
+    const updatedSchedule = {
+      ...schedule,
+      ...data,
+      id: schedule.id, // Ensure id doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.reportSchedules.set(id, updatedSchedule);
+    return updatedSchedule;
+  }
+
+  async deleteReportSchedule(id: number): Promise<boolean> {
+    return this.reportSchedules.delete(id);
+  }
+
+  // Additional operations
+  async generateParcelNumbers(count: number): Promise<string[]> {
+    const results: string[] = [];
+    
+    for (let i = 0; i < count; i++) {
+      // Generate a realistic-looking parcel number
+      const section = Math.floor(Math.random() * 36) + 1;
+      const township = Math.floor(Math.random() * 20) + 1;
+      const range = Math.floor(Math.random() * 30) + 1;
+      
+      const parcelNumber = `${section}-${township}-${range}-${i.toString().padStart(4, '0')}`;
+      results.push(parcelNumber);
+    }
+    
+    return results;
+  }
+
+  async generateSM00Report(parcelIds: number[]): Promise<any> {
+    // Simulate SM00 report generation
+    return {
+      id: Date.now(),
+      type: 'SM00',
+      generatedAt: new Date(),
+      parcelIds,
+      data: {
+        summary: `SM00 Report for ${parcelIds.length} parcels`,
+        parcels: await Promise.all(parcelIds.map(id => this.getParcelInfo(id)))
+      }
+    };
+  }
+
+  async queryAssistant(query: string): Promise<any> {
+    // Simulate AI assistant response
+    return {
+      query,
+      response: `Response to query: ${query}`,
+      timestamp: new Date()
+    };
   }
 }
 

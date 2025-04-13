@@ -26,6 +26,48 @@ export class ApiError extends Error {
     // This is needed because we're extending a built-in class
     Object.setPrototypeOf(this, ApiError.prototype);
   }
+
+  /**
+   * Create a Bad Request error (400)
+   */
+  static badRequest(message: string, code: string = 'BAD_REQUEST', details?: any): ApiError {
+    return new ApiError(code, message, 400, details);
+  }
+
+  /**
+   * Create an Unauthorized error (401)
+   */
+  static unauthorized(message: string, code: string = 'UNAUTHORIZED', details?: any): ApiError {
+    return new ApiError(code, message, 401, details);
+  }
+
+  /**
+   * Create a Forbidden error (403)
+   */
+  static forbidden(message: string, code: string = 'FORBIDDEN', details?: any): ApiError {
+    return new ApiError(code, message, 403, details);
+  }
+
+  /**
+   * Create a Not Found error (404)
+   */
+  static notFound(message: string, code: string = 'NOT_FOUND', details?: any): ApiError {
+    return new ApiError(code, message, 404, details);
+  }
+
+  /**
+   * Create a Conflict error (409)
+   */
+  static conflict(message: string, code: string = 'CONFLICT', details?: any): ApiError {
+    return new ApiError(code, message, 409, details);
+  }
+
+  /**
+   * Create an Internal Server Error (500)
+   */
+  static internal(message: string, code: string = 'INTERNAL_ERROR', details?: any): ApiError {
+    return new ApiError(code, message, 500, details);
+  }
 }
 
 /**
