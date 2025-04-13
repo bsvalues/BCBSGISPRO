@@ -3,14 +3,14 @@ import { Map as MapboxMap } from 'mapbox-gl';
 import { 
   useCollaborativeAnnotations, 
   AnnotationType
-} from '@/hooks/use-collaborative-annotations';
+} from '../../hooks/use-collaborative-annotations';
 import { ConnectionStatusEnum } from '../../lib/websocket';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+import { Badge } from '../../components/ui/badge';
+import { ScrollArea } from '../../components/ui/scroll-area';
 import { 
   MapPin, 
   MessageSquare, 
@@ -22,7 +22,7 @@ import {
   CheckCircle,
   Loader2
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '../../hooks/use-toast';
 
 interface CollaborativeAnnotationsProps {
   map: MapboxMap;
