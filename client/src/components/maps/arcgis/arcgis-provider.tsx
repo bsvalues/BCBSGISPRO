@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useArcgisApiKey } from '@/hooks/use-arcgis-api-key';
 
 // Define TypeScript interfaces for ArcGIS types
 declare global {
@@ -51,7 +53,9 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
   interactive = true
 }) => {
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const mapRef = useRef<any>(null);
   const viewRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,9 +66,29 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
     // Using dynamic imports for better compatibility
     const loadMap = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
+        setErrorDetails(null);
+        
         // Import Map and MapView classes
         const Map = await import('@arcgis/core/Map').then(m => m.default);
         const MapView = await import('@arcgis/core/views/MapView').then(m => m.default);
+        
+        // Check for API configuration
+        // ArcGIS JS API uses a config.apiKey setting in the application
+        try {
+          const esriConfig = await import('@arcgis/core/config').then(m => m.default);
+          const apiKey = process.env.VITE_ARCGIS_API_KEY || localStorage.getItem('arcgis_api_key');
+          
+          if (apiKey) {
+            console.log('Setting ArcGIS API key');
+            esriConfig.apiKey = apiKey;
+          } else {
+            console.warn('No ArcGIS API key found. Some services may be limited.');
+          }
+        } catch (configError) {
+          console.warn('Could not configure ArcGIS API key:', configError);
+        }
         
         // Create a new map
         const map = new Map({
@@ -82,6 +106,12 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
           }
         });
         
+        // Add error handler to view
+        view.on("error", (error) => {
+          console.error("ArcGIS view error:", error);
+          setErrorDetails(`Map view error: ${error.name}: ${error.message}`);
+        });
+        
         // Store references
         mapRef.current = map;
         viewRef.current = view;
@@ -89,15 +119,19 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
         // Wait for the view to load
         await view.when();
         
-        console.log('ArcGIS map loaded');
+        console.log('ArcGIS map loaded successfully');
         setMapLoaded(true);
+        setIsLoading(false);
         
         if (onMapLoaded) {
           onMapLoaded(map, view);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading ArcGIS map:', err);
+        setMapLoaded(false);
+        setIsLoading(false);
         setError('Failed to load ArcGIS map');
+        setErrorDetails(err.message || 'Unknown error occurred');
       }
     };
     
@@ -130,19 +164,35 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
   });
 
   return (
-    <div style={style}>
+    <div style={{ ...style, position: 'relative' }}>
       {error ? (
-        <Card className="p-4 text-center">
-          <p className="text-red-500">{error}</p>
-          <p className="text-sm mt-2">
-            Falling back to alternative map provider if available.
-          </p>
-        </Card>
-      ) : (
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-          {mapLoaded && childrenWithProps}
+        <Alert variant="destructive" className="absolute top-2 left-2 right-2 z-10">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Map Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            {errorDetails && (
+              <details className="mt-2 text-xs">
+                <summary>Technical Details</summary>
+                <p className="mt-1">{errorDetails}</p>
+              </details>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading ArcGIS map...</p>
+          </div>
         </div>
       )}
+      
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+        {mapLoaded && childrenWithProps}
+      </div>
     </div>
   );
 };
