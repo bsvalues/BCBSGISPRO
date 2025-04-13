@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWebSocket } from './use-websocket';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from './use-toast';
 import { useUser } from './use-user';
 
 export type ChatMessage = {

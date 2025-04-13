@@ -67,7 +67,12 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
     lastMessage, 
     status, 
     userId 
-  } = useWebSocket(roomId);
+  } = useWebSocket({
+    path: `/ws/${roomId}`,
+    roomId,
+    autoConnect: true,
+    autoReconnect: true
+  });
   
   // Annotations state
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
