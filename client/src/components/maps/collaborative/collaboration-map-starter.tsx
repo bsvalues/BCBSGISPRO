@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import MapboxProvider from '@/components/maps/mapbox/mapbox-provider';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { MapboxProvider } from '../mapbox/mapbox-provider';
+import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 /**
