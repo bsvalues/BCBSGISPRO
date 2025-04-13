@@ -61,7 +61,7 @@ import {
 import { DocumentType } from "../shared/document-types";
 import { documentService } from "./services/document-service";
 import { documentParcelService } from "./services/document-parcel-service";
-import { parseLegalDescription, ParsedLegalDescription } from "./services/legal-description-parser";
+import { parseLegalDescription } from "./services/legal-description-parser";
 import { 
   runGeospatialAnalysis, 
   GeospatialOperationType, 
@@ -110,6 +110,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Initialize WebSocket server
   const wsManager = new WebSocketServerManager(httpServer);
+  
+  // WebSocket health endpoint
+  app.get("/api/websocket/health", (req, res) => {
+    res.json({
+      status: "online",
+      connections: wsManager.getActiveConnectionsCount(),
+      uptime: process.uptime()
+    });
+  });
+  
+  // WebSocket rooms status endpoint
+  app.get("/api/websocket/rooms", (req, res) => {
+    res.json({
+      rooms: wsManager.getRoomsStatus()
+    });
+  });
   
   // Mapbox token endpoint - serves the token securely to the frontend (legacy path for compatibility)
   app.get("/api/mapbox-token", async (req, res) => {

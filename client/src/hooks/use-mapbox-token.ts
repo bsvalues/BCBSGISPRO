@@ -21,7 +21,7 @@ export function useMapboxToken() {
       const directToken = getMapboxToken();
       
       if (directToken) {
-        console.log('Found Mapbox token from environment or localStorage');
+        console.log('Found Mapbox token in localStorage (sync)');
         setLocalToken(directToken);
         mapboxgl.accessToken = directToken;
       } else {
@@ -53,7 +53,7 @@ export function useMapboxToken() {
       console.log('Fetching Mapbox token from API...');
       try {
         // Use proper API base URL depending on environment
-        const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+        const apiBaseUrl = '';
         
         // Try first with the map-services endpoint (new preferred way)
         try {
