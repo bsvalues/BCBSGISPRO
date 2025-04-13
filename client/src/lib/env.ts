@@ -195,9 +195,9 @@ export function isProduction(): boolean {
  * Get the base URL for API requests
  */
 export function getApiBaseUrl(): string {
-  // In development, use the specific port (5000 for server)
+  // In Replit development environment, use the current host to avoid CORS issues
   // In production, use relative path
-  const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+  const baseUrl = import.meta.env.DEV ? `${window.location.protocol}//${window.location.host}` : '';
   return `${baseUrl}/api`;
 }
 
@@ -206,10 +206,11 @@ export function getApiBaseUrl(): string {
  */
 export function getWebSocketUrl(): string {
   try {
-    // In development environment, use specific port with ws protocol
+    // In development environment, prefer the host's own URL with ws/wss protocol
     if (import.meta.env.DEV) {
-      // Always use ws protocol for localhost connections in development
-      return `ws://localhost:5000/ws`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // Use the current host in Replit environment, rather than hardcoded localhost
+      return `${protocol}//${window.location.host}/ws`;
     }
     
     // In production, use relative WebSocket path with protocol based on page protocol

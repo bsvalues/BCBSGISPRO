@@ -25,6 +25,15 @@ export interface UseWebSocketOptions {
   onMessage?: (event: MessageEvent) => void;
   onClose?: (event: CloseEvent) => void;
   onError?: (event: Event) => void;
+  
+  // User ID for user-specific messages
+  userId?: string;
+  
+  // Room ID for room-specific messages
+  roomId?: string;
+  
+  // Auto join room on connection
+  autoJoinRoom?: boolean;
 }
 
 /**
@@ -42,8 +51,14 @@ export interface UseWebSocketResult {
   // Connection status
   status: WebSocketStatus;
   
+  // Connection status helpers
+  connected: boolean;
+  
   // Last received message
   lastMessage: any;
+  
+  // All messages received (for components that need message history)
+  messages: any[];
   
   // Connection operations
   connect: () => void;
@@ -52,6 +67,13 @@ export interface UseWebSocketResult {
   
   // Send message (accepts string or object that will be JSON stringified)
   sendMessage: (message: any) => boolean;
+  
+  // Alias for sendMessage for backwards compatibility
+  send: (message: any) => boolean;
+  
+  // Optional room and user ID for room-based messaging
+  roomId?: string;
+  userId?: string;
 }
 
 /**
@@ -66,12 +88,16 @@ export function useWebSocket({
   onOpen,
   onMessage,
   onClose,
-  onError
+  onError,
+  userId = undefined,
+  roomId = undefined,
+  autoJoinRoom = false
 }: UseWebSocketOptions = {}): UseWebSocketResult {
   // WebSocket connection state
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [lastMessage, setLastMessage] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   
   // References for reconnection
   const reconnectAttempts = useRef<number>(0);
@@ -159,12 +185,18 @@ export function useWebSocket({
         parsedData = event.data;
       }
       
-      // Update last message state
-      setLastMessage({
+      // Create message object
+      const messageObject = {
         data: parsedData,
         original: event,
         timestamp: new Date()
-      });
+      };
+      
+      // Update last message state
+      setLastMessage(messageObject);
+      
+      // Add to messages array
+      setMessages(prevMessages => [...prevMessages, messageObject]);
       
       // Call user message handler if provided
       if (onMessage) {
@@ -355,13 +387,33 @@ export function useWebSocket({
     };
   }, [autoConnect, connect, socket]);
   
+  // Compute the connected state from the status
+  const connected = status === 'connected';
+  
+  // Create the send alias for backwards compatibility
+  const send = sendMessage;
+  
   return {
+    // Connection state
     socket,
     status,
+    connected,
+    
+    // Message data
     lastMessage,
+    messages,
+    
+    // Room and user information
+    roomId,
+    userId,
+    
+    // Connection operations
     connect,
     disconnect,
     reconnect,
-    sendMessage
+    
+    // Send message functions (both original and alias)
+    sendMessage,
+    send
   };
 }
