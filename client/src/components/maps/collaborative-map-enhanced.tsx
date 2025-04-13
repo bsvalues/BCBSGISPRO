@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { useMapboxToken } from '../../hooks/use-mapbox-token';
 import { useWebSocket } from '../../hooks/use-websocket';
-import { ConnectionStatusEnum } from '../../lib/websocket';
+import { ConnectionStatusEnum, MessageTypeEnum } from '../../lib/websocket';
 import { v4 as uuidv4 } from 'uuid';
 import { apiRequest } from '../../lib/queryClient';
 import 'mapbox-gl/dist/mapbox-gl.css';
