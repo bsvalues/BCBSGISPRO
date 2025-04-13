@@ -127,8 +127,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Setup global error handlers for uncaught exceptions and unhandled rejections
+setupGlobalErrorHandlers(async () => {
+  // Graceful shutdown logic
+  log('Performing graceful shutdown...');
+  
+  if (globalThis.server) {
+    await new Promise<void>((resolve) => {
+      globalThis.server.close(() => {
+        log('HTTP server closed');
+        resolve();
+      });
+    });
+  }
+  
+  log('Graceful shutdown complete');
+});
+
 (async () => {
   const server = await registerRoutes(app);
+  
+  // Store server instance in global for graceful shutdown access
+  globalThis.server = server;
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -155,5 +175,28 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+  });
+  
+  // Add signal handlers for graceful shutdown
+  const signalHandlers = {
+    SIGTERM: 'SIGTERM',
+    SIGINT: 'SIGINT',
+  };
+  
+  Object.keys(signalHandlers).forEach((signal) => {
+    process.on(signal, async () => {
+      log(`${signal} received. Starting graceful shutdown...`);
+      
+      server.close(() => {
+        log('HTTP server closed');
+        process.exit(0);
+      });
+      
+      // Force exit after 10s if graceful shutdown fails
+      setTimeout(() => {
+        log('Forcing exit after timeout');
+        process.exit(1);
+      }, 10000);
+    });
   });
 })();
