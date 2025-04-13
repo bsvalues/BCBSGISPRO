@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { CollaborativeMap, CollaborativeFeature } from './collaborative-map-enhanced';
 import { MapboxMap } from './mapbox/mapbox-map';
 import { MapProviderSelector, MapProviderType } from './map-provider-selector';

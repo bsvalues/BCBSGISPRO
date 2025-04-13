@@ -132,7 +132,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
     const newAnnotation: Annotation = {
       id: uuidv4(),
       ...props,
-      createdBy: userId,
+      createdBy: userId || 'anonymous',
       createdAt: timestamp
     };
     
@@ -173,7 +173,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
           updatedAnnotation = {
             ...ann,
             ...updates,
-            updatedBy: userId,
+            updatedBy: userId || 'anonymous',
             updatedAt: timestamp
           };
           return updatedAnnotation;

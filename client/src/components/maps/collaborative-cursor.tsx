@@ -48,7 +48,12 @@ export function CollaborativeCursor({
   // Track cursor positions
   const [cursorPositions, setCursorPositions] = useState<Record<string, CursorPosition>>({});
   // Use WebSocket connection
-  const { status, messages, sendMessage } = useWebSocket({ autoJoinRoom: roomId });
+  const { status, messages, sendMessage } = useWebSocket({
+    path: `/ws/${roomId}`,
+    roomId,
+    autoConnect: true,
+    autoReconnect: true
+  });
   
   // Get the latest message
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
