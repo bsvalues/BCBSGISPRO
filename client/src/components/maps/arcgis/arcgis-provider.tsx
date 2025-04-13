@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useArcgisApiKey } from '@/hooks/use-arcgis-api-key';
+import { useArcgisApiKey } from '../../../hooks/use-arcgis-api-key';
 
 // Define TypeScript interfaces for ArcGIS types
 declare global {
@@ -60,6 +60,9 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
   const viewRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Use our ArcGIS API key hook
+  const { apiKey, isLoading: isKeyLoading, error: keyError } = useArcgisApiKey();
+  
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -78,11 +81,13 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
         // ArcGIS JS API uses a config.apiKey setting in the application
         try {
           const esriConfig = await import('@arcgis/core/config').then(m => m.default);
-          const apiKey = process.env.VITE_ARCGIS_API_KEY || localStorage.getItem('arcgis_api_key');
           
-          if (apiKey) {
+          // Use the API key from our hook or environment variables
+          const effectiveApiKey = apiKey || process.env.VITE_ARCGIS_API_KEY;
+          
+          if (effectiveApiKey) {
             console.log('Setting ArcGIS API key');
-            esriConfig.apiKey = apiKey;
+            esriConfig.apiKey = effectiveApiKey;
           } else {
             console.warn('No ArcGIS API key found. Some services may be limited.');
           }
@@ -150,7 +155,7 @@ export const ArcGISProvider: React.FC<ArcGISProviderProps> = ({
         mapRef.current = null;
       }
     };
-  }, [initialViewState, interactive, onMapLoaded]);
+  }, [initialViewState, interactive, onMapLoaded, apiKey]);
 
   // Clone children with the map and view
   const childrenWithProps = React.Children.map(children, child => {

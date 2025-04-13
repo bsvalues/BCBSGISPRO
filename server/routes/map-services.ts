@@ -1,80 +1,56 @@
-import { Router } from 'express';
+import express from 'express';
 import { asyncHandler } from '../error-handler';
 
-const router = Router();
+const router = express.Router();
 
-// Return the Mapbox access token stored in environment variables
+/**
+ * Map services API routes
+ * 
+ * These routes handle map-related services such as
+ * providing API keys, tokens, and configuration for
+ * various mapping providers.
+ */
+
+// Mapbox token endpoint
 router.get('/mapbox-token', asyncHandler(async (req, res) => {
-  const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
-  
-  // Log all related environment variables for debugging
-  console.log('MAPBOX TOKEN CHECK:');
-  console.log(`  MAPBOX_ACCESS_TOKEN present: ${!!process.env.MAPBOX_ACCESS_TOKEN}`);
-  console.log(`  VITE_MAPBOX_ACCESS_TOKEN present: ${!!process.env.VITE_MAPBOX_ACCESS_TOKEN}`);
-  
-  // Try to get token from different sources
-  let token = mapboxToken;
-  if (!token) {
-    token = process.env.VITE_MAPBOX_ACCESS_TOKEN;
-    console.log('Using VITE_MAPBOX_ACCESS_TOKEN as fallback');
-  }
+  // Use environment variable for Mapbox token
+  const token = process.env.MAPBOX_ACCESS_TOKEN;
   
   if (!token) {
-    console.error('No Mapbox token found in any environment variable');
-    return res.status(500).json({
-      error: 'Mapbox token not configured on server',
-      message: 'The Mapbox access token is not set in the server environment'
+    return res.status(404).json({ 
+      success: false, 
+      error: {
+        code: 'TOKEN_NOT_FOUND',
+        message: 'Mapbox token not configured'
+      }
     });
   }
   
-  console.log('Successfully sending Mapbox token to client');
-  res.json({ token });
+  res.json({ 
+    success: true, 
+    token 
+  });
 }));
 
-// Return mock ArcGIS services for demonstration
-router.get('/arcgis-services', asyncHandler(async (req, res) => {
-  try {
-    // In a real application, this would fetch from Benton County's ArcGIS REST services
-    // For demonstration purposes, we're returning mock data
-    const mockServices = {
-      currentVersion: 11.2,
-      services: [
-        {
-          name: "Parcels_and_Assess",
-          type: "MapServer",
-          url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Parcels_and_Assess/MapServer"
-        },
-        {
-          name: "Streets",
-          type: "MapServer",
-          url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Streets/MapServer"
-        },
-        {
-          name: "Boundaries",
-          type: "MapServer",
-          url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Boundaries/MapServer"
-        },
-        {
-          name: "Zoning",
-          type: "MapServer",
-          url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Zoning/MapServer"
-        },
-        {
-          name: "Aerial2023",
-          type: "MapServer", 
-          url: "https://services.arcgis.com/benton-county/arcgis/rest/services/Aerial2023/MapServer"
-        }
-      ]
-    };
-    
-    res.json(mockServices);
-  } catch (error) {
-    console.error('Error fetching ArcGIS services:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch ArcGIS services',
-      message: 'There was an error retrieving the ArcGIS service list'
+// ArcGIS API key endpoint
+router.get('/arcgis-api-key', asyncHandler(async (req, res) => {
+  // Use environment variable for ArcGIS API key
+  const apiKey = process.env.ARCGIS_API_KEY;
+  
+  if (!apiKey) {
+    return res.status(404).json({ 
+      success: false, 
+      error: {
+        code: 'API_KEY_NOT_FOUND',
+        message: 'ArcGIS API key not configured'
+      }
     });
   }
+  
+  res.json({ 
+    success: true, 
+    apiKey 
+  });
 }));
 
 export default router;
