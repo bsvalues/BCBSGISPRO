@@ -1262,6 +1262,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Document-Parcel Relationship API endpoints
+  app.post("/api/document-parcel-relationships", asyncHandler(async (req, res) => {
+    try {
+      const relationshipData = req.body;
+      
+      // Validate required fields
+      if (!relationshipData.documentId || !relationshipData.parcelId || !relationshipData.relationshipType) {
+        throw ApiError.badRequest('Document ID, parcel ID, and relationship type are required');
+      }
+      
+      // Parse the request body using the schema
+      const validatedData = insertDocumentParcelRelationshipSchema.parse(relationshipData);
+      
+      // Create the relationship
+      const newRelationship = await storage.createDocumentParcelRelationship(validatedData);
+      
+      return res.status(201).json(newRelationship);
+    } catch (error) {
+      console.error('Error creating document-parcel relationship:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('Failed to create document-parcel relationship', 'RELATIONSHIP_CREATE_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
+  app.get("/api/document-parcel-relationships", asyncHandler(async (req, res) => {
+    const { documentId, parcelId, relationshipType } = req.query;
+    
+    try {
+      let relationships = [];
+      
+      if (documentId && parcelId) {
+        // Get specific relationship between document and parcel
+        const relationship = await storage.getDocumentParcelRelationshipByDocumentAndParcel(
+          Number(documentId), 
+          Number(parcelId),
+          relationshipType ? String(relationshipType) : undefined
+        );
+        
+        if (relationship) {
+          relationships = [relationship];
+        }
+      } else if (documentId) {
+        // Get all relationships for a document
+        relationships = await storage.getDocumentParcelRelationshipsForDocument(Number(documentId));
+      } else if (parcelId) {
+        // Get all relationships for a parcel
+        relationships = await storage.getDocumentParcelRelationshipsForParcel(Number(parcelId));
+      } else {
+        throw ApiError.badRequest('At least one of documentId or parcelId is required');
+      }
+      
+      return res.json(relationships);
+    } catch (error) {
+      console.error('Error fetching document-parcel relationships:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('Failed to fetch document-parcel relationships', 'RELATIONSHIP_FETCH_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
+  app.get("/api/document-parcel-relationships/:id", asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id);
+    
+    try {
+      const relationship = await storage.getDocumentParcelRelationship(id);
+      
+      if (!relationship) {
+        throw ApiError.notFound(`Document-parcel relationship with ID ${id} not found`);
+      }
+      
+      return res.json(relationship);
+    } catch (error) {
+      console.error('Error fetching document-parcel relationship:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('Failed to fetch document-parcel relationship', 'RELATIONSHIP_FETCH_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
+  app.patch("/api/document-parcel-relationships/:id", asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id);
+    const updates = req.body;
+    
+    try {
+      // Validate the relationship exists
+      const existingRelationship = await storage.getDocumentParcelRelationship(id);
+      
+      if (!existingRelationship) {
+        throw ApiError.notFound(`Document-parcel relationship with ID ${id} not found`);
+      }
+      
+      // Update the relationship
+      const updatedRelationship = await storage.updateDocumentParcelRelationship(id, updates);
+      
+      return res.json(updatedRelationship);
+    } catch (error) {
+      console.error('Error updating document-parcel relationship:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('Failed to update document-parcel relationship', 'RELATIONSHIP_UPDATE_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
+  app.delete("/api/document-parcel-relationships/:id", asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id);
+    
+    try {
+      // Attempt to delete the relationship
+      const success = await storage.deleteDocumentParcelRelationship(id);
+      
+      if (!success) {
+        throw ApiError.notFound(`Document-parcel relationship with ID ${id} not found`);
+      }
+      
+      return res.json({ success: true, message: 'Document-parcel relationship deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting document-parcel relationship:', error);
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('Failed to delete document-parcel relationship', 'RELATIONSHIP_DELETE_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }));
+  
   // Search for documents by parcel number
   app.get("/api/parcels/number/:parcelNumber/documents", async (req, res) => {
     try {

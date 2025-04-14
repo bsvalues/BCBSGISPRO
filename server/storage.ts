@@ -114,14 +114,14 @@ export interface IStorage {
   removeDocumentParcelLinks(documentId: number): Promise<boolean>;
   getParcelsForDocument(documentId: number): Promise<Parcel[]>;
   
-  // Document Parcel Relationship operations
+  // Document-Parcel Relationship operations
   getDocumentParcelRelationship(id: number): Promise<DocumentParcelRelationship | undefined>;
   getDocumentParcelRelationshipByDocumentAndParcel(documentId: number, parcelId: number, relationshipType?: string): Promise<DocumentParcelRelationship | undefined>;
+  getDocumentParcelRelationshipsForDocument(documentId: number): Promise<DocumentParcelRelationship[]>;
+  getDocumentParcelRelationshipsForParcel(parcelId: number): Promise<DocumentParcelRelationship[]>;
   createDocumentParcelRelationship(relationship: InsertDocumentParcelRelationship): Promise<DocumentParcelRelationship>;
   updateDocumentParcelRelationship(id: number, updates: Partial<InsertDocumentParcelRelationship>): Promise<DocumentParcelRelationship>;
   deleteDocumentParcelRelationship(id: number): Promise<boolean>;
-  getDocumentParcelRelationshipsForDocument(documentId: number): Promise<DocumentParcelRelationship[]>;
-  getDocumentParcelRelationshipsForParcel(parcelId: number): Promise<DocumentParcelRelationship[]>;
   updateDocumentClassification(id: number, classification: string): Promise<Document>;
   
   // Map bookmarks operations
@@ -1014,6 +1014,7 @@ export class MemStorage implements IStorage {
   private mapBookmarks: Map<number, MapBookmark> = new Map();
   private mapPreferences: Map<number, MapPreference> = new Map();
   private recentlyViewedParcels: Map<string, RecentlyViewedParcel> = new Map();
+  private documentParcelRelationships: Map<number, DocumentParcelRelationship> = new Map();
   private documents: Map<string, DocumentEntity> = new Map();
   private documentEvents: Map<string, DocumentLineageEvent[]> = new Map();
   private documentRelationships: Map<string, DocumentRelationship[]> = new Map();
