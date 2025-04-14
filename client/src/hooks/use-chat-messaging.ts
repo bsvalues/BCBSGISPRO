@@ -14,7 +14,12 @@ export type ChatMessage = {
 
 export function useChatMessaging(roomId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const { socket, connected, lastMessage } = useWebSocket();
+  const { socket, connected, lastMessage } = useWebSocket({
+    roomPath: `/ws/${roomId}`,
+    roomId,
+    autoConnect: true,
+    autoReconnect: true
+  });
   const { toast } = useToast();
   const { user } = useUser();
   const messagesRef = useRef<ChatMessage[]>([]);

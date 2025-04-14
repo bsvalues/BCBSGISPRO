@@ -80,7 +80,12 @@ export function useCollaborativeDrawing(roomId: string = 'default') {
     lastMessage, 
     status, 
     userId 
-  } = useWebSocket({ roomId: roomIdRef.current });
+  } = useWebSocket({
+    roomPath: `/ws/${roomIdRef.current}`,
+    roomId: roomIdRef.current,
+    autoConnect: true,
+    autoReconnect: true
+  });
   
   // Keep references to WebSocket state
   const sendRef = useRef(send);
