@@ -19,6 +19,7 @@ import {
   parcels,
   documents,
   documentParcelLinks,
+  documentParcelRelationships,
   type User,
   type InsertUser,
   type MapBookmark,
@@ -52,7 +53,9 @@ import {
   type Parcel,
   type InsertParcel,
   type Document,
-  type InsertDocument
+  type InsertDocument,
+  type DocumentParcelRelationship,
+  type InsertDocumentParcelRelationship
 } from '../shared/schema';
 
 import {
@@ -110,6 +113,15 @@ export interface IStorage {
   createDocumentParcelLink(link: any): Promise<any>;
   removeDocumentParcelLinks(documentId: number): Promise<boolean>;
   getParcelsForDocument(documentId: number): Promise<Parcel[]>;
+  
+  // Document Parcel Relationship operations
+  getDocumentParcelRelationship(id: number): Promise<DocumentParcelRelationship | undefined>;
+  getDocumentParcelRelationshipByDocumentAndParcel(documentId: number, parcelId: number, relationshipType?: string): Promise<DocumentParcelRelationship | undefined>;
+  createDocumentParcelRelationship(relationship: InsertDocumentParcelRelationship): Promise<DocumentParcelRelationship>;
+  updateDocumentParcelRelationship(id: number, updates: Partial<InsertDocumentParcelRelationship>): Promise<DocumentParcelRelationship>;
+  deleteDocumentParcelRelationship(id: number): Promise<boolean>;
+  getDocumentParcelRelationshipsForDocument(documentId: number): Promise<DocumentParcelRelationship[]>;
+  getDocumentParcelRelationshipsForParcel(parcelId: number): Promise<DocumentParcelRelationship[]>;
   updateDocumentClassification(id: number, classification: string): Promise<Document>;
   
   // Map bookmarks operations
