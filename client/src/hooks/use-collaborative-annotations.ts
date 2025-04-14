@@ -68,7 +68,7 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
     status, 
     userId 
   } = useWebSocket({
-    path: `/ws/${roomId}`,
+    roomPath: `/ws/${roomId}`,
     roomId,
     autoConnect: true,
     autoReconnect: true

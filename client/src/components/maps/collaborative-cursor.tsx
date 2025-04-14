@@ -49,7 +49,7 @@ export function CollaborativeCursor({
   const [cursorPositions, setCursorPositions] = useState<Record<string, CursorPosition>>({});
   // Use WebSocket connection
   const { status, messages, sendMessage } = useWebSocket({
-    path: `/ws/${roomId}`,
+    roomPath: `/ws/${roomId}`,
     roomId,
     autoConnect: true,
     autoReconnect: true

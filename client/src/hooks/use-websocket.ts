@@ -310,7 +310,7 @@ export function useWebSocket({
       
       return null;
     }
-  }, [path, socket, autoReconnect, setupSocketEventListeners]);
+  }, [roomPath, socket, autoReconnect, setupSocketEventListeners]);
   
   // Store the latest connect function in the ref
   useEffect(() => {

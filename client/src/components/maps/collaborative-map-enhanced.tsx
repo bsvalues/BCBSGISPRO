@@ -64,7 +64,7 @@ export function CollaborativeMap({
     lastMessage, 
     status 
   } = useWebSocket({
-    path: `/ws`, // Use the base path to match the server configuration
+    roomPath: `/ws`, // Use the base path to match the server configuration
     autoConnect: true,
     autoReconnect: true,
     maxReconnectAttempts: 10,
