@@ -22,6 +22,7 @@ import MapCollaborationDemoPage from "@/pages/map-collaboration-demo-page";
 import EnhancedMapCollaborationPage from "@/pages/enhanced-map-collaboration-page";
 import MapCollaborationStarterPage from "@/pages/map-collaboration-starter-page";
 import DocumentParcelManagementPage from "@/pages/document-parcel-management";
+import DocumentParcelRelationshipsPage from "@/pages/document-parcel-relationships";
 import DataMigrationPage from "@/pages/data-migration";
 import { MapSettingsPage } from "@/pages/map-settings";
 import ParcelComparisonDemo from "@/pages/parcel-comparison-demo";
@@ -161,6 +162,11 @@ function App() {
       path: '/document-parcel-management', 
       icon: <FileText className="h-4 w-4" />, 
       label: 'Document Management',
+    },
+    { 
+      path: '/document-parcel-relationships', 
+      icon: <FileText className="h-4 w-4" />, 
+      label: 'Document Relationships',
     },
     { 
       path: '/map-viewer', 
@@ -545,6 +551,7 @@ function App() {
             <Route path="/esri-map" component={EsriMapPage} />
             <Route path="/data-quality-dashboard" component={DataQualityDashboardPage} />
             <Route path="/compliance-dashboard" component={ComplianceDashboardPage} />
+            <Route path="/document-parcel-relationships" component={DocumentParcelRelationshipsPage} />
             <Route path="/agent-master-prompt-demo" component={AgentMasterPromptDemo} />
             
             {/* Default to the fullscreen map page */}

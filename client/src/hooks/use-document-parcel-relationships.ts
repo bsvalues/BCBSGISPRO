@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@lib/queryClient';
-import { toast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 // Types
 export interface DocumentParcelRelationship {
@@ -78,6 +78,7 @@ export function useDocumentParcelRelationships(documentId?: number, parcelId?: n
     onSuccess: () => {
       // Invalidate queries to refetch data
       queryClient.invalidateQueries({ queryKey: ['/api/document-parcel-relationships'] });
+      const { toast } = useToast();
       toast({
         title: 'Success',
         description: 'Relationship created successfully',
