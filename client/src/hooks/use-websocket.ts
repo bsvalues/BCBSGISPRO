@@ -5,8 +5,8 @@ import { createWebSocket } from '../lib/websocket';
  * WebSocket hook options
  */
 export interface UseWebSocketOptions {
-  // Path to WebSocket endpoint
-  path?: string;
+  // Optional room path to append to the base WebSocket URL
+  roomPath?: string;
   
   // Auto connect on mount
   autoConnect?: boolean;
@@ -80,7 +80,7 @@ export interface UseWebSocketResult {
  * React hook for WebSocket connections
  */
 export function useWebSocket({
-  path = '/ws',
+  roomPath = '',
   autoConnect = true,
   autoReconnect = true,
   maxReconnectAttempts = 5,
@@ -262,7 +262,7 @@ export function useWebSocket({
       setStatus('connecting');
       
       // Enhanced logging for debugging
-      console.log(`Connecting to WebSocket at path: ${path}`);
+      console.log(`Connecting to WebSocket with roomPath: ${roomPath}`);
       console.log(`Current URL: ${window.location.href}`);
       console.log(`Protocol: ${window.location.protocol}`);
       console.log(`Hostname: ${window.location.hostname}`);
@@ -271,7 +271,7 @@ export function useWebSocket({
       // Create new connection with error handling
       let newSocket: WebSocket;
       try {
-        newSocket = createWebSocket(path);
+        newSocket = createWebSocket(roomPath);
         console.log('WebSocket object created successfully');
       } catch (socketCreationError) {
         console.error('Failed to create WebSocket object:', socketCreationError);

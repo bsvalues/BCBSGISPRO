@@ -136,80 +136,78 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
 /**
  * Create a WebSocket connection
  * 
- * @param path - WebSocket endpoint path, defaults to '/ws'
- * @param roomId - Optional room ID to add to the path
+ * @param roomPath - Optional room path to append to the base WebSocket URL, defaults to ''
  * @returns A new WebSocket instance
  */
-export function createWebSocket(path: string = '/ws'): WebSocket {
+export function createWebSocket(roomPath: string = ''): WebSocket {
   // Get base URL and ensure the path is correctly formatted
   try {
     // Use WebSocket URL utility which handles the development vs production environments
     const baseUrl = getWebSocketUrl();
     
     // Enhanced logging for debugging purposes
-    console.log(`Creating WebSocket with path: ${path}`);
+    console.log(`Creating WebSocket connection`);
     console.log(`Current URL: ${window.location.href}`);
     console.log(`Protocol: ${window.location.protocol}`);
     console.log(`Hostname: ${window.location.hostname}`);
     console.log(`Port: ${window.location.port}`);
     
-    // If for some reason the URL is malformed, construct a safe fallback
-    if (!baseUrl || baseUrl.includes('undefined')) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const safeUrl = `${protocol}//${host}${path}`;
-      console.log(`Using safe fallback WebSocket URL: ${safeUrl}`);
-      
-      try {
-        return new WebSocket(safeUrl);
-      } catch (innerError) {
-        console.error('Safe fallback WebSocket creation failed:', innerError);
-        // Continue to emergency fallback
-      }
-    } else {
-      console.log(`Creating WebSocket connection to: ${baseUrl}`);
-      try {
-        return new WebSocket(baseUrl);
-      } catch (wsError) {
-        console.error('Primary WebSocket creation failed:', wsError);
-        // Continue to emergency fallback
-      }
-    }
-    
-    // Last resort fallback with minimal assumptions
-    const fallbackUrl = `ws://${window.location.hostname}/ws`;
-    console.log(`Using emergency fallback WebSocket URL: ${fallbackUrl}`);
+    // Construct the complete WebSocket URL with optional room path
+    // Note: The base URL already includes the /ws path from getWebSocketUrl()
+    const wsUrl = roomPath ? `${baseUrl}/${roomPath}` : baseUrl;
+    console.log(`Attempting WebSocket connection to: ${wsUrl}`);
     
     try {
-      return new WebSocket(fallbackUrl);
-    } catch (emergencyError) {
-      console.error('Emergency fallback WebSocket creation failed:', emergencyError);
+      return new WebSocket(wsUrl);
+    } catch (wsError) {
+      console.error('Primary WebSocket creation failed:', wsError);
       
-      // Final fallback: use insecure ws connection to the raw hostname without any path
-      // We want to return something rather than throwing an exception that could break the UI
-      const basicFallbackUrl = `ws://${window.location.hostname}`;
-      console.log(`Using basic fallback WebSocket URL as last resort: ${basicFallbackUrl}`);
-      return new WebSocket(basicFallbackUrl);
+      // Create fallback URL based on current location
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const fallbackUrl = `${protocol}//${host}/ws${roomPath ? '/' + roomPath : ''}`;
+      console.log(`Using fallback WebSocket URL: ${fallbackUrl}`);
+      
+      try {
+        return new WebSocket(fallbackUrl);
+      } catch (fallbackError) {
+        console.error('Fallback WebSocket creation failed:', fallbackError);
+        
+        // Last resort minimal URL
+        const minimalUrl = `ws://${window.location.hostname}/ws`;
+        console.log(`Using minimal fallback WebSocket URL: ${minimalUrl}`);
+        
+        try {
+          return new WebSocket(minimalUrl);
+        } catch (minimalError) {
+          console.error('Minimal fallback WebSocket creation failed:', minimalError);
+          
+          // Create a WebSocket that will fail but not throw
+          console.error('Creating dummy WebSocket object as final fallback');
+          const dummySocket = new WebSocket('ws://localhost:1');
+          
+          // Immediately close it with an error
+          setTimeout(() => {
+            const errorEvent = new Event('error');
+            dummySocket.dispatchEvent(errorEvent);
+            dummySocket.close();
+          }, 100);
+          
+          return dummySocket;
+        }
+      }
     }
   } catch (error) {
     console.error('Catastrophic error creating WebSocket connection:', error);
     
-    // Absolute last resort - we'll create a dummy WebSocket that will immediately fail
-    // but at least won't throw an exception during creation
-    // This lets our error handling in the hook deal with the connection failure
+    // Create a WebSocket that will fail but not throw
     console.error('Creating dummy WebSocket object that will immediately fail');
-    
-    // We'll manually create an object that looks like a WebSocket but will never connect
-    // This is better than throwing an exception that might crash the UI
     const dummySocket = new WebSocket('ws://localhost:1');
     
     // Immediately close it with an error
     setTimeout(() => {
-      // Simulate a connection error
       const errorEvent = new Event('error');
       dummySocket.dispatchEvent(errorEvent);
-      
-      // Force closure
       dummySocket.close();
     }, 100);
     
