@@ -37,6 +37,7 @@ import {
   workflowEvents,
   workflowStates,
   mapLayers,
+  documentParcelRelationships,
   insertParcelSchema,
   insertDocumentSchema,
   insertAnnotationSchema,
@@ -46,6 +47,7 @@ import {
   insertArcGISLayerSchema,
   insertArcGISSketchSchema,
   insertArcGISAnalysisResultSchema,
+  insertDocumentParcelRelationshipSchema,
   Parcel,
   Document,
   Annotation,
@@ -56,6 +58,7 @@ import {
   ArcGISLayer,
   ArcGISSketch,
   ArcGISAnalysisResult,
+  DocumentParcelRelationship,
   ParsedLegalDescription
 } from "../shared/schema";
 import { DocumentType } from "../shared/document-types";
