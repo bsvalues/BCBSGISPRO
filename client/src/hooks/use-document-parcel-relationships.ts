@@ -35,6 +35,7 @@ export interface UpdateRelationshipData {
  */
 export function useDocumentParcelRelationships(documentId?: number, parcelId?: number) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   // Function to build the query key based on documentId and parcelId
   const getQueryKey = () => {
@@ -78,7 +79,6 @@ export function useDocumentParcelRelationships(documentId?: number, parcelId?: n
     onSuccess: () => {
       // Invalidate queries to refetch data
       queryClient.invalidateQueries({ queryKey: ['/api/document-parcel-relationships'] });
-      const { toast } = useToast();
       toast({
         title: 'Success',
         description: 'Relationship created successfully',
