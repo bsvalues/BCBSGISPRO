@@ -1905,6 +1905,89 @@ export class MemStorage implements IStorage {
     
     return results;
   }
+  
+  // Document-Parcel Relationship operations
+  async getDocumentParcelRelationship(id: number): Promise<DocumentParcelRelationship | undefined> {
+    return this.documentParcelRelationships.get(id);
+  }
+  
+  async getDocumentParcelRelationshipByDocumentAndParcel(
+    documentId: number, 
+    parcelId: number, 
+    relationshipType?: string
+  ): Promise<DocumentParcelRelationship | undefined> {
+    for (const relationship of this.documentParcelRelationships.values()) {
+      if (
+        relationship.documentId === documentId && 
+        relationship.parcelId === parcelId && 
+        (relationshipType === undefined || relationship.relationshipType === relationshipType)
+      ) {
+        return relationship;
+      }
+    }
+    return undefined;
+  }
+  
+  async getDocumentParcelRelationshipsForDocument(documentId: number): Promise<DocumentParcelRelationship[]> {
+    const results: DocumentParcelRelationship[] = [];
+    
+    for (const relationship of this.documentParcelRelationships.values()) {
+      if (relationship.documentId === documentId) {
+        results.push(relationship);
+      }
+    }
+    
+    return results;
+  }
+  
+  async getDocumentParcelRelationshipsForParcel(parcelId: number): Promise<DocumentParcelRelationship[]> {
+    const results: DocumentParcelRelationship[] = [];
+    
+    for (const relationship of this.documentParcelRelationships.values()) {
+      if (relationship.parcelId === parcelId) {
+        results.push(relationship);
+      }
+    }
+    
+    return results;
+  }
+  
+  async createDocumentParcelRelationship(relationship: InsertDocumentParcelRelationship): Promise<DocumentParcelRelationship> {
+    const id = this.documentParcelRelationships.size + 1;
+    const now = new Date();
+    
+    const newRelationship: DocumentParcelRelationship = {
+      ...relationship,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    this.documentParcelRelationships.set(id, newRelationship);
+    return newRelationship;
+  }
+  
+  async updateDocumentParcelRelationship(id: number, updates: Partial<InsertDocumentParcelRelationship>): Promise<DocumentParcelRelationship> {
+    const relationship = this.documentParcelRelationships.get(id);
+    
+    if (!relationship) {
+      throw new Error(`Document-parcel relationship with id ${id} not found`);
+    }
+    
+    const updatedRelationship: DocumentParcelRelationship = {
+      ...relationship,
+      ...updates,
+      id: relationship.id, // Ensure ID doesn't change
+      updatedAt: new Date()
+    };
+    
+    this.documentParcelRelationships.set(id, updatedRelationship);
+    return updatedRelationship;
+  }
+  
+  async deleteDocumentParcelRelationship(id: number): Promise<boolean> {
+    return this.documentParcelRelationships.delete(id);
+  }
 
   async updateDocumentClassification(id: number, classification: string): Promise<Document> {
     const document = await this.getDocument(id);
