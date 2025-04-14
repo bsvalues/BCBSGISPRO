@@ -170,12 +170,13 @@ export function useCollaborativeAnnotations(roomId: string = 'default') {
       const updated = prev.map(ann => {
         if (ann.id === id) {
           const timestamp = new Date().toISOString();
-          updatedAnnotation = {
+          const updatedFields = {
             ...ann,
             ...updates,
             updatedBy: userId || 'anonymous',
             updatedAt: timestamp
           };
+          updatedAnnotation = updatedFields as Annotation;
           return updatedAnnotation;
         }
         return ann;

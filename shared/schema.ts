@@ -187,6 +187,30 @@ export type ParcelValueHistory = typeof parcelValueHistory.$inferSelect;
 export type InsertParcelValueHistory = typeof parcelValueHistory.$inferInsert;
 export const insertParcelValueHistorySchema = createInsertSchema(parcelValueHistory);
 
+// Document-Parcel Relationship Table
+export const documentParcelRelationships = pgTable('document_parcel_relationships', {
+  id: serial('id').primaryKey(),
+  documentId: integer('document_id').references(() => documents.id).notNull(),
+  parcelId: integer('parcel_id').references(() => parcels.id).notNull(),
+  relationshipType: varchar('relationship_type', { length: 50 }).notNull(),
+  description: text('description'),
+  establishedDate: timestamp('established_date').defaultNow(),
+  expirationDate: timestamp('expiration_date'),
+  isActive: boolean('is_active').default(true),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+}, (table) => {
+  return {
+    // Create a unique constraint to prevent duplicate relationships
+    uniqueDocParcelRel: uniqueIndex('unique_doc_parcel_rel').on(table.documentId, table.parcelId, table.relationshipType)
+  };
+});
+
+export type DocumentParcelRelationship = typeof documentParcelRelationships.$inferSelect;
+export type InsertDocumentParcelRelationship = typeof documentParcelRelationships.$inferInsert;
+export const insertDocumentParcelRelationshipSchema = createInsertSchema(documentParcelRelationships);
+
 // Map bookmarks for saved locations
 export const mapBookmarks = pgTable('map_bookmarks', {
   id: serial('id').primaryKey(),
