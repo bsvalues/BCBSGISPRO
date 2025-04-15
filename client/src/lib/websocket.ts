@@ -146,44 +146,71 @@ export function createWebSocket(roomPath: string = ''): WebSocket {
     const baseUrl = getWebSocketUrl();
     
     // Enhanced logging for debugging purposes
-    console.log(`Creating WebSocket connection`);
-    console.log(`Current URL: ${window.location.href}`);
-    console.log(`Protocol: ${window.location.protocol}`);
-    console.log(`Hostname: ${window.location.hostname}`);
-    console.log(`Port: ${window.location.port}`);
+    console.log(`[WS] Creating WebSocket connection`);
+    console.log(`[WS] Current URL: ${window.location.href}`);
+    console.log(`[WS] Protocol: ${window.location.protocol}`);
+    console.log(`[WS] Hostname: ${window.location.hostname}`);
+    console.log(`[WS] Port: ${window.location.port}`);
     
     // Construct the complete WebSocket URL with optional room path
     // Note: The base URL already includes the /ws path from getWebSocketUrl()
     const wsUrl = roomPath ? `${baseUrl}/${roomPath}` : baseUrl;
-    console.log(`Attempting WebSocket connection to: ${wsUrl}`);
+    console.log(`[WS] Attempting WebSocket connection to: ${wsUrl}`);
     
     try {
-      return new WebSocket(wsUrl);
+      // Create the WebSocket
+      const ws = new WebSocket(wsUrl);
+      
+      // Add event listeners for debugging
+      ws.addEventListener('open', () => {
+        console.log(`[WS] Connection successfully established to ${wsUrl}`);
+      });
+      
+      ws.addEventListener('error', (error) => {
+        console.error(`[WS] Error with connection to ${wsUrl}:`, error);
+      });
+      
+      ws.addEventListener('close', (event) => {
+        console.log(`[WS] Connection closed (code: ${event.code}, reason: ${event.reason || 'No reason provided'})`);
+      });
+      
+      return ws;
     } catch (wsError) {
-      console.error('Primary WebSocket creation failed:', wsError);
+      console.error('[WS] Primary WebSocket creation failed:', wsError);
       
       // Create fallback URL based on current location
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       const fallbackUrl = `${protocol}//${host}/ws${roomPath ? '/' + roomPath : ''}`;
-      console.log(`Using fallback WebSocket URL: ${fallbackUrl}`);
+      console.log(`[WS] Using fallback WebSocket URL: ${fallbackUrl}`);
       
       try {
-        return new WebSocket(fallbackUrl);
+        const fallbackWs = new WebSocket(fallbackUrl);
+        
+        // Add event listeners for debugging
+        fallbackWs.addEventListener('open', () => {
+          console.log(`[WS] Fallback connection successfully established to ${fallbackUrl}`);
+        });
+        
+        fallbackWs.addEventListener('error', (error) => {
+          console.error(`[WS] Error with fallback connection to ${fallbackUrl}:`, error);
+        });
+        
+        return fallbackWs;
       } catch (fallbackError) {
-        console.error('Fallback WebSocket creation failed:', fallbackError);
+        console.error('[WS] Fallback WebSocket creation failed:', fallbackError);
         
         // Last resort minimal URL
         const minimalUrl = `ws://${window.location.hostname}/ws`;
-        console.log(`Using minimal fallback WebSocket URL: ${minimalUrl}`);
+        console.log(`[WS] Using minimal fallback WebSocket URL: ${minimalUrl}`);
         
         try {
           return new WebSocket(minimalUrl);
         } catch (minimalError) {
-          console.error('Minimal fallback WebSocket creation failed:', minimalError);
+          console.error('[WS] Minimal fallback WebSocket creation failed:', minimalError);
           
           // Create a WebSocket that will fail but not throw
-          console.error('Creating dummy WebSocket object as final fallback');
+          console.error('[WS] Creating dummy WebSocket object as final fallback');
           const dummySocket = new WebSocket('ws://localhost:1');
           
           // Immediately close it with an error

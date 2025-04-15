@@ -114,17 +114,19 @@ export function useWebSocket({
     // Cancel any pending reconnection
     if (reconnectTimeoutRef.current !== null) {
       window.clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
     
     // Check if maximum reconnect attempts reached
     if (reconnectAttempts.current >= maxReconnectAttempts) {
-      console.warn(`Maximum reconnect attempts (${maxReconnectAttempts}) reached`);
+      console.warn(`[WS-HOOK] Maximum reconnect attempts (${maxReconnectAttempts}) reached`);
+      setStatus('disconnected');
       return;
     }
     
     // Calculate backoff delay with jitter
     const delay = Math.min(
-      reconnectDelay * Math.pow(2, reconnectAttempts.current) + Math.random() * 1000,
+      reconnectDelay * Math.pow(1.5, reconnectAttempts.current) + Math.random() * 1000,
       30000 // Maximum 30 seconds
     );
     
@@ -132,11 +134,14 @@ export function useWebSocket({
     setStatus('reconnecting');
     reconnectAttempts.current += 1;
     
-    console.log(`Scheduling reconnection attempt ${reconnectAttempts.current}/${maxReconnectAttempts} in ${delay}ms`);
+    console.log(`[WS-HOOK] Scheduling reconnection attempt ${reconnectAttempts.current}/${maxReconnectAttempts} in ${delay}ms`);
     
     // Schedule reconnection
     reconnectTimeoutRef.current = window.setTimeout(() => {
-      console.log(`Executing reconnection attempt ${reconnectAttempts.current}/${maxReconnectAttempts}`);
+      console.log(`[WS-HOOK] Executing reconnection attempt ${reconnectAttempts.current}/${maxReconnectAttempts}`);
+      
+      // Clear socket reference to ensure a fresh connection
+      setSocket(null);
       
       // Use the ref to get the latest connect function
       if (connectFnRef.current) {
@@ -154,20 +159,21 @@ export function useWebSocket({
   const setupSocketEventListeners = useCallback((newSocket: WebSocket) => {
     // Set up event handlers with improved error handling
     newSocket.addEventListener('open', (event) => {
-      console.log('WebSocket connection established successfully');
+      console.log(`[WS-HOOK] WebSocket connection established successfully to ${newSocket.url}`);
       setStatus('connected');
       reconnectAttempts.current = 0;
       if (onOpen) {
         try {
           onOpen(event);
         } catch (handlerError) {
-          console.error('Error in onOpen handler:', handlerError);
+          console.error('[WS-HOOK] Error in onOpen handler:', handlerError);
         }
       }
     });
     
     newSocket.addEventListener('message', (event) => {
-      console.log('WebSocket message received');
+      const now = new Date().toISOString();
+      console.log(`[WS-HOOK] ${now} WebSocket message received`);
       
       let parsedData;
       
@@ -175,13 +181,13 @@ export function useWebSocket({
       if (typeof event.data === 'string') {
         try {
           parsedData = JSON.parse(event.data);
-          console.log('Parsed WebSocket message:', parsedData);
+          console.log(`[WS-HOOK] Parsed WebSocket message:`, parsedData);
         } catch (parseError) {
-          console.log('Received non-JSON message:', event.data);
+          console.log(`[WS-HOOK] Received non-JSON message:`, event.data);
           parsedData = event.data;
         }
       } else {
-        console.log('Received non-string message type:', typeof event.data);
+        console.log(`[WS-HOOK] Received non-string message type:`, typeof event.data);
         parsedData = event.data;
       }
       

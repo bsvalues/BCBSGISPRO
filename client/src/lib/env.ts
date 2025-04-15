@@ -206,19 +206,28 @@ export function getApiBaseUrl(): string {
  */
 export function getWebSocketUrl(): string {
   try {
-    // In development environment, prefer the host's own URL with ws/wss protocol
-    if (import.meta.env.DEV) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Use the current host in Replit environment, rather than hardcoded localhost
-      return `${protocol}//${window.location.host}/ws`;
-    }
-    
-    // In production, use relative WebSocket path with protocol based on page protocol
+    // Determine protocol based on page protocol (https -> wss, http -> ws)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws`;
+    
+    // Use the current host from window.location
+    const host = window.location.host;
+    
+    // Construct the URL with proper formatting
+    const wsUrl = `${protocol}//${host}/ws`;
+    
+    // Log the constructed URL for debugging
+    console.log(`[WS-ENV] Constructed WebSocket URL: ${wsUrl}`);
+    console.log(`[WS-ENV] Based on protocol: ${window.location.protocol}`);
+    console.log(`[WS-ENV] Based on host: ${host}`);
+    
+    return wsUrl;
   } catch (error) {
-    console.error('Error constructing WebSocket URL:', error);
+    console.error('[WS-ENV] Error constructing WebSocket URL:', error);
+    
     // Provide a fallback that at least has the correct format
-    return `ws://${window.location.hostname}/ws`;
+    const fallbackUrl = `ws://${window.location.hostname}/ws`;
+    console.log(`[WS-ENV] Using fallback WebSocket URL: ${fallbackUrl}`);
+    
+    return fallbackUrl;
   }
 }
