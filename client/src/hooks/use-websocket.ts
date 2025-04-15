@@ -215,20 +215,72 @@ export function useWebSocket({
     });
     
     newSocket.addEventListener('close', (event) => {
-      console.log(`WebSocket connection closed: Code=${event.code}, Reason=${event.reason || 'No reason provided'}, Clean=${event.wasClean}`);
+      console.log(`[WS-HOOK] WebSocket connection closed: Code=${event.code}, Reason=${event.reason || 'No reason provided'}, Clean=${event.wasClean}`);
+      
+      // Provide more detailed diagnostics based on close code
+      switch (event.code) {
+        case 1000:
+          console.log('[WS-HOOK] Normal closure - the connection successfully completed operation');
+          break;
+        case 1001:
+          console.log('[WS-HOOK] Endpoint going away - server is shutting down or browser navigated away');
+          break;
+        case 1002:
+          console.log('[WS-HOOK] Protocol error - endpoint terminated connection due to protocol error');
+          break;
+        case 1003:
+          console.log('[WS-HOOK] Unsupported data - endpoint received data of a type it cannot accept');
+          break;
+        case 1005:
+          console.log('[WS-HOOK] No status received - used when there is no status code in the close frame');
+          break;
+        case 1006:
+          console.log('[WS-HOOK] Abnormal closure - connection was closed abnormally without a close frame');
+          break;
+        case 1007:
+          console.log('[WS-HOOK] Invalid frame payload data - endpoint received message with inconsistent data');
+          break;
+        case 1008:
+          console.log('[WS-HOOK] Policy violation - endpoint terminated connection due to message violating policy');
+          break;
+        case 1009:
+          console.log('[WS-HOOK] Message too big - message too large to process');
+          break;
+        case 1010:
+          console.log('[WS-HOOK] Mandatory extension - client terminated because server did not negotiate extension');
+          break;
+        case 1011:
+          console.log('[WS-HOOK] Internal error - server encountered unexpected condition preventing request');
+          break;
+        case 1012:
+          console.log('[WS-HOOK] Service restart - server is restarting');
+          break;
+        case 1013:
+          console.log('[WS-HOOK] Try again later - server is temporarily unable to service the request');
+          break;
+        case 1014:
+          console.log('[WS-HOOK] Bad gateway - server acting as gateway received invalid response');
+          break;
+        case 1015:
+          console.log('[WS-HOOK] TLS handshake failure');
+          break;
+        default:
+          console.log(`[WS-HOOK] Unknown close code: ${event.code}`);
+      }
+      
       setStatus('disconnected');
       
       if (onClose) {
         try {
           onClose(event);
         } catch (handlerError) {
-          console.error('Error in onClose handler:', handlerError);
+          console.error('[WS-HOOK] Error in onClose handler:', handlerError);
         }
       }
       
       // Attempt reconnection if enabled and not explicitly closed
       if (autoReconnect && (!event.wasClean || event.code !== 1000)) {
-        console.log('Attempting automatic reconnection...');
+        console.log('[WS-HOOK] Attempting automatic reconnection after close...');
         // Use the ref to call the current reconnectFn
         if (reconnectFnRef.current) {
           reconnectFnRef.current();
@@ -237,18 +289,33 @@ export function useWebSocket({
     });
     
     newSocket.addEventListener('error', (event) => {
-      console.error('WebSocket error occurred:', event);
+      console.error('[WS-HOOK] WebSocket error occurred:', event);
+      
+      // Try to extract more information from the error event
+      try {
+        // @ts-ignore - Accessing error details that might be available
+        const errorMessage = event.message || 'No error message available';
+        console.error(`[WS-HOOK] Error details: ${errorMessage}`);
+        
+        // Log network information that might help diagnose the issue
+        console.log(`[WS-HOOK] Network information - Online: ${navigator.onLine}`);
+        console.log(`[WS-HOOK] WebSocket URL: ${newSocket.url}`);
+      } catch (diagnosticError) {
+        console.error('[WS-HOOK] Error while accessing error details:', diagnosticError);
+      }
+      
       setStatus('disconnected');
       
       if (onError) {
         try {
           onError(event);
         } catch (handlerError) {
-          console.error('Error in onError handler:', handlerError);
+          console.error('[WS-HOOK] Error in onError handler:', handlerError);
         }
       }
       
       // Error handling improved - don't try to reconnect here as the close handler will do it
+      // The close event will fire after the error event and handle reconnection
     });
   }, [onOpen, onMessage, onClose, onError, autoReconnect]);
   
@@ -268,19 +335,20 @@ export function useWebSocket({
       setStatus('connecting');
       
       // Enhanced logging for debugging
-      console.log(`Connecting to WebSocket with roomPath: ${roomPath}`);
-      console.log(`Current URL: ${window.location.href}`);
-      console.log(`Protocol: ${window.location.protocol}`);
-      console.log(`Hostname: ${window.location.hostname}`);
-      console.log(`Port: ${window.location.port}`);
+      console.log(`[WS-HOOK] Connecting to WebSocket with roomPath: ${roomPath}`);
+      console.log(`[WS-HOOK] Current URL: ${window.location.href}`);
+      console.log(`[WS-HOOK] Protocol: ${window.location.protocol}`);
+      console.log(`[WS-HOOK] Hostname: ${window.location.hostname}`);
+      console.log(`[WS-HOOK] Port: ${window.location.port}`);
+      console.log(`[WS-HOOK] Network status - Online: ${navigator.onLine}`);
       
       // Create new connection with error handling
       let newSocket: WebSocket;
       try {
         newSocket = createWebSocket(roomPath);
-        console.log('WebSocket object created successfully');
+        console.log('[WS-HOOK] WebSocket object created successfully');
       } catch (socketCreationError) {
-        console.error('Failed to create WebSocket object:', socketCreationError);
+        console.error('[WS-HOOK] Failed to create WebSocket object:', socketCreationError);
         setStatus('disconnected');
         if (autoReconnect && reconnectFnRef.current) {
           reconnectFnRef.current();
@@ -290,7 +358,7 @@ export function useWebSocket({
       
       // Check if WebSocket was properly instantiated
       if (!newSocket) {
-        console.error('WebSocket creation failed with no exception');
+        console.error('[WS-HOOK] WebSocket creation failed with no exception');
         setStatus('disconnected');
         if (autoReconnect && reconnectFnRef.current) {
           reconnectFnRef.current();
@@ -306,7 +374,7 @@ export function useWebSocket({
       
       return newSocket;
     } catch (error) {
-      console.error('Unhandled error creating WebSocket connection:', error);
+      console.error('[WS-HOOK] Unhandled error creating WebSocket connection:', error);
       setStatus('disconnected');
       
       // Attempt reconnection if enabled
@@ -327,10 +395,21 @@ export function useWebSocket({
   const disconnect = useCallback(() => {
     if (!socket) return;
     
+    // Log the current socket state
+    const readyStateMap = {
+      [WebSocket.CONNECTING]: 'CONNECTING',
+      [WebSocket.OPEN]: 'OPEN',
+      [WebSocket.CLOSING]: 'CLOSING',
+      [WebSocket.CLOSED]: 'CLOSED'
+    };
+    
+    console.log(`[WS-HOOK] Disconnecting socket in state: ${readyStateMap[socket.readyState] || socket.readyState}`);
+    
     try {
       socket.close(1000, 'Normal closure');
+      console.log('[WS-HOOK] Socket closed normally');
     } catch (error) {
-      console.error('Error closing WebSocket:', error);
+      console.error('[WS-HOOK] Error closing WebSocket:', error);
     }
     
     setSocket(null);
@@ -340,11 +419,13 @@ export function useWebSocket({
     if (reconnectTimeoutRef.current !== null) {
       window.clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+      console.log('[WS-HOOK] Canceled pending reconnection');
     }
   }, [socket]);
   
   // Manually trigger reconnection
   const reconnect = useCallback(() => {
+    console.log('[WS-HOOK] Manual reconnection requested');
     disconnect();
     
     // Reset reconnect attempts
@@ -356,8 +437,21 @@ export function useWebSocket({
   
   // Send a message through the WebSocket
   const sendMessage = useCallback((message: any): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      console.warn('Cannot send message: WebSocket not connected');
+    if (!socket) {
+      console.warn('[WS-HOOK] Cannot send message: WebSocket is null');
+      return false;
+    }
+    
+    // Get readable ready state
+    const readyStateMap = {
+      [WebSocket.CONNECTING]: 'CONNECTING',
+      [WebSocket.OPEN]: 'OPEN',
+      [WebSocket.CLOSING]: 'CLOSING',
+      [WebSocket.CLOSED]: 'CLOSED'
+    };
+    
+    if (socket.readyState !== WebSocket.OPEN) {
+      console.warn(`[WS-HOOK] Cannot send message: WebSocket not in OPEN state (current state: ${readyStateMap[socket.readyState]})`);
       return false;
     }
     
@@ -370,7 +464,7 @@ export function useWebSocket({
       socket.send(messageData);
       return true;
     } catch (error) {
-      console.error('Error sending WebSocket message:', error);
+      console.error('[WS-HOOK] Error sending WebSocket message:', error);
       return false;
     }
   }, [socket]);
@@ -378,17 +472,28 @@ export function useWebSocket({
   // Connect on mount
   useEffect(() => {
     if (autoConnect) {
+      console.log('[WS-HOOK] Auto-connecting on mount');
       connect();
+    } else {
+      console.log('[WS-HOOK] Auto-connect disabled, waiting for manual connection');
     }
     
     // Clean up on unmount
     return () => {
+      console.log('[WS-HOOK] Component unmounting, cleaning up WebSocket');
+      
       if (socket) {
-        socket.close();
+        try {
+          socket.close(1000, 'Component unmounted');
+          console.log('[WS-HOOK] Socket closed due to unmount');
+        } catch (closeError) {
+          console.error('[WS-HOOK] Error closing socket on unmount:', closeError);
+        }
       }
       
       if (reconnectTimeoutRef.current !== null) {
         window.clearTimeout(reconnectTimeoutRef.current);
+        console.log('[WS-HOOK] Canceled reconnection timeout on unmount');
       }
     };
   }, [autoConnect, connect, socket]);

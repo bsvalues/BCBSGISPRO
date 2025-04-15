@@ -53,7 +53,7 @@ export async function getMapboxTokenAsync(): Promise<string> {
   
   // Then try environment variable
   // Check for token directly from environment variables
-  const envToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  const envToken = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN;
   if (envToken) {
     console.log('Using Mapbox token from environment variables');
     cachedMapboxToken = envToken as string;
@@ -62,7 +62,7 @@ export async function getMapboxTokenAsync(): Promise<string> {
   }
   
   // Alternative: if no VITE_MAPBOX_ACCESS_TOKEN, try directly accessing from backend environment
-  const directToken = import.meta.env.MAPBOX_ACCESS_TOKEN;
+  const directToken = (import.meta as any).env?.MAPBOX_ACCESS_TOKEN;
   if (directToken) {
     console.log('Using Mapbox token directly from process.env');
     cachedMapboxToken = directToken as string;
@@ -74,7 +74,7 @@ export async function getMapboxTokenAsync(): Promise<string> {
   console.log('Fetching Mapbox token from API endpoint');
   try {
     // Use proper API base URL depending on environment
-    const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:5000' : '';
+    const apiBaseUrl = (import.meta as any).env?.DEV ? 'http://localhost:5000' : '';
     
     // Try the primary endpoint first
     try {
@@ -152,7 +152,7 @@ export function getMapboxToken(): string {
   }
   
   // Then try environment variable
-  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  const token = (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN;
   if (token) {
     console.log('Using Mapbox token from environment variables (sync)');
     setGlobalMapboxToken(token as string);
@@ -160,7 +160,7 @@ export function getMapboxToken(): string {
   }
   
   // Alternative: try directly accessing from backend environment
-  const directToken = import.meta.env.MAPBOX_ACCESS_TOKEN;
+  const directToken = (import.meta as any).env?.MAPBOX_ACCESS_TOKEN;
   if (directToken) {
     console.log('Using Mapbox token directly from process.env (sync)');
     setGlobalMapboxToken(directToken as string);
@@ -181,14 +181,16 @@ export function getMapboxToken(): string {
  * Check if running in development mode
  */
 export function isDevelopment(): boolean {
-  return import.meta.env.DEV === true;
+  // Handle TypeScript error by using type assertion
+  return (import.meta as any).env?.DEV === true;
 }
 
 /**
  * Check if running in production mode
  */
 export function isProduction(): boolean {
-  return import.meta.env.PROD === true;
+  // Handle TypeScript error by using type assertion
+  return (import.meta as any).env?.PROD === true;
 }
 
 /**
@@ -197,7 +199,7 @@ export function isProduction(): boolean {
 export function getApiBaseUrl(): string {
   // In Replit development environment, use the current host to avoid CORS issues
   // In production, use relative path
-  const baseUrl = import.meta.env.DEV ? `${window.location.protocol}//${window.location.host}` : '';
+  const baseUrl = (import.meta as any).env?.DEV ? `${window.location.protocol}//${window.location.host}` : '';
   return `${baseUrl}/api`;
 }
 
