@@ -130,6 +130,412 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
+  // WebSocket debug endpoint
+  app.get("/api/websocket/debug", (req, res) => {
+    logger.info('WebSocket debug endpoint accessed');
+    
+    // Get the WebSocket server status
+    const status = {
+      serverTime: new Date().toISOString(),
+      activeConnections: wsManager.getActiveConnectionsCount(),
+      rooms: wsManager.getRoomsStatus(),
+      wsManagerInstance: !!wsManager,
+      serverProtocol: req.protocol,
+      host: req.get('host'),
+      originalUrl: req.originalUrl,
+      secureConnection: req.secure,
+      xForwardedProto: req.headers['x-forwarded-proto'],
+      xForwardedHost: req.headers['x-forwarded-host']
+    };
+    
+    res.json(status);
+  });
+  
+  // WebSocket test page
+  app.get("/api/websocket/test-page", (req, res) => {
+    logger.info('WebSocket test page accessed');
+    
+    // A simple HTML page to test WebSocket connections
+    const testPage = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>WebSocket Test</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          margin: 0;
+          padding: 20px;
+          line-height: 1.6;
+          color: #333;
+        }
+        .container {
+          max-width: 800px;
+          margin: 0 auto;
+          background-color: #f7f7f7;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+          color: #2c3e50;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 10px;
+        }
+        .status {
+          margin: 20px 0;
+          padding: 15px;
+          border-radius: 4px;
+        }
+        .connected {
+          background-color: #d4edda;
+          color: #155724;
+          border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+          background-color: #f8d7da;
+          color: #721c24;
+          border: 1px solid #f5c6cb;
+        }
+        .connecting {
+          background-color: #fff3cd;
+          color: #856404;
+          border: 1px solid #ffeeba;
+        }
+        button {
+          background-color: #4CAF50;
+          border: none;
+          color: white;
+          padding: 10px 15px;
+          text-align: center;
+          text-decoration: none;
+          display: inline-block;
+          font-size: 16px;
+          margin: 4px 2px;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        button:disabled {
+          background-color: #cccccc;
+          color: #666666;
+          cursor: not-allowed;
+        }
+        button.disconnect {
+          background-color: #f44336;
+        }
+        input[type="text"] {
+          width: 100%;
+          padding: 12px 20px;
+          margin: 8px 0;
+          box-sizing: border-box;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+        .log-container {
+          height: 300px;
+          overflow-y: auto;
+          background-color: #f8f9fa;
+          padding: 15px;
+          border: 1px solid #dee2e6;
+          border-radius: 4px;
+          margin-top: 20px;
+        }
+        .log {
+          margin: 5px 0;
+          font-family: monospace;
+        }
+        .log.info {
+          color: #0c5460;
+        }
+        .log.success {
+          color: #155724;
+        }
+        .log.error {
+          color: #721c24;
+        }
+        .controls {
+          margin: 20px 0;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>WebSocket Server Test</h1>
+        
+        <div id="status" class="status disconnected">
+          Status: Disconnected
+        </div>
+        
+        <div class="controls">
+          <button id="connect-btn">Connect</button>
+          <button id="disconnect-btn" class="disconnect" disabled>Disconnect</button>
+          <button id="ping-btn" disabled>Send Ping</button>
+        </div>
+        
+        <div>
+          <label for="message-input">Message:</label>
+          <input type="text" id="message-input" placeholder="Type a message to send">
+          <button id="send-btn" disabled>Send Message</button>
+        </div>
+        
+        <div>
+          <label for="room-input">Room ID:</label>
+          <input type="text" id="room-input" placeholder="Enter room ID to join">
+          <button id="join-btn" disabled>Join Room</button>
+          <button id="leave-btn" disabled>Leave Room</button>
+        </div>
+        
+        <div class="log-container" id="log-container">
+          <!-- Logs will appear here -->
+        </div>
+      </div>
+      
+      <script>
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const pingBtn = document.getElementById('ping-btn');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const roomInput = document.getElementById('room-input');
+        const joinBtn = document.getElementById('join-btn');
+        const leaveBtn = document.getElementById('leave-btn');
+        const logContainer = document.getElementById('log-container');
+        
+        // WebSocket connection
+        let socket = null;
+        let currentRoom = null;
+        
+        // Logging function
+        function log(message, type = 'info') {
+          const logEl = document.createElement('div');
+          logEl.classList.add('log', type);
+          logEl.textContent = \`[\${new Date().toLocaleTimeString()}] \${message}\`;
+          logContainer.appendChild(logEl);
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Update UI controls based on connection state
+        function updateControls(isConnected) {
+          connectBtn.disabled = isConnected;
+          disconnectBtn.disabled = !isConnected;
+          pingBtn.disabled = !isConnected;
+          sendBtn.disabled = !isConnected;
+          joinBtn.disabled = !isConnected;
+          leaveBtn.disabled = !isConnected || !currentRoom;
+          
+          statusEl.className = isConnected ? 'status connected' : 'status disconnected';
+          statusEl.textContent = isConnected ? 'Status: Connected' : 'Status: Disconnected';
+        }
+        
+        // Connect to WebSocket server
+        connectBtn.addEventListener('click', function() {
+          if (socket) {
+            log('Already connected', 'error');
+            return;
+          }
+          
+          try {
+            statusEl.className = 'status connecting';
+            statusEl.textContent = 'Status: Connecting...';
+            
+            // Get the WebSocket URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = \`\${protocol}//\${host}/ws\`;
+            
+            log(\`Connecting to \${wsUrl}...\`);
+            
+            socket = new WebSocket(wsUrl);
+            
+            // WebSocket event handlers
+            socket.addEventListener('open', function(event) {
+              log("WebSocket connection established", 'success');
+              updateControls(true);
+            });
+            
+            socket.addEventListener('message', function(event) {
+              let messageData = event.data;
+              
+              try {
+                // Try to parse as JSON for prettier display
+                const parsed = JSON.parse(event.data);
+                messageData = JSON.stringify(parsed, null, 2);
+              } catch (e) {
+                // Not JSON, use as is
+              }
+              
+              log(\`Received: \${messageData}\`, 'info');
+            });
+            
+            socket.addEventListener('close', function(event) {
+              log("WebSocket connection closed", 'error');
+              socket = null;
+              currentRoom = null;
+              updateControls(false);
+            });
+            
+            socket.addEventListener('error', function(error) {
+              log(\`WebSocket error: \${error}\`, "error");
+            });
+          } catch (error) {
+            log(\`Error connecting to WebSocket: \${error}\`, 'error');
+            updateControls(false);
+          }
+        });
+        
+        // Disconnect from WebSocket server
+        disconnectBtn.addEventListener('click', function() {
+          if (!socket) {
+            log('Not connected', 'error');
+            return;
+          }
+          
+          try {
+            socket.close();
+            log('Disconnected from WebSocket server');
+            socket = null;
+            currentRoom = null;
+            updateControls(false);
+          } catch (error) {
+            log(\`Error disconnecting: \${error}\`, 'error');
+          }
+        });
+        
+        // Send a ping message
+        pingBtn.addEventListener('click', function() {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            log('Cannot send ping: WebSocket not connected', 'error');
+            return;
+          }
+          
+          try {
+            const pingMessage = JSON.stringify({
+              type: 'ping',
+              timestamp: Date.now()
+            });
+            
+            socket.send(pingMessage);
+            log(\`Sent ping: \${pingMessage}\`);
+          } catch (error) {
+            log(\`Error sending ping: \${error}\`, 'error');
+          }
+        });
+        
+        // Send a message
+        sendBtn.addEventListener('click', function() {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            log('Cannot send message: WebSocket not connected', 'error');
+            return;
+          }
+          
+          const message = messageInput.value.trim();
+          if (!message) {
+            log('Cannot send empty message', 'error');
+            return;
+          }
+          
+          try {
+            let messageObj;
+            
+            // Try to parse as JSON
+            try {
+              messageObj = JSON.parse(message);
+            } catch (e) {
+              // Not valid JSON, send as chat message
+              messageObj = {
+                type: 'chat',
+                roomId: currentRoom,
+                payload: {
+                  message: message,
+                  sender: 'WebSocket Test Client'
+                }
+              };
+            }
+            
+            const messageStr = JSON.stringify(messageObj);
+            socket.send(messageStr);
+            log(\`Sent: \${messageStr}\`);
+            messageInput.value = '';
+          } catch (error) {
+            log(\`Error sending message: \${error}\`, 'error');
+          }
+        });
+        
+        // Join a room
+        joinBtn.addEventListener('click', function() {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            log('Cannot join room: WebSocket not connected', 'error');
+            return;
+          }
+          
+          const roomId = roomInput.value.trim();
+          if (!roomId) {
+            log('Cannot join room: Room ID is required', 'error');
+            return;
+          }
+          
+          try {
+            const joinMessage = JSON.stringify({
+              type: 'join',
+              roomId: roomId,
+              userId: 'test-user-' + Date.now().toString(36).substring(2, 7),
+              username: 'Test User'
+            });
+            
+            socket.send(joinMessage);
+            log(\`Sent join request for room \${roomId}\`);
+            currentRoom = roomId;
+            leaveBtn.disabled = false;
+          } catch (error) {
+            log(\`Error joining room: \${error}\`, 'error');
+          }
+        });
+        
+        // Leave the current room
+        leaveBtn.addEventListener('click', function() {
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            log('Cannot leave room: WebSocket not connected', 'error');
+            return;
+          }
+          
+          if (!currentRoom) {
+            log('Cannot leave room: Not in a room', 'error');
+            return;
+          }
+          
+          try {
+            const leaveMessage = JSON.stringify({
+              type: 'leave',
+              roomId: currentRoom
+            });
+            
+            socket.send(leaveMessage);
+            log(\`Sent leave request for room \${currentRoom}\`);
+            currentRoom = null;
+            leaveBtn.disabled = true;
+          } catch (error) {
+            log(\`Error leaving room: \${error}\`, 'error');
+          }
+        });
+        
+        // Initialize UI
+        updateControls(false);
+        log('WebSocket test page loaded');
+      </script>
+    </body>
+    </html>
+    `;
+    
+    res.type('html').send(testPage);
+  });
+  
   // Mapbox token endpoint - serves the token securely to the frontend (legacy path for compatibility)
   app.get("/api/mapbox-token", async (req, res) => {
     try {
