@@ -98,7 +98,7 @@ export function isFeatureMessage(message: WebSocketMessage): boolean {
     MessageTypeEnum.FEATURE_CREATED,
     MessageTypeEnum.FEATURE_UPDATED,
     MessageTypeEnum.FEATURE_DELETED
-  ].includes(message.type);
+  ].includes(message.type as MessageTypeEnum);
 }
 
 /**
@@ -112,7 +112,7 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
     MessageTypeEnum.ANNOTATION_CREATED,
     MessageTypeEnum.ANNOTATION_UPDATED,
     MessageTypeEnum.ANNOTATION_DELETED
-  ].includes(message.type);
+  ].includes(message.type as MessageTypeEnum);
 }
 
 /**
@@ -175,7 +175,9 @@ export function useEnhancedWebSocket(options: UseWebSocketOptions = {}) {
       }
       
       // Create new WebSocket connection using our helper function
-      const socket = createWebSocket();
+      // Use roomPath for establishing the connection if available
+      const wsRoomPath = roomId ? `ws/${roomId}` : '';
+      const socket = createWebSocket(wsRoomPath);
       socketRef.current = socket;
       
       // Set up event handlers
