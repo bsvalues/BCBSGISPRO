@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getWebSocketUrl } from '@/lib/env';
+import { getWebSocketUrl } from '../lib/env';
 
 // Define the message structure
 export interface WebSocketMessage {
@@ -118,9 +118,13 @@ export function isAnnotationMessage(message: WebSocketMessage): boolean {
 /**
  * Create a WebSocket connection with the specified path
  */
-export function createWebSocket(path: string = '/ws'): WebSocket {
+export function createWebSocket(roomPath: string = ''): WebSocket {
   // Use the environment-aware URL method
-  const wsUrl = getWebSocketUrl();
+  const baseUrl = getWebSocketUrl();
+  
+  // Construct the complete WebSocket URL with optional room path
+  // The baseUrl already includes the /ws path from getWebSocketUrl()
+  const wsUrl = roomPath ? `${baseUrl}/${roomPath}` : baseUrl;
   
   console.log(`Creating WebSocket connection to: ${wsUrl}`);
   return new WebSocket(wsUrl);
@@ -139,6 +143,7 @@ export function createWebSocket(path: string = '/ws'): WebSocket {
 export function useEnhancedWebSocket(options: UseWebSocketOptions = {}) {
   const { roomId: initialRoomId, autoConnect = true } = options;
   const [roomId, setRoomId] = useState<string | undefined>(initialRoomId);
+  const roomPathRef = useRef<string | undefined>(initialRoomId ? `/ws/${initialRoomId}` : undefined);
   const [status, setStatus] = useState<WebSocketStatus>('idle');
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
   const [error, setError] = useState<Error | null>(null);
