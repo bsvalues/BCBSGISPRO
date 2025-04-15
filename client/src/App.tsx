@@ -50,7 +50,8 @@ import {
   Menu,
   X,
   Settings,
-  CheckCircle
+  CheckCircle,
+  Network
 } from "lucide-react";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -142,6 +143,11 @@ function App() {
       path: '/agent-master-prompt-demo',
       icon: <MessagesSquare className="h-4 w-4" />,
       label: 'Master Prompt',
+    },
+    {
+      path: '/websocket-test',
+      icon: <Network className="h-4 w-4" />,
+      label: 'WebSocket Test',
     },
     { 
       path: '/esri-map', 

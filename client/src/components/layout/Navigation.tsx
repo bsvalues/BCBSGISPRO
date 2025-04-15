@@ -11,7 +11,8 @@ import {
   Home, 
   BarChart,
   Users,
-  Settings
+  Settings,
+  Network
 } from 'lucide-react';
 
 const Navigation: React.FC = () => {
@@ -25,6 +26,7 @@ const Navigation: React.FC = () => {
     { icon: BarChart, label: 'Reports', path: '/reports' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: Network, label: 'WebSocket Test', path: '/websocket-test' },
   ];
   
   return (

@@ -154,12 +154,16 @@ export function createWebSocket(roomPath: string = ''): WebSocket {
     
     // Construct the complete WebSocket URL with optional room path
     // Note: The base URL already includes the /ws path from getWebSocketUrl()
-    const wsUrl = roomPath ? `${baseUrl}/${roomPath}` : baseUrl;
+    // Fix potential double slashes in URL construction
+    const wsUrl = roomPath ? `${baseUrl}${roomPath.startsWith('/') ? roomPath : '/' + roomPath}` : baseUrl;
     console.log(`[WS] Attempting WebSocket connection to: ${wsUrl}`);
+    
+    // Create the WebSocket - use try/catch inside a Promise to handle unhandled rejections
+    let ws: WebSocket;
     
     try {
       // Create the WebSocket
-      const ws = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl);
       
       // Add event listeners for debugging
       ws.addEventListener('open', () => {
@@ -181,7 +185,7 @@ export function createWebSocket(roomPath: string = ''): WebSocket {
       // Create fallback URL based on current location
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const fallbackUrl = `${protocol}//${host}/ws${roomPath ? '/' + roomPath : ''}`;
+      const fallbackUrl = `${protocol}//${host}/ws${roomPath ? (roomPath.startsWith('/') ? roomPath : '/' + roomPath) : ''}`;
       console.log(`[WS] Using fallback WebSocket URL: ${fallbackUrl}`);
       
       try {
@@ -209,36 +213,106 @@ export function createWebSocket(roomPath: string = ''): WebSocket {
         } catch (minimalError) {
           console.error('[WS] Minimal fallback WebSocket creation failed:', minimalError);
           
-          // Create a WebSocket that will fail but not throw
-          console.error('[WS] Creating dummy WebSocket object as final fallback');
-          const dummySocket = new WebSocket('ws://localhost:1');
+          // Create a mock WebSocket object that will act as a proper WebSocket but is actually disconnected
+          console.error('[WS] Creating mock WebSocket object as final fallback');
           
-          // Immediately close it with an error
+          // Create a fake WebSocket-like object instead of an actual connection to prevent unhandled rejections
+          const mockSocket = {
+            readyState: WebSocket.CLOSED,
+            send: (data: string) => {
+              console.warn('[WS-MOCK] Cannot send data - socket is disconnected:', data);
+              return false;
+            },
+            close: () => {
+              console.warn('[WS-MOCK] Socket already closed');
+            },
+            addEventListener: (event: string, handler: Function) => {
+              if (event === 'error') {
+                // Immediately trigger the error handler
+                setTimeout(() => {
+                  handler(new Event('error'));
+                }, 100);
+              }
+              console.warn(`[WS-MOCK] Added listener for ${event} but socket is disconnected`);
+            },
+            removeEventListener: () => {},
+            dispatchEvent: () => false,
+            onopen: null,
+            onclose: null,
+            onmessage: null,
+            onerror: null,
+            CONNECTING: WebSocket.CONNECTING,
+            OPEN: WebSocket.OPEN,
+            CLOSING: WebSocket.CLOSING,
+            CLOSED: WebSocket.CLOSED,
+            url: minimalUrl,
+            protocol: '',
+            extensions: '',
+            bufferedAmount: 0,
+            binaryType: 'blob' as BinaryType
+          } as unknown as WebSocket;
+          
+          // Simulate an error event after a short delay
           setTimeout(() => {
-            const errorEvent = new Event('error');
-            dummySocket.dispatchEvent(errorEvent);
-            dummySocket.close();
+            if (mockSocket.onerror) {
+              mockSocket.onerror(new Event('error') as Event);
+            }
           }, 100);
           
-          return dummySocket;
+          return mockSocket;
         }
       }
     }
   } catch (error) {
     console.error('Catastrophic error creating WebSocket connection:', error);
     
-    // Create a WebSocket that will fail but not throw
-    console.error('Creating dummy WebSocket object that will immediately fail');
-    const dummySocket = new WebSocket('ws://localhost:1');
+    // Create a mock WebSocket object instead of a real connection that would throw
+    console.error('Creating mock WebSocket object that will simulate connectivity failure');
     
-    // Immediately close it with an error
+    // Create a fake WebSocket-like object that simulates a disconnected socket
+    const mockSocket = {
+      readyState: WebSocket.CLOSED,
+      send: (data: string) => {
+        console.warn('[WS-MOCK] Cannot send data - socket is disconnected:', data);
+        return false;
+      },
+      close: () => {
+        console.warn('[WS-MOCK] Socket already closed');
+      },
+      addEventListener: (event: string, handler: Function) => {
+        if (event === 'error') {
+          // Immediately trigger the error handler
+          setTimeout(() => {
+            handler(new Event('error'));
+          }, 100);
+        }
+        console.warn(`[WS-MOCK] Added listener for ${event} but socket is disconnected`);
+      },
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      onopen: null,
+      onclose: null,
+      onmessage: null,
+      onerror: null,
+      CONNECTING: WebSocket.CONNECTING,
+      OPEN: WebSocket.OPEN,
+      CLOSING: WebSocket.CLOSING,
+      CLOSED: WebSocket.CLOSED,
+      url: 'ws://disconnected',
+      protocol: '',
+      extensions: '',
+      bufferedAmount: 0,
+      binaryType: 'blob' as BinaryType
+    } as unknown as WebSocket;
+    
+    // Simulate an error event after a short delay
     setTimeout(() => {
-      const errorEvent = new Event('error');
-      dummySocket.dispatchEvent(errorEvent);
-      dummySocket.close();
+      if (mockSocket.onerror) {
+        mockSocket.onerror(new Event('error') as Event);
+      }
     }, 100);
     
-    return dummySocket;
+    return mockSocket;
   }
 }
 
