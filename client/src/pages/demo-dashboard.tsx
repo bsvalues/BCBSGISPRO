@@ -1,18 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useAuth } from '../context/auth-context';
 import { Button } from '../components/ui/button';
-import { 
-  residentialProperties, 
-  commercialProperties, 
-  agriculturalProperties, 
-  demoCollaborationProjects, 
-  demoDocuments 
-} from '../data/demo-property-data';
+import { demoProperties } from '../data/demo-property-data';
 
 const DemoDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  
+  // Filter properties by type
+  const residentialProperties = demoProperties.filter(p => p.propertyType === 'Residential');
+  const commercialProperties = demoProperties.filter(p => p.propertyType === 'Commercial');
+  const agriculturalProperties = demoProperties.filter(p => p.propertyType === 'Agricultural');
+  const vacantLandProperties = demoProperties.filter(p => p.propertyType === 'Vacant Land');
+  
+  // Calculate statistics
+  const totalAssessedValue = demoProperties.reduce((sum, prop) => sum + prop.assessedValue, 0);
+  const totalMarketValue = demoProperties.reduce((sum, prop) => sum + prop.marketValue, 0);
+  const totalLandArea = demoProperties.reduce((sum, prop) => sum + prop.landArea, 0);
+  
+  // Simulate recent activity data
+  useEffect(() => {
+    // This would normally come from an API
+    const mockActivity = [
+      {
+        id: 'act-001',
+        type: 'Assessment Update',
+        parcelId: '11525',
+        user: 'Mary Johnson',
+        timestamp: new Date(2025, 3, 15, 9, 30),
+        details: 'Updated market value from $435,000 to $450,000'
+      },
+      {
+        id: 'act-002',
+        type: 'Document Upload',
+        parcelId: '11526',
+        user: 'Amanda Brown',
+        timestamp: new Date(2025, 3, 15, 11, 15),
+        details: 'Uploaded survey document'
+      },
+      {
+        id: 'act-003',
+        type: 'Property Inspection',
+        parcelId: '11527',
+        user: 'Mary Johnson',
+        timestamp: new Date(2025, 3, 14, 15, 45),
+        details: 'Completed field inspection of agricultural property'
+      },
+      {
+        id: 'act-004',
+        type: 'Map Update',
+        parcelId: 'Multiple',
+        user: 'Robert Williams',
+        timestamp: new Date(2025, 3, 14, 14, 20),
+        details: 'Updated zoning map for South Corvallis area'
+      },
+      {
+        id: 'act-005',
+        type: 'Appeal Filed',
+        parcelId: '11529',
+        user: 'John Smith',
+        timestamp: new Date(2025, 3, 13, 10, 0),
+        details: 'Property owner filed assessment appeal'
+      }
+    ];
+    
+    setRecentActivity(mockActivity);
+  }, []);
   
   if (!user) {
     return (
@@ -28,201 +82,218 @@ const DemoDashboard: React.FC = () => {
     );
   }
 
-  const getCurrentDate = () => {
-    const date = new Date();
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-  
-  const propertyCount = {
-    residential: residentialProperties.length,
-    commercial: commercialProperties.length,
-    agricultural: agriculturalProperties.length,
-    total: residentialProperties.length + commercialProperties.length + agriculturalProperties.length
-  };
-
-  const renderOverviewTab = () => (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <div className="bg-card shadow rounded-lg p-6">
-        <h3 className="text-lg font-medium mb-2">Property Overview</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-primary/5 rounded-md p-3">
-            <p className="text-sm font-medium mb-1">Residential</p>
-            <p className="text-2xl font-bold">{propertyCount.residential}</p>
-          </div>
-          <div className="bg-primary/5 rounded-md p-3">
-            <p className="text-sm font-medium mb-1">Commercial</p>
-            <p className="text-2xl font-bold">{propertyCount.commercial}</p>
-          </div>
-          <div className="bg-primary/5 rounded-md p-3">
-            <p className="text-sm font-medium mb-1">Agricultural</p>
-            <p className="text-2xl font-bold">{propertyCount.agricultural}</p>
-          </div>
-          <div className="bg-primary/5 rounded-md p-3">
-            <p className="text-sm font-medium mb-1">Total</p>
-            <p className="text-2xl font-bold">{propertyCount.total}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-card shadow rounded-lg p-6">
-        <h3 className="text-lg font-medium mb-2">Recent Activity</h3>
-        <div className="space-y-3">
-          {demoCollaborationProjects.slice(0, 3).map(project => (
-            <div key={project.id} className="border-b pb-2 last:border-b-0">
-              <p className="font-medium">{project.name}</p>
-              <p className="text-sm text-muted-foreground">{project.status === 'active' ? 'Active' : 'Planning'} • {project.parcels.length} parcels</p>
-            </div>
-          ))}
-        </div>
-        <Link href="/map-viewer">
-          <Button variant="ghost" className="mt-4 w-full">View All Properties</Button>
-        </Link>
-      </div>
-      
-      <div className="bg-card shadow rounded-lg p-6">
-        <h3 className="text-lg font-medium mb-2">Document Management</h3>
-        <div className="space-y-3">
-          <div className="bg-primary/5 rounded-md p-3">
-            <p className="text-sm font-medium mb-1">Total Documents</p>
-            <p className="text-2xl font-bold">{demoDocuments.length}</p>
-          </div>
-          <div className="text-sm">
-            <p className="font-medium">Recent Documents</p>
-            <ul className="mt-2 space-y-2">
-              {demoDocuments.slice(0, 3).map(doc => (
-                <li key={doc.id} className="truncate">
-                  {doc.name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        <Link href="/document-classification">
-          <Button variant="ghost" className="mt-4 w-full">Document Center</Button>
-        </Link>
-      </div>
-    </div>
-  );
-
-  const renderProjectsTab = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Active Projects</h3>
-        <Button variant="outline" size="sm">New Project</Button>
-      </div>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {demoCollaborationProjects.map(project => (
-          <div key={project.id} className="bg-card shadow rounded-lg p-5 border border-border">
-            <div className="flex justify-between items-start mb-3">
-              <h4 className="font-medium truncate">{project.name}</h4>
-              <div className={`px-2 py-1 text-xs rounded-full ${
-                project.status === 'active' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-amber-100 text-amber-800'
-              }`}>
-                {project.status === 'active' ? 'Active' : 'Planning'}
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{project.description}</p>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <div>Created: {new Date(project.createdDate).toLocaleDateString()}</div>
-              <div>Due: {new Date(project.dueDate).toLocaleDateString()}</div>
-            </div>
-            <div className="mt-4 flex space-x-2">
-              <Button variant="outline" size="sm" className="flex-1">Details</Button>
-              <Button size="sm" className="flex-1">Open</Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderDocumentsTab = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Document Library</h3>
-        <Button variant="outline" size="sm">Upload Document</Button>
-      </div>
-      
-      <div className="overflow-hidden rounded-lg border border-border">
-        <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Parcel ID</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload Date</th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-card divide-y divide-border">
-            {demoDocuments.slice(0, 5).map((document) => (
-              <tr key={document.id} className="hover:bg-muted/50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{document.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{document.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{document.parcelId}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                  {new Date(document.uploadDate).toLocaleDateString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <Link href="/document-classification">
-                    <Button variant="ghost" size="sm">View</Button>
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-      <div className="flex justify-center">
-        <Link href="/document-classification">
-          <Button>View All Documents</Button>
-        </Link>
-      </div>
-    </div>
-  );
-
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Welcome, {user.fullName}</h1>
-        <p className="text-muted-foreground">{getCurrentDate()} • {user.role}</p>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome back, {user.fullName}. Here's an overview of Benton County property data.
+        </p>
+      </header>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-card shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-2">Property Count</h3>
+          <p className="text-3xl font-bold">{demoProperties.length}</p>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <div className="flex justify-between mb-1">
+              <span>Residential</span>
+              <span>{residentialProperties.length}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Commercial</span>
+              <span>{commercialProperties.length}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Agricultural</span>
+              <span>{agriculturalProperties.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Vacant Land</span>
+              <span>{vacantLandProperties.length}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-card shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-2">Assessed Value</h3>
+          <p className="text-3xl font-bold">
+            ${(totalAssessedValue / 1000000).toFixed(2)}M
+          </p>
+          <div className="mt-4">
+            <div className="w-full bg-muted rounded-full h-2 mb-1">
+              <div className="bg-primary h-2 rounded-full" style={{ width: '85%' }}></div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              85% of annual target
+            </p>
+          </div>
+        </div>
+        
+        <div className="bg-card shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-2">Market Value</h3>
+          <p className="text-3xl font-bold">
+            ${(totalMarketValue / 1000000).toFixed(2)}M
+          </p>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <p className="flex items-center text-green-600">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+              </svg>
+              5.2% increase from previous year
+            </p>
+          </div>
+        </div>
+        
+        <div className="bg-card shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-2">Land Area</h3>
+          <p className="text-3xl font-bold">
+            {totalLandArea.toFixed(1)} acres
+          </p>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <div className="flex justify-between mb-1">
+              <span>Agricultural</span>
+              <span>{agriculturalProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Residential</span>
+              <span>{residentialProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Commercial</span>
+              <span>{commercialProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
+            </div>
+          </div>
+        </div>
       </div>
       
-      <div className="flex border-b mb-6">
-        <button
-          className={`px-4 py-2 font-medium ${activeTab === 'overview' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          Overview
-        </button>
-        <button
-          className={`px-4 py-2 font-medium ${activeTab === 'projects' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('projects')}
-        >
-          Projects
-        </button>
-        <button
-          className={`px-4 py-2 font-medium ${activeTab === 'documents' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('documents')}
-        >
-          Documents
-        </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="bg-card shadow rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-border">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Activity</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Parcel ID</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">User</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Timestamp</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {recentActivity.map((activity) => (
+                    <tr key={activity.id} className="hover:bg-muted/50">
+                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.type}</td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.parcelId}</td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.user}</td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm">
+                        {activity.timestamp.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-4 text-sm">{activity.details}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 text-center">
+              <Button variant="outline" size="sm">
+                View All Activity
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <div className="bg-card shadow rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-3">Quick Actions</h2>
+            <div className="space-y-2">
+              <Link href="/map-viewer">
+                <Button className="w-full mb-2" variant="outline">
+                  Open Map Viewer
+                </Button>
+              </Link>
+              <Link href="/document-classification">
+                <Button className="w-full mb-2" variant="outline">
+                  Process Documents
+                </Button>
+              </Link>
+              <Button className="w-full mb-2" variant="outline">
+                Generate Reports
+              </Button>
+              <Button className="w-full" variant="outline">
+                Search Properties
+              </Button>
+            </div>
+          </div>
+          
+          <div className="bg-card shadow rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-3">Property Types</h2>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Residential</span>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round((residentialProperties.length / demoProperties.length) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full" 
+                    style={{ width: `${(residentialProperties.length / demoProperties.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Commercial</span>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round((commercialProperties.length / demoProperties.length) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-purple-500 h-2 rounded-full" 
+                    style={{ width: `${(commercialProperties.length / demoProperties.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Agricultural</span>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round((agriculturalProperties.length / demoProperties.length) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full" 
+                    style={{ width: `${(agriculturalProperties.length / demoProperties.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Vacant Land</span>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round((vacantLandProperties.length / demoProperties.length) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-amber-500 h-2 rounded-full" 
+                    style={{ width: `${(vacantLandProperties.length / demoProperties.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      {activeTab === 'overview' && renderOverviewTab()}
-      {activeTab === 'projects' && renderProjectsTab()}
-      {activeTab === 'documents' && renderDocumentsTab()}
     </div>
   );
 };

@@ -45,7 +45,7 @@ const DemoDocumentClassification: React.FC = () => {
         if (d.id === doc.id) {
           return {
             ...d,
-            classificationStatus: 'classified',
+            classificationStatus: 'classified' as 'classified',
             confidenceScore: Math.random() * 0.15 + 0.85, // Random score between 0.85 and 1.0
           };
         }
@@ -64,7 +64,7 @@ const DemoDocumentClassification: React.FC = () => {
       if (d.id === doc.id) {
         return {
           ...d,
-          classificationStatus: 'reviewed',
+          classificationStatus: 'reviewed' as 'reviewed',
           reviewedBy: user?.username,
         };
       }

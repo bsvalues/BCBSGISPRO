@@ -1,163 +1,252 @@
 /**
- * Map Utilities for BentonGeoPro
- * 
- * This file contains utilities and type definitions for working with geospatial data
+ * Map utility functions and types for BentonGeoPro
  */
 
-// Map Tool enum for tool selection
+// Map tool enum to track the currently selected mapping tool
 export enum MapTool {
-  SELECT = 'select',
-  PAN = 'pan',
-  DRAW = 'draw',
-  MEASURE = 'measure',
-  POLYGON = 'polygon',
-  CIRCLE = 'circle',
-  POINT = 'point',
-  LINE = 'line'
+  PAN = 'Pan',
+  SELECT = 'Select',
+  MEASURE = 'Measure',
+  DRAW = 'Draw',
+  EDIT = 'Edit',
+  DELETE = 'Delete',
+  IDENTIFY = 'Identify',
+  BUFFER = 'Buffer',
+  ATTRIBUTE = 'Attribute',
+  ZOOM_IN = 'Zoom In',
+  ZOOM_OUT = 'Zoom Out',
+  ZOOM_EXTENT = 'Zoom to Extent'
 }
 
-// Measurement unit enum for distance and area calculations
+// Measurement units for distance and area calculations
 export enum MeasurementUnit {
-  FEET = 'feet',
-  METERS = 'meters',
-  MILES = 'miles',
-  KILOMETERS = 'km',
-  ACRES = 'acres',
-  HECTARES = 'ha',
-  SQUARE_FEET = 'sqft',
-  SQUARE_METERS = 'sqm'
+  FEET = 'Feet',
+  METERS = 'Meters',
+  MILES = 'Miles',
+  KILOMETERS = 'Kilometers',
+  ACRES = 'Acres',
+  HECTARES = 'Hectares',
+  SQUARE_FEET = 'Square Feet',
+  SQUARE_METERS = 'Square Meters'
 }
 
-// GeoJSON Types
-export interface GeoJSONGeometry {
-  type: string;
-  coordinates: any;
+// Layer type for managing different map layers
+export enum LayerType {
+  BASE = 'Base',
+  PARCEL = 'Parcel',
+  SECTION = 'Section',
+  ZONING = 'Zoning',
+  FLOODPLAIN = 'Floodplain',
+  AERIAL = 'Aerial',
+  ANNOTATION = 'Annotation',
+  CUSTOM = 'Custom'
 }
 
-export interface GeoJSONFeature {
-  type: string;
-  id?: string;
-  properties: Record<string, any>;
-  geometry: GeoJSONGeometry;
+// GeoJSON types for working with spatial data
+export interface GeoJSONPoint {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude]
 }
 
-// Map View State
-export interface MapViewState {
+export interface GeoJSONLineString {
+  type: 'LineString';
+  coordinates: [number, number][]; // Array of [longitude, latitude] points
+}
+
+export interface GeoJSONPolygon {
+  type: 'Polygon';
+  coordinates: [number, number][][]; // Array of arrays of [longitude, latitude] points (outer ring + holes)
+}
+
+export interface GeoJSONMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: [number, number][][][]; // Array of polygon coordinates
+}
+
+export type GeoJSONGeometry = 
+  | GeoJSONPoint 
+  | GeoJSONLineString 
+  | GeoJSONPolygon 
+  | GeoJSONMultiPolygon;
+
+export interface GeoJSONFeature<P = any, G = GeoJSONGeometry> {
+  type: 'Feature';
+  geometry: G;
+  properties: P;
+  id?: string | number;
+}
+
+export interface GeoJSONFeatureCollection<P = any, G = GeoJSONGeometry> {
+  type: 'FeatureCollection';
+  features: GeoJSONFeature<P, G>[];
+}
+
+// Map view settings type
+export interface MapViewSettings {
   center: [number, number]; // [longitude, latitude]
   zoom: number;
-  bearing?: number;
-  pitch?: number;
+  basemap: string;
+  layers: { [key: string]: boolean };
+  layerOpacity: { [key: string]: number };
 }
 
-// Layer Types
-export interface MapLayer {
-  id: string;
-  name: string;
-  type: string;
-  source: string;
-  visible: boolean;
-  opacity: number;
-  zIndex: number;
-  metadata?: Record<string, any>;
-}
-
-// Coordinate utility functions
-export function formatCoordinates(coords: [number, number], format: 'dms' | 'dd' = 'dd'): string {
-  if (format === 'dd') {
-    return `${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}`;
-  } else {
-    // Convert to degrees, minutes, seconds
-    const lat = convertToDMS(coords[1], 'lat');
-    const lng = convertToDMS(coords[0], 'lng');
-    return `${lat} ${lng}`;
+// Default settings for Benton County map view
+export const defaultMapSettings: MapViewSettings = {
+  center: [-123.2615, 44.5698], // Center on Corvallis, OR
+  zoom: 11,
+  basemap: 'streets',
+  layers: {
+    parcels: true,
+    sections: true,
+    zoning: false,
+    floodplain: false,
+    aerials: false
+  },
+  layerOpacity: {
+    parcels: 1.0,
+    sections: 0.8,
+    zoning: 0.7,
+    floodplain: 0.6,
+    aerials: 0.9
   }
-}
+};
 
-function convertToDMS(coordinate: number, type: 'lat' | 'lng'): string {
-  const absolute = Math.abs(coordinate);
-  const degrees = Math.floor(absolute);
-  const minutesDecimal = (absolute - degrees) * 60;
-  const minutes = Math.floor(minutesDecimal);
-  const seconds = Math.floor((minutesDecimal - minutes) * 60);
-  
-  const direction = type === 'lat'
-    ? coordinate >= 0 ? 'N' : 'S'
-    : coordinate >= 0 ? 'E' : 'W';
-    
-  return `${degrees}° ${minutes}' ${seconds}" ${direction}`;
-}
-
-// Distance calculation
-export function calculateDistance(
-  coord1: [number, number],
-  coord2: [number, number],
-  unit: 'miles' | 'km' | 'feet' | 'meters' = 'feet'
+// Function to convert between measurement units
+export function convertMeasurement(
+  value: number, 
+  fromUnit: MeasurementUnit, 
+  toUnit: MeasurementUnit
 ): number {
-  const R = unit === 'miles' ? 3958.8 : 
-            unit === 'km' ? 6371 : 
-            unit === 'feet' ? 20902231 : 
-            6371000; // Earth radius in chosen unit
+  // Convert to base units (meters for distance, square meters for area)
+  let baseValue: number;
   
-  const dLat = toRadians(coord2[1] - coord1[1]);
-  const dLon = toRadians(coord2[0] - coord1[0]);
-  
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(toRadians(coord1[1])) * Math.cos(toRadians(coord2[1])) * 
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-  
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-function toRadians(degrees: number): number {
-  return degrees * (Math.PI / 180);
-}
-
-// Area calculation for polygons
-export function calculateArea(
-  coordinates: number[][][],
-  unit: 'acres' | 'sqft' | 'sqm' | 'ha' = 'acres'
-): number {
-  // Simplified area calculation for demo purposes
-  const polygonCoords = coordinates[0]; // Use outer ring
-  
-  let area = 0;
-  for (let i = 0; i < polygonCoords.length - 1; i++) {
-    area += polygonCoords[i][0] * polygonCoords[i+1][1] - polygonCoords[i+1][0] * polygonCoords[i][1];
-  }
-  
-  area = Math.abs(area) / 2;
-  
-  // Convert to desired unit (this is a simplified approximation)
-  // For accurate calculations, use a proper geospatial library
-  const CONVERSION = {
-    acres: 0.00000024711,
-    sqft: 10.7639,
-    sqm: 1,
-    ha: 0.0001
-  };
-  
-  return area * CONVERSION[unit];
-}
-
-// Bounding box calculation
-export function getBoundingBox(features: GeoJSONFeature[]): [number, number, number, number] {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  
-  features.forEach(feature => {
-    if (feature.geometry.type === 'Polygon') {
-      const coords = feature.geometry.coordinates[0];
-      coords.forEach((coord: [number, number]) => {
-        minX = Math.min(minX, coord[0]);
-        minY = Math.min(minY, coord[1]);
-        maxX = Math.max(maxX, coord[0]);
-        maxY = Math.max(maxY, coord[1]);
-      });
+  // Handle distance conversions
+  if (
+    [MeasurementUnit.FEET, MeasurementUnit.METERS, MeasurementUnit.MILES, MeasurementUnit.KILOMETERS].includes(fromUnit)
+  ) {
+    // Convert to meters
+    switch (fromUnit) {
+      case MeasurementUnit.FEET:
+        baseValue = value * 0.3048;
+        break;
+      case MeasurementUnit.METERS:
+        baseValue = value;
+        break;
+      case MeasurementUnit.MILES:
+        baseValue = value * 1609.34;
+        break;
+      case MeasurementUnit.KILOMETERS:
+        baseValue = value * 1000;
+        break;
+      default:
+        baseValue = value;
     }
+    
+    // Convert from meters to desired unit
+    switch (toUnit) {
+      case MeasurementUnit.FEET:
+        return baseValue / 0.3048;
+      case MeasurementUnit.METERS:
+        return baseValue;
+      case MeasurementUnit.MILES:
+        return baseValue / 1609.34;
+      case MeasurementUnit.KILOMETERS:
+        return baseValue / 1000;
+      default:
+        return baseValue;
+    }
+  } 
+  // Handle area conversions
+  else {
+    // Convert to square meters
+    switch (fromUnit) {
+      case MeasurementUnit.SQUARE_FEET:
+        baseValue = value * 0.092903;
+        break;
+      case MeasurementUnit.SQUARE_METERS:
+        baseValue = value;
+        break;
+      case MeasurementUnit.ACRES:
+        baseValue = value * 4046.86;
+        break;
+      case MeasurementUnit.HECTARES:
+        baseValue = value * 10000;
+        break;
+      default:
+        baseValue = value;
+    }
+    
+    // Convert from square meters to desired unit
+    switch (toUnit) {
+      case MeasurementUnit.SQUARE_FEET:
+        return baseValue / 0.092903;
+      case MeasurementUnit.SQUARE_METERS:
+        return baseValue;
+      case MeasurementUnit.ACRES:
+        return baseValue / 4046.86;
+      case MeasurementUnit.HECTARES:
+        return baseValue / 10000;
+      default:
+        return baseValue;
+    }
+  }
+}
+
+// Format measurement with unit
+export function formatMeasurement(value: number, unit: MeasurementUnit): string {
+  const formattedValue = value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   });
   
-  return [minX, minY, maxX, maxY];
+  return `${formattedValue} ${unit}`;
+}
+
+// Calculate polygon area in square meters
+export function calculatePolygonArea(coordinates: [number, number][][]): number {
+  // Implementation of the Shoelace formula (Gauss's area formula)
+  let area = 0;
+  
+  // Use the first ring (outer ring) of the polygon
+  const ring = coordinates[0];
+  
+  for (let i = 0; i < ring.length - 1; i++) {
+    area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  
+  // Close the polygon
+  area += ring[ring.length - 1][0] * ring[0][1] - ring[0][0] * ring[ring.length - 1][1];
+  
+  // The formula gives the area in square degrees which isn't useful
+  // This is a rough approximation that works for small areas
+  // For a production app, use a proper GIS library like Turf.js
+  
+  // Convert to square meters (approximate)
+  // 1 degree of latitude ≈ 111,320 meters
+  // 1 degree of longitude varies with latitude
+  const avgLat = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
+  const metersPerDegreeLon = Math.cos(avgLat * Math.PI / 180) * 111320;
+  
+  // Convert square degrees to square meters
+  return Math.abs(area) * 111320 * metersPerDegreeLon / 2;
+}
+
+// Calculate distance between two points in meters
+export function calculateDistance(
+  point1: [number, number], 
+  point2: [number, number]
+): number {
+  // Haversine formula for calculating great-circle distance
+  const R = 6371000; // Earth radius in meters
+  const φ1 = point1[1] * Math.PI / 180; // latitude 1 in radians
+  const φ2 = point2[1] * Math.PI / 180; // latitude 2 in radians
+  const Δφ = φ2 - φ1;
+  const Δλ = (point2[0] - point1[0]) * Math.PI / 180; // longitude difference in radians
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  
+  return R * c;
 }

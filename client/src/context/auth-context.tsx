@@ -1,103 +1,97 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { authService, User } from '../services/auth-service';
 import { useToast } from '../hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  isAuthenticated: boolean;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  isLoggedIn: boolean;
-  hasPermission: (permission: string) => boolean;
+  isAuthenticating: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const { addToast } = useToast();
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  
+  // Check if user is already logged in on component mount
   useEffect(() => {
-    // Attempt to restore session on mount
-    const isSessionRestored = authService.attemptSessionRestore();
-    if (isSessionRestored) {
-      setUser(authService.getCurrentUser());
-      setIsLoggedIn(true);
-    }
-  }, []);
-
-  const login = async (username: string, password: string): Promise<boolean> => {
-    try {
-      const loggedInUser = await authService.login(username, password);
-      
-      if (loggedInUser) {
-        setUser(loggedInUser);
-        setIsLoggedIn(true);
-        
-        addToast({
-          title: 'Login Successful',
-          description: `Welcome back, ${loggedInUser.fullName}!`,
-          type: 'success',
-        });
-        
-        return true;
+    const checkAuth = () => {
+      const restored = authService.attemptSessionRestore();
+      if (restored) {
+        setUser(authService.getCurrentUser());
+        setIsAuthenticated(true);
       }
-      
-      addToast({
-        title: 'Login Failed',
-        description: 'Invalid username or password.',
-        type: 'error',
-      });
-      
-      return false;
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      addToast({
-        title: 'Login Error',
-        description: 'An unexpected error occurred. Please try again.',
-        type: 'error',
-      });
-      
-      return false;
-    }
-  };
-
-  const logout = async (): Promise<void> => {
+      setIsAuthenticating(false);
+    };
+    
+    checkAuth();
+  }, []);
+  
+  // Login function
+  const login = async (username: string, password: string) => {
+    setIsAuthenticating(true);
     try {
-      await authService.logout();
-      setUser(null);
-      setIsLoggedIn(false);
-      
-      addToast({
-        title: 'Logged Out',
-        description: 'You have been successfully logged out.',
-        type: 'info',
-      });
+      const user = await authService.login(username, password);
+      if (user) {
+        setUser(user);
+        setIsAuthenticated(true);
+        setLocation('/dashboard');
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${user.fullName}!`,
+          type: "success",
+        });
+      } else {
+        toast({
+          title: "Login failed",
+          description: "Invalid username or password",
+          type: "error",
+        });
+      }
     } catch (error) {
-      console.error('Logout error:', error);
-      
-      addToast({
-        title: 'Logout Error',
-        description: 'An error occurred during logout.',
-        type: 'error',
+      toast({
+        title: "Login error",
+        description: "An error occurred during login. Please try again.",
+        type: "error",
       });
+    } finally {
+      setIsAuthenticating(false);
     }
   };
-
-  const hasPermission = (permission: string): boolean => {
-    return authService.hasPermission(permission);
+  
+  // Logout function
+  const logout = async () => {
+    await authService.logout();
+    setUser(null);
+    setIsAuthenticated(false);
+    setLocation('/');
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+      type: "info",
+    });
   };
-
-  const value = {
-    user,
-    login,
-    logout,
-    isLoggedIn,
-    hasPermission,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        login,
+        logout,
+        isAuthenticating
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = (): AuthContextType => {

@@ -1,752 +1,491 @@
-import { MapTool } from '../lib/map-utils';
+/**
+ * Demo data for BentonGeoPro application
+ * 
+ * This file contains demo data for Benton County property assessments,
+ * including property records, demo users, and demo documents.
+ */
 
-// Demo Users for the application
+// Demo user accounts for different roles
 export interface DemoUser {
   id: string;
   username: string;
-  password: string;
+  password: string; // Note: In a real app, passwords would never be stored in clear text
   fullName: string;
-  role: string;
+  role: 'Assessor' | 'Appraiser' | 'GIS Analyst' | 'Clerk';
   email: string;
   department: string;
   permissions: string[];
   lastLogin: Date;
 }
 
-export const demoUsers: DemoUser[] = [
-  {
-    id: '1',
-    username: 'assessor',
-    password: 'demo123',
-    fullName: 'Sarah Johnson',
-    role: 'County Assessor',
-    email: 'sjohnson@bentoncounty.gov',
-    department: 'Assessor\'s Office',
-    permissions: ['admin', 'edit', 'view', 'approve'],
-    lastLogin: new Date('2023-04-15T08:30:00')
-  },
-  {
-    id: '2',
-    username: 'appraiser',
-    password: 'demo123',
-    fullName: 'Michael Chen',
-    role: 'Senior Appraiser',
-    email: 'mchen@bentoncounty.gov',
-    department: 'Assessor\'s Office',
-    permissions: ['edit', 'view'],
-    lastLogin: new Date('2023-04-14T15:45:00')
-  },
-  {
-    id: '3',
-    username: 'gisanalyst',
-    password: 'demo123',
-    fullName: 'Emily Rodriguez',
-    role: 'GIS Analyst',
-    email: 'erodriguez@bentoncounty.gov',
-    department: 'GIS Department',
-    permissions: ['view', 'edit_gis'],
-    lastLogin: new Date('2023-04-16T09:15:00')
-  },
-  {
-    id: '4',
-    username: 'clerk',
-    password: 'demo123',
-    fullName: 'James Wilson',
-    role: 'Records Clerk',
-    email: 'jwilson@bentoncounty.gov',
-    department: 'Records Management',
-    permissions: ['view', 'upload_documents'],
-    lastLogin: new Date('2023-04-13T16:20:00')
-  }
-];
-
-// Residential Property Data
-interface ResidentialProperty {
-  id: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  owner: string;
-  yearBuilt: number;
-  bedrooms: number;
-  bathrooms: number;
-  squareFeet: number;
-  lotSize: number;
-  assessedValue: number;
-  marketValue: number;
-  taxAmount: number;
-  lastAssessment: Date;
-}
-
-export const residentialProperties: ResidentialProperty[] = [
-  {
-    id: 'R-1001',
-    address: '123 Oak Street',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'John & Mary Smith',
-    yearBuilt: 2005,
-    bedrooms: 4,
-    bathrooms: 2.5,
-    squareFeet: 2400,
-    lotSize: 0.25,
-    assessedValue: 350000,
-    marketValue: 425000,
-    taxAmount: 4500,
-    lastAssessment: new Date('2022-06-15')
-  },
-  {
-    id: 'R-1002',
-    address: '456 Maple Avenue',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'Robert & Susan Johnson',
-    yearBuilt: 1998,
-    bedrooms: 3,
-    bathrooms: 2,
-    squareFeet: 1850,
-    lotSize: 0.18,
-    assessedValue: 285000,
-    marketValue: 340000,
-    taxAmount: 3600,
-    lastAssessment: new Date('2022-05-22')
-  },
-  {
-    id: 'R-1003',
-    address: '789 Pine Lane',
-    city: 'Philomath',
-    state: 'OR',
-    zip: '97370',
-    owner: 'David & Jennifer Williams',
-    yearBuilt: 2010,
-    bedrooms: 5,
-    bathrooms: 3,
-    squareFeet: 3200,
-    lotSize: 0.4,
-    assessedValue: 425000,
-    marketValue: 520000,
-    taxAmount: 5500,
-    lastAssessment: new Date('2022-07-03')
-  },
-  {
-    id: 'R-1004',
-    address: '321 Cedar Road',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'Michael & Elizabeth Brown',
-    yearBuilt: 1985,
-    bedrooms: 3,
-    bathrooms: 1.5,
-    squareFeet: 1600,
-    lotSize: 0.15,
-    assessedValue: 230000,
-    marketValue: 280000,
-    taxAmount: 3000,
-    lastAssessment: new Date('2022-06-10')
-  },
-  {
-    id: 'R-1005',
-    address: '654 Birch Street',
-    city: 'Monroe',
-    state: 'OR',
-    zip: '97456',
-    owner: 'James & Patricia Davis',
-    yearBuilt: 2015,
-    bedrooms: 4,
-    bathrooms: 2.5,
-    squareFeet: 2600,
-    lotSize: 0.3,
-    assessedValue: 375000,
-    marketValue: 450000,
-    taxAmount: 4750,
-    lastAssessment: new Date('2022-07-20')
-  }
-];
-
-// Commercial Property Data
-interface CommercialProperty {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  owner: string;
-  yearBuilt: number;
-  propertyType: 'retail' | 'office' | 'industrial' | 'mixed-use';
-  squareFeet: number;
-  lotSize: number;
-  assessedValue: number;
-  marketValue: number;
-  taxAmount: number;
-  lastAssessment: Date;
-}
-
-export const commercialProperties: CommercialProperty[] = [
-  {
-    id: 'C-2001',
-    name: 'Riverfront Plaza',
-    address: '100 Main Street',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'Benton Commercial Holdings LLC',
-    yearBuilt: 2000,
-    propertyType: 'retail',
-    squareFeet: 15000,
-    lotSize: 1.2,
-    assessedValue: 1200000,
-    marketValue: 1500000,
-    taxAmount: 22000,
-    lastAssessment: new Date('2022-08-05')
-  },
-  {
-    id: 'C-2002',
-    name: 'Tech Innovation Center',
-    address: '200 Research Way',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'Oregon Research Properties Inc.',
-    yearBuilt: 2010,
-    propertyType: 'office',
-    squareFeet: 25000,
-    lotSize: 2.5,
-    assessedValue: 2400000,
-    marketValue: 2800000,
-    taxAmount: 32000,
-    lastAssessment: new Date('2022-07-12')
-  },
-  {
-    id: 'C-2003',
-    name: 'Valley Distribution Center',
-    address: '500 Industrial Parkway',
-    city: 'Philomath',
-    state: 'OR',
-    zip: '97370',
-    owner: 'Northwest Logistics Corp.',
-    yearBuilt: 2005,
-    propertyType: 'industrial',
-    squareFeet: 45000,
-    lotSize: 5.0,
-    assessedValue: 3500000,
-    marketValue: 4100000,
-    taxAmount: 42000,
-    lastAssessment: new Date('2022-06-28')
-  },
-  {
-    id: 'C-2004',
-    name: 'Downtown Mixed Development',
-    address: '300 Monroe Avenue',
-    city: 'Corvallis',
-    state: 'OR',
-    zip: '97330',
-    owner: 'Urban Renewal Partners LLC',
-    yearBuilt: 2015,
-    propertyType: 'mixed-use',
-    squareFeet: 22000,
-    lotSize: 0.8,
-    assessedValue: 2800000,
-    marketValue: 3200000,
-    taxAmount: 36000,
-    lastAssessment: new Date('2022-08-15')
-  }
-];
-
-// Agricultural Property Data
-interface AgriculturalProperty {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  owner: string;
-  acres: number;
-  propertyType: 'cropland' | 'pasture' | 'orchard' | 'vineyard' | 'forest';
-  waterRights: boolean;
-  assessedValue: number;
-  marketValue: number;
-  taxAmount: number;
-  lastAssessment: Date;
-}
-
-export const agriculturalProperties: AgriculturalProperty[] = [
-  {
-    id: 'A-3001',
-    name: 'Green Valley Farm',
-    address: '5000 Rural Route 1',
-    city: 'Monroe',
-    state: 'OR',
-    zip: '97456',
-    owner: 'Green Valley Agricultural Enterprises',
-    acres: 320,
-    propertyType: 'cropland',
-    waterRights: true,
-    assessedValue: 1800000,
-    marketValue: 2200000,
-    taxAmount: 12000,
-    lastAssessment: new Date('2022-05-30')
-  },
-  {
-    id: 'A-3002',
-    name: 'Hillside Vineyards',
-    address: '2500 Wine Country Road',
-    city: 'Philomath',
-    state: 'OR',
-    zip: '97370',
-    owner: 'Williamette Valley Wines LLC',
-    acres: 85,
-    propertyType: 'vineyard',
-    waterRights: true,
-    assessedValue: 950000,
-    marketValue: 1100000,
-    taxAmount: 8500,
-    lastAssessment: new Date('2022-06-18')
-  },
-  {
-    id: 'A-3003',
-    name: 'Evergreen Timber',
-    address: '7800 Forest Road',
-    city: 'Philomath',
-    state: 'OR',
-    zip: '97370',
-    owner: 'Pacific Northwest Timber Corp.',
-    acres: 520,
-    propertyType: 'forest',
-    waterRights: false,
-    assessedValue: 2600000,
-    marketValue: 3100000,
-    taxAmount: 16000,
-    lastAssessment: new Date('2022-07-10')
-  },
-  {
-    id: 'A-3004',
-    name: 'Sunny Acres Orchard',
-    address: '4200 Orchard Lane',
-    city: 'Monroe',
-    state: 'OR',
-    zip: '97456',
-    owner: 'Benton Fresh Fruit Inc.',
-    acres: 45,
-    propertyType: 'orchard',
-    waterRights: true,
-    assessedValue: 750000,
-    marketValue: 900000,
-    taxAmount: 6500,
-    lastAssessment: new Date('2022-06-05')
-  }
-];
-
-// GeoJSON Parcel Data for Map
-export const residentialParcels = [
-  {
-    type: 'Feature',
-    id: 'R-1001',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2912, 44.5641],
-        [-123.2906, 44.5641],
-        [-123.2906, 44.5645],
-        [-123.2912, 44.5645],
-        [-123.2912, 44.5641]
-      ]]
-    },
-    properties: {
-      parcelId: 'R-1001',
-      address: '123 Oak Street, Corvallis, OR 97330',
-      owner: 'John & Mary Smith',
-      category: 'residential',
-      acres: 0.25,
-      yearBuilt: 2005,
-      assessedValue: 350000,
-      marketValue: 425000,
-      landValue: 125000
-    }
-  },
-  {
-    type: 'Feature',
-    id: 'R-1002',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2890, 44.5620],
-        [-123.2884, 44.5620],
-        [-123.2884, 44.5624],
-        [-123.2890, 44.5624],
-        [-123.2890, 44.5620]
-      ]]
-    },
-    properties: {
-      parcelId: 'R-1002',
-      address: '456 Maple Avenue, Corvallis, OR 97330',
-      owner: 'Robert & Susan Johnson',
-      category: 'residential',
-      acres: 0.18,
-      yearBuilt: 1998,
-      assessedValue: 285000,
-      marketValue: 340000,
-      landValue: 95000
-    }
-  },
-  {
-    type: 'Feature',
-    id: 'R-1003',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.3650, 44.5380],
-        [-123.3640, 44.5380],
-        [-123.3640, 44.5390],
-        [-123.3650, 44.5390],
-        [-123.3650, 44.5380]
-      ]]
-    },
-    properties: {
-      parcelId: 'R-1003',
-      address: '789 Pine Lane, Philomath, OR 97370',
-      owner: 'David & Jennifer Williams',
-      category: 'residential',
-      acres: 0.4,
-      yearBuilt: 2010,
-      assessedValue: 425000,
-      marketValue: 520000,
-      landValue: 150000
-    }
-  }
-];
-
-export const commercialParcels = [
-  {
-    type: 'Feature',
-    id: 'C-2001',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2600, 44.5700],
-        [-123.2580, 44.5700],
-        [-123.2580, 44.5720],
-        [-123.2600, 44.5720],
-        [-123.2600, 44.5700]
-      ]]
-    },
-    properties: {
-      parcelId: 'C-2001',
-      address: '100 Main Street, Corvallis, OR 97330',
-      owner: 'Benton Commercial Holdings LLC',
-      category: 'commercial',
-      acres: 1.2,
-      yearBuilt: 2000,
-      assessedValue: 1200000,
-      marketValue: 1500000,
-      landValue: 500000
-    }
-  },
-  {
-    type: 'Feature',
-    id: 'C-2002',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2850, 44.5630],
-        [-123.2820, 44.5630],
-        [-123.2820, 44.5650],
-        [-123.2850, 44.5650],
-        [-123.2850, 44.5630]
-      ]]
-    },
-    properties: {
-      parcelId: 'C-2002',
-      address: '200 Research Way, Corvallis, OR 97330',
-      owner: 'Oregon Research Properties Inc.',
-      category: 'commercial',
-      acres: 2.5,
-      yearBuilt: 2010,
-      assessedValue: 2400000,
-      marketValue: 2800000,
-      landValue: 900000
-    }
-  }
-];
-
-export const agriculturalParcels = [
-  {
-    type: 'Feature',
-    id: 'A-3001',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2950, 44.3150],
-        [-123.2800, 44.3150],
-        [-123.2800, 44.3250],
-        [-123.2950, 44.3250],
-        [-123.2950, 44.3150]
-      ]]
-    },
-    properties: {
-      parcelId: 'A-3001',
-      address: '5000 Rural Route 1, Monroe, OR 97456',
-      owner: 'Green Valley Agricultural Enterprises',
-      category: 'agricultural',
-      acres: 320,
-      yearBuilt: 1975,
-      assessedValue: 1800000,
-      marketValue: 2200000,
-      landValue: 1600000
-    }
-  },
-  {
-    type: 'Feature',
-    id: 'A-3002',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.3750, 44.5450],
-        [-123.3650, 44.5450],
-        [-123.3650, 44.5550],
-        [-123.3750, 44.5550],
-        [-123.3750, 44.5450]
-      ]]
-    },
-    properties: {
-      parcelId: 'A-3002',
-      address: '2500 Wine Country Road, Philomath, OR 97370',
-      owner: 'Williamette Valley Wines LLC',
-      category: 'agricultural',
-      acres: 85,
-      yearBuilt: 1990,
-      assessedValue: 950000,
-      marketValue: 1100000,
-      landValue: 750000
-    }
-  }
-];
-
-export const specialPurposeParcels = [
-  {
-    type: 'Feature',
-    id: 'S-4001',
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-123.2700, 44.5600],
-        [-123.2650, 44.5600],
-        [-123.2650, 44.5640],
-        [-123.2700, 44.5640],
-        [-123.2700, 44.5600]
-      ]]
-    },
-    properties: {
-      parcelId: 'S-4001',
-      address: '400 Education Avenue, Corvallis, OR 97330',
-      owner: 'Benton County School District',
-      category: 'special purpose',
-      acres: 4.5,
-      yearBuilt: 1995,
-      assessedValue: 3800000,
-      marketValue: 4200000,
-      landValue: 1200000
-    }
-  }
-];
-
-// Document Classification Demo Data
+// Demo document with classification information
 export interface DemoDocument {
   id: string;
   name: string;
   type: string;
   parcelId: string;
   uploadDate: string;
-  fileSize: number;
+  fileSize: number; // Size in bytes
   uploadedBy: string;
   description: string;
   tags: string[];
-  confidenceScore?: number;
   classificationStatus?: 'pending' | 'classified' | 'reviewed';
+  confidenceScore?: number; // Between 0 and 1
   reviewedBy?: string;
 }
 
-export const demoDocuments: DemoDocument[] = [
+// Demo property record representing assessment data
+export interface DemoProperty {
+  id: string;
+  parcelId: string;
+  ownerName: string;
+  address: {
+    street: string;
+    city: string;
+    zipCode: string;
+  };
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  propertyType: 'Residential' | 'Commercial' | 'Agricultural' | 'Vacant Land';
+  assessedValue: number;
+  marketValue: number;
+  landArea: number; // In acres
+  buildingArea?: number; // In sq. ft
+  yearBuilt?: number;
+  lastAssessmentDate: string;
+  taxDistrict: string;
+  zoning: string;
+  features: string[];
+  images: string[];
+  taxExemptions: string[];
+  floodZone: boolean;
+  lastUpdated: string;
+  assessmentHistory: {
+    year: number;
+    assessedValue: number;
+    marketValue: number;
+  }[];
+}
+
+// Demo user accounts
+export const demoUsers: DemoUser[] = [
   {
-    id: 'DOC-1001',
-    name: 'Deed of Trust - 123 Oak Street.pdf',
-    type: 'Deed',
-    parcelId: 'R-1001',
-    uploadDate: '2023-02-15T10:30:00',
-    fileSize: 1248576,
-    uploadedBy: 'jwilson',
-    description: 'Deed of Trust for 123 Oak Street property',
-    tags: ['deed', 'residential', 'oak street'],
-    confidenceScore: 0.98,
-    classificationStatus: 'classified',
-    reviewedBy: 'sjohnson'
+    id: "user-001",
+    username: "jsmith",
+    password: "password123", // Never do this in a real application!
+    fullName: "John Smith",
+    role: "Assessor",
+    email: "jsmith@bentoncounty.gov",
+    department: "Assessment & Taxation",
+    permissions: ["read", "write", "approve", "admin"],
+    lastLogin: new Date("2025-04-15T10:30:00Z")
   },
   {
-    id: 'DOC-1002',
-    name: 'Property Survey - 456 Maple Avenue.pdf',
-    type: 'Survey',
-    parcelId: 'R-1002',
-    uploadDate: '2023-01-22T14:15:00',
-    fileSize: 3562480,
-    uploadedBy: 'erodriguez',
-    description: 'Property survey including boundary measurements',
-    tags: ['survey', 'residential', 'maple avenue', 'boundary'],
-    confidenceScore: 0.95,
-    classificationStatus: 'classified',
-    reviewedBy: 'mchen'
+    id: "user-002",
+    username: "mjohnson",
+    password: "password123",
+    fullName: "Mary Johnson",
+    role: "Appraiser",
+    email: "mjohnson@bentoncounty.gov",
+    department: "Assessment & Taxation",
+    permissions: ["read", "write", "field_assessment"],
+    lastLogin: new Date("2025-04-14T14:20:00Z")
   },
   {
-    id: 'DOC-1003',
-    name: 'Tax Assessment - Riverfront Plaza.pdf',
-    type: 'Tax Assessment',
-    parcelId: 'C-2001',
-    uploadDate: '2023-03-10T09:45:00',
-    fileSize: 2154983,
-    uploadedBy: 'sjohnson',
-    description: 'Annual tax assessment for Riverfront Plaza commercial property',
-    tags: ['tax', 'commercial', 'assessment', 'riverfront'],
-    confidenceScore: 0.97,
-    classificationStatus: 'classified',
-    reviewedBy: 'sjohnson'
+    id: "user-003",
+    username: "rwilliams",
+    password: "password123",
+    fullName: "Robert Williams",
+    role: "GIS Analyst",
+    email: "rwilliams@bentoncounty.gov",
+    department: "GIS Services",
+    permissions: ["read", "write", "gis_edit", "map_publish"],
+    lastLogin: new Date("2025-04-15T09:15:00Z")
   },
   {
-    id: 'DOC-1004',
-    name: 'Water Rights Certificate - Green Valley Farm.pdf',
-    type: 'Water Rights',
-    parcelId: 'A-3001',
-    uploadDate: '2023-02-05T11:20:00',
-    fileSize: 1856421,
-    uploadedBy: 'jwilson',
-    description: 'Certificate of water rights for agricultural property',
-    tags: ['water rights', 'agricultural', 'certificate', 'green valley'],
-    confidenceScore: 0.92,
-    classificationStatus: 'classified',
-    reviewedBy: 'mchen'
-  },
-  {
-    id: 'DOC-1005',
-    name: 'Building Permit - Tech Innovation Center.pdf',
-    type: 'Permit',
-    parcelId: 'C-2002',
-    uploadDate: '2023-03-25T15:30:00',
-    fileSize: 4125367,
-    uploadedBy: 'erodriguez',
-    description: 'Building permit for office expansion',
-    tags: ['permit', 'commercial', 'construction', 'expansion'],
-    confidenceScore: 0.89,
-    classificationStatus: 'classified',
-    reviewedBy: 'mchen'
-  },
-  {
-    id: 'DOC-1006',
-    name: 'Easement Agreement - Hillside Vineyards.pdf',
-    type: 'Easement',
-    parcelId: 'A-3002',
-    uploadDate: '2023-01-18T13:10:00',
-    fileSize: 1524876,
-    uploadedBy: 'jwilson',
-    description: 'Road access easement agreement',
-    tags: ['easement', 'agricultural', 'access', 'vineyard'],
-    confidenceScore: 0.94,
-    classificationStatus: 'classified',
-    reviewedBy: 'sjohnson'
-  },
-  {
-    id: 'DOC-1007',
-    name: 'Property Appraisal - Downtown Mixed Development.pdf',
-    type: 'Appraisal',
-    parcelId: 'C-2004',
-    uploadDate: '2023-04-05T10:00:00',
-    fileSize: 3256891,
-    uploadedBy: 'mchen',
-    description: 'Recent property appraisal for commercial mixed-use development',
-    tags: ['appraisal', 'commercial', 'mixed-use', 'downtown'],
-    confidenceScore: 0.96,
-    classificationStatus: 'classified',
-    reviewedBy: 'sjohnson'
-  },
-  {
-    id: 'DOC-1008',
-    name: 'Zoning Variance - 789 Pine Lane.pdf',
-    type: 'Zoning',
-    parcelId: 'R-1003',
-    uploadDate: '2023-03-02T16:45:00',
-    fileSize: 1892456,
-    uploadedBy: 'erodriguez',
-    description: 'Zoning variance for property improvements',
-    tags: ['zoning', 'variance', 'residential', 'pine lane'],
-    confidenceScore: 0.91,
-    classificationStatus: 'classified',
-    reviewedBy: 'mchen'
+    id: "user-004",
+    username: "abrown",
+    password: "password123",
+    fullName: "Amanda Brown",
+    role: "Clerk",
+    email: "abrown@bentoncounty.gov",
+    department: "Records",
+    permissions: ["read", "document_process"],
+    lastLogin: new Date("2025-04-15T08:45:00Z")
   }
 ];
 
-// Demo Collaboration Projects
-export interface CollaborationProject {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  status: 'active' | 'planning' | 'completed';
-  createdDate: string;
-  dueDate: string;
-  creator: string;
-  participants: string[];
-  parcels: string[];
-}
+// Demo document records for document classification system
+export const demoDocuments: DemoDocument[] = [
+  {
+    id: "doc-001",
+    name: "Deed_12345.pdf",
+    type: "Deed",
+    parcelId: "11525",
+    uploadDate: "2025-03-25",
+    fileSize: 2458092,
+    uploadedBy: "Amanda Brown",
+    description: "Property deed transfer from Smith to Johnson for residential property on 5th Street.",
+    tags: ["deed", "transfer", "residential"],
+    classificationStatus: "reviewed",
+    confidenceScore: 0.95,
+    reviewedBy: "John Smith"
+  },
+  {
+    id: "doc-002",
+    name: "PropertySurvey_22456.pdf",
+    type: "Survey",
+    parcelId: "11526",
+    uploadDate: "2025-04-02",
+    fileSize: 5689234,
+    uploadedBy: "Mary Johnson",
+    description: "Complete property survey of commercial lot on Main Street, including boundary measurements and easements.",
+    tags: ["survey", "commercial", "boundary"],
+    classificationStatus: "classified",
+    confidenceScore: 0.92
+  },
+  {
+    id: "doc-003",
+    name: "TaxAssessment_2025_11527.pdf",
+    type: "Tax Assessment",
+    parcelId: "11527",
+    uploadDate: "2025-04-10",
+    fileSize: 1257890,
+    uploadedBy: "John Smith",
+    description: "2025 tax assessment report for agricultural property owned by Willamette Valley Farms.",
+    tags: ["tax", "assessment", "agricultural"],
+    classificationStatus: "pending"
+  },
+  {
+    id: "doc-004",
+    name: "BuildingPermit_45678.pdf",
+    type: "Building Permit",
+    parcelId: "11528",
+    uploadDate: "2025-04-12",
+    fileSize: 3456789,
+    uploadedBy: "Amanda Brown",
+    description: "Building permit application for new garage construction at residential property on Oak Avenue.",
+    tags: ["permit", "construction", "garage"],
+    classificationStatus: "pending"
+  },
+  {
+    id: "doc-005",
+    name: "AppraisalReport_11529_2025.pdf",
+    type: "Appraisal",
+    parcelId: "11529",
+    uploadDate: "2025-04-14",
+    fileSize: 7895623,
+    uploadedBy: "Mary Johnson",
+    description: "Detailed property appraisal report for commercial retail space in downtown Corvallis.",
+    tags: ["appraisal", "commercial", "retail"],
+    classificationStatus: "classified",
+    confidenceScore: 0.88
+  },
+  {
+    id: "doc-006",
+    name: "Variance_Request_11530.pdf",
+    type: "Variance Request",
+    parcelId: "11530",
+    uploadDate: "2025-04-15",
+    fileSize: 1562378,
+    uploadedBy: "Amanda Brown",
+    description: "Zoning variance request for property on Pine Street to allow home business operation.",
+    tags: ["variance", "zoning", "home business"],
+    classificationStatus: "pending"
+  },
+  {
+    id: "doc-007",
+    name: "MapAmendment_SouthCorvallis.pdf",
+    type: "Map Amendment",
+    parcelId: "Multiple",
+    uploadDate: "2025-04-05",
+    fileSize: 8912456,
+    uploadedBy: "Robert Williams",
+    description: "Proposed map amendment for rezoning portion of South Corvallis to mixed-use development.",
+    tags: ["map", "amendment", "rezoning"],
+    classificationStatus: "reviewed",
+    confidenceScore: 0.96,
+    reviewedBy: "John Smith"
+  },
+  {
+    id: "doc-008",
+    name: "FloodplainCertification_11532.pdf",
+    type: "Floodplain Certificate",
+    parcelId: "11532",
+    uploadDate: "2025-04-08",
+    fileSize: 4123789,
+    uploadedBy: "Robert Williams",
+    description: "Floodplain certification for property adjacent to Willamette River, including elevation data.",
+    tags: ["floodplain", "certification", "elevation"],
+    classificationStatus: "classified",
+    confidenceScore: 0.94
+  }
+];
 
-export const demoCollaborationProjects: CollaborationProject[] = [
+// Demo property records
+export const demoProperties: DemoProperty[] = [
   {
-    id: 'PROJ-1001',
-    name: 'Downtown District Reassessment',
-    description: 'Comprehensive reassessment of all commercial properties in the downtown district to reflect recent market changes.',
-    type: 'Assessment',
-    status: 'active',
-    createdDate: '2023-02-01T09:00:00',
-    dueDate: '2023-06-30T17:00:00',
-    creator: 'sjohnson',
-    participants: ['sjohnson', 'mchen', 'erodriguez'],
-    parcels: ['C-2001', 'C-2004']
+    id: "prop-11525",
+    parcelId: "11525",
+    ownerName: "Johnson Family Trust",
+    address: {
+      street: "1234 5th Street",
+      city: "Corvallis",
+      zipCode: "97330"
+    },
+    coordinates: {
+      latitude: 44.5698,
+      longitude: -123.2780
+    },
+    propertyType: "Residential",
+    assessedValue: 420000,
+    marketValue: 450000,
+    landArea: 0.25,
+    buildingArea: 2200,
+    yearBuilt: 1992,
+    lastAssessmentDate: "2025-01-15",
+    taxDistrict: "Corvallis School District",
+    zoning: "R-1 (Low Density Residential)",
+    features: ["Single Family Home", "3 Bedroom", "2 Bath", "Garage", "Fireplace"],
+    images: ["property_11525_1.jpg", "property_11525_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-01-15",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 420000, marketValue: 450000 },
+      { year: 2024, assessedValue: 405000, marketValue: 435000 },
+      { year: 2023, assessedValue: 390000, marketValue: 420000 }
+    ]
   },
   {
-    id: 'PROJ-1002',
-    name: 'Agricultural Land Value Study',
-    description: 'Research project to analyze and normalize agricultural land values across the county based on soil type, water rights, and accessibility.',
-    type: 'Research',
-    status: 'active',
-    createdDate: '2023-01-15T10:30:00',
-    dueDate: '2023-05-15T16:00:00',
-    creator: 'mchen',
-    participants: ['mchen', 'erodriguez'],
-    parcels: ['A-3001', 'A-3002', 'A-3003', 'A-3004']
+    id: "prop-11526",
+    parcelId: "11526",
+    ownerName: "Corvallis Business Center LLC",
+    address: {
+      street: "567 Main Street",
+      city: "Corvallis",
+      zipCode: "97330"
+    },
+    coordinates: {
+      latitude: 44.5642,
+      longitude: -123.2615
+    },
+    propertyType: "Commercial",
+    assessedValue: 1250000,
+    marketValue: 1350000,
+    landArea: 0.75,
+    buildingArea: 8500,
+    yearBuilt: 1985,
+    lastAssessmentDate: "2025-02-10",
+    taxDistrict: "Corvallis Central Business",
+    zoning: "CB (Central Business)",
+    features: ["Retail Space", "Office Space", "Parking Lot", "ADA Accessible"],
+    images: ["property_11526_1.jpg", "property_11526_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-02-10",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 1250000, marketValue: 1350000 },
+      { year: 2024, assessedValue: 1200000, marketValue: 1300000 },
+      { year: 2023, assessedValue: 1150000, marketValue: 1250000 }
+    ]
   },
   {
-    id: 'PROJ-1003',
-    name: 'Residential Growth Zone Planning',
-    description: 'Collaborative project with Planning Department to analyze potential rezoning for residential expansion in north county area.',
-    type: 'Planning',
-    status: 'planning',
-    createdDate: '2023-03-10T11:00:00',
-    dueDate: '2023-07-31T17:00:00',
-    creator: 'sjohnson',
-    participants: ['sjohnson', 'mchen', 'erodriguez', 'jwilson'],
-    parcels: ['R-1001', 'R-1003', 'R-1005']
+    id: "prop-11527",
+    parcelId: "11527",
+    ownerName: "Willamette Valley Farms Inc.",
+    address: {
+      street: "12300 Agricultural Way",
+      city: "Monroe",
+      zipCode: "97456"
+    },
+    coordinates: {
+      latitude: 44.3150,
+      longitude: -123.2986
+    },
+    propertyType: "Agricultural",
+    assessedValue: 850000,
+    marketValue: 950000,
+    landArea: 120.5,
+    buildingArea: 3200,
+    yearBuilt: 1976,
+    lastAssessmentDate: "2025-01-20",
+    taxDistrict: "Monroe Rural",
+    zoning: "EFU (Exclusive Farm Use)",
+    features: ["Farmland", "Barn", "Silo", "Equipment Storage", "Irrigation System"],
+    images: ["property_11527_1.jpg", "property_11527_2.jpg"],
+    taxExemptions: ["Farm Use Special Assessment"],
+    floodZone: true,
+    lastUpdated: "2025-01-20",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 850000, marketValue: 950000 },
+      { year: 2024, assessedValue: 825000, marketValue: 925000 },
+      { year: 2023, assessedValue: 800000, marketValue: 900000 }
+    ]
   },
   {
-    id: 'PROJ-1004',
-    name: 'Special District Tax Assessment',
-    description: 'Annual review and update of properties within special tax districts including schools and fire protection zones.',
-    type: 'Assessment',
-    status: 'active',
-    createdDate: '2023-02-20T13:45:00',
-    dueDate: '2023-04-30T17:00:00',
-    creator: 'mchen',
-    participants: ['mchen', 'jwilson'],
-    parcels: ['S-4001', 'R-1002', 'R-1004']
+    id: "prop-11528",
+    parcelId: "11528",
+    ownerName: "Garcia, Miguel & Elena",
+    address: {
+      street: "789 Oak Avenue",
+      city: "Corvallis",
+      zipCode: "97330"
+    },
+    coordinates: {
+      latitude: 44.5801,
+      longitude: -123.2850
+    },
+    propertyType: "Residential",
+    assessedValue: 380000,
+    marketValue: 410000,
+    landArea: 0.18,
+    buildingArea: 1950,
+    yearBuilt: 1998,
+    lastAssessmentDate: "2025-02-05",
+    taxDistrict: "Corvallis School District",
+    zoning: "R-1 (Low Density Residential)",
+    features: ["Single Family Home", "4 Bedroom", "2.5 Bath", "Garage", "Deck"],
+    images: ["property_11528_1.jpg", "property_11528_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-02-05",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 380000, marketValue: 410000 },
+      { year: 2024, assessedValue: 365000, marketValue: 395000 },
+      { year: 2023, assessedValue: 350000, marketValue: 380000 }
+    ]
+  },
+  {
+    id: "prop-11529",
+    parcelId: "11529",
+    ownerName: "Corvallis Retail Properties LLC",
+    address: {
+      street: "123 Downtown Plaza",
+      city: "Corvallis",
+      zipCode: "97330"
+    },
+    coordinates: {
+      latitude: 44.5639,
+      longitude: -123.2624
+    },
+    propertyType: "Commercial",
+    assessedValue: 980000,
+    marketValue: 1050000,
+    landArea: 0.35,
+    buildingArea: 6200,
+    yearBuilt: 1972,
+    lastAssessmentDate: "2025-03-01",
+    taxDistrict: "Corvallis Central Business",
+    zoning: "CB (Central Business)",
+    features: ["Retail Space", "Storage", "Parking", "Recently Renovated"],
+    images: ["property_11529_1.jpg", "property_11529_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-03-01",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 980000, marketValue: 1050000 },
+      { year: 2024, assessedValue: 925000, marketValue: 990000 },
+      { year: 2023, assessedValue: 875000, marketValue: 940000 }
+    ]
+  },
+  {
+    id: "prop-11530",
+    parcelId: "11530",
+    ownerName: "Chen, Wei & Liu, Mei",
+    address: {
+      street: "456 Pine Street",
+      city: "Corvallis",
+      zipCode: "97333"
+    },
+    coordinates: {
+      latitude: 44.5725,
+      longitude: -123.2730
+    },
+    propertyType: "Residential",
+    assessedValue: 395000,
+    marketValue: 425000,
+    landArea: 0.2,
+    buildingArea: 2100,
+    yearBuilt: 2005,
+    lastAssessmentDate: "2025-02-15",
+    taxDistrict: "Corvallis School District",
+    zoning: "R-2 (Medium Density Residential)",
+    features: ["Single Family Home", "3 Bedroom", "2 Bath", "Home Office", "Garden"],
+    images: ["property_11530_1.jpg", "property_11530_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-02-15",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 395000, marketValue: 425000 },
+      { year: 2024, assessedValue: 375000, marketValue: 405000 },
+      { year: 2023, assessedValue: 360000, marketValue: 390000 }
+    ]
+  },
+  {
+    id: "prop-11531",
+    parcelId: "11531",
+    ownerName: "South Corvallis Development Co.",
+    address: {
+      street: "S Corvallis Development Area",
+      city: "Corvallis",
+      zipCode: "97333"
+    },
+    coordinates: {
+      latitude: 44.5465,
+      longitude: -123.2689
+    },
+    propertyType: "Vacant Land",
+    assessedValue: 550000,
+    marketValue: 650000,
+    landArea: 3.8,
+    lastAssessmentDate: "2025-01-25",
+    taxDistrict: "Corvallis South",
+    zoning: "MUC (Mixed Use Commercial)",
+    features: ["Vacant", "Development Ready", "Utilities Available", "Near Highway Access"],
+    images: ["property_11531_1.jpg", "property_11531_2.jpg"],
+    taxExemptions: [],
+    floodZone: false,
+    lastUpdated: "2025-01-25",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 550000, marketValue: 650000 },
+      { year: 2024, assessedValue: 520000, marketValue: 620000 },
+      { year: 2023, assessedValue: 490000, marketValue: 590000 }
+    ]
+  },
+  {
+    id: "prop-11532",
+    parcelId: "11532",
+    ownerName: "Riverfront Properties LLC",
+    address: {
+      street: "789 River Road",
+      city: "Corvallis",
+      zipCode: "97333"
+    },
+    coordinates: {
+      latitude: 44.5564,
+      longitude: -123.2493
+    },
+    propertyType: "Residential",
+    assessedValue: 520000,
+    marketValue: 575000,
+    landArea: 0.8,
+    buildingArea: 2800,
+    yearBuilt: 1982,
+    lastAssessmentDate: "2025-03-10",
+    taxDistrict: "Corvallis School District",
+    zoning: "R-3 (High Density Residential)",
+    features: ["Single Family Home", "4 Bedroom", "3 Bath", "Waterfront", "Dock"],
+    images: ["property_11532_1.jpg", "property_11532_2.jpg"],
+    taxExemptions: [],
+    floodZone: true,
+    lastUpdated: "2025-03-10",
+    assessmentHistory: [
+      { year: 2025, assessedValue: 520000, marketValue: 575000 },
+      { year: 2024, assessedValue: 495000, marketValue: 550000 },
+      { year: 2023, assessedValue: 475000, marketValue: 530000 }
+    ]
   }
 ];

@@ -1,432 +1,330 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'wouter';
 import { useAuth } from '../context/auth-context';
 import { Button } from '../components/ui/button';
-import { MapTool, MeasurementUnit } from '../lib/map-utils';
-import {
-  residentialParcels,
-  commercialParcels,
-  agriculturalParcels,
-  specialPurposeParcels
-} from '../data/demo-property-data';
+import { Input } from '../components/ui/input';
+import { demoProperties } from '../data/demo-property-data';
+import { MapTool, LayerType, MeasurementUnit, defaultMapSettings } from '../lib/map-utils';
 
 const DemoMapViewer: React.FC = () => {
   const { user } = useAuth();
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const [selectedTool, setSelectedTool] = useState<MapTool>(MapTool.PAN);
+  const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({
+    parcels: true,
+    zoning: false,
+    aerial: false,
+    floodplain: false,
+    annotations: false
+  });
   const [measurementUnit, setMeasurementUnit] = useState<MeasurementUnit>(MeasurementUnit.FEET);
-  const [mapVisible, setMapVisible] = useState(true);
-  const [selectedParcel, setSelectedParcel] = useState<any>(null);
-  const [activeLayers, setActiveLayers] = useState({
-    residential: true,
-    commercial: true,
-    agricultural: true,
-    specialPurpose: false,
-    satellite: false,
-    boundaries: true,
-    labels: true
-  });
-  const [layerOpacity, setLayerOpacity] = useState({
-    residential: 1,
-    commercial: 1,
-    agricultural: 1,
-    specialPurpose: 1,
-    satellite: 0.7,
-    boundaries: 0.8,
-    labels: 1
+  const [selectedParcel, setSelectedParcel] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Filter properties by type
+  const residentialProperties = demoProperties.filter(p => p.propertyType === 'Residential');
+  const commercialProperties = demoProperties.filter(p => p.propertyType === 'Commercial');
+  const agriculturalProperties = demoProperties.filter(p => p.propertyType === 'Agricultural');
+  const vacantLandProperties = demoProperties.filter(p => p.propertyType === 'Vacant Land');
+  
+  // Filter properties based on search
+  const filteredProperties = demoProperties.filter(property => {
+    if (!searchQuery) return false;
+    
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return (
+      property.parcelId.toLowerCase().includes(lowerCaseQuery) ||
+      property.ownerName.toLowerCase().includes(lowerCaseQuery) ||
+      property.address.street.toLowerCase().includes(lowerCaseQuery)
+    );
   });
   
-  // Function to toggle layer visibility
-  const toggleLayer = (layerName: string) => {
-    setActiveLayers({
-      ...activeLayers,
-      [layerName]: !activeLayers[layerName as keyof typeof activeLayers]
-    });
+  // Toggle layer visibility
+  const toggleLayer = (layer: string) => {
+    setVisibleLayers(prev => ({
+      ...prev,
+      [layer]: !prev[layer]
+    }));
   };
   
-  // Function to update layer opacity
-  const updateLayerOpacity = (layerName: string, opacity: number) => {
-    setLayerOpacity({
-      ...layerOpacity,
-      [layerName]: opacity
-    });
+  // Change measurement unit
+  const handleUnitChange = (unit: MeasurementUnit) => {
+    setMeasurementUnit(unit);
   };
-
-  // Mock function for parcel selection
-  const handleParcelSelect = (parcel: any) => {
-    setSelectedParcel(parcel);
-  };
-
-  // Function to switch mapping tools
-  const switchTool = (tool: MapTool) => {
+  
+  // Select tool
+  const handleToolSelect = (tool: MapTool) => {
     setSelectedTool(tool);
   };
-
-  // Get total count of parcels
-  const getTotalParcelCount = () => {
-    return residentialParcels.length + 
-           commercialParcels.length + 
-           agriculturalParcels.length + 
-           specialPurposeParcels.length;
+  
+  // Handle property selection
+  const handlePropertySelect = (parcelId: string) => {
+    setSelectedParcel(parcelId);
   };
-
+  
+  // NOTE: In a real implementation, we would initialize and handle an actual map
+  // such as Leaflet, Mapbox GL, or ArcGIS JS API here. For this demo, we're just
+  // showing a simplified UI.
+  
+  useEffect(() => {
+    // This would be where we'd initialize the map and add base layers
+    const initMap = () => {
+      // Simulate map initialization
+      console.log('Map initialized with settings:', defaultMapSettings);
+    };
+    
+    if (mapContainerRef.current) {
+      initMap();
+    }
+    
+    return () => {
+      // Cleanup map instance on component unmount
+    };
+  }, []);
+  
+  // In a real implementation, this effect would update the map when layers change
+  useEffect(() => {
+    console.log('Visible layers updated:', visibleLayers);
+  }, [visibleLayers]);
+  
   if (!user) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-12rem)]">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
           <p className="mb-6">Please log in to access this page.</p>
-          <Button onClick={() => window.location.href = '/'}>Go to Login</Button>
+          <Link href="/">
+            <Button>Go to Login</Button>
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-9rem)]">
-      {/* Left Sidebar - Controls */}
-      <div className="w-64 bg-card border-r border-border p-4 overflow-auto">
-        <h2 className="font-semibold mb-4">Map Tools</h2>
-        
-        <div className="space-y-1 mb-6">
-          <Button 
-            variant={selectedTool === MapTool.PAN ? "default" : "outline"}
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => switchTool(MapTool.PAN)}
-          >
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8 15L12 11M12 11L16 15M12 11V21M20 15V8C20 6.89543 19.1046 6 18 6H6C4.89543 6 4 6.89543 4 8V15C4 16.1046 4.89543 17 6 17H18C19.1046 17 20 16.1046 20 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Pan
-          </Button>
-          
-          <Button 
-            variant={selectedTool === MapTool.SELECT ? "default" : "outline"}
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => switchTool(MapTool.SELECT)}
-          >
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M11 19L6.5 14.5M6.5 14.5L11 10M6.5 14.5H18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Select
-          </Button>
-          
-          <Button 
-            variant={selectedTool === MapTool.MEASURE ? "default" : "outline"}
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => switchTool(MapTool.MEASURE)}
-          >
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M9 13H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M6 9H18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M9 17H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Measure
-          </Button>
-          
-          <Button 
-            variant={selectedTool === MapTool.DRAW ? "default" : "outline"}
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => switchTool(MapTool.DRAW)}
-          >
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M15 3L12 6L15 9L18 6L15 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Draw
-          </Button>
+    <div className="container mx-auto px-4 py-4 h-[calc(100vh-9rem)] flex flex-col">
+      <header className="mb-4 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Map Viewer</h1>
+          <p className="text-muted-foreground">
+            Benton County GIS Data
+          </p>
         </div>
-        
-        <div className="border-t border-border pt-4 mb-6">
-          <h2 className="font-semibold mb-4">Parcel Layers</h2>
-          
-          <div className="space-y-3">
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Residential</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.residential} 
-                onChange={() => toggleLayer('residential')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            {activeLayers.residential && (
-              <div className="pl-4">
-                <label className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Opacity</span>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.1" 
-                    value={layerOpacity.residential} 
-                    onChange={e => updateLayerOpacity('residential', parseFloat(e.target.value))}
-                    className="w-24"
-                  />
-                </label>
-              </div>
-            )}
-            
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Commercial</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.commercial} 
-                onChange={() => toggleLayer('commercial')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            {activeLayers.commercial && (
-              <div className="pl-4">
-                <label className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Opacity</span>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.1" 
-                    value={layerOpacity.commercial} 
-                    onChange={e => updateLayerOpacity('commercial', parseFloat(e.target.value))}
-                    className="w-24"
-                  />
-                </label>
-              </div>
-            )}
-            
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Agricultural</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.agricultural} 
-                onChange={() => toggleLayer('agricultural')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            {activeLayers.agricultural && (
-              <div className="pl-4">
-                <label className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Opacity</span>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.1" 
-                    value={layerOpacity.agricultural} 
-                    onChange={e => updateLayerOpacity('agricultural', parseFloat(e.target.value))}
-                    className="w-24"
-                  />
-                </label>
-              </div>
-            )}
-            
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Special Purpose</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.specialPurpose} 
-                onChange={() => toggleLayer('specialPurpose')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            {activeLayers.specialPurpose && (
-              <div className="pl-4">
-                <label className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Opacity</span>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.1" 
-                    value={layerOpacity.specialPurpose} 
-                    onChange={e => updateLayerOpacity('specialPurpose', parseFloat(e.target.value))}
-                    className="w-24"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
+        <div className="flex space-x-2">
+          <Button variant="outline" size="sm">Export</Button>
+          <Button variant="outline" size="sm">Print</Button>
+          <Button size="sm">Save View</Button>
         </div>
-        
-        <div className="border-t border-border pt-4">
-          <h2 className="font-semibold mb-4">Base Layers</h2>
-          
-          <div className="space-y-3">
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Satellite Imagery</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.satellite} 
-                onChange={() => toggleLayer('satellite')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Boundaries</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.boundaries} 
-                onChange={() => toggleLayer('boundaries')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-            
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Labels</span>
-              <input 
-                type="checkbox" 
-                checked={activeLayers.labels} 
-                onChange={() => toggleLayer('labels')}
-                className="w-4 h-4 accent-primary"
-              />
-            </label>
-          </div>
-        </div>
-      </div>
+      </header>
       
-      {/* Main Content - Map Area */}
-      <div className="flex-1 relative">
-        {mapVisible ? (
-          <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-            <div className="text-center p-8 max-w-md bg-card rounded-lg shadow-lg">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-16 w-16 mx-auto text-muted-foreground mb-4" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="1" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-              <h3 className="text-lg font-medium mb-2">Map Viewer</h3>
-              <p className="text-muted-foreground mb-4">
-                Using demo data from Benton County. 
-                {getTotalParcelCount()} parcels available.
+      <div className="flex flex-1 space-x-4 overflow-hidden">
+        {/* Map Container */}
+        <div className="flex-1 relative">
+          <div 
+            ref={mapContainerRef}
+            className="w-full h-full bg-gray-200 rounded-md overflow-hidden relative"
+          >
+            {/* This would typically be replaced by an actual map library */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-gray-500 text-center">
+                Demo Map View <br />
+                <span className="text-sm">Centered on Benton County, OR</span>
               </p>
-              <div className="text-sm text-muted-foreground mb-4 text-left">
-                <p className="mb-1">Currently displaying:</p>
-                <ul className="list-disc pl-5 space-y-1">
-                  {activeLayers.residential && <li>Residential parcels ({residentialParcels.length})</li>}
-                  {activeLayers.commercial && <li>Commercial parcels ({commercialParcels.length})</li>}
-                  {activeLayers.agricultural && <li>Agricultural parcels ({agriculturalParcels.length})</li>}
-                  {activeLayers.specialPurpose && <li>Special purpose parcels ({specialPurposeParcels.length})</li>}
-                </ul>
-              </div>
-              <div className="text-sm text-muted-foreground mb-4">
-                <p>Current tool: <span className="font-medium">{selectedTool}</span></p>
-                {selectedTool === MapTool.MEASURE && 
-                  <p>Measurement unit: <span className="font-medium">{measurementUnit}</span></p>
-                }
-              </div>
-              <p className="text-xs text-muted-foreground mb-6">
-                This is a demo display. In the full application, an interactive map will render here utilizing Mapbox, Leaflet, or ArcGIS.
-              </p>
-              <div className="flex space-x-2 justify-center">
-                <Button variant="outline" size="sm" onClick={() => setSelectedParcel(residentialParcels[0])}>
-                  Select Sample Parcel
-                </Button>
-                <Button size="sm">
-                  Reset View
-                </Button>
-              </div>
             </div>
+            
+            {/* Map Tools Overlay */}
+            <div className="absolute top-4 left-4 bg-card shadow rounded-md p-2 flex flex-col space-y-2">
+              {Object.values(MapTool).slice(0, 6).map((tool) => (
+                <button
+                  key={tool}
+                  className={`w-8 h-8 flex items-center justify-center rounded-md ${
+                    selectedTool === tool ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-accent'
+                  }`}
+                  onClick={() => handleToolSelect(tool)}
+                  title={tool}
+                >
+                  {/* Tool icon would go here */}
+                  <span className="text-xs">{tool.charAt(0)}</span>
+                </button>
+              ))}
+            </div>
+            
+            {/* Zoom Controls */}
+            <div className="absolute bottom-4 right-4 bg-card shadow rounded-md p-2 flex flex-col space-y-2">
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent"
+                onClick={() => handleToolSelect(MapTool.ZOOM_IN)}
+                title="Zoom In"
+              >
+                +
+              </button>
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent"
+                onClick={() => handleToolSelect(MapTool.ZOOM_OUT)}
+                title="Zoom Out"
+              >
+                -
+              </button>
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent"
+                onClick={() => handleToolSelect(MapTool.ZOOM_EXTENT)}
+                title="Zoom to Extent"
+              >
+                <span className="text-xs">⤢</span>
+              </button>
+            </div>
+            
+            {/* Measurement Tool UI (conditionally shown) */}
+            {selectedTool === MapTool.MEASURE && (
+              <div className="absolute bottom-4 left-4 bg-card shadow rounded-md p-3">
+                <h4 className="text-sm font-medium mb-2">Measurement</h4>
+                <div className="flex space-x-2 mb-2">
+                  {[MeasurementUnit.FEET, MeasurementUnit.METERS].map((unit) => (
+                    <button
+                      key={unit}
+                      className={`px-2 py-1 text-xs rounded-md ${
+                        measurementUnit === unit ? 'bg-primary text-primary-foreground' : 'bg-accent/50 hover:bg-accent'
+                      }`}
+                      onClick={() => handleUnitChange(unit)}
+                    >
+                      {unit}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground">Click on map to start measuring</p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <Button onClick={() => setMapVisible(true)}>Show Map</Button>
-          </div>
-        )}
-        
-        {/* Map Controls */}
-        <div className="absolute top-4 right-4 z-10 flex space-x-2">
-          <Button size="sm" variant="secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            Search
-          </Button>
-          <Button size="sm" variant="secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-            </svg>
-            Panels
-          </Button>
-          <Button size="sm" variant="secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
-            </svg>
-            Navigate
-          </Button>
         </div>
         
-        {/* Property Details Panel */}
-        {selectedParcel && (
-          <div className="absolute bottom-4 left-4 right-4 max-h-64 overflow-auto bg-card shadow-lg rounded-lg border border-border p-4 z-10">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="font-semibold">{selectedParcel.properties.address}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedParcel(null)}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-muted-foreground">Parcel ID</p>
-                <p className="font-medium">{selectedParcel.properties.parcelId}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Type</p>
-                <p className="font-medium capitalize">{selectedParcel.properties.category}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Owner</p>
-                <p className="font-medium">{selectedParcel.properties.owner}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Size</p>
-                <p className="font-medium">{selectedParcel.properties.acres} acres</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Year Built</p>
-                <p className="font-medium">{selectedParcel.properties.yearBuilt}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Assessed Value</p>
-                <p className="font-medium">${selectedParcel.properties.assessedValue.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Market Value</p>
-                <p className="font-medium">${selectedParcel.properties.marketValue.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Land Value</p>
-                <p className="font-medium">${selectedParcel.properties.landValue.toLocaleString()}</p>
-              </div>
-            </div>
-            
-            <div className="mt-4 flex justify-end space-x-2">
-              <Button variant="outline" size="sm">Documents</Button>
-              <Button variant="outline" size="sm">History</Button>
-              <Button size="sm">Full Details</Button>
+        {/* Sidebar */}
+        <div className="w-80 flex flex-col space-y-4">
+          {/* Search */}
+          <div className="bg-card shadow rounded-md p-4">
+            <h3 className="text-lg font-medium mb-2">Search</h3>
+            <div className="space-y-2">
+              <Input
+                type="text"
+                placeholder="Parcel ID, Owner, or Address"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <Button className="w-full" size="sm">Search</Button>
+              
+              {filteredProperties.length > 0 && (
+                <div className="mt-3">
+                  <h4 className="text-sm font-medium mb-1">Results</h4>
+                  <div className="h-48 overflow-y-auto border rounded-md p-2">
+                    {filteredProperties.map((property) => (
+                      <div 
+                        key={property.id}
+                        className={`p-2 text-sm rounded-md mb-1 cursor-pointer ${
+                          selectedParcel === property.parcelId ? 
+                          'bg-primary/10 font-medium' : 'hover:bg-accent'
+                        }`}
+                        onClick={() => handlePropertySelect(property.parcelId)}
+                      >
+                        <div>{property.parcelId}</div>
+                        <div className="text-xs text-muted-foreground">{property.address.street}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
+          
+          {/* Layers */}
+          <div className="bg-card shadow rounded-md p-4">
+            <h3 className="text-lg font-medium mb-2">Layers</h3>
+            <div className="space-y-1">
+              {Object.entries(visibleLayers).map(([layer, isVisible]) => (
+                <div key={layer} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`layer-${layer}`}
+                    className="mr-2"
+                    checked={isVisible}
+                    onChange={() => toggleLayer(layer)}
+                  />
+                  <label 
+                    htmlFor={`layer-${layer}`}
+                    className="text-sm capitalize select-none cursor-pointer"
+                  >
+                    {layer}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Property Details (shown when a property is selected) */}
+          {selectedParcel && (
+            <div className="bg-card shadow rounded-md p-4 flex-1 overflow-y-auto">
+              <h3 className="text-lg font-medium mb-2">Property Details</h3>
+              <div className="space-y-4">
+                {demoProperties
+                  .filter(p => p.parcelId === selectedParcel)
+                  .map(property => (
+                    <div key={property.id}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{property.parcelId}</h4>
+                          <p className="text-sm text-muted-foreground">{property.address.street}</p>
+                        </div>
+                        <Button variant="outline" size="sm">View Full</Button>
+                      </div>
+                      
+                      <div className="mt-3 space-y-2">
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Owner</div>
+                          <div className="text-sm">{property.ownerName}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Type</div>
+                          <div className="text-sm">{property.propertyType}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Assessed Value</div>
+                          <div className="text-sm">${property.assessedValue.toLocaleString()}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Market Value</div>
+                          <div className="text-sm">${property.marketValue.toLocaleString()}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Land Area</div>
+                          <div className="text-sm">{property.landArea} acres</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Zoning</div>
+                          <div className="text-sm">{property.zoning}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="text-sm text-muted-foreground">Last Assessment</div>
+                          <div className="text-sm">{property.lastAssessmentDate}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h5 className="text-sm font-medium mb-1">Features</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {property.features.map((feature, index) => (
+                            <span 
+                              key={index}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground"
+                            >
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
