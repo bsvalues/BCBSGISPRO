@@ -1,491 +1,283 @@
-/**
- * Demo data for BentonGeoPro application
- * 
- * This file contains demo data for Benton County property assessments,
- * including property records, demo users, and demo documents.
- */
-
-// Demo user accounts for different roles
+// Demo user data for the application
 export interface DemoUser {
   id: string;
   username: string;
-  password: string; // Note: In a real app, passwords would never be stored in clear text
+  password: string;
   fullName: string;
-  role: 'Assessor' | 'Appraiser' | 'GIS Analyst' | 'Clerk';
-  email: string;
-  department: string;
+  role: string;
+  email?: string;
   permissions: string[];
-  lastLogin: Date;
 }
 
-// Demo document with classification information
-export interface DemoDocument {
-  id: string;
-  name: string;
-  type: string;
-  parcelId: string;
-  uploadDate: string;
-  fileSize: number; // Size in bytes
-  uploadedBy: string;
-  description: string;
-  tags: string[];
-  classificationStatus?: 'pending' | 'classified' | 'reviewed';
-  confidenceScore?: number; // Between 0 and 1
-  reviewedBy?: string;
-}
-
-// Demo property record representing assessment data
-export interface DemoProperty {
+// Demo property data
+export interface Property {
   id: string;
   parcelId: string;
-  ownerName: string;
-  address: {
-    street: string;
-    city: string;
-    zipCode: string;
-  };
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
-  propertyType: 'Residential' | 'Commercial' | 'Agricultural' | 'Vacant Land';
+  address: string;
+  owner: string;
+  type: 'Residential' | 'Commercial' | 'Agricultural' | 'Industrial' | 'Vacant';
+  valuationYear: number;
   assessedValue: number;
   marketValue: number;
-  landArea: number; // In acres
-  buildingArea?: number; // In sq. ft
-  yearBuilt?: number;
-  lastAssessmentDate: string;
-  taxDistrict: string;
-  zoning: string;
-  features: string[];
-  images: string[];
-  taxExemptions: string[];
-  floodZone: boolean;
-  lastUpdated: string;
-  assessmentHistory: {
+  acres: number;
+  latitude: number;
+  longitude: number;
+  documents?: string[];
+  taxes?: {
     year: number;
-    assessedValue: number;
-    marketValue: number;
+    amount: number;
+    paid: boolean;
+  }[];
+  lastInspection?: string;
+  improvements?: {
+    type: string;
+    value: number;
+    year: number;
   }[];
 }
 
-// Demo user accounts
+// Demo users with different roles
 export const demoUsers: DemoUser[] = [
   {
-    id: "user-001",
-    username: "jsmith",
-    password: "password123", // Never do this in a real application!
-    fullName: "John Smith",
-    role: "Assessor",
-    email: "jsmith@bentoncounty.gov",
-    department: "Assessment & Taxation",
-    permissions: ["read", "write", "approve", "admin"],
-    lastLogin: new Date("2025-04-15T10:30:00Z")
+    id: 'user-1',
+    username: 'assessor_demo',
+    password: 'demo123',
+    fullName: 'Morgan Williams',
+    role: 'Assessor',
+    email: 'morgan.williams@bentoncounty.gov',
+    permissions: ['view_all', 'edit_all', 'approve_assessments', 'admin_access']
   },
   {
-    id: "user-002",
-    username: "mjohnson",
-    password: "password123",
-    fullName: "Mary Johnson",
-    role: "Appraiser",
-    email: "mjohnson@bentoncounty.gov",
-    department: "Assessment & Taxation",
-    permissions: ["read", "write", "field_assessment"],
-    lastLogin: new Date("2025-04-14T14:20:00Z")
+    id: 'user-2',
+    username: 'appraiser_demo',
+    password: 'demo123',
+    fullName: 'Taylor Rodriguez',
+    role: 'Appraiser',
+    email: 'taylor.rodriguez@bentoncounty.gov',
+    permissions: ['view_all', 'edit_properties', 'conduct_assessments']
   },
   {
-    id: "user-003",
-    username: "rwilliams",
-    password: "password123",
-    fullName: "Robert Williams",
-    role: "GIS Analyst",
-    email: "rwilliams@bentoncounty.gov",
-    department: "GIS Services",
-    permissions: ["read", "write", "gis_edit", "map_publish"],
-    lastLogin: new Date("2025-04-15T09:15:00Z")
+    id: 'user-3',
+    username: 'gis_demo',
+    password: 'demo123',
+    fullName: 'Jordan Chen',
+    role: 'GIS Analyst',
+    email: 'jordan.chen@bentoncounty.gov',
+    permissions: ['view_all', 'edit_maps', 'manage_layers', 'spatial_analysis']
   },
   {
-    id: "user-004",
-    username: "abrown",
-    password: "password123",
-    fullName: "Amanda Brown",
-    role: "Clerk",
-    email: "abrown@bentoncounty.gov",
-    department: "Records",
-    permissions: ["read", "document_process"],
-    lastLogin: new Date("2025-04-15T08:45:00Z")
+    id: 'user-4',
+    username: 'clerk_demo',
+    password: 'demo123',
+    fullName: 'Casey Smith',
+    role: 'Clerk',
+    email: 'casey.smith@bentoncounty.gov',
+    permissions: ['view_properties', 'process_documents', 'customer_service']
   }
 ];
 
-// Demo document records for document classification system
-export const demoDocuments: DemoDocument[] = [
+// Demo properties (Benton County sample data)
+export const demoProperties: Property[] = [
   {
-    id: "doc-001",
-    name: "Deed_12345.pdf",
-    type: "Deed",
-    parcelId: "11525",
-    uploadDate: "2025-03-25",
-    fileSize: 2458092,
-    uploadedBy: "Amanda Brown",
-    description: "Property deed transfer from Smith to Johnson for residential property on 5th Street.",
-    tags: ["deed", "transfer", "residential"],
-    classificationStatus: "reviewed",
-    confidenceScore: 0.95,
-    reviewedBy: "John Smith"
-  },
-  {
-    id: "doc-002",
-    name: "PropertySurvey_22456.pdf",
-    type: "Survey",
-    parcelId: "11526",
-    uploadDate: "2025-04-02",
-    fileSize: 5689234,
-    uploadedBy: "Mary Johnson",
-    description: "Complete property survey of commercial lot on Main Street, including boundary measurements and easements.",
-    tags: ["survey", "commercial", "boundary"],
-    classificationStatus: "classified",
-    confidenceScore: 0.92
-  },
-  {
-    id: "doc-003",
-    name: "TaxAssessment_2025_11527.pdf",
-    type: "Tax Assessment",
-    parcelId: "11527",
-    uploadDate: "2025-04-10",
-    fileSize: 1257890,
-    uploadedBy: "John Smith",
-    description: "2025 tax assessment report for agricultural property owned by Willamette Valley Farms.",
-    tags: ["tax", "assessment", "agricultural"],
-    classificationStatus: "pending"
-  },
-  {
-    id: "doc-004",
-    name: "BuildingPermit_45678.pdf",
-    type: "Building Permit",
-    parcelId: "11528",
-    uploadDate: "2025-04-12",
-    fileSize: 3456789,
-    uploadedBy: "Amanda Brown",
-    description: "Building permit application for new garage construction at residential property on Oak Avenue.",
-    tags: ["permit", "construction", "garage"],
-    classificationStatus: "pending"
-  },
-  {
-    id: "doc-005",
-    name: "AppraisalReport_11529_2025.pdf",
-    type: "Appraisal",
-    parcelId: "11529",
-    uploadDate: "2025-04-14",
-    fileSize: 7895623,
-    uploadedBy: "Mary Johnson",
-    description: "Detailed property appraisal report for commercial retail space in downtown Corvallis.",
-    tags: ["appraisal", "commercial", "retail"],
-    classificationStatus: "classified",
-    confidenceScore: 0.88
-  },
-  {
-    id: "doc-006",
-    name: "Variance_Request_11530.pdf",
-    type: "Variance Request",
-    parcelId: "11530",
-    uploadDate: "2025-04-15",
-    fileSize: 1562378,
-    uploadedBy: "Amanda Brown",
-    description: "Zoning variance request for property on Pine Street to allow home business operation.",
-    tags: ["variance", "zoning", "home business"],
-    classificationStatus: "pending"
-  },
-  {
-    id: "doc-007",
-    name: "MapAmendment_SouthCorvallis.pdf",
-    type: "Map Amendment",
-    parcelId: "Multiple",
-    uploadDate: "2025-04-05",
-    fileSize: 8912456,
-    uploadedBy: "Robert Williams",
-    description: "Proposed map amendment for rezoning portion of South Corvallis to mixed-use development.",
-    tags: ["map", "amendment", "rezoning"],
-    classificationStatus: "reviewed",
-    confidenceScore: 0.96,
-    reviewedBy: "John Smith"
-  },
-  {
-    id: "doc-008",
-    name: "FloodplainCertification_11532.pdf",
-    type: "Floodplain Certificate",
-    parcelId: "11532",
-    uploadDate: "2025-04-08",
-    fileSize: 4123789,
-    uploadedBy: "Robert Williams",
-    description: "Floodplain certification for property adjacent to Willamette River, including elevation data.",
-    tags: ["floodplain", "certification", "elevation"],
-    classificationStatus: "classified",
-    confidenceScore: 0.94
-  }
-];
-
-// Demo property records
-export const demoProperties: DemoProperty[] = [
-  {
-    id: "prop-11525",
-    parcelId: "11525",
-    ownerName: "Johnson Family Trust",
-    address: {
-      street: "1234 5th Street",
-      city: "Corvallis",
-      zipCode: "97330"
-    },
-    coordinates: {
-      latitude: 44.5698,
-      longitude: -123.2780
-    },
-    propertyType: "Residential",
-    assessedValue: 420000,
+    id: 'prop-1',
+    parcelId: '10123-45-67890',
+    address: '1200 Main Street, Kennewick, WA 99336',
+    owner: 'Johnson Family Trust',
+    type: 'Residential',
+    valuationYear: 2024,
+    assessedValue: 425000,
     marketValue: 450000,
-    landArea: 0.25,
-    buildingArea: 2200,
-    yearBuilt: 1992,
-    lastAssessmentDate: "2025-01-15",
-    taxDistrict: "Corvallis School District",
-    zoning: "R-1 (Low Density Residential)",
-    features: ["Single Family Home", "3 Bedroom", "2 Bath", "Garage", "Fireplace"],
-    images: ["property_11525_1.jpg", "property_11525_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-01-15",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 420000, marketValue: 450000 },
-      { year: 2024, assessedValue: 405000, marketValue: 435000 },
-      { year: 2023, assessedValue: 390000, marketValue: 420000 }
+    acres: 0.25,
+    latitude: 46.2112,
+    longitude: -119.1372,
+    documents: ['deed-10123.pdf', 'survey-2022.pdf', 'tax-statement-2024.pdf'],
+    taxes: [
+      { year: 2024, amount: 4250, paid: true },
+      { year: 2023, amount: 4100, paid: true }
+    ],
+    lastInspection: '2023-08-15',
+    improvements: [
+      { type: 'Deck Addition', value: 12000, year: 2022 },
+      { type: 'Kitchen Renovation', value: 45000, year: 2020 }
     ]
   },
   {
-    id: "prop-11526",
-    parcelId: "11526",
-    ownerName: "Corvallis Business Center LLC",
-    address: {
-      street: "567 Main Street",
-      city: "Corvallis",
-      zipCode: "97330"
-    },
-    coordinates: {
-      latitude: 44.5642,
-      longitude: -123.2615
-    },
-    propertyType: "Commercial",
+    id: 'prop-2',
+    parcelId: '10456-78-90123',
+    address: '500 Columbia Drive, Richland, WA 99352',
+    owner: 'Columbia River Ventures LLC',
+    type: 'Commercial',
+    valuationYear: 2024,
     assessedValue: 1250000,
-    marketValue: 1350000,
-    landArea: 0.75,
-    buildingArea: 8500,
-    yearBuilt: 1985,
-    lastAssessmentDate: "2025-02-10",
-    taxDistrict: "Corvallis Central Business",
-    zoning: "CB (Central Business)",
-    features: ["Retail Space", "Office Space", "Parking Lot", "ADA Accessible"],
-    images: ["property_11526_1.jpg", "property_11526_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-02-10",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 1250000, marketValue: 1350000 },
-      { year: 2024, assessedValue: 1200000, marketValue: 1300000 },
-      { year: 2023, assessedValue: 1150000, marketValue: 1250000 }
+    marketValue: 1400000,
+    acres: 1.5,
+    latitude: 46.2855,
+    longitude: -119.2938,
+    documents: ['commercial-deed-10456.pdf', 'building-permit-2021.pdf'],
+    taxes: [
+      { year: 2024, amount: 15500, paid: true },
+      { year: 2023, amount: 14800, paid: true }
+    ],
+    lastInspection: '2023-10-05',
+    improvements: [
+      { type: 'Parking Lot Expansion', value: 85000, year: 2023 },
+      { type: 'HVAC Replacement', value: 65000, year: 2022 }
     ]
   },
   {
-    id: "prop-11527",
-    parcelId: "11527",
-    ownerName: "Willamette Valley Farms Inc.",
-    address: {
-      street: "12300 Agricultural Way",
-      city: "Monroe",
-      zipCode: "97456"
-    },
-    coordinates: {
-      latitude: 44.3150,
-      longitude: -123.2986
-    },
-    propertyType: "Agricultural",
-    assessedValue: 850000,
+    id: 'prop-3',
+    parcelId: '10789-01-23456',
+    address: '3200 Duportail Street, Richland, WA 99352',
+    owner: 'Smith Agricultural Holdings',
+    type: 'Agricultural',
+    valuationYear: 2024,
+    assessedValue: 875000,
     marketValue: 950000,
-    landArea: 120.5,
-    buildingArea: 3200,
-    yearBuilt: 1976,
-    lastAssessmentDate: "2025-01-20",
-    taxDistrict: "Monroe Rural",
-    zoning: "EFU (Exclusive Farm Use)",
-    features: ["Farmland", "Barn", "Silo", "Equipment Storage", "Irrigation System"],
-    images: ["property_11527_1.jpg", "property_11527_2.jpg"],
-    taxExemptions: ["Farm Use Special Assessment"],
-    floodZone: true,
-    lastUpdated: "2025-01-20",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 850000, marketValue: 950000 },
-      { year: 2024, assessedValue: 825000, marketValue: 925000 },
-      { year: 2023, assessedValue: 800000, marketValue: 900000 }
+    acres: 24.5,
+    latitude: 46.2715,
+    longitude: -119.3100,
+    documents: ['ag-deed-10789.pdf', 'water-rights-cert.pdf'],
+    taxes: [
+      { year: 2024, amount: 7500, paid: true },
+      { year: 2023, amount: 7200, paid: true }
+    ],
+    lastInspection: '2023-06-22',
+    improvements: [
+      { type: 'Irrigation System', value: 120000, year: 2022 },
+      { type: 'Equipment Barn', value: 95000, year: 2021 }
     ]
   },
   {
-    id: "prop-11528",
-    parcelId: "11528",
-    ownerName: "Garcia, Miguel & Elena",
-    address: {
-      street: "789 Oak Avenue",
-      city: "Corvallis",
-      zipCode: "97330"
-    },
-    coordinates: {
-      latitude: 44.5801,
-      longitude: -123.2850
-    },
-    propertyType: "Residential",
-    assessedValue: 380000,
-    marketValue: 410000,
-    landArea: 0.18,
-    buildingArea: 1950,
-    yearBuilt: 1998,
-    lastAssessmentDate: "2025-02-05",
-    taxDistrict: "Corvallis School District",
-    zoning: "R-1 (Low Density Residential)",
-    features: ["Single Family Home", "4 Bedroom", "2.5 Bath", "Garage", "Deck"],
-    images: ["property_11528_1.jpg", "property_11528_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-02-05",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 380000, marketValue: 410000 },
-      { year: 2024, assessedValue: 365000, marketValue: 395000 },
-      { year: 2023, assessedValue: 350000, marketValue: 380000 }
+    id: 'prop-4',
+    parcelId: '10234-56-78901',
+    address: '750 George Washington Way, Richland, WA 99352',
+    owner: 'Pacific Northwest Properties',
+    type: 'Commercial',
+    valuationYear: 2024,
+    assessedValue: 1850000,
+    marketValue: 2000000,
+    acres: 1.8,
+    latitude: 46.2961,
+    longitude: -119.2782,
+    documents: ['commercial-deed-10234.pdf', 'renovation-permit-2023.pdf'],
+    taxes: [
+      { year: 2024, amount: 22500, paid: true },
+      { year: 2023, amount: 21000, paid: true }
+    ],
+    lastInspection: '2024-01-15',
+    improvements: [
+      { type: 'Building Expansion', value: 350000, year: 2023 },
+      { type: 'Solar Panel Installation', value: 125000, year: 2022 }
     ]
   },
   {
-    id: "prop-11529",
-    parcelId: "11529",
-    ownerName: "Corvallis Retail Properties LLC",
-    address: {
-      street: "123 Downtown Plaza",
-      city: "Corvallis",
-      zipCode: "97330"
-    },
-    coordinates: {
-      latitude: 44.5639,
-      longitude: -123.2624
-    },
-    propertyType: "Commercial",
-    assessedValue: 980000,
-    marketValue: 1050000,
-    landArea: 0.35,
-    buildingArea: 6200,
-    yearBuilt: 1972,
-    lastAssessmentDate: "2025-03-01",
-    taxDistrict: "Corvallis Central Business",
-    zoning: "CB (Central Business)",
-    features: ["Retail Space", "Storage", "Parking", "Recently Renovated"],
-    images: ["property_11529_1.jpg", "property_11529_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-03-01",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 980000, marketValue: 1050000 },
-      { year: 2024, assessedValue: 925000, marketValue: 990000 },
-      { year: 2023, assessedValue: 875000, marketValue: 940000 }
+    id: 'prop-5',
+    parcelId: '10345-67-89012',
+    address: '2100 Yakima River Drive, Prosser, WA 99350',
+    owner: 'Yakima Valley Vineyards',
+    type: 'Agricultural',
+    valuationYear: 2024,
+    assessedValue: 1650000,
+    marketValue: 1750000,
+    acres: 45.2,
+    latitude: 46.2066,
+    longitude: -119.7644,
+    documents: ['ag-deed-10345.pdf', 'water-rights-2020.pdf'],
+    taxes: [
+      { year: 2024, amount: 14500, paid: true },
+      { year: 2023, amount: 13800, paid: true }
+    ],
+    lastInspection: '2023-09-18',
+    improvements: [
+      { type: 'Vineyard Expansion', value: 250000, year: 2023 },
+      { type: 'Processing Facility', value: 375000, year: 2021 }
     ]
   },
   {
-    id: "prop-11530",
-    parcelId: "11530",
-    ownerName: "Chen, Wei & Liu, Mei",
-    address: {
-      street: "456 Pine Street",
-      city: "Corvallis",
-      zipCode: "97333"
-    },
-    coordinates: {
-      latitude: 44.5725,
-      longitude: -123.2730
-    },
-    propertyType: "Residential",
-    assessedValue: 395000,
-    marketValue: 425000,
-    landArea: 0.2,
-    buildingArea: 2100,
-    yearBuilt: 2005,
-    lastAssessmentDate: "2025-02-15",
-    taxDistrict: "Corvallis School District",
-    zoning: "R-2 (Medium Density Residential)",
-    features: ["Single Family Home", "3 Bedroom", "2 Bath", "Home Office", "Garden"],
-    images: ["property_11530_1.jpg", "property_11530_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-02-15",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 395000, marketValue: 425000 },
-      { year: 2024, assessedValue: 375000, marketValue: 405000 },
-      { year: 2023, assessedValue: 360000, marketValue: 390000 }
-    ]
-  },
-  {
-    id: "prop-11531",
-    parcelId: "11531",
-    ownerName: "South Corvallis Development Co.",
-    address: {
-      street: "S Corvallis Development Area",
-      city: "Corvallis",
-      zipCode: "97333"
-    },
-    coordinates: {
-      latitude: 44.5465,
-      longitude: -123.2689
-    },
-    propertyType: "Vacant Land",
-    assessedValue: 550000,
-    marketValue: 650000,
-    landArea: 3.8,
-    lastAssessmentDate: "2025-01-25",
-    taxDistrict: "Corvallis South",
-    zoning: "MUC (Mixed Use Commercial)",
-    features: ["Vacant", "Development Ready", "Utilities Available", "Near Highway Access"],
-    images: ["property_11531_1.jpg", "property_11531_2.jpg"],
-    taxExemptions: [],
-    floodZone: false,
-    lastUpdated: "2025-01-25",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 550000, marketValue: 650000 },
-      { year: 2024, assessedValue: 520000, marketValue: 620000 },
-      { year: 2023, assessedValue: 490000, marketValue: 590000 }
-    ]
-  },
-  {
-    id: "prop-11532",
-    parcelId: "11532",
-    ownerName: "Riverfront Properties LLC",
-    address: {
-      street: "789 River Road",
-      city: "Corvallis",
-      zipCode: "97333"
-    },
-    coordinates: {
-      latitude: 44.5564,
-      longitude: -123.2493
-    },
-    propertyType: "Residential",
+    id: 'prop-6',
+    parcelId: '10567-89-01234',
+    address: '1500 Badger Mountain Loop, Richland, WA 99352',
+    owner: 'Martinez Family Trust',
+    type: 'Residential',
+    valuationYear: 2024,
     assessedValue: 520000,
-    marketValue: 575000,
-    landArea: 0.8,
-    buildingArea: 2800,
-    yearBuilt: 1982,
-    lastAssessmentDate: "2025-03-10",
-    taxDistrict: "Corvallis School District",
-    zoning: "R-3 (High Density Residential)",
-    features: ["Single Family Home", "4 Bedroom", "3 Bath", "Waterfront", "Dock"],
-    images: ["property_11532_1.jpg", "property_11532_2.jpg"],
-    taxExemptions: [],
-    floodZone: true,
-    lastUpdated: "2025-03-10",
-    assessmentHistory: [
-      { year: 2025, assessedValue: 520000, marketValue: 575000 },
-      { year: 2024, assessedValue: 495000, marketValue: 550000 },
-      { year: 2023, assessedValue: 475000, marketValue: 530000 }
+    marketValue: 550000,
+    acres: 0.35,
+    latitude: 46.2527,
+    longitude: -119.3284,
+    documents: ['deed-10567.pdf', 'permit-2022.pdf'],
+    taxes: [
+      { year: 2024, amount: 5100, paid: true },
+      { year: 2023, amount: 4900, paid: true }
+    ],
+    lastInspection: '2023-07-30',
+    improvements: [
+      { type: 'Swimming Pool', value: 65000, year: 2022 },
+      { type: 'Landscaping', value: 35000, year: 2022 }
     ]
+  },
+  {
+    id: 'prop-7',
+    parcelId: '10678-90-12345',
+    address: '800 Edison Street, Kennewick, WA 99336',
+    owner: 'Edison Industrial Corp',
+    type: 'Industrial',
+    valuationYear: 2024,
+    assessedValue: 2250000,
+    marketValue: 2400000,
+    acres: 3.5,
+    latitude: 46.2124,
+    longitude: -119.1564,
+    documents: ['industrial-deed-10678.pdf', 'environmental-report-2023.pdf'],
+    taxes: [
+      { year: 2024, amount: 28500, paid: true },
+      { year: 2023, amount: 27200, paid: true }
+    ],
+    lastInspection: '2023-11-12',
+    improvements: [
+      { type: 'Manufacturing Facility Upgrade', value: 750000, year: 2023 },
+      { type: 'Loading Dock Expansion', value: 185000, year: 2022 }
+    ]
+  },
+  {
+    id: 'prop-8',
+    parcelId: '10890-12-34567',
+    address: '320 Keene Road, Richland, WA 99352',
+    owner: 'Future Development LLC',
+    type: 'Vacant',
+    valuationYear: 2024,
+    assessedValue: 325000,
+    marketValue: 350000,
+    acres: 2.8,
+    latitude: 46.2717,
+    longitude: -119.3005,
+    documents: ['deed-10890.pdf', 'zoning-certificate.pdf'],
+    taxes: [
+      { year: 2024, amount: 3250, paid: true },
+      { year: 2023, amount: 3100, paid: true }
+    ],
+    lastInspection: '2023-05-18'
   }
 ];
+
+// Property statistics for the dashboard
+export const propertyStatistics = {
+  totalProperties: demoProperties.length,
+  totalValue: demoProperties.reduce((sum, prop) => sum + prop.assessedValue, 0),
+  averageValue: Math.round(
+    demoProperties.reduce((sum, prop) => sum + prop.assessedValue, 0) / demoProperties.length
+  ),
+  byType: {
+    Residential: demoProperties.filter(p => p.type === 'Residential').length,
+    Commercial: demoProperties.filter(p => p.type === 'Commercial').length,
+    Agricultural: demoProperties.filter(p => p.type === 'Agricultural').length,
+    Industrial: demoProperties.filter(p => p.type === 'Industrial').length,
+    Vacant: demoProperties.filter(p => p.type === 'Vacant').length
+  },
+  recentUpdates: [
+    { id: 'update-1', parcelId: '10123-45-67890', type: 'Assessment Completed', date: '2024-04-10', user: 'Taylor Rodriguez' },
+    { id: 'update-2', parcelId: '10456-78-90123', type: 'Document Added', date: '2024-04-12', user: 'Casey Smith' },
+    { id: 'update-3', parcelId: '10789-01-23456', type: 'Map Updated', date: '2024-04-14', user: 'Jordan Chen' },
+    { id: 'update-4', parcelId: '10234-56-78901', type: 'Valuation Change', date: '2024-04-15', user: 'Morgan Williams' }
+  ]
+};

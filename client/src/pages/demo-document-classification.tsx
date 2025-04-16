@@ -1,381 +1,355 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'wouter';
+import React, { useState } from 'react';
 import { useAuth } from '../context/auth-context';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { demoDocuments, DemoDocument } from '../data/demo-property-data';
-import { formatDate, formatFileSize } from '../lib/utils';
+import { demoProperties } from '../data/demo-property-data';
 
-const DemoDocumentClassification: React.FC = () => {
-  const { user } = useAuth();
-  const [documents, setDocuments] = useState<DemoDocument[]>(demoDocuments);
-  const [selectedDocument, setSelectedDocument] = useState<DemoDocument | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
-  const [isProcessing, setIsProcessing] = useState(false);
+// Demo document types
+const DOCUMENT_TYPES = [
+  'Deed',
+  'Tax Statement',
+  'Survey',
+  'Building Permit',
+  'Property Transfer',
+  'Title Insurance',
+  'Zoning Certificate',
+  'Environmental Report'
+];
+
+// Demo document interface
+interface DemoDocument {
+  id: string;
+  name: string;
+  type: string;
+  parcelId: string | null;
+  uploadDate: string;
+  confidence: number;
+  size: number;
+  status: 'processing' | 'classified' | 'verified' | 'error';
+}
+
+// Generate some demo documents
+const generateDemoDocuments = (): DemoDocument[] => {
+  const documents: DemoDocument[] = [];
   
-  // Filter documents based on search query and active tab
-  const filteredDocuments = documents.filter(doc => {
+  // Create documents for some of the demo properties
+  for (let i = 0; i < demoProperties.length; i++) {
+    const property = demoProperties[i];
+    
+    if (property.documents) {
+      property.documents.forEach((doc, index) => {
+        const docType = DOCUMENT_TYPES.find(type => doc.toLowerCase().includes(type.toLowerCase())) || DOCUMENT_TYPES[0];
+        const confidence = Math.random() * 0.3 + 0.7; // Random confidence between 70% and 100%
+        
+        documents.push({
+          id: `doc-${i}-${index}`,
+          name: doc,
+          type: docType,
+          parcelId: property.parcelId,
+          uploadDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Random date within last 30 days
+          confidence: confidence,
+          size: Math.floor(Math.random() * 5000000) + 500000, // Random size between 500KB and 5MB
+          status: Math.random() > 0.2 ? 'classified' : (Math.random() > 0.5 ? 'verified' : 'processing')
+        });
+      });
+    }
+  }
+  
+  return documents.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+};
+
+const demoDocuments = generateDemoDocuments();
+
+// Document classification demo component
+const DemoDocumentClassification: React.FC = () => {
+  const { user, logout } = useAuth();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DemoDocument | null>(null);
+  
+  // Filter documents based on search and type filter
+  const filteredDocuments = demoDocuments.filter(doc => {
     const matchesSearch = 
-      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      searchTerm === '' || 
+      doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.parcelId && doc.parcelId.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    if (activeTab === 'all') return matchesSearch;
-    if (activeTab === 'pending') return matchesSearch && doc.classificationStatus === 'pending';
-    if (activeTab === 'classified') return matchesSearch && doc.classificationStatus === 'classified';
-    if (activeTab === 'reviewed') return matchesSearch && doc.classificationStatus === 'reviewed';
+    const matchesType = filterType === null || doc.type === filterType;
     
-    return false;
+    return matchesSearch && matchesType;
   });
   
-  // Group documents by type for the summary view
-  const documentTypes = demoDocuments.reduce((acc, doc) => {
-    acc[doc.type] = (acc[doc.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  // Simulate document classification process
-  const processDocument = (doc: DemoDocument) => {
-    setIsProcessing(true);
-    
-    // Simulate API call with timeout
-    setTimeout(() => {
-      const updatedDocuments = documents.map(d => {
-        if (d.id === doc.id) {
-          return {
-            ...d,
-            classificationStatus: 'classified' as 'classified',
-            confidenceScore: Math.random() * 0.15 + 0.85, // Random score between 0.85 and 1.0
-          };
-        }
-        return d;
-      });
-      
-      setDocuments(updatedDocuments);
-      setSelectedDocument(updatedDocuments.find(d => d.id === doc.id) || null);
-      setIsProcessing(false);
-    }, 1500);
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
   
-  // Review and approve a document classification
-  const approveClassification = (doc: DemoDocument) => {
-    const updatedDocuments = documents.map(d => {
-      if (d.id === doc.id) {
-        return {
-          ...d,
-          classificationStatus: 'reviewed' as 'reviewed',
-          reviewedBy: user?.username,
-        };
-      }
-      return d;
-    });
-    
-    setDocuments(updatedDocuments);
-    setSelectedDocument(updatedDocuments.find(d => d.id === doc.id) || null);
+  // Handle document click
+  const handleDocumentClick = (doc: DemoDocument) => {
+    setSelectedDocument(doc);
   };
   
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-12rem)]">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-          <p className="mb-6">Please log in to access this page.</p>
-          <Link href="/">
-            <Button>Go to Login</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold">Document Classification</h1>
-        <p className="text-muted-foreground">
-          Automated document classification and management system
-        </p>
-      </header>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Document List */}
-        <div className="lg:col-span-2">
-          <div className="bg-card shadow rounded-lg overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex space-x-2">
-                  <button 
-                    className={`px-3 py-1 rounded-md text-sm ${activeTab === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
-                    onClick={() => setActiveTab('all')}
-                  >
-                    All Documents
-                  </button>
-                  <button
-                    className={`px-3 py-1 rounded-md text-sm ${activeTab === 'pending' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
-                    onClick={() => setActiveTab('pending')}
-                  >
-                    Pending
-                  </button>
-                  <button
-                    className={`px-3 py-1 rounded-md text-sm ${activeTab === 'classified' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
-                    onClick={() => setActiveTab('classified')}
-                  >
-                    Classified
-                  </button>
-                  <button
-                    className={`px-3 py-1 rounded-md text-sm ${activeTab === 'reviewed' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
-                    onClick={() => setActiveTab('reviewed')}
-                  >
-                    Reviewed
-                  </button>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header/Navigation */}
+      <header className="bg-card shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center">
+            <h1 className="text-xl font-semibold text-primary">BentonGeoPro</h1>
+            <nav className="ml-10 flex space-x-4">
+              <a href="/dashboard" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
+                Dashboard
+              </a>
+              <a href="/map" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
+                Map Viewer
+              </a>
+              <a href="/documents" className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary">
+                Documents
+              </a>
+            </nav>
+          </div>
+          
+          <div className="flex items-center">
+            {user && (
+              <div className="flex items-center space-x-4">
+                <div className="text-sm">
+                  <p className="font-medium">{user.fullName}</p>
+                  <p className="text-muted-foreground">{user.role}</p>
                 </div>
-                <div className="w-full sm:w-auto">
-                  <Input
-                    type="text"
-                    placeholder="Search documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full sm:w-64"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {filteredDocuments.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-muted-foreground">No documents found matching your search criteria.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Parcel ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload Date</th>
-                      <th className="px-4 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredDocuments.map((doc) => (
-                      <tr 
-                        key={doc.id} 
-                        className={`hover:bg-muted/50 cursor-pointer ${selectedDocument?.id === doc.id ? 'bg-primary/10' : ''}`}
-                        onClick={() => setSelectedDocument(doc)}
-                      >
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">{doc.name}</td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">{doc.type}</td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">{doc.parcelId}</td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            ${doc.classificationStatus === 'classified' ? 'bg-blue-100 text-blue-800' : 
-                              doc.classificationStatus === 'reviewed' ? 'bg-green-100 text-green-800' : 
-                              'bg-amber-100 text-amber-800'}`}
-                          >
-                            {doc.classificationStatus === 'classified' ? 'Classified' : 
-                             doc.classificationStatus === 'reviewed' ? 'Reviewed' : 
-                             'Pending'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm">{formatDate(doc.uploadDate)}</td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedDocument(doc);
-                            }}
-                          >
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <button 
+                  onClick={logout}
+                  className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  Logout
+                </button>
               </div>
             )}
           </div>
         </div>
-        
-        {/* Right Panel - Document Details or Summary */}
-        <div>
-          {selectedDocument ? (
-            <div className="bg-card shadow rounded-lg p-6">
-              <div className="flex justify-between items-start mb-6">
-                <h2 className="text-xl font-semibold">{selectedDocument.name}</h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setSelectedDocument(null)}
-                >
-                  Close
-                </Button>
-              </div>
+      </header>
+      
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Document List Sidebar */}
+        <div className="w-96 border-r bg-card">
+          <div className="p-4 border-b">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">Documents</h2>
+              <button className="px-3 py-1 text-sm rounded-md bg-primary text-primary-foreground">
+                Upload
+              </button>
+            </div>
+            
+            {/* Search */}
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Search documents or parcels..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background"
+              />
+            </div>
+            
+            {/* Type filter */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <button
+                className={`px-2 py-1 text-xs rounded-md ${
+                  filterType === null ? 'bg-primary text-primary-foreground' : 'bg-accent'
+                }`}
+                onClick={() => setFilterType(null)}
+              >
+                All
+              </button>
               
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Document Type</p>
-                    <p className="font-medium">{selectedDocument.type}</p>
+              {DOCUMENT_TYPES.map((type) => (
+                <button
+                  key={type}
+                  className={`px-2 py-1 text-xs rounded-md ${
+                    filterType === type ? 'bg-primary text-primary-foreground' : 'bg-accent'
+                  }`}
+                  onClick={() => setFilterType(type)}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Document List */}
+          <div className="overflow-y-auto max-h-[calc(100vh-225px)]">
+            {filteredDocuments.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                No documents found matching your criteria
+              </div>
+            ) : (
+              filteredDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className={`p-4 border-b cursor-pointer hover:bg-accent/10 ${
+                    selectedDocument?.id === doc.id ? 'bg-primary/5' : ''
+                  }`}
+                  onClick={() => handleDocumentClick(doc)}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-medium text-sm">{doc.name}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      doc.status === 'verified' ? 'bg-green-100 text-green-800' :
+                      doc.status === 'classified' ? 'bg-blue-100 text-blue-800' :
+                      doc.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Parcel ID</p>
-                    <p className="font-medium">{selectedDocument.parcelId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">File Size</p>
-                    <p className="font-medium">{formatFileSize(selectedDocument.fileSize)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Upload Date</p>
-                    <p className="font-medium">{formatDate(selectedDocument.uploadDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Uploaded By</p>
-                    <p className="font-medium">{selectedDocument.uploadedBy}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <p className="font-medium capitalize">{selectedDocument.classificationStatus || 'Pending'}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Description</p>
-                  <p>{selectedDocument.description}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Tags</p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedDocument.tags.map((tag, index) => (
-                      <span 
-                        key={index}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                
-                {selectedDocument.classificationStatus === 'classified' && (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Classification Results</p>
-                    <div className="bg-muted p-3 rounded-md">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Confidence Score</span>
-                        <span className="text-sm font-medium">
-                          {(selectedDocument.confidenceScore || 0) * 100}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-primary/20 rounded-full h-2 mb-3">
-                        <div 
-                          className="bg-primary h-2 rounded-full" 
-                          style={{ width: `${(selectedDocument.confidenceScore || 0) * 100}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Document has been automatically classified as <strong>{selectedDocument.type}</strong>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="pt-4 border-t border-border">
-                  {selectedDocument.classificationStatus === 'pending' && (
-                    <Button 
-                      onClick={() => processDocument(selectedDocument)}
-                      disabled={isProcessing}
-                      className="w-full"
-                    >
-                      {isProcessing ? 'Processing...' : 'Process Document'}
-                    </Button>
-                  )}
                   
-                  {selectedDocument.classificationStatus === 'classified' && (
-                    <div className="space-y-2">
-                      <Button 
-                        onClick={() => approveClassification(selectedDocument)}
-                        className="w-full"
-                      >
-                        Approve Classification
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        className="w-full"
-                      >
-                        Adjust Classification
-                      </Button>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Type: {doc.type}
+                  </div>
+                  
+                  {doc.parcelId && (
+                    <div className="text-xs text-muted-foreground mb-1">
+                      Parcel: {doc.parcelId}
                     </div>
                   )}
                   
-                  {selectedDocument.classificationStatus === 'reviewed' && (
-                    <div className="bg-green-100 text-green-800 p-3 rounded-md text-sm">
-                      <p>This document has been successfully classified and reviewed.</p>
-                      {selectedDocument.reviewedBy && (
-                        <p className="mt-1">Reviewed by: <strong>{selectedDocument.reviewedBy}</strong></p>
-                      )}
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{doc.uploadDate}</span>
+                    <span>{formatFileSize(doc.size)}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        
+        {/* Document Preview */}
+        <div className="flex-1 bg-background p-6">
+          {selectedDocument ? (
+            <div>
+              <div className="bg-card shadow-lg rounded-lg overflow-hidden">
+                <div className="bg-primary/5 p-4 border-b flex justify-between items-center">
+                  <h3 className="font-semibold">{selectedDocument.name}</h3>
+                  <div className="flex space-x-2">
+                    <button className="px-3 py-1 text-xs rounded-md bg-accent">Download</button>
+                    <button className="px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground">Edit Metadata</button>
+                  </div>
+                </div>
+                
+                <div className="p-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Document Information</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Type:</span>
+                          <span>{selectedDocument.type}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className="capitalize">{selectedDocument.status}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Upload Date:</span>
+                          <span>{selectedDocument.uploadDate}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">File Size:</span>
+                          <span>{formatFileSize(selectedDocument.size)}</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                    
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Classification</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Confidence:</span>
+                          <span>{(selectedDocument.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Parcel ID:</span>
+                          <span>{selectedDocument.parcelId || 'Not detected'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Property:</span>
+                          <span>
+                            {selectedDocument.parcelId 
+                              ? demoProperties.find(p => p.parcelId === selectedDocument.parcelId)?.address.split(',')[0] || 'Unknown'
+                              : 'Not linked'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium mb-2">Document Preview</h4>
+                    <div className="border rounded-md bg-accent/5 h-72 flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="text-muted-foreground mb-2">
+                          Document preview would appear here in the actual application
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          File: {selectedDocument.name}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Extracted Information</h4>
+                    <div className="bg-accent/5 border rounded-md p-4 text-sm">
+                      <p className="mb-2">
+                        AI has extracted the following information from this document:
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div>
+                          <span className="text-muted-foreground">Document Type:</span> {selectedDocument.type}
+                        </div>
+                        {selectedDocument.parcelId && (
+                          <div>
+                            <span className="text-muted-foreground">Parcel Number:</span> {selectedDocument.parcelId}
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">Date of Document:</span> {selectedDocument.uploadDate}
+                        </div>
+                        {selectedDocument.type === 'Deed' && (
+                          <>
+                            <div>
+                              <span className="text-muted-foreground">Property Owner:</span> {
+                                demoProperties.find(p => p.parcelId === selectedDocument.parcelId)?.owner || 'Unknown'
+                              }
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Recorded Date:</span> {selectedDocument.uploadDate}
+                            </div>
+                          </>
+                        )}
+                        {selectedDocument.type === 'Building Permit' && (
+                          <>
+                            <div>
+                              <span className="text-muted-foreground">Permit Number:</span> BP-{Math.floor(Math.random() * 900000) + 100000}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Issue Date:</span> {selectedDocument.uploadDate}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-card shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Document Summary</h2>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-primary/5 rounded-md p-3">
-                    <p className="text-sm font-medium mb-1">Total Documents</p>
-                    <p className="text-2xl font-bold">{demoDocuments.length}</p>
-                  </div>
-                  <div className="bg-primary/5 rounded-md p-3">
-                    <p className="text-sm font-medium mb-1">Pending</p>
-                    <p className="text-2xl font-bold">
-                      {demoDocuments.filter(d => d.classificationStatus === 'pending').length}
-                    </p>
-                  </div>
-                  <div className="bg-primary/5 rounded-md p-3">
-                    <p className="text-sm font-medium mb-1">Classified</p>
-                    <p className="text-2xl font-bold">
-                      {demoDocuments.filter(d => d.classificationStatus === 'classified').length}
-                    </p>
-                  </div>
-                  <div className="bg-primary/5 rounded-md p-3">
-                    <p className="text-sm font-medium mb-1">Reviewed</p>
-                    <p className="text-2xl font-bold">
-                      {demoDocuments.filter(d => d.classificationStatus === 'reviewed').length}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Document Types</h3>
-                  <div className="space-y-2">
-                    {Object.entries(documentTypes).map(([type, count]) => (
-                      <div 
-                        key={type}
-                        className="flex justify-between items-center p-2 bg-muted rounded-md"
-                      >
-                        <span>{type}</span>
-                        <span className="font-medium">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="pt-4 border-t border-border">
-                  <Button className="w-full">
-                    Upload New Document
-                  </Button>
-                </div>
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <h3 className="text-lg font-medium mb-2">No Document Selected</h3>
+                <p className="text-muted-foreground">
+                  Select a document from the list to view its details and classification
+                </p>
               </div>
             </div>
           )}

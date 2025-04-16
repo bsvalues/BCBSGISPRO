@@ -1,105 +1,111 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { authService, User } from '../services/auth-service';
-import { useToast } from '../hooks/use-toast';
+import { demoUsers } from '../data/demo-property-data';
 
+// Define the user type
+export interface User {
+  id: string;
+  username: string;
+  fullName: string;
+  role: string;
+  permissions: string[];
+}
+
+// Define the auth context type
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   isAuthenticating: boolean;
+  login: (username: string, password: string) => void;
+  logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create the context with a default value
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isAuthenticated: false,
+  isAuthenticating: false,
+  login: () => {},
+  logout: () => {},
+});
 
-export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+// Custom hook to use the auth context
+export const useAuth = () => useContext(AuthContext);
+
+// Auth provider component
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   
-  // Check if user is already logged in on component mount
+  // Check for existing session on mount
   useEffect(() => {
-    const checkAuth = () => {
-      const restored = authService.attemptSessionRestore();
-      if (restored) {
-        setUser(authService.getCurrentUser());
-        setIsAuthenticated(true);
+    const storedUser = localStorage.getItem('bentonGeoPro_user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        localStorage.removeItem('bentonGeoPro_user');
       }
-      setIsAuthenticating(false);
-    };
-    
-    checkAuth();
+    }
   }, []);
   
   // Login function
-  const login = async (username: string, password: string) => {
+  const login = (username: string, password: string) => {
     setIsAuthenticating(true);
-    try {
-      const user = await authService.login(username, password);
-      if (user) {
-        setUser(user);
-        setIsAuthenticated(true);
+    
+    // Simulate API request with setTimeout
+    setTimeout(() => {
+      // Find user with matching credentials
+      const foundUser = demoUsers.find(
+        (user) => user.username === username && user.password === password
+      );
+      
+      if (foundUser) {
+        // Create user object without password
+        const authenticatedUser: User = {
+          id: foundUser.id,
+          username: foundUser.username,
+          fullName: foundUser.fullName,
+          role: foundUser.role,
+          permissions: foundUser.permissions || [],
+        };
+        
+        // Set user in state and localStorage
+        setUser(authenticatedUser);
+        localStorage.setItem('bentonGeoPro_user', JSON.stringify(authenticatedUser));
+        
+        // Redirect to dashboard
         setLocation('/dashboard');
-        toast({
-          title: "Login successful",
-          description: `Welcome back, ${user.fullName}!`,
-          type: "success",
-        });
       } else {
-        toast({
-          title: "Login failed",
-          description: "Invalid username or password",
-          type: "error",
-        });
+        console.error('Invalid credentials');
+        // In a real app, would show an error message
       }
-    } catch (error) {
-      toast({
-        title: "Login error",
-        description: "An error occurred during login. Please try again.",
-        type: "error",
-      });
-    } finally {
+      
       setIsAuthenticating(false);
-    }
+    }, 800); // Simulate network delay
   };
   
   // Logout function
-  const logout = async () => {
-    await authService.logout();
+  const logout = () => {
     setUser(null);
-    setIsAuthenticated(false);
+    localStorage.removeItem('bentonGeoPro_user');
     setLocation('/');
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-      type: "info",
-    });
   };
   
+  // Provide auth context to children
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated,
+        isAuthenticated: !!user,
+        isAuthenticating,
         login,
         logout,
-        isAuthenticating
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  
-  return context;
 };

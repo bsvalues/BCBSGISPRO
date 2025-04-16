@@ -1,252 +1,265 @@
 /**
- * Map utility functions and types for BentonGeoPro
+ * Map utility functions for BentonGeoPro application
+ * Contains helpers for working with map coordinates, features, and GIS data
  */
 
-// Map tool enum to track the currently selected mapping tool
+// Map tool enumeration
 export enum MapTool {
-  PAN = 'Pan',
-  SELECT = 'Select',
-  MEASURE = 'Measure',
-  DRAW = 'Draw',
-  EDIT = 'Edit',
-  DELETE = 'Delete',
-  IDENTIFY = 'Identify',
-  BUFFER = 'Buffer',
-  ATTRIBUTE = 'Attribute',
-  ZOOM_IN = 'Zoom In',
-  ZOOM_OUT = 'Zoom Out',
-  ZOOM_EXTENT = 'Zoom to Extent'
+  SELECT = 'select',
+  DRAW_POINT = 'draw_point',
+  DRAW_LINE = 'draw_line',
+  DRAW_POLYGON = 'draw_polygon',
+  MEASURE_DISTANCE = 'measure_distance',
+  MEASURE_AREA = 'measure_area',
+  IDENTIFY = 'identify'
 }
 
-// Measurement units for distance and area calculations
-export enum MeasurementUnit {
-  FEET = 'Feet',
-  METERS = 'Meters',
-  MILES = 'Miles',
-  KILOMETERS = 'Kilometers',
-  ACRES = 'Acres',
-  HECTARES = 'Hectares',
-  SQUARE_FEET = 'Square Feet',
-  SQUARE_METERS = 'Square Meters'
+// Map layer interface
+export interface MapLayer {
+  id: string;
+  name: string;
+  type: 'raster' | 'vector' | 'geojson';
+  source: string;
+  visible: boolean;
+  opacity: number;
+  metadata?: Record<string, any>;
+  category?: string;
 }
 
-// Layer type for managing different map layers
-export enum LayerType {
-  BASE = 'Base',
-  PARCEL = 'Parcel',
-  SECTION = 'Section',
-  ZONING = 'Zoning',
-  FLOODPLAIN = 'Floodplain',
-  AERIAL = 'Aerial',
-  ANNOTATION = 'Annotation',
-  CUSTOM = 'Custom'
-}
-
-// GeoJSON types for working with spatial data
-export interface GeoJSONPoint {
-  type: 'Point';
-  coordinates: [number, number]; // [longitude, latitude]
-}
-
-export interface GeoJSONLineString {
-  type: 'LineString';
-  coordinates: [number, number][]; // Array of [longitude, latitude] points
-}
-
-export interface GeoJSONPolygon {
-  type: 'Polygon';
-  coordinates: [number, number][][]; // Array of arrays of [longitude, latitude] points (outer ring + holes)
-}
-
-export interface GeoJSONMultiPolygon {
-  type: 'MultiPolygon';
-  coordinates: [number, number][][][]; // Array of polygon coordinates
-}
-
-export type GeoJSONGeometry = 
-  | GeoJSONPoint 
-  | GeoJSONLineString 
-  | GeoJSONPolygon 
-  | GeoJSONMultiPolygon;
-
-export interface GeoJSONFeature<P = any, G = GeoJSONGeometry> {
-  type: 'Feature';
-  geometry: G;
-  properties: P;
-  id?: string | number;
-}
-
-export interface GeoJSONFeatureCollection<P = any, G = GeoJSONGeometry> {
-  type: 'FeatureCollection';
-  features: GeoJSONFeature<P, G>[];
-}
-
-// Map view settings type
-export interface MapViewSettings {
-  center: [number, number]; // [longitude, latitude]
-  zoom: number;
-  basemap: string;
-  layers: { [key: string]: boolean };
-  layerOpacity: { [key: string]: number };
-}
-
-// Default settings for Benton County map view
-export const defaultMapSettings: MapViewSettings = {
-  center: [-123.2615, 44.5698], // Center on Corvallis, OR
-  zoom: 11,
-  basemap: 'streets',
-  layers: {
-    parcels: true,
-    sections: true,
-    zoning: false,
-    floodplain: false,
-    aerials: false
-  },
-  layerOpacity: {
-    parcels: 1.0,
-    sections: 0.8,
-    zoning: 0.7,
-    floodplain: 0.6,
-    aerials: 0.9
-  }
+// Benton County center coordinates
+export const BENTON_COUNTY_CENTER = {
+  lat: 46.2587,
+  lng: -119.2984
 };
 
-// Function to convert between measurement units
-export function convertMeasurement(
-  value: number, 
-  fromUnit: MeasurementUnit, 
-  toUnit: MeasurementUnit
-): number {
-  // Convert to base units (meters for distance, square meters for area)
-  let baseValue: number;
-  
-  // Handle distance conversions
-  if (
-    [MeasurementUnit.FEET, MeasurementUnit.METERS, MeasurementUnit.MILES, MeasurementUnit.KILOMETERS].includes(fromUnit)
-  ) {
-    // Convert to meters
-    switch (fromUnit) {
-      case MeasurementUnit.FEET:
-        baseValue = value * 0.3048;
-        break;
-      case MeasurementUnit.METERS:
-        baseValue = value;
-        break;
-      case MeasurementUnit.MILES:
-        baseValue = value * 1609.34;
-        break;
-      case MeasurementUnit.KILOMETERS:
-        baseValue = value * 1000;
-        break;
-      default:
-        baseValue = value;
-    }
-    
-    // Convert from meters to desired unit
-    switch (toUnit) {
-      case MeasurementUnit.FEET:
-        return baseValue / 0.3048;
-      case MeasurementUnit.METERS:
-        return baseValue;
-      case MeasurementUnit.MILES:
-        return baseValue / 1609.34;
-      case MeasurementUnit.KILOMETERS:
-        return baseValue / 1000;
-      default:
-        return baseValue;
-    }
-  } 
-  // Handle area conversions
-  else {
-    // Convert to square meters
-    switch (fromUnit) {
-      case MeasurementUnit.SQUARE_FEET:
-        baseValue = value * 0.092903;
-        break;
-      case MeasurementUnit.SQUARE_METERS:
-        baseValue = value;
-        break;
-      case MeasurementUnit.ACRES:
-        baseValue = value * 4046.86;
-        break;
-      case MeasurementUnit.HECTARES:
-        baseValue = value * 10000;
-        break;
-      default:
-        baseValue = value;
-    }
-    
-    // Convert from square meters to desired unit
-    switch (toUnit) {
-      case MeasurementUnit.SQUARE_FEET:
-        return baseValue / 0.092903;
-      case MeasurementUnit.SQUARE_METERS:
-        return baseValue;
-      case MeasurementUnit.ACRES:
-        return baseValue / 4046.86;
-      case MeasurementUnit.HECTARES:
-        return baseValue / 10000;
-      default:
-        return baseValue;
-    }
-  }
-}
+// Default zoom level for county view
+export const DEFAULT_ZOOM = 11;
 
-// Format measurement with unit
-export function formatMeasurement(value: number, unit: MeasurementUnit): string {
-  const formattedValue = value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
-  
-  return `${formattedValue} ${unit}`;
-}
+// Default basemap style
+export const DEFAULT_BASEMAP = 'streets-v11';
 
-// Calculate polygon area in square meters
-export function calculatePolygonArea(coordinates: [number, number][][]): number {
-  // Implementation of the Shoelace formula (Gauss's area formula)
-  let area = 0;
+// Convert latitude/longitude to a human-readable format
+export function formatCoordinates(lat: number, lng: number): string {
+  const latDir = lat >= 0 ? 'N' : 'S';
+  const lngDir = lng >= 0 ? 'E' : 'W';
   
-  // Use the first ring (outer ring) of the polygon
-  const ring = coordinates[0];
+  const latDeg = Math.abs(lat);
+  const lngDeg = Math.abs(lng);
   
-  for (let i = 0; i < ring.length - 1; i++) {
-    area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  }
+  const latMin = (latDeg % 1) * 60;
+  const lngMin = (lngDeg % 1) * 60;
   
-  // Close the polygon
-  area += ring[ring.length - 1][0] * ring[0][1] - ring[0][0] * ring[ring.length - 1][1];
+  const latSec = (latMin % 1) * 60;
+  const lngSec = (lngMin % 1) * 60;
   
-  // The formula gives the area in square degrees which isn't useful
-  // This is a rough approximation that works for small areas
-  // For a production app, use a proper GIS library like Turf.js
-  
-  // Convert to square meters (approximate)
-  // 1 degree of latitude ≈ 111,320 meters
-  // 1 degree of longitude varies with latitude
-  const avgLat = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
-  const metersPerDegreeLon = Math.cos(avgLat * Math.PI / 180) * 111320;
-  
-  // Convert square degrees to square meters
-  return Math.abs(area) * 111320 * metersPerDegreeLon / 2;
+  return `${Math.floor(latDeg)}° ${Math.floor(latMin)}' ${latSec.toFixed(2)}" ${latDir}, ${Math.floor(lngDeg)}° ${Math.floor(lngMin)}' ${lngSec.toFixed(2)}" ${lngDir}`;
 }
 
 // Calculate distance between two points in meters
-export function calculateDistance(
-  point1: [number, number], 
-  point2: [number, number]
-): number {
-  // Haversine formula for calculating great-circle distance
-  const R = 6371000; // Earth radius in meters
-  const φ1 = point1[1] * Math.PI / 180; // latitude 1 in radians
-  const φ2 = point2[1] * Math.PI / 180; // latitude 2 in radians
-  const Δφ = φ2 - φ1;
-  const Δλ = (point2[0] - point1[0]) * Math.PI / 180; // longitude difference in radians
-
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-          Math.cos(φ1) * Math.cos(φ2) *
-          Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+export function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371e3; // Earth radius in meters
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  
+  const a = 
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   
   return R * c;
 }
+
+// Format distance in appropriate units
+export function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${meters.toFixed(1)} m`;
+  } else if (meters < 10000) {
+    return `${(meters / 1000).toFixed(2)} km`;
+  } else {
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+}
+
+// Calculate area of a polygon in square meters
+export function calculateArea(coordinates: [number, number][]): number {
+  // Implementation of Shoelace formula for polygon area
+  let area = 0;
+  
+  for (let i = 0; i < coordinates.length; i++) {
+    const j = (i + 1) % coordinates.length;
+    area += coordinates[i][0] * coordinates[j][1];
+    area -= coordinates[j][0] * coordinates[i][1];
+  }
+  
+  area = Math.abs(area) / 2;
+  
+  // Convert to square meters (approximate)
+  const lat = coordinates.reduce((sum, coord) => sum + coord[1], 0) / coordinates.length;
+  const metersPerDegree = 111320 * Math.cos((lat * Math.PI) / 180);
+  
+  return area * metersPerDegree * metersPerDegree;
+}
+
+// Format area in appropriate units
+export function formatArea(squareMeters: number): string {
+  if (squareMeters < 10000) {
+    return `${squareMeters.toFixed(1)} m²`;
+  } else if (squareMeters < 1000000) {
+    return `${(squareMeters / 10000).toFixed(2)} ha`;
+  } else {
+    return `${(squareMeters / 1000000).toFixed(2)} km²`;
+  }
+}
+
+// Convert a GeoJSON feature to a simplified property description
+export function featureToDescription(feature: any): string {
+  if (!feature || !feature.properties) {
+    return 'No feature selected';
+  }
+  
+  const props = feature.properties;
+  let description = '';
+  
+  // Try to identify the most common property identifiers
+  const identifiers = ['id', 'name', 'title', 'parcelId', 'parcel_id', 'objectid', 'fid'];
+  for (const id of identifiers) {
+    if (props[id]) {
+      description += `ID: ${props[id]}\n`;
+      break;
+    }
+  }
+  
+  // Add type information if available
+  const typeFields = ['type', 'class', 'category', 'zoning', 'landuse', 'land_use'];
+  for (const field of typeFields) {
+    if (props[field]) {
+      description += `Type: ${props[field]}\n`;
+      break;
+    }
+  }
+  
+  // Add area information if available
+  const areaFields = ['area', 'area_sqm', 'shape_area', 'acres'];
+  for (const field of areaFields) {
+    if (props[field]) {
+      const value = props[field];
+      description += `Area: ${typeof value === 'number' ? formatArea(value) : value}\n`;
+      break;
+    }
+  }
+  
+  // If we have an address, add it
+  if (props.address || props.street) {
+    description += `Address: ${props.address || props.street}\n`;
+  }
+  
+  // If we have an owner, add it
+  if (props.owner || props.owner_name) {
+    description += `Owner: ${props.owner || props.owner_name}\n`;
+  }
+  
+  // If we have nothing specific, list the first few properties
+  if (!description) {
+    const entries = Object.entries(props).slice(0, 5);
+    description = entries.map(([key, value]) => `${key}: ${value}`).join('\n');
+  }
+  
+  return description;
+}
+
+// Benton County GIS layers (would normally come from a server)
+export const BENTON_COUNTY_LAYERS: MapLayer[] = [
+  {
+    id: 'parcels',
+    name: 'Property Parcels',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: true,
+    opacity: 0.8,
+    category: 'Property'
+  },
+  {
+    id: 'zoning',
+    name: 'Zoning Districts',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: false,
+    opacity: 0.6,
+    category: 'Planning'
+  },
+  {
+    id: 'taxlots',
+    name: 'Tax Lots',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: true,
+    opacity: 0.7,
+    category: 'Property'
+  },
+  {
+    id: 'roads',
+    name: 'Roads and Highways',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: true,
+    opacity: 1.0,
+    category: 'Transportation'
+  },
+  {
+    id: 'hydrography',
+    name: 'Water Features',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: true,
+    opacity: 0.8,
+    category: 'Natural'
+  },
+  {
+    id: 'floodplain',
+    name: 'Floodplain Boundaries',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: false,
+    opacity: 0.6,
+    category: 'Natural'
+  },
+  {
+    id: 'administrative',
+    name: 'Administrative Boundaries',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: true,
+    opacity: 0.7,
+    category: 'Administrative'
+  },
+  {
+    id: 'schools',
+    name: 'School Districts',
+    type: 'vector',
+    source: 'benton-gis',
+    visible: false,
+    opacity: 0.6,
+    category: 'Administrative'
+  },
+  {
+    id: 'topography',
+    name: 'Topographic Map',
+    type: 'raster',
+    source: 'usgs',
+    visible: false,
+    opacity: 0.8,
+    category: 'Base Maps'
+  },
+  {
+    id: 'imagery',
+    name: 'Aerial Imagery',
+    type: 'raster',
+    source: 'naip',
+    visible: false,
+    opacity: 1.0,
+    category: 'Base Maps'
+  }
+];

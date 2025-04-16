@@ -1,299 +1,168 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'wouter';
+import React from 'react';
 import { useAuth } from '../context/auth-context';
-import { Button } from '../components/ui/button';
-import { demoProperties } from '../data/demo-property-data';
+import { demoProperties, propertyStatistics } from '../data/demo-property-data';
+import { formatCurrency } from '../lib/utils';
 
+// Basic dashboard component to show property statistics
 const DemoDashboard: React.FC = () => {
-  const { user } = useAuth();
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const { user, logout } = useAuth();
   
-  // Filter properties by type
-  const residentialProperties = demoProperties.filter(p => p.propertyType === 'Residential');
-  const commercialProperties = demoProperties.filter(p => p.propertyType === 'Commercial');
-  const agriculturalProperties = demoProperties.filter(p => p.propertyType === 'Agricultural');
-  const vacantLandProperties = demoProperties.filter(p => p.propertyType === 'Vacant Land');
-  
-  // Calculate statistics
-  const totalAssessedValue = demoProperties.reduce((sum, prop) => sum + prop.assessedValue, 0);
-  const totalMarketValue = demoProperties.reduce((sum, prop) => sum + prop.marketValue, 0);
-  const totalLandArea = demoProperties.reduce((sum, prop) => sum + prop.landArea, 0);
-  
-  // Simulate recent activity data
-  useEffect(() => {
-    // This would normally come from an API
-    const mockActivity = [
-      {
-        id: 'act-001',
-        type: 'Assessment Update',
-        parcelId: '11525',
-        user: 'Mary Johnson',
-        timestamp: new Date(2025, 3, 15, 9, 30),
-        details: 'Updated market value from $435,000 to $450,000'
-      },
-      {
-        id: 'act-002',
-        type: 'Document Upload',
-        parcelId: '11526',
-        user: 'Amanda Brown',
-        timestamp: new Date(2025, 3, 15, 11, 15),
-        details: 'Uploaded survey document'
-      },
-      {
-        id: 'act-003',
-        type: 'Property Inspection',
-        parcelId: '11527',
-        user: 'Mary Johnson',
-        timestamp: new Date(2025, 3, 14, 15, 45),
-        details: 'Completed field inspection of agricultural property'
-      },
-      {
-        id: 'act-004',
-        type: 'Map Update',
-        parcelId: 'Multiple',
-        user: 'Robert Williams',
-        timestamp: new Date(2025, 3, 14, 14, 20),
-        details: 'Updated zoning map for South Corvallis area'
-      },
-      {
-        id: 'act-005',
-        type: 'Appeal Filed',
-        parcelId: '11529',
-        user: 'John Smith',
-        timestamp: new Date(2025, 3, 13, 10, 0),
-        details: 'Property owner filed assessment appeal'
-      }
-    ];
-    
-    setRecentActivity(mockActivity);
-  }, []);
-  
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-12rem)]">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-          <p className="mb-6">Please log in to access this page.</p>
-          <Link href="/">
-            <Button>Go to Login</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {user.fullName}. Here's an overview of Benton County property data.
-        </p>
-      </header>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-card shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-2">Property Count</h3>
-          <p className="text-3xl font-bold">{demoProperties.length}</p>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <div className="flex justify-between mb-1">
-              <span>Residential</span>
-              <span>{residentialProperties.length}</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Commercial</span>
-              <span>{commercialProperties.length}</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Agricultural</span>
-              <span>{agriculturalProperties.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Vacant Land</span>
-              <span>{vacantLandProperties.length}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-card shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-2">Assessed Value</h3>
-          <p className="text-3xl font-bold">
-            ${(totalAssessedValue / 1000000).toFixed(2)}M
-          </p>
-          <div className="mt-4">
-            <div className="w-full bg-muted rounded-full h-2 mb-1">
-              <div className="bg-primary h-2 rounded-full" style={{ width: '85%' }}></div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              85% of annual target
-            </p>
-          </div>
-        </div>
-        
-        <div className="bg-card shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-2">Market Value</h3>
-          <p className="text-3xl font-bold">
-            ${(totalMarketValue / 1000000).toFixed(2)}M
-          </p>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p className="flex items-center text-green-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-              </svg>
-              5.2% increase from previous year
-            </p>
-          </div>
-        </div>
-        
-        <div className="bg-card shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-2">Land Area</h3>
-          <p className="text-3xl font-bold">
-            {totalLandArea.toFixed(1)} acres
-          </p>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <div className="flex justify-between mb-1">
-              <span>Agricultural</span>
-              <span>{agriculturalProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Residential</span>
-              <span>{residentialProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Commercial</span>
-              <span>{commercialProperties.reduce((sum, p) => sum + p.landArea, 0).toFixed(1)} ac</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="bg-card shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-border">
-                  <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Activity</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Parcel ID</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">User</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Timestamp</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {recentActivity.map((activity) => (
-                    <tr key={activity.id} className="hover:bg-muted/50">
-                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.type}</td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.parcelId}</td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm">{activity.user}</td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm">
-                        {activity.timestamp.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-4 text-sm">{activity.details}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-4 text-center">
-              <Button variant="outline" size="sm">
-                View All Activity
-              </Button>
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <div className="bg-card shadow rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-3">Quick Actions</h2>
-            <div className="space-y-2">
-              <Link href="/map-viewer">
-                <Button className="w-full mb-2" variant="outline">
-                  Open Map Viewer
-                </Button>
-              </Link>
-              <Link href="/document-classification">
-                <Button className="w-full mb-2" variant="outline">
-                  Process Documents
-                </Button>
-              </Link>
-              <Button className="w-full mb-2" variant="outline">
-                Generate Reports
-              </Button>
-              <Button className="w-full" variant="outline">
-                Search Properties
-              </Button>
-            </div>
+    <div className="min-h-screen bg-background">
+      {/* Header/Navigation */}
+      <header className="bg-card shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center">
+            <h1 className="text-xl font-semibold text-primary">BentonGeoPro</h1>
+            <nav className="ml-10 flex space-x-4">
+              <a href="/dashboard" className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary">
+                Dashboard
+              </a>
+              <a href="/map" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
+                Map Viewer
+              </a>
+              <a href="/documents" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
+                Documents
+              </a>
+            </nav>
           </div>
           
-          <div className="bg-card shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-3">Property Types</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Residential</span>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round((residentialProperties.length / demoProperties.length) * 100)}%
-                  </span>
+          <div className="flex items-center">
+            {user && (
+              <div className="flex items-center space-x-4">
+                <div className="text-sm">
+                  <p className="font-medium">{user.fullName}</p>
+                  <p className="text-muted-foreground">{user.role}</p>
                 </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full" 
-                    style={{ width: `${(residentialProperties.length / demoProperties.length) * 100}%` }}
-                  ></div>
-                </div>
+                <button 
+                  onClick={logout}
+                  className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  Logout
+                </button>
               </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Commercial</span>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round((commercialProperties.length / demoProperties.length) * 100)}%
-                  </span>
+            )}
+          </div>
+        </div>
+      </header>
+      
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold">Welcome, {user?.fullName}</h2>
+          <p className="text-muted-foreground">
+            {new Date().toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </p>
+        </div>
+        
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-card shadow rounded-lg p-5">
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Properties</h3>
+            <p className="text-3xl font-bold">{propertyStatistics.totalProperties}</p>
+            <p className="text-xs text-muted-foreground mt-2">Across Benton County</p>
+          </div>
+          
+          <div className="bg-card shadow rounded-lg p-5">
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Assessed Value</h3>
+            <p className="text-3xl font-bold">{formatCurrency(propertyStatistics.totalValue)}</p>
+            <p className="text-xs text-muted-foreground mt-2">Combined property value</p>
+          </div>
+          
+          <div className="bg-card shadow rounded-lg p-5">
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Average Value</h3>
+            <p className="text-3xl font-bold">{formatCurrency(propertyStatistics.averageValue)}</p>
+            <p className="text-xs text-muted-foreground mt-2">Per property</p>
+          </div>
+          
+          <div className="bg-card shadow rounded-lg p-5">
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Property Types</h3>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {Object.entries(propertyStatistics.byType).map(([type, count]) => (
+                <div key={type} className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
+                  {type}: {count}
                 </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-purple-500 h-2 rounded-full" 
-                    style={{ width: `${(commercialProperties.length / demoProperties.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Agricultural</span>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round((agriculturalProperties.length / demoProperties.length) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-green-500 h-2 rounded-full" 
-                    style={{ width: `${(agriculturalProperties.length / demoProperties.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Vacant Land</span>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round((vacantLandProperties.length / demoProperties.length) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-amber-500 h-2 rounded-full" 
-                    style={{ width: `${(vacantLandProperties.length / demoProperties.length) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+        
+        {/* Recent Activity */}
+        <div className="bg-card shadow rounded-lg mb-8">
+          <div className="px-5 py-4 border-b">
+            <h3 className="text-lg font-medium">Recent Activity</h3>
+          </div>
+          <div className="px-5 py-3">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <th className="px-3 py-3">Parcel ID</th>
+                  <th className="px-3 py-3">Activity</th>
+                  <th className="px-3 py-3">Date</th>
+                  <th className="px-3 py-3">User</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {propertyStatistics.recentUpdates.map((update) => (
+                  <tr key={update.id}>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{update.parcelId}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{update.type}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{update.date}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{update.user}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        {/* Property List */}
+        <div className="bg-card shadow rounded-lg">
+          <div className="px-5 py-4 border-b flex justify-between items-center">
+            <h3 className="text-lg font-medium">Properties</h3>
+            <div className="flex space-x-2">
+              <button className="px-3 py-1 text-xs rounded-md bg-primary/10 text-primary">
+                Export
+              </button>
+              <button className="px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground">
+                Add Property
+              </button>
+            </div>
+          </div>
+          <div className="px-5 py-3">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <th className="px-3 py-3">Parcel ID</th>
+                  <th className="px-3 py-3">Address</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3">Assessed Value</th>
+                  <th className="px-3 py-3">Acres</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {demoProperties.slice(0, 5).map((property) => (
+                  <tr key={property.id}>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{property.parcelId}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{property.address}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{property.type}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{formatCurrency(property.assessedValue)}</td>
+                    <td className="px-3 py-4 text-sm whitespace-nowrap">{property.acres.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="py-3 px-3 text-center text-sm text-muted-foreground">
+              <a href="#" className="text-primary hover:underline">View all properties</a>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
