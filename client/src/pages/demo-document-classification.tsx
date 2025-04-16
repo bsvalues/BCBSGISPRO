@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'wouter';
 import { useAuth } from '../context/auth-context';
 import { demoProperties } from '../data/demo-property-data';
 
@@ -97,15 +98,21 @@ const DemoDocumentClassification: React.FC = () => {
           <div className="flex items-center">
             <h1 className="text-xl font-semibold text-primary">BentonGeoPro</h1>
             <nav className="ml-10 flex space-x-4">
-              <a href="/dashboard" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
-                Dashboard
-              </a>
-              <a href="/map" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
-                Map Viewer
-              </a>
-              <a href="/documents" className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary">
-                Documents
-              </a>
+              <Link href="/dashboard">
+                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                  Dashboard
+                </span>
+              </Link>
+              <Link href="/map">
+                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                  Map Viewer
+                </span>
+              </Link>
+              <Link href="/documents">
+                <span className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary cursor-pointer">
+                  Documents
+                </span>
+              </Link>
             </nav>
           </div>
           

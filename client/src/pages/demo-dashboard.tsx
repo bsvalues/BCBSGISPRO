@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'wouter';
 import { useAuth } from '../context/auth-context';
 import { demoProperties, propertyStatistics } from '../data/demo-property-data';
 import { formatCurrency } from '../lib/utils';
@@ -15,15 +16,21 @@ const DemoDashboard: React.FC = () => {
           <div className="flex items-center">
             <h1 className="text-xl font-semibold text-primary">BentonGeoPro</h1>
             <nav className="ml-10 flex space-x-4">
-              <a href="/dashboard" className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary">
-                Dashboard
-              </a>
-              <a href="/map" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
-                Map Viewer
-              </a>
-              <a href="/documents" className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground">
-                Documents
-              </a>
+              <Link href="/dashboard">
+                <span className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary cursor-pointer">
+                  Dashboard
+                </span>
+              </Link>
+              <Link href="/map">
+                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                  Map Viewer
+                </span>
+              </Link>
+              <Link href="/documents">
+                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                  Documents
+                </span>
+              </Link>
             </nav>
           </div>
           
@@ -158,7 +165,7 @@ const DemoDashboard: React.FC = () => {
               </tbody>
             </table>
             <div className="py-3 px-3 text-center text-sm text-muted-foreground">
-              <a href="#" className="text-primary hover:underline">View all properties</a>
+              <span className="text-primary hover:underline cursor-pointer">View all properties</span>
             </div>
           </div>
         </div>
