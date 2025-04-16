@@ -1,0 +1,80 @@
+Below is a standalone prompt you can provide to your Replit AI agent to autonomously prepare the BentonGeoPro demo within 24 hours. This prompt assumes that all the necessary geographic and property data is already stored in your files/attached_assets (authentic Benton County, Washington data) and guides the agent through setting up an impressive live demo.
+
+---
+
+**Autonomous Replit AI Agent Instructions: 24-Hour BentonGeoPro Demo Preparation**
+
+*Project Context and Goal:*  
+Prepare BentonGeoPro—a geospatial property assessment tool developed for the Benton County Assessor’s Office—for a compelling live demo within 24 hours. Your focus is to enhance the mapping interface, spatial data overlays, and assessment analytics so that the demo fully displays the application’s ability to assess and visualize property data in real-time using authentic Benton County standards.
+
+**IMPORTANT:** Use ONLY the property and geographic data already available in our files/attached_assets. Do not source new data unless a specific data point is missing. Work exclusively with the existing, authentic Benton County, Washington assessment information.
+
+---
+
+**Structured Plan:**
+
+1. **DEMO ENVIRONMENT SETUP (3 hours)**
+   - **Data Preparation:**  
+     - Utilize the existing geographic and property data from the files/attached_assets.
+     - Select 10 diverse examples that represent:
+       - 3 residential parcels from distinct neighborhoods  
+       - 3 commercial zones representing varied business districts  
+       - 2 agricultural parcels typical of Benton County farmland  
+       - 2 special-purpose locations (e.g., public facilities or other unique zoning cases)
+   - **User Setup:**  
+     - Create 3 demo user accounts (Admin, Assessor, Viewer).
+   - **Project Configuration:**  
+     - Configure 2 sample collaborative projects that group properties on the map and include contextual assessment layers.
+
+2. **CORE DEMO PATHWAY OPTIMIZATION (5 hours)**
+   - Enhance the geo-assessment workflow by:
+     - Refining the mapping interface to accurately display property boundaries, zoning overlays, and key geographic markers.
+     - Streamlining the process of calculating property assessments based on spatial variables (e.g., location factors, proximity metrics).
+     - Integrating interactive elements (clickable map features, dynamic tooltips) to reveal property details and assessment data.
+     - Confirming that all calculations and adjustments reflect the correct Benton County standards and methodologies.
+
+3. **VISUAL ENHANCEMENT (6 hours)**
+   - Develop a polished, user-friendly dashboard that combines high-quality map views with analytical panels.
+   - Implement clear visualizations:
+     - Dynamic map overlays that highlight property classifications and zoning differences.
+     - Graphs or charts comparing assessment metrics across different regions.
+   - Standardize the styling across the application using the existing UI framework (e.g., shadcn UI and TailwindCSS) and ensure responsiveness for demo presentations.
+
+4. **PERFORMANCE OPTIMIZATION (4 hours)**
+   - Optimize critical mapping and database queries used in the demo workflows.
+   - Implement caching for frequently accessed spatial data and map layers.
+   - Ensure robust error handling to maintain responsiveness during interactive demo scenarios.
+   - Conduct thorough tests to guarantee smooth transitions between map views and detailed assessment screens.
+
+5. **DEMO MATERIALS (3 hours)**
+   - Develop a concise, step-by-step demo script that highlights:
+     - The real-time geospatial overview of Benton County.
+     - A live walkthrough of selecting a property, viewing detailed assessment data, and comparing valuation metrics.
+     - How the application handles different property types based on regional, zoning, and adjustment factors.
+   - Prepare talking points that emphasize the accuracy, efficiency, and business value of BentonGeoPro.
+   - Document all demo login credentials and key starting points for quick reference during the presentation.
+
+6. **TESTING AND DEPLOYMENT (3 hours)**
+   - Perform comprehensive testing of all demo-specific workflows, with particular attention to the mapping interface and spatial data interactions.
+   - Deploy the demo version to a stable Replit environment.
+   - Prepare fallback options (such as pre-captured screenshots or short video clips) in case interactive map elements encounter issues during the live demo.
+
+---
+
+**Data Instructions:**
+
+- **Data Source:**  
+  Use only the property and geographic data provided in the existing files/attached_assets.
+- **Compliance:**  
+  Ensure every property example, map overlay, and adjustment factor adheres to the established Benton County, Washington standards.
+- **Methodology:**  
+  Rely on the current spatial data processing techniques and property assessment calculation methods, preserving the regional factors and classification models already implemented.
+
+---
+
+**Progress Updates:**  
+After completing each major section, please provide a brief progress update along with key screenshots or visual evidence (e.g., improved dashboard, enhanced mapping interface) that showcase your enhancements. This will help ensure that all improvements are on track and meet the demo’s quality standards.
+
+---
+
+By submitting these instructions, the Replit AI agent should autonomously focus on optimizing BentonGeoPro for an outstanding live demo within 24 hours—showcasing its ability to process, display, and analyze property assessment data with authentic Benton County, Washington details.
