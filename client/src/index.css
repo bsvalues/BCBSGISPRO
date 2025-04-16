@@ -2,40 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide scrollbars but maintain functionality */
-@layer utilities {
-  .hide-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 206 100% 50%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
   }
-  .hide-scrollbar::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari, Opera */
-  }
-  
-  /* Glass morphism effects */
-  .glass-panel {
-    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
-  }
-  
-  .glass-card {
-    @apply bg-white/90 backdrop-blur-sm border border-gray-200/70 shadow-md;
-  }
-  
-  /* Benton County specific styles */
-  .benton-text-primary {
-    @apply text-teal-700;
-  }
-  
-  .benton-bg-primary {
-    @apply bg-teal-700;
-  }
-  
-  .benton-border-primary {
-    @apply border-teal-700;
-  }
-  
-  .benton-accent {
-    @apply text-green-500;
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 206 100% 50%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
   }
 }
 
@@ -43,321 +53,24 @@
   * {
     @apply border-border;
   }
-
   body {
-    @apply font-sans antialiased bg-background text-foreground;
-    -webkit-user-select: none;
-    user-select: none;
-    text-size-adjust: 100%;
-    -webkit-text-size-adjust: 100%;
-    /* Add background image similar to LevyMaster */
-    background-image: linear-gradient(to bottom, rgba(0, 40, 40, 0.8), rgba(0, 60, 60, 0.5)), 
-                      url('/assets/rsmtn+sunset-composit.jpg');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
-
-  /* Global scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
   }
-
-  ::-webkit-scrollbar-track {
-    background: rgba(240, 240, 240, 0.3);
-    border-radius: 10px;
+  
+  h1 {
+    @apply text-3xl sm:text-4xl;
   }
-
-  ::-webkit-scrollbar-thumb {
-    background: rgba(180, 180, 180, 0.5);
-    border-radius: 10px;
+  
+  h2 {
+    @apply text-2xl sm:text-3xl;
   }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(140, 140, 140, 0.7);
+  
+  h3 {
+    @apply text-xl sm:text-2xl;
   }
-}
-
-/* Fix for button accessibility */
-button:not([aria-label]):not([title]) {
-  @apply relative inline-flex items-center justify-center;
-}
-
-/* Improved accessibility for interactive elements */
-.interactive-element:focus-visible {
-  @apply outline-2 outline-offset-2 outline-primary;
-}
-
-/* Map styling for immersive experience */
-.leaflet-container {
-  @apply h-full w-full;
-  z-index: 0;
-}
-
-/* Ultra-modern glass morphism effect for panels with enhanced light refraction */
-.glass-panel {
-  @apply backdrop-blur-lg shadow-lg;
-  background-color: rgba(255, 255, 255, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background-image: linear-gradient(
-    135deg, 
-    rgba(255, 255, 255, 0.4) 0%, 
-    rgba(255, 255, 255, 0.2) 100%
-  );
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.15),
-    0 4px 16px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  position: relative;
-  overflow: hidden;
-}
-
-.glass-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -50%;
-  width: 200%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  z-index: 1;
-}
-
-/* Advanced 3D interactive elements with depth perception */
-.btn-3d {
-  @apply transition-all duration-300 ease-out transform relative;
-  box-shadow: 
-    0 4px 12px -2px rgba(0, 0, 0, 0.15),
-    0 2px 6px -1px rgba(0, 0, 0, 0.1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  transform-style: preserve-3d;
-  perspective: 800px;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.3) 0%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.4);
-  border-left: 1px solid rgba(255, 255, 255, 0.4);
-}
-
-.btn-3d::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
-  opacity: 0.8;
-  transition: opacity 0.3s ease;
-}
-
-.btn-3d:hover {
-  @apply -translate-y-1 scale-[1.02];
-  box-shadow: 
-    0 15px 30px -4px rgba(0, 0, 0, 0.18),
-    0 8px 15px -4px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-  transform: translateY(-4px) scale(1.02) translateZ(4px);
-  border-color: rgba(255, 255, 255, 0.4);
-}
-
-.btn-3d:hover::before {
-  opacity: 1;
-}
-
-.btn-3d:active {
-  @apply translate-y-0.5 scale-[0.98];
-  box-shadow: 
-    0 2px 4px -1px rgba(0, 0, 0, 0.1),
-    0 1px 2px -1px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  transform: translateY(1px) scale(0.98) translateZ(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* Premium glass panels with light reflection */
-.premium-glass {
-  @apply rounded-xl overflow-hidden relative;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.2) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
-  transform: translateZ(0);
-}
-
-.premium-glass::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(
-    circle at center,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0) 60%
-  );
-  opacity: 0;
-  transform: scale(0.5);
-  transition: opacity 0.5s, transform 0.7s;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.premium-glass::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  z-index: 2;
-}
-
-.premium-glass:hover::before {
-  opacity: 0.8;
-  transform: scale(1);
-}
-
-/* Modern floating UI elements */
-.floating-ui {
-  animation: float 6s ease-in-out infinite;
-  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.1));
-}
-
-@keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0px);
-  }
-}
-
-/* Map controls with enhanced styling */
-.map-control {
-  @apply glass-panel rounded-lg overflow-hidden;
-}
-
-/* Card with glass effect for map popups */
-.map-card {
-  @apply glass-panel rounded-lg overflow-hidden;
-  transform: translateZ(0);
-}
-
-/* Map toolbar with 3D effect */
-.map-toolbar {
-  @apply glass-panel rounded-full flex items-center justify-center px-3 py-1.5 space-x-1;
-  box-shadow: 
-    0 8px 16px rgba(0, 0, 0, 0.08),
-    0 4px 8px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-
-/* 3D tooltip style */
-.tooltip-3d {
-  @apply px-2 py-1 bg-black/80 text-white text-xs rounded backdrop-blur-sm;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* Immersive full-screen map */
-.immersive-map {
-  @apply fixed inset-0 z-0;
-  height: 100vh;
-  width: 100vw;
-}
-
-/* Text readability enhancement for translucent cards */
-.readable-text {
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-/* Dark text for better contrast on glass panels */
-.glass-panel-text {
-  color: rgba(0, 0, 0, 0.8);
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7);
-  font-weight: 500;
-}
-
-/* Modern gradient heading for titles */
-.gradient-heading {
-  @apply font-bold;
-  background: linear-gradient(90deg, #00847E 0%, #00B4AC 50%, #00847E 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Premium card style for panels */
-.premium-card {
-  @apply rounded-xl overflow-hidden;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
-  box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.1),
-    0 1px 8px rgba(0, 0, 0, 0.06);
-  transform: translateZ(0);
-}
-
-/* Benton County branded gradient border */
-.benton-border {
-  position: relative;
-  border-radius: 0.75rem;
-  padding: 1px;
-  background: linear-gradient(45deg, #00847E, #00B4AC, #2FC6BC, #00847E);
-  background-size: 200% 200%;
-  animation: gradient-shift 6s ease infinite;
-}
-
-.benton-border::before {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  background-color: rgba(255, 255, 255, 0.15);
-  border-radius: 0.7rem;
-  z-index: -1;
-}
-
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }

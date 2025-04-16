@@ -1,118 +1,111 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authService, User } from '@/services/auth-service';
-import { useToast } from '@/hooks/use-toast';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authService, User } from '../services/auth-service';
+import { useToast } from '../hooks/use-toast';
 
-// AuthContext interface
 interface AuthContextType {
   user: User | null;
-  isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  isLoggedIn: boolean;
   hasPermission: (permission: string) => boolean;
 }
 
-// Create the context with a default value
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isAuthenticated: false,
-  login: async () => false,
-  logout: async () => {},
-  hasPermission: () => false,
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth Provider Props
-interface AuthProviderProps {
-  children: React.ReactNode;
-}
-
-// Auth Provider Component
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const { toast } = useToast();
-  
-  // Attempt to restore session on component mount
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const { addToast } = useToast();
+
   useEffect(() => {
-    const sessionRestored = authService.attemptSessionRestore();
-    if (sessionRestored) {
+    // Attempt to restore session on mount
+    const isSessionRestored = authService.attemptSessionRestore();
+    if (isSessionRestored) {
       setUser(authService.getCurrentUser());
-      setIsAuthenticated(true);
+      setIsLoggedIn(true);
     }
   }, []);
-  
-  // Login function
+
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const user = await authService.login(username, password);
+      const loggedInUser = await authService.login(username, password);
       
-      if (user) {
-        setUser(user);
-        setIsAuthenticated(true);
-        toast({
+      if (loggedInUser) {
+        setUser(loggedInUser);
+        setIsLoggedIn(true);
+        
+        addToast({
           title: 'Login Successful',
-          description: `Welcome back, ${user.fullName}!`,
-          variant: 'success',
+          description: `Welcome back, ${loggedInUser.fullName}!`,
+          type: 'success',
         });
+        
         return true;
-      } else {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid username or password. Please try again.',
-          variant: 'destructive',
-        });
-        return false;
       }
+      
+      addToast({
+        title: 'Login Failed',
+        description: 'Invalid username or password.',
+        type: 'error',
+      });
+      
+      return false;
     } catch (error) {
       console.error('Login error:', error);
-      toast({
+      
+      addToast({
         title: 'Login Error',
         description: 'An unexpected error occurred. Please try again.',
-        variant: 'destructive',
+        type: 'error',
       });
+      
       return false;
     }
   };
-  
-  // Logout function
+
   const logout = async (): Promise<void> => {
     try {
       await authService.logout();
       setUser(null);
-      setIsAuthenticated(false);
-      toast({
+      setIsLoggedIn(false);
+      
+      addToast({
         title: 'Logged Out',
         description: 'You have been successfully logged out.',
+        type: 'info',
       });
     } catch (error) {
       console.error('Logout error:', error);
-      toast({
+      
+      addToast({
         title: 'Logout Error',
         description: 'An error occurred during logout.',
-        variant: 'destructive',
+        type: 'error',
       });
     }
   };
-  
-  // Check if user has permission
+
   const hasPermission = (permission: string): boolean => {
     return authService.hasPermission(permission);
   };
-  
-  // Provide the context value
-  const contextValue: AuthContextType = {
+
+  const value = {
     user,
-    isAuthenticated,
     login,
     logout,
+    isLoggedIn,
     hasPermission,
   };
-  
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Custom hook to use the auth context
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  
+  return context;
+};
