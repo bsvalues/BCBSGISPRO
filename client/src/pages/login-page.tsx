@@ -1,145 +1,141 @@
 import React, { useState } from 'react';
-import { useLocation, useRoute } from 'wouter';
-import { useAuth } from '@/context/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { demoUserAccounts } from '@/data/demo-property-data';
-import { AlertCircle } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { useAuth } from '../context/auth-context';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { demoUsers } from '../data/demo-property-data';
 
 const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const [_, setLocation] = useLocation();
-  const { login, loading, error } = useAuth();
-  const [match, params] = useRoute('/login');
-  
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!username.trim()) {
-      return;
-    }
-    
+    setError('');
+    setLoading(true);
+
     try {
-      await login({ username, password });
-      // Redirect to home or a specific return URL
-      setLocation('/');
+      const success = await login(username, password);
+      if (success) {
+        setLocation('/dashboard');
+      } else {
+        setError('Invalid username or password');
+      }
     } catch (err) {
-      // Error is handled in auth context
-      console.error('Login error:', err);
+      setError('An error occurred during login');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
-  
+
   return (
-    <div 
-      className="flex min-h-screen items-center justify-center bg-background"
-      style={{
-        backgroundImage: `url('/assets/Header-Vineyard-BC.png')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      
-      <Card className="w-full max-w-md z-10 shadow-xl">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <img 
-              src="/assets/BC.png"
-              alt="Benton County Logo"
-              className="h-12 w-12"
-            />
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-primary/5 to-primary/10">
+      <div className="w-full max-w-md p-8 space-y-8 bg-card rounded-lg shadow-xl">
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 rounded-full bg-primary flex items-center justify-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-8 w-8 text-primary-foreground"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
           </div>
-          <CardTitle className="text-2xl font-bold">BentonGeoPro</CardTitle>
-          <CardDescription>
-            Sign in to access the Benton County Assessor's GIS Platform
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+          <h2 className="mt-6 text-3xl font-bold text-foreground">BentonGeoPro</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Geographic Information System for Benton County Assessor's Office
+          </p>
+        </div>
+
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-muted-foreground">
+                Username
+              </label>
               <Input
                 id="username"
+                name="username"
                 type="text"
-                placeholder="Enter your username"
+                autoComplete="username"
+                required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                disabled={loading}
-                required
+                className="mt-1"
               />
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-muted-foreground">
+                Password
+              </label>
               <Input
                 id="password"
+                name="password"
                 type="password"
-                placeholder="Enter your password"
+                autoComplete="current-password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                disabled={loading}
-                required
+                className="mt-1"
               />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold">Demo Mode:</span> Use any password with demo usernames
-              </p>
-            </div>
-            
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-          </form>
-          
-          <div className="mt-6">
-            <h3 className="text-sm font-medium mb-2">Demo Accounts:</h3>
-            <div className="grid grid-cols-1 gap-2">
-              {demoUserAccounts.map((account) => (
-                <Button
-                  key={account.id}
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-left"
-                  onClick={() => {
-                    setUsername(account.username);
-                    setPassword('demo123'); // Any password works in demo mode
-                  }}
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="font-medium">{account.username}</span>
-                    <span className="text-xs text-muted-foreground">{account.role}</span>
-                  </div>
-                </Button>
-              ))}
             </div>
           </div>
-        </CardContent>
-        
-        <CardFooter className="flex flex-col space-y-2">
-          <p className="text-xs text-center text-muted-foreground">
-            BentonGeoPro Demo - GIS Workflow Solution for Benton County Assessor's Office
-          </p>
-        </CardFooter>
-      </Card>
+
+          {error && (
+            <div className="px-4 py-3 text-sm bg-destructive/10 text-destructive rounded-md">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </div>
+        </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-muted"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-card text-muted-foreground">Demo Accounts</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {demoUsers.map((user) => (
+              <div
+                key={user.id}
+                className="text-xs p-2 border border-border rounded-md cursor-pointer hover:bg-accent"
+                onClick={() => {
+                  setUsername(user.username);
+                  setPassword('demo123');
+                }}
+              >
+                <div className="font-medium">{user.fullName}</div>
+                <div className="text-muted-foreground">{user.role}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

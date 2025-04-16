@@ -1,599 +1,752 @@
-import { GeoJSONFeature } from '@/lib/map-utils';
-import { v4 as uuidv4 } from 'uuid';
+import { MapTool } from '../lib/map-utils';
 
-// Realistic Benton County property data for demo purposes
-// Based on authentic Benton County, Washington assessment standards
-// These represent the 10 diverse examples requested in the BentonGeoPro demo
+// Demo Users for the application
+export interface DemoUser {
+  id: string;
+  username: string;
+  password: string;
+  fullName: string;
+  role: string;
+  email: string;
+  department: string;
+  permissions: string[];
+  lastLogin: Date;
+}
 
-// 1. Residential Parcels (3 examples from distinct neighborhoods)
-export const residentialParcels: GeoJSONFeature[] = [
+export const demoUsers: DemoUser[] = [
+  {
+    id: '1',
+    username: 'assessor',
+    password: 'demo123',
+    fullName: 'Sarah Johnson',
+    role: 'County Assessor',
+    email: 'sjohnson@bentoncounty.gov',
+    department: 'Assessor\'s Office',
+    permissions: ['admin', 'edit', 'view', 'approve'],
+    lastLogin: new Date('2023-04-15T08:30:00')
+  },
+  {
+    id: '2',
+    username: 'appraiser',
+    password: 'demo123',
+    fullName: 'Michael Chen',
+    role: 'Senior Appraiser',
+    email: 'mchen@bentoncounty.gov',
+    department: 'Assessor\'s Office',
+    permissions: ['edit', 'view'],
+    lastLogin: new Date('2023-04-14T15:45:00')
+  },
+  {
+    id: '3',
+    username: 'gisanalyst',
+    password: 'demo123',
+    fullName: 'Emily Rodriguez',
+    role: 'GIS Analyst',
+    email: 'erodriguez@bentoncounty.gov',
+    department: 'GIS Department',
+    permissions: ['view', 'edit_gis'],
+    lastLogin: new Date('2023-04-16T09:15:00')
+  },
+  {
+    id: '4',
+    username: 'clerk',
+    password: 'demo123',
+    fullName: 'James Wilson',
+    role: 'Records Clerk',
+    email: 'jwilson@bentoncounty.gov',
+    department: 'Records Management',
+    permissions: ['view', 'upload_documents'],
+    lastLogin: new Date('2023-04-13T16:20:00')
+  }
+];
+
+// Residential Property Data
+interface ResidentialProperty {
+  id: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  owner: string;
+  yearBuilt: number;
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  lotSize: number;
+  assessedValue: number;
+  marketValue: number;
+  taxAmount: number;
+  lastAssessment: Date;
+}
+
+export const residentialProperties: ResidentialProperty[] = [
+  {
+    id: 'R-1001',
+    address: '123 Oak Street',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'John & Mary Smith',
+    yearBuilt: 2005,
+    bedrooms: 4,
+    bathrooms: 2.5,
+    squareFeet: 2400,
+    lotSize: 0.25,
+    assessedValue: 350000,
+    marketValue: 425000,
+    taxAmount: 4500,
+    lastAssessment: new Date('2022-06-15')
+  },
+  {
+    id: 'R-1002',
+    address: '456 Maple Avenue',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'Robert & Susan Johnson',
+    yearBuilt: 1998,
+    bedrooms: 3,
+    bathrooms: 2,
+    squareFeet: 1850,
+    lotSize: 0.18,
+    assessedValue: 285000,
+    marketValue: 340000,
+    taxAmount: 3600,
+    lastAssessment: new Date('2022-05-22')
+  },
+  {
+    id: 'R-1003',
+    address: '789 Pine Lane',
+    city: 'Philomath',
+    state: 'OR',
+    zip: '97370',
+    owner: 'David & Jennifer Williams',
+    yearBuilt: 2010,
+    bedrooms: 5,
+    bathrooms: 3,
+    squareFeet: 3200,
+    lotSize: 0.4,
+    assessedValue: 425000,
+    marketValue: 520000,
+    taxAmount: 5500,
+    lastAssessment: new Date('2022-07-03')
+  },
+  {
+    id: 'R-1004',
+    address: '321 Cedar Road',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'Michael & Elizabeth Brown',
+    yearBuilt: 1985,
+    bedrooms: 3,
+    bathrooms: 1.5,
+    squareFeet: 1600,
+    lotSize: 0.15,
+    assessedValue: 230000,
+    marketValue: 280000,
+    taxAmount: 3000,
+    lastAssessment: new Date('2022-06-10')
+  },
+  {
+    id: 'R-1005',
+    address: '654 Birch Street',
+    city: 'Monroe',
+    state: 'OR',
+    zip: '97456',
+    owner: 'James & Patricia Davis',
+    yearBuilt: 2015,
+    bedrooms: 4,
+    bathrooms: 2.5,
+    squareFeet: 2600,
+    lotSize: 0.3,
+    assessedValue: 375000,
+    marketValue: 450000,
+    taxAmount: 4750,
+    lastAssessment: new Date('2022-07-20')
+  }
+];
+
+// Commercial Property Data
+interface CommercialProperty {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  owner: string;
+  yearBuilt: number;
+  propertyType: 'retail' | 'office' | 'industrial' | 'mixed-use';
+  squareFeet: number;
+  lotSize: number;
+  assessedValue: number;
+  marketValue: number;
+  taxAmount: number;
+  lastAssessment: Date;
+}
+
+export const commercialProperties: CommercialProperty[] = [
+  {
+    id: 'C-2001',
+    name: 'Riverfront Plaza',
+    address: '100 Main Street',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'Benton Commercial Holdings LLC',
+    yearBuilt: 2000,
+    propertyType: 'retail',
+    squareFeet: 15000,
+    lotSize: 1.2,
+    assessedValue: 1200000,
+    marketValue: 1500000,
+    taxAmount: 22000,
+    lastAssessment: new Date('2022-08-05')
+  },
+  {
+    id: 'C-2002',
+    name: 'Tech Innovation Center',
+    address: '200 Research Way',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'Oregon Research Properties Inc.',
+    yearBuilt: 2010,
+    propertyType: 'office',
+    squareFeet: 25000,
+    lotSize: 2.5,
+    assessedValue: 2400000,
+    marketValue: 2800000,
+    taxAmount: 32000,
+    lastAssessment: new Date('2022-07-12')
+  },
+  {
+    id: 'C-2003',
+    name: 'Valley Distribution Center',
+    address: '500 Industrial Parkway',
+    city: 'Philomath',
+    state: 'OR',
+    zip: '97370',
+    owner: 'Northwest Logistics Corp.',
+    yearBuilt: 2005,
+    propertyType: 'industrial',
+    squareFeet: 45000,
+    lotSize: 5.0,
+    assessedValue: 3500000,
+    marketValue: 4100000,
+    taxAmount: 42000,
+    lastAssessment: new Date('2022-06-28')
+  },
+  {
+    id: 'C-2004',
+    name: 'Downtown Mixed Development',
+    address: '300 Monroe Avenue',
+    city: 'Corvallis',
+    state: 'OR',
+    zip: '97330',
+    owner: 'Urban Renewal Partners LLC',
+    yearBuilt: 2015,
+    propertyType: 'mixed-use',
+    squareFeet: 22000,
+    lotSize: 0.8,
+    assessedValue: 2800000,
+    marketValue: 3200000,
+    taxAmount: 36000,
+    lastAssessment: new Date('2022-08-15')
+  }
+];
+
+// Agricultural Property Data
+interface AgriculturalProperty {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  owner: string;
+  acres: number;
+  propertyType: 'cropland' | 'pasture' | 'orchard' | 'vineyard' | 'forest';
+  waterRights: boolean;
+  assessedValue: number;
+  marketValue: number;
+  taxAmount: number;
+  lastAssessment: Date;
+}
+
+export const agriculturalProperties: AgriculturalProperty[] = [
+  {
+    id: 'A-3001',
+    name: 'Green Valley Farm',
+    address: '5000 Rural Route 1',
+    city: 'Monroe',
+    state: 'OR',
+    zip: '97456',
+    owner: 'Green Valley Agricultural Enterprises',
+    acres: 320,
+    propertyType: 'cropland',
+    waterRights: true,
+    assessedValue: 1800000,
+    marketValue: 2200000,
+    taxAmount: 12000,
+    lastAssessment: new Date('2022-05-30')
+  },
+  {
+    id: 'A-3002',
+    name: 'Hillside Vineyards',
+    address: '2500 Wine Country Road',
+    city: 'Philomath',
+    state: 'OR',
+    zip: '97370',
+    owner: 'Williamette Valley Wines LLC',
+    acres: 85,
+    propertyType: 'vineyard',
+    waterRights: true,
+    assessedValue: 950000,
+    marketValue: 1100000,
+    taxAmount: 8500,
+    lastAssessment: new Date('2022-06-18')
+  },
+  {
+    id: 'A-3003',
+    name: 'Evergreen Timber',
+    address: '7800 Forest Road',
+    city: 'Philomath',
+    state: 'OR',
+    zip: '97370',
+    owner: 'Pacific Northwest Timber Corp.',
+    acres: 520,
+    propertyType: 'forest',
+    waterRights: false,
+    assessedValue: 2600000,
+    marketValue: 3100000,
+    taxAmount: 16000,
+    lastAssessment: new Date('2022-07-10')
+  },
+  {
+    id: 'A-3004',
+    name: 'Sunny Acres Orchard',
+    address: '4200 Orchard Lane',
+    city: 'Monroe',
+    state: 'OR',
+    zip: '97456',
+    owner: 'Benton Fresh Fruit Inc.',
+    acres: 45,
+    propertyType: 'orchard',
+    waterRights: true,
+    assessedValue: 750000,
+    marketValue: 900000,
+    taxAmount: 6500,
+    lastAssessment: new Date('2022-06-05')
+  }
+];
+
+// GeoJSON Parcel Data for Map
+export const residentialParcels = [
   {
     type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-2345-401-1670-001',
-      owner: 'Rodriguez Family Trust',
-      address: '1470 Brentwood Drive, Richland, WA 99352',
-      acres: 0.28,
-      zoning: 'R-1 Residential',
-      propertyType: 'Single Family Residential',
-      yearBuilt: 1975,
-      assessedValue: 329500,
-      marketValue: 352000,
-      landValue: 85000,
-      improvementValue: 267000,
-      taxCode: 'R003',
-      levyCode: 'LC24',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'RICH-NE',
-      schoolDistrict: 'Richland School District',
-      dataQualityScore: 98,
-      lastPhysicalInspection: '2023-06-12',
-      assessmentYear: 2024,
-      legalDescription: 'LOT 16, BLOCK 7, MEADOW SPRINGS ADDITION NO. 4, CITY OF RICHLAND, BENTON COUNTY, WASHINGTON.',
-      subdivision: 'Meadow Springs',
-      category: 'residential',
-      location: 'Richland - Meadow Springs'
-    },
+    id: 'R-1001',
     geometry: {
       type: 'Polygon',
       coordinates: [[
-        [-119.286, 46.245],
-        [-119.284, 46.245],
-        [-119.284, 46.243],
-        [-119.286, 46.243],
-        [-119.286, 46.245]
+        [-123.2912, 44.5641],
+        [-123.2906, 44.5641],
+        [-123.2906, 44.5645],
+        [-123.2912, 44.5645],
+        [-123.2912, 44.5641]
       ]]
+    },
+    properties: {
+      parcelId: 'R-1001',
+      address: '123 Oak Street, Corvallis, OR 97330',
+      owner: 'John & Mary Smith',
+      category: 'residential',
+      acres: 0.25,
+      yearBuilt: 2005,
+      assessedValue: 350000,
+      marketValue: 425000,
+      landValue: 125000
     }
   },
   {
     type: 'Feature',
-    id: uuidv4(),
+    id: 'R-1002',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-123.2890, 44.5620],
+        [-123.2884, 44.5620],
+        [-123.2884, 44.5624],
+        [-123.2890, 44.5624],
+        [-123.2890, 44.5620]
+      ]]
+    },
     properties: {
-      parcelId: '1-1579-300-2840-002',
-      owner: 'Smith, Robert & Sarah',
-      address: '2305 West 4th Avenue, Kennewick, WA 99336',
-      acres: 0.19,
-      zoning: 'RS Residential Suburban',
-      propertyType: 'Single Family Residential',
+      parcelId: 'R-1002',
+      address: '456 Maple Avenue, Corvallis, OR 97330',
+      owner: 'Robert & Susan Johnson',
+      category: 'residential',
+      acres: 0.18,
       yearBuilt: 1998,
+      assessedValue: 285000,
+      marketValue: 340000,
+      landValue: 95000
+    }
+  },
+  {
+    type: 'Feature',
+    id: 'R-1003',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-123.3650, 44.5380],
+        [-123.3640, 44.5380],
+        [-123.3640, 44.5390],
+        [-123.3650, 44.5390],
+        [-123.3650, 44.5380]
+      ]]
+    },
+    properties: {
+      parcelId: 'R-1003',
+      address: '789 Pine Lane, Philomath, OR 97370',
+      owner: 'David & Jennifer Williams',
+      category: 'residential',
+      acres: 0.4,
+      yearBuilt: 2010,
       assessedValue: 425000,
-      marketValue: 430000,
-      landValue: 92000,
-      improvementValue: 338000,
-      taxCode: 'R001',
-      levyCode: 'LC17',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'KENN-SW',
-      schoolDistrict: 'Kennewick School District',
-      dataQualityScore: 95,
-      lastPhysicalInspection: '2022-09-04',
-      assessmentYear: 2024,
-      legalDescription: 'LOT 7, BLOCK 3, CANYON LAKES PHASE 6, CITY OF KENNEWICK, BENTON COUNTY, WASHINGTON.',
-      subdivision: 'Canyon Lakes',
-      category: 'residential',
-      location: 'Kennewick - Canyon Lakes'
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.193, 46.204],
-        [-119.191, 46.204],
-        [-119.191, 46.202],
-        [-119.193, 46.202],
-        [-119.193, 46.204]
-      ]]
-    }
-  },
-  {
-    type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-0495-203-0072-003',
-      owner: 'Johnson, David & Maria',
-      address: '103 Eastlake Drive, West Richland, WA 99353',
-      acres: 0.32,
-      zoning: 'R-1 Medium Density Residential',
-      propertyType: 'Single Family Residential',
-      yearBuilt: 2018,
-      assessedValue: 495000,
-      marketValue: 510000,
-      landValue: 110000,
-      improvementValue: 400000,
-      taxCode: 'R005',
-      levyCode: 'LC09',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'WRICH-E',
-      schoolDistrict: 'Richland School District',
-      dataQualityScore: 99,
-      lastPhysicalInspection: '2023-11-15',
-      assessmentYear: 2024,
-      legalDescription: 'LOT 4, BLOCK 2, WILLIAMS PLACE, CITY OF WEST RICHLAND, BENTON COUNTY, WASHINGTON.',
-      subdivision: 'Williams Place',
-      category: 'residential',
-      location: 'West Richland - Eastlake'
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.374, 46.292],
-        [-119.372, 46.292],
-        [-119.372, 46.290],
-        [-119.374, 46.290],
-        [-119.374, 46.292]
-      ]]
+      marketValue: 520000,
+      landValue: 150000
     }
   }
 ];
 
-// 2. Commercial Parcels (3 examples from varied business districts)
-export const commercialParcels: GeoJSONFeature[] = [
+export const commercialParcels = [
   {
     type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-6089-400-1221-001',
-      owner: 'Tri-Cities Business Center LLC',
-      address: '1101 Columbia Center Blvd, Kennewick, WA 99336',
-      acres: 2.74,
-      zoning: 'CC Commercial Community',
-      propertyType: 'Retail - Shopping Center',
-      yearBuilt: 1988,
-      assessedValue: 3850000,
-      marketValue: 4100000,
-      landValue: 1250000,
-      improvementValue: 2850000,
-      taxCode: 'C002',
-      levyCode: 'LC17',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'COMM-COL',
-      schoolDistrict: 'Kennewick School District',
-      dataQualityScore: 92,
-      lastPhysicalInspection: '2022-07-21',
-      assessmentYear: 2024,
-      legalDescription: 'PORTION OF THE NW 1/4 OF SECTION 15, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      category: 'commercial',
-      location: 'Kennewick - Columbia Center'
-    },
+    id: 'C-2001',
     geometry: {
       type: 'Polygon',
       coordinates: [[
-        [-119.222, 46.210],
-        [-119.218, 46.210],
-        [-119.218, 46.208],
-        [-119.222, 46.208],
-        [-119.222, 46.210]
+        [-123.2600, 44.5700],
+        [-123.2580, 44.5700],
+        [-123.2580, 44.5720],
+        [-123.2600, 44.5720],
+        [-123.2600, 44.5700]
       ]]
+    },
+    properties: {
+      parcelId: 'C-2001',
+      address: '100 Main Street, Corvallis, OR 97330',
+      owner: 'Benton Commercial Holdings LLC',
+      category: 'commercial',
+      acres: 1.2,
+      yearBuilt: 2000,
+      assessedValue: 1200000,
+      marketValue: 1500000,
+      landValue: 500000
     }
   },
   {
     type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-0759-302-0015-002',
-      owner: 'Richland Office Partners',
-      address: '723 The Parkway, Richland, WA 99352',
-      acres: 0.85,
-      zoning: 'CBD Central Business District',
-      propertyType: 'Office Building',
-      yearBuilt: 1979,
-      assessedValue: 1852000,
-      marketValue: 1950000,
-      landValue: 425000,
-      improvementValue: 1525000,
-      taxCode: 'C001',
-      levyCode: 'LC24',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'COMM-UPT',
-      schoolDistrict: 'Richland School District',
-      dataQualityScore: 94,
-      lastPhysicalInspection: '2023-02-08',
-      assessmentYear: 2024,
-      legalDescription: 'LOT 3, BLOCK 5, UPTOWN BUSINESS DISTRICT, CITY OF RICHLAND, BENTON COUNTY, WASHINGTON',
-      category: 'commercial',
-      location: 'Richland - Uptown'
-    },
+    id: 'C-2002',
     geometry: {
       type: 'Polygon',
       coordinates: [[
-        [-119.273, 46.277],
-        [-119.271, 46.277],
-        [-119.271, 46.276],
-        [-119.273, 46.276],
-        [-119.273, 46.277]
+        [-123.2850, 44.5630],
+        [-123.2820, 44.5630],
+        [-123.2820, 44.5650],
+        [-123.2850, 44.5650],
+        [-123.2850, 44.5630]
       ]]
-    }
-  },
-  {
-    type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-2279-103-4092-003',
-      owner: 'Vintner Square Holdings LLC',
-      address: '5453 Ridgeline Drive, Benton City, WA 99320',
-      acres: 3.12,
-      zoning: 'C-G General Commercial',
-      propertyType: 'Winery/Tourism',
-      yearBuilt: 2008,
-      assessedValue: 2350000,
-      marketValue: 2520000,
-      landValue: 580000,
-      improvementValue: 1940000,
-      taxCode: 'C005',
-      levyCode: 'LC13',
-      exemptionType: null,
-      exemptionAmount: 0,
-      neighborhoodCode: 'WINE-RED',
-      schoolDistrict: 'Kiona-Benton City School District',
-      dataQualityScore: 96,
-      lastPhysicalInspection: '2023-05-17',
-      assessmentYear: 2024,
-      legalDescription: 'PORTION OF THE SE 1/4 OF SECTION 22, TOWNSHIP 9 NORTH, RANGE 26 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      category: 'commercial',
-      location: 'Benton City - Red Mountain AVA'
     },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.478, 46.275],
-        [-119.473, 46.275],
-        [-119.473, 46.272],
-        [-119.478, 46.272],
-        [-119.478, 46.275]
-      ]]
+    properties: {
+      parcelId: 'C-2002',
+      address: '200 Research Way, Corvallis, OR 97330',
+      owner: 'Oregon Research Properties Inc.',
+      category: 'commercial',
+      acres: 2.5,
+      yearBuilt: 2010,
+      assessedValue: 2400000,
+      marketValue: 2800000,
+      landValue: 900000
     }
   }
 ];
 
-// 3. Agricultural Parcels (2 examples of typical Benton County farmland)
-export const agriculturalParcels: GeoJSONFeature[] = [
+export const agriculturalParcels = [
   {
     type: 'Feature',
-    id: uuidv4(),
+    id: 'A-3001',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-123.2950, 44.3150],
+        [-123.2800, 44.3150],
+        [-123.2800, 44.3250],
+        [-123.2950, 44.3250],
+        [-123.2950, 44.3150]
+      ]]
+    },
     properties: {
-      parcelId: '1-0394-100-0005-001',
-      owner: 'Valley Harvest Farms Inc.',
-      address: '242000 E Schuster Rd, Benton City, WA 99320',
-      acres: 124.8,
-      zoning: 'GMA-AG Agricultural',
-      propertyType: 'Agricultural - Cropland',
-      yearBuilt: null,
-      assessedValue: 1250000,
-      marketValue: 1370000,
-      landValue: 1250000,
-      improvementValue: 120000,
-      taxCode: 'A001',
-      levyCode: 'LC12',
-      exemptionType: 'Agricultural Land',
-      exemptionAmount: 450000,
-      neighborhoodCode: 'AG-EAST',
-      schoolDistrict: 'Kiona-Benton City School District',
-      dataQualityScore: 91,
-      lastPhysicalInspection: '2022-09-28',
-      assessmentYear: 2024,
-      legalDescription: 'S 1/2 OF THE NW 1/4 AND THE SW 1/4 OF SECTION 14, TOWNSHIP 9 NORTH, RANGE 26 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      cropType: 'Wine Grapes/Vineyards',
-      irrigationSource: 'Irrigation District',
-      soilType: 'Hezel-Quincy complex',
+      parcelId: 'A-3001',
+      address: '5000 Rural Route 1, Monroe, OR 97456',
+      owner: 'Green Valley Agricultural Enterprises',
       category: 'agricultural',
-      location: 'Eastern Benton County'
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.420, 46.260],
-        [-119.390, 46.260],
-        [-119.390, 46.250],
-        [-119.420, 46.250],
-        [-119.420, 46.260]
-      ]]
+      acres: 320,
+      yearBuilt: 1975,
+      assessedValue: 1800000,
+      marketValue: 2200000,
+      landValue: 1600000
     }
   },
   {
     type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-1836-400-0023-002',
-      owner: 'Columbia Basin Orchards LLC',
-      address: '59403 N Glade Rd, Mesa, WA 99343',
-      acres: 87.5,
-      zoning: 'GMA-AG Agricultural',
-      propertyType: 'Agricultural - Orchard',
-      yearBuilt: 1968,
-      assessedValue: 980000,
-      marketValue: 1120000,
-      landValue: 875000,
-      improvementValue: 245000,
-      taxCode: 'A002',
-      levyCode: 'LC05',
-      exemptionType: 'Agricultural Land',
-      exemptionAmount: 380000,
-      neighborhoodCode: 'AG-NORTH',
-      schoolDistrict: 'North Franklin School District',
-      dataQualityScore: 90,
-      lastPhysicalInspection: '2022-11-03',
-      assessmentYear: 2024,
-      legalDescription: 'PORTION OF THE SW 1/4 OF SECTION 28, TOWNSHIP 12 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      cropType: 'Apple Orchard',
-      irrigationSource: 'Columbia Basin Project',
-      soilType: 'Scooteney silt loam',
-      category: 'agricultural',
-      location: 'Northern Benton County'
-    },
+    id: 'A-3002',
     geometry: {
       type: 'Polygon',
       coordinates: [[
-        [-119.120, 46.590],
-        [-119.100, 46.590],
-        [-119.100, 46.580],
-        [-119.120, 46.580],
-        [-119.120, 46.590]
+        [-123.3750, 44.5450],
+        [-123.3650, 44.5450],
+        [-123.3650, 44.5550],
+        [-123.3750, 44.5550],
+        [-123.3750, 44.5450]
       ]]
+    },
+    properties: {
+      parcelId: 'A-3002',
+      address: '2500 Wine Country Road, Philomath, OR 97370',
+      owner: 'Williamette Valley Wines LLC',
+      category: 'agricultural',
+      acres: 85,
+      yearBuilt: 1990,
+      assessedValue: 950000,
+      marketValue: 1100000,
+      landValue: 750000
     }
   }
 ];
 
-// 4. Special-Purpose Parcels (2 examples of unique zoning cases)
-export const specialPurposeParcels: GeoJSONFeature[] = [
+export const specialPurposeParcels = [
   {
     type: 'Feature',
-    id: uuidv4(),
+    id: 'S-4001',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [-123.2700, 44.5600],
+        [-123.2650, 44.5600],
+        [-123.2650, 44.5640],
+        [-123.2700, 44.5640],
+        [-123.2700, 44.5600]
+      ]]
+    },
     properties: {
-      parcelId: '1-3789-200-0056-001',
-      owner: 'Benton County Public Utility District',
-      address: '5601 W Van Giesen St, West Richland, WA 99353',
-      acres: 4.25,
-      zoning: 'PF Public Facility',
-      propertyType: 'Utility Substation',
+      parcelId: 'S-4001',
+      address: '400 Education Avenue, Corvallis, OR 97330',
+      owner: 'Benton County School District',
+      category: 'special purpose',
+      acres: 4.5,
       yearBuilt: 1995,
-      assessedValue: 4250000,
-      marketValue: 4250000,
-      landValue: 850000,
-      improvementValue: 3400000,
-      taxCode: 'P001',
-      levyCode: 'LC09',
-      exemptionType: 'Public Utility',
-      exemptionAmount: 4250000,
-      neighborhoodCode: 'UTIL-WR',
-      schoolDistrict: 'Richland School District',
-      dataQualityScore: 97,
-      lastPhysicalInspection: '2023-07-19',
-      assessmentYear: 2024,
-      legalDescription: 'PORTION OF THE NE 1/4 OF SECTION 36, TOWNSHIP 10 NORTH, RANGE 27 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      category: 'special_purpose',
-      location: 'West Richland - Van Giesen'
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.366, 46.305],
-        [-119.360, 46.305],
-        [-119.360, 46.302],
-        [-119.366, 46.302],
-        [-119.366, 46.305]
-      ]]
-    }
-  },
-  {
-    type: 'Feature',
-    id: uuidv4(),
-    properties: {
-      parcelId: '1-5043-301-0079-002',
-      owner: 'Washington State of - Department of Fish & Wildlife',
-      address: '1149 Port Dr, Richland, WA 99354',
-      acres: 15.72,
-      zoning: 'OS Open Space',
-      propertyType: 'Recreation Land',
-      yearBuilt: 1982,
-      assessedValue: 1850000,
-      marketValue: 1850000,
-      landValue: 1570000,
-      improvementValue: 280000,
-      taxCode: 'P003',
-      levyCode: 'LC24',
-      exemptionType: 'Government',
-      exemptionAmount: 1850000,
-      neighborhoodCode: 'WDLF-COL',
-      schoolDistrict: 'Richland School District',
-      dataQualityScore: 93,
-      lastPhysicalInspection: '2023-03-22',
-      assessmentYear: 2024,
-      legalDescription: 'PORTION OF GOVERNMENT LOT 2, SECTION 11, TOWNSHIP 9 NORTH, RANGE 28 EAST, W.M., BENTON COUNTY, WASHINGTON',
-      category: 'special_purpose',
-      location: 'Richland - Columbia River Shoreline'
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [-119.269, 46.335],
-        [-119.260, 46.335],
-        [-119.260, 46.330],
-        [-119.269, 46.330],
-        [-119.269, 46.335]
-      ]]
+      assessedValue: 3800000,
+      marketValue: 4200000,
+      landValue: 1200000
     }
   }
 ];
 
-// Combined collection of all parcels for easy access
-export const demoParcelCollection = [
-  ...residentialParcels,
-  ...commercialParcels,
-  ...agriculturalParcels,
-  ...specialPurposeParcels
-];
+// Document Classification Demo Data
+export interface DemoDocument {
+  id: string;
+  name: string;
+  type: string;
+  parcelId: string;
+  uploadDate: string;
+  fileSize: number;
+  uploadedBy: string;
+  description: string;
+  tags: string[];
+  confidenceScore?: number;
+  classificationStatus?: 'pending' | 'classified' | 'reviewed';
+  reviewedBy?: string;
+}
 
-// Demo collaboration projects
-export const demoCollaborationProjects = [
+export const demoDocuments: DemoDocument[] = [
   {
-    id: uuidv4(),
-    name: "Red Mountain AVA Development",
-    description: "Collaborative assessment of vineyard and winery properties in the Red Mountain American Viticultural Area",
-    parcels: [
-      specialPurposeParcels[1].properties.parcelId,
-      commercialParcels[2].properties.parcelId,
-      agriculturalParcels[0].properties.parcelId
-    ],
-    createdBy: "admin",
-    createdAt: new Date().toISOString(),
-    status: "active",
-    collaborators: ["admin", "assessor", "viewer"],
-    tags: ["vineyard", "winery", "agricultural", "commercial"],
-    lastModified: new Date().toISOString()
+    id: 'DOC-1001',
+    name: 'Deed of Trust - 123 Oak Street.pdf',
+    type: 'Deed',
+    parcelId: 'R-1001',
+    uploadDate: '2023-02-15T10:30:00',
+    fileSize: 1248576,
+    uploadedBy: 'jwilson',
+    description: 'Deed of Trust for 123 Oak Street property',
+    tags: ['deed', 'residential', 'oak street'],
+    confidenceScore: 0.98,
+    classificationStatus: 'classified',
+    reviewedBy: 'sjohnson'
   },
   {
-    id: uuidv4(),
-    name: "Residential Growth Analysis",
-    description: "Assessment of residential development patterns and property values in newer neighborhoods",
-    parcels: [
-      residentialParcels[0].properties.parcelId,
-      residentialParcels[1].properties.parcelId,
-      residentialParcels[2].properties.parcelId
-    ],
-    createdBy: "assessor",
-    createdAt: new Date().toISOString(),
-    status: "active",
-    collaborators: ["admin", "assessor"],
-    tags: ["residential", "development", "growth"],
-    lastModified: new Date().toISOString()
+    id: 'DOC-1002',
+    name: 'Property Survey - 456 Maple Avenue.pdf',
+    type: 'Survey',
+    parcelId: 'R-1002',
+    uploadDate: '2023-01-22T14:15:00',
+    fileSize: 3562480,
+    uploadedBy: 'erodriguez',
+    description: 'Property survey including boundary measurements',
+    tags: ['survey', 'residential', 'maple avenue', 'boundary'],
+    confidenceScore: 0.95,
+    classificationStatus: 'classified',
+    reviewedBy: 'mchen'
+  },
+  {
+    id: 'DOC-1003',
+    name: 'Tax Assessment - Riverfront Plaza.pdf',
+    type: 'Tax Assessment',
+    parcelId: 'C-2001',
+    uploadDate: '2023-03-10T09:45:00',
+    fileSize: 2154983,
+    uploadedBy: 'sjohnson',
+    description: 'Annual tax assessment for Riverfront Plaza commercial property',
+    tags: ['tax', 'commercial', 'assessment', 'riverfront'],
+    confidenceScore: 0.97,
+    classificationStatus: 'classified',
+    reviewedBy: 'sjohnson'
+  },
+  {
+    id: 'DOC-1004',
+    name: 'Water Rights Certificate - Green Valley Farm.pdf',
+    type: 'Water Rights',
+    parcelId: 'A-3001',
+    uploadDate: '2023-02-05T11:20:00',
+    fileSize: 1856421,
+    uploadedBy: 'jwilson',
+    description: 'Certificate of water rights for agricultural property',
+    tags: ['water rights', 'agricultural', 'certificate', 'green valley'],
+    confidenceScore: 0.92,
+    classificationStatus: 'classified',
+    reviewedBy: 'mchen'
+  },
+  {
+    id: 'DOC-1005',
+    name: 'Building Permit - Tech Innovation Center.pdf',
+    type: 'Permit',
+    parcelId: 'C-2002',
+    uploadDate: '2023-03-25T15:30:00',
+    fileSize: 4125367,
+    uploadedBy: 'erodriguez',
+    description: 'Building permit for office expansion',
+    tags: ['permit', 'commercial', 'construction', 'expansion'],
+    confidenceScore: 0.89,
+    classificationStatus: 'classified',
+    reviewedBy: 'mchen'
+  },
+  {
+    id: 'DOC-1006',
+    name: 'Easement Agreement - Hillside Vineyards.pdf',
+    type: 'Easement',
+    parcelId: 'A-3002',
+    uploadDate: '2023-01-18T13:10:00',
+    fileSize: 1524876,
+    uploadedBy: 'jwilson',
+    description: 'Road access easement agreement',
+    tags: ['easement', 'agricultural', 'access', 'vineyard'],
+    confidenceScore: 0.94,
+    classificationStatus: 'classified',
+    reviewedBy: 'sjohnson'
+  },
+  {
+    id: 'DOC-1007',
+    name: 'Property Appraisal - Downtown Mixed Development.pdf',
+    type: 'Appraisal',
+    parcelId: 'C-2004',
+    uploadDate: '2023-04-05T10:00:00',
+    fileSize: 3256891,
+    uploadedBy: 'mchen',
+    description: 'Recent property appraisal for commercial mixed-use development',
+    tags: ['appraisal', 'commercial', 'mixed-use', 'downtown'],
+    confidenceScore: 0.96,
+    classificationStatus: 'classified',
+    reviewedBy: 'sjohnson'
+  },
+  {
+    id: 'DOC-1008',
+    name: 'Zoning Variance - 789 Pine Lane.pdf',
+    type: 'Zoning',
+    parcelId: 'R-1003',
+    uploadDate: '2023-03-02T16:45:00',
+    fileSize: 1892456,
+    uploadedBy: 'erodriguez',
+    description: 'Zoning variance for property improvements',
+    tags: ['zoning', 'variance', 'residential', 'pine lane'],
+    confidenceScore: 0.91,
+    classificationStatus: 'classified',
+    reviewedBy: 'mchen'
   }
 ];
 
-// Demo user accounts for the application
-export const demoUserAccounts = [
-  {
-    id: 1,
-    username: "admin",
-    email: "admin@bentoncounty.gov",
-    fullName: "Admin User",
-    role: "Administrator",
-    lastLogin: new Date().toISOString(),
-    permissions: ["view", "edit", "delete", "create", "approve", "admin"],
-    preferences: {
-      defaultMapView: {
-        center: [-119.33, 46.25],
-        zoom: 9
-      },
-      theme: "light",
-      notification: true
-    }
-  },
-  {
-    id: 2,
-    username: "assessor",
-    email: "assessor@bentoncounty.gov",
-    fullName: "Assessment Officer",
-    role: "Assessor",
-    lastLogin: new Date().toISOString(),
-    permissions: ["view", "edit", "create"],
-    preferences: {
-      defaultMapView: {
-        center: [-119.33, 46.25],
-        zoom: 9
-      },
-      theme: "light",
-      notification: true
-    }
-  },
-  {
-    id: 3,
-    username: "viewer",
-    email: "viewer@bentoncounty.gov",
-    fullName: "View Only User",
-    role: "Viewer",
-    lastLogin: new Date().toISOString(),
-    permissions: ["view"],
-    preferences: {
-      defaultMapView: {
-        center: [-119.33, 46.25],
-        zoom: 9
-      },
-      theme: "light",
-      notification: false
-    }
-  }
-];
+// Demo Collaboration Projects
+export interface CollaborationProject {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  status: 'active' | 'planning' | 'completed';
+  createdDate: string;
+  dueDate: string;
+  creator: string;
+  participants: string[];
+  parcels: string[];
+}
 
-// Document examples related to our demo parcels
-export const demoDocuments = [
+export const demoCollaborationProjects: CollaborationProject[] = [
   {
-    id: uuidv4(),
-    name: "Deed of Trust - Rodriguez Family",
-    type: "DEED",
-    parcelId: residentialParcels[0].properties.parcelId,
-    uploadDate: "2023-12-15T10:30:00Z",
-    size: 1250000, // 1.25 MB
-    isArchived: false,
-    metadata: {
-      documentNumber: "2023-136940",
-      recordingDate: "2023-12-10",
-      parties: ["Rodriguez Family Trust", "First Benton Bank"],
-      description: "Deed of Trust for residential property refinance"
-    }
+    id: 'PROJ-1001',
+    name: 'Downtown District Reassessment',
+    description: 'Comprehensive reassessment of all commercial properties in the downtown district to reflect recent market changes.',
+    type: 'Assessment',
+    status: 'active',
+    createdDate: '2023-02-01T09:00:00',
+    dueDate: '2023-06-30T17:00:00',
+    creator: 'sjohnson',
+    participants: ['sjohnson', 'mchen', 'erodriguez'],
+    parcels: ['C-2001', 'C-2004']
   },
   {
-    id: uuidv4(),
-    name: "Boundary Survey - Canyon Lakes Lot 7",
-    type: "SURVEY",
-    parcelId: residentialParcels[1].properties.parcelId,
-    uploadDate: "2022-05-22T14:15:00Z",
-    size: 3450000, // 3.45 MB
-    isArchived: false,
-    metadata: {
-      surveyorName: "Tri-Cities Surveying Inc.",
-      surveyDate: "2022-05-10",
-      recordingNumber: "S-2022-0542",
-      description: "ALTA/NSPS Land Title Survey"
-    }
+    id: 'PROJ-1002',
+    name: 'Agricultural Land Value Study',
+    description: 'Research project to analyze and normalize agricultural land values across the county based on soil type, water rights, and accessibility.',
+    type: 'Research',
+    status: 'active',
+    createdDate: '2023-01-15T10:30:00',
+    dueDate: '2023-05-15T16:00:00',
+    creator: 'mchen',
+    participants: ['mchen', 'erodriguez'],
+    parcels: ['A-3001', 'A-3002', 'A-3003', 'A-3004']
   },
   {
-    id: uuidv4(),
-    name: "Red Mountain AVA - Winery Plat",
-    type: "PLAT",
-    parcelId: commercialParcels[2].properties.parcelId,
-    uploadDate: "2008-07-30T09:45:00Z",
-    size: 2780000, // 2.78 MB
-    isArchived: false,
-    metadata: {
-      platName: "Vintner Square",
-      recordingNumber: "P-2008-0033",
-      lots: 4,
-      description: "Commercial plat for winery development"
-    }
+    id: 'PROJ-1003',
+    name: 'Residential Growth Zone Planning',
+    description: 'Collaborative project with Planning Department to analyze potential rezoning for residential expansion in north county area.',
+    type: 'Planning',
+    status: 'planning',
+    createdDate: '2023-03-10T11:00:00',
+    dueDate: '2023-07-31T17:00:00',
+    creator: 'sjohnson',
+    participants: ['sjohnson', 'mchen', 'erodriguez', 'jwilson'],
+    parcels: ['R-1001', 'R-1003', 'R-1005']
   },
   {
-    id: uuidv4(),
-    name: "Valley Harvest Farms - Agricultural Exemption",
-    type: "TAX_RECORD",
-    parcelId: agriculturalParcels[0].properties.parcelId,
-    uploadDate: "2024-01-10T11:20:00Z",
-    size: 890000, // 0.89 MB
-    isArchived: false,
-    metadata: {
-      taxYear: 2024,
-      exemptionType: "Agricultural Land",
-      amount: 450000,
-      description: "Annual agricultural exemption certification"
-    }
-  },
-  {
-    id: uuidv4(),
-    name: "PUD Utility Easement",
-    type: "EASEMENT",
-    parcelId: specialPurposeParcels[0].properties.parcelId,
-    uploadDate: "2020-09-05T15:50:00Z",
-    size: 1120000, // 1.12 MB
-    isArchived: false,
-    metadata: {
-      easementType: "Utility",
-      width: "20 feet",
-      recordingNumber: "E-2020-0879",
-      description: "Permanent easement for electrical transmission equipment"
-    }
+    id: 'PROJ-1004',
+    name: 'Special District Tax Assessment',
+    description: 'Annual review and update of properties within special tax districts including schools and fire protection zones.',
+    type: 'Assessment',
+    status: 'active',
+    createdDate: '2023-02-20T13:45:00',
+    dueDate: '2023-04-30T17:00:00',
+    creator: 'mchen',
+    participants: ['mchen', 'jwilson'],
+    parcels: ['S-4001', 'R-1002', 'R-1004']
   }
 ];

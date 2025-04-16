@@ -1,111 +1,90 @@
-import { demoUserAccounts } from '@/data/demo-property-data';
+import { demoUsers } from '../data/demo-property-data';
 
-// Auth types
-export interface AuthUser {
-  id: number;
+// Simple user type for demo
+export interface User {
+  id: string;
   username: string;
-  email: string;
   fullName: string;
   role: string;
+  email: string;
+  department: string;
   permissions: string[];
+  lastLogin: Date;
 }
 
-export interface LoginCredentials {
-  username: string;
-  password: string; // Will be ignored in demo mode
-}
+// Auth service for BentonGeoPro demo application
+class AuthService {
+  private currentUser: User | null = null;
+  private isAuthenticated: boolean = false;
 
-export interface AuthState {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  error: string | null;
-  loading: boolean;
-}
+  // Check if a user is logged in
+  public isLoggedIn(): boolean {
+    return this.isAuthenticated;
+  }
 
-/**
- * Demo authentication service
- * For the BentonGeoPro demo, we're using simplified auth with demo accounts
- */
-export const authService = {
-  /**
-   * Login with demo user credentials
-   */
-  login: async (credentials: LoginCredentials): Promise<AuthUser> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Find user by username (case insensitive)
-    const user = demoUserAccounts.find(
-      u => u.username.toLowerCase() === credentials.username.toLowerCase()
+  // Get the current user
+  public getCurrentUser(): User | null {
+    return this.currentUser;
+  }
+  
+  // Demo login with username/password against our demo user database
+  public async login(username: string, password: string): Promise<User | null> {
+    // Find the user with matching credentials
+    const user = demoUsers.find(
+      (u) => u.username === username && u.password === password
     );
     
-    if (!user) {
-      throw new Error('Invalid username or password');
+    if (user) {
+      // Omitting password field for security
+      const { password: _, ...userWithoutPassword } = user;
+      this.currentUser = userWithoutPassword as User;
+      this.isAuthenticated = true;
+      
+      // Set auth token in localStorage (demo purposes only)
+      localStorage.setItem('auth_token', btoa(JSON.stringify(this.currentUser)));
+      
+      return this.currentUser;
     }
     
-    // In demo mode, any password works for the demo users
-    // But we simulate a proper authentication process
-    
-    // Convert user to AuthUser format
-    const authUser: AuthUser = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      permissions: user.permissions
-    };
-    
-    // Store user in localStorage
-    localStorage.setItem('bentongeopro_user', JSON.stringify(authUser));
-    
-    return authUser;
-  },
-  
-  /**
-   * Logout current user
-   */
-  logout: async (): Promise<void> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Remove user from localStorage
-    localStorage.removeItem('bentongeopro_user');
-  },
-  
-  /**
-   * Get current user from localStorage
-   */
-  getCurrentUser: (): AuthUser | null => {
-    const userJson = localStorage.getItem('bentongeopro_user');
-    if (!userJson) return null;
-    
-    try {
-      return JSON.parse(userJson) as AuthUser;
-    } catch (error) {
-      console.error('Error parsing user from localStorage', error);
-      return null;
-    }
-  },
-  
-  /**
-   * Check if user has a specific permission
-   */
-  hasPermission: (user: AuthUser | null, permission: string): boolean => {
-    if (!user) return false;
-    return user.permissions.includes(permission);
+    return null;
   }
-};
-
-// Create a React hook for accessing the current auth state
-export const useAuth = () => {
-  const user = authService.getCurrentUser();
   
-  return {
-    user,
-    isAuthenticated: !!user,
-    hasPermission: (permission: string) => authService.hasPermission(user, permission),
-    login: authService.login,
-    logout: authService.logout
-  };
-};
+  // Demo logout
+  public async logout(): Promise<void> {
+    this.currentUser = null;
+    this.isAuthenticated = false;
+    
+    // Clear auth token from localStorage
+    localStorage.removeItem('auth_token');
+  }
+  
+  // Check if user has a specific permission
+  public hasPermission(permission: string): boolean {
+    if (!this.currentUser) return false;
+    return this.currentUser.permissions.includes(permission);
+  }
+  
+  // Attempt to restore user session from localStorage
+  public attemptSessionRestore(): boolean {
+    const authToken = localStorage.getItem('auth_token');
+    
+    if (authToken) {
+      try {
+        const userData = JSON.parse(atob(authToken));
+        // Convert string date back to Date object
+        userData.lastLogin = new Date(userData.lastLogin);
+        this.currentUser = userData;
+        this.isAuthenticated = true;
+        return true;
+      } catch (error) {
+        console.error('Failed to restore session:', error);
+        this.logout();
+      }
+    }
+    
+    return false;
+  }
+}
+
+// Export singleton instance
+export const authService = new AuthService();
