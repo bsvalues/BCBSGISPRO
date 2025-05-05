@@ -857,3 +857,33 @@ export interface ProcessingNodeData {
   documentId: string;
   result?: Record<string, any>;
 }
+
+// Feature Flag Enums
+export enum FlagTargetType {
+  GLOBAL = 'global',
+  TARGETED = 'targeted',
+  PERCENTAGE = 'percentage'
+}
+
+export enum FlagVariationType {
+  BOOLEAN = 'boolean',
+  VARIANT = 'variant'
+}
+
+// Feature Flag table
+export const featureFlags = pgTable('feature_flags', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 50 }).notNull().unique(),
+  description: text('description'),
+  enabled: boolean('enabled').default(false),
+  targetType: varchar('target_type', { length: 20 }).notNull().$type<FlagTargetType>(),
+  targetRules: json('target_rules'),
+  variationType: varchar('variation_type', { length: 20 }).notNull().$type<FlagVariationType>(),
+  variants: json('variants'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type FeatureFlag = typeof featureFlags.$inferSelect;
+export type InsertFeatureFlag = typeof featureFlags.$inferInsert;
+export const insertFeatureFlagSchema = createInsertSchema(featureFlags);
