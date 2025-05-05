@@ -7,13 +7,38 @@
 
 import { Request, Response } from 'express';
 import { getDatabaseStatus } from '../../db-resilience';
-import { getMetrics } from '../monitoring';
-import { getFeatureFlags } from '../feature-flags';
-import { getErrorStats } from '../error-tracking';
-import { getUxMetricsOverview } from '../ux-metrics';
+import { getMetricsSnapshot } from '../monitoring';
+import { getFeatureFlag, refreshFeatureFlagCache } from '../feature-flags';
+import { db } from '../../db';
+import { featureFlags } from '../../../shared/schema';
+import { getErrors } from '../error-tracking';
+import { getUxMetricsSummary, getUserJourneyAnalytics } from '../ux-metrics';
 import { getDeploymentInfo } from '../deployment';
-import { getCiCdStats } from '../ci-cd';
-import { isAdmin, isAuthenticated } from '../../auth';
+import { getCiCdDashboardData } from '../ci-cd';
+// Authentication middleware
+function isAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Not authenticated' });
+}
+
+function isAdmin(req) {
+  return req.isAuthenticated() && req.user && req.user.role === 'admin';
+}
+
+/**
+ * Helper function to get all feature flags from the database
+ */
+async function getAllFeatureFlags() {
+  try {
+    const flags = await db.select().from(featureFlags);
+    return flags;
+  } catch (error) {
+    console.error('Error fetching feature flags:', error);
+    return [];
+  }
+}
 
 // Dashboard types for different user roles
 export enum DashboardType {
@@ -44,39 +69,48 @@ export async function getDashboardData(type: DashboardType, req: Request) {
       return {
         ...baseData,
         featureFlags: await getFeatureFlags(),
-        errors: await getErrorStats({ limit: 10, onlyUnresolved: true }),
-        performanceMetrics: (await getMetrics()).performanceMetrics,
-        cicdStatus: await getCiCdStats(),
+        errors: await getErrors({ limit: 10, resolved: false }),
+        performanceMetrics: (await getMetricsSnapshot()).responseTimes,
+        cicdStatus: await getCiCdDashboardData(),
       };
 
     case DashboardType.UX_DESIGNER:
+      const uxSummary = await getUxMetricsSummary();
+      const journeyAnalytics = await getUserJourneyAnalytics();
       return {
         ...baseData,
-        userJourneys: await getUxMetricsOverview('journeys'),
-        interactionHeatmap: await getUxMetricsOverview('interactions'),
-        userFeedback: await getUxMetricsOverview('feedback'),
-        performanceByComponent: await getUxMetricsOverview('components'),
+        userJourneys: journeyAnalytics,
+        interactionHeatmap: uxSummary.topFeatures,
+        userFeedback: uxSummary.overview,
+        performanceMetrics: uxSummary.performanceMetrics,
       };
 
     case DashboardType.QA:
       return {
         ...baseData,
-        errors: await getErrorStats({ limit: 20, groupByComponent: true }),
-        testCoverage: (await getCiCdStats()).testResults,
+        errors: await getErrors({ limit: 20, tags: ['component'] }),
+        testCoverage: (await getCiCdDashboardData()).testMetrics,
         featureFlags: await getFeatureFlags(),
         systemHealth: {
           database: getDatabaseStatus(),
-          apiEndpoints: (await getMetrics()).endpointStatus,
+          apiEndpoints: (await getMetricsSnapshot()).requests.byEndpoint,
         },
       };
 
     case DashboardType.PRODUCT_MANAGER:
+      const pmUxSummary = await getUxMetricsSummary();
       return {
         ...baseData,
-        featureUsage: await getUxMetricsOverview('features'),
-        userSatisfaction: await getUxMetricsOverview('satisfaction'),
-        deployments: (await getCiCdStats()).recentDeployments,
-        activeUsers: await getUxMetricsOverview('users'),
+        featureUsage: pmUxSummary.topFeatures,
+        userSatisfaction: {
+          average: pmUxSummary.overview.averageSatisfaction || 0,
+          total: pmUxSummary.overview.totalEvents
+        },
+        deployments: (await getCiCdDashboardData()).recentDeployments,
+        activeUsers: {
+          count: pmUxSummary.overview.uniqueSessions,
+          pageViews: pmUxSummary.overview.totalPageViews
+        },
       };
 
     case DashboardType.SYSTEM_ADMIN:
@@ -84,25 +118,29 @@ export async function getDashboardData(type: DashboardType, req: Request) {
         ...baseData,
         systemHealth: {
           database: getDatabaseStatus(),
-          apiEndpoints: (await getMetrics()).endpointStatus,
-          resources: (await getMetrics()).resourceMetrics,
+          apiEndpoints: (await getMetricsSnapshot()).requests.byEndpoint,
+          resources: (await getMetricsSnapshot()).system,
         },
-        errors: await getErrorStats({ limit: 10, onlySystemErrors: true }),
-        deployments: (await getCiCdStats()).recentDeployments,
+        errors: await getErrors({ limit: 10, tags: ['system-error'] }),
+        deployments: (await getCiCdDashboardData()).recentDeployments,
       };
       
     case DashboardType.ADMIN:
+      const adminUxSummary = await getUxMetricsSummary();
       return {
         ...baseData,
         systemHealth: {
           database: getDatabaseStatus(),
-          apiEndpoints: (await getMetrics()).endpointStatus,
-          resources: (await getMetrics()).resourceMetrics,
+          apiEndpoints: (await getMetricsSnapshot()).requests.byEndpoint,
+          resources: (await getMetricsSnapshot()).system,
         },
-        errors: await getErrorStats({ full: true }),
-        users: await getUxMetricsOverview('users'),
-        deployments: (await getCiCdStats()).recentDeployments,
-        featureFlags: await getFeatureFlags(),
+        errors: await getErrors(),
+        users: {
+          count: adminUxSummary.overview.uniqueSessions,
+          activity: adminUxSummary.topPages
+        },
+        deployments: (await getCiCdDashboardData()).recentDeployments,
+        featureFlags: await getAllFeatureFlags(),
       };
 
     default:

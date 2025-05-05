@@ -3,7 +3,8 @@
  * 
  * This module provides a central entry point for all DevOps functionality,
  * including monitoring, feature flags, deployment management, error tracking,
- * UX metrics, and CI/CD integration.
+ * UX metrics, CI/CD integration, role-based dashboards, security monitoring,
+ * external system integration, and synthetic testing.
  */
 
 import { Express } from 'express';
@@ -39,6 +40,31 @@ import {
 import {
   initializeCiCd
 } from './ci-cd';
+import {
+  registerDashboardRoutes,
+  DashboardType
+} from './dashboards';
+import {
+  registerSecurityRoutes,
+  logSecurityEvent,
+  SecurityEventType,
+  rateLimit,
+  auditLog
+} from './security';
+import {
+  initializeDefaultAlerts,
+  registerIntegrationRoutes,
+  sendAlert,
+  AlertSeverity,
+  AlertIntegration
+} from './integration';
+import {
+  initializeStandardTests,
+  registerTestingRoutes,
+  startScheduledTests,
+  stopScheduledTests,
+  TestType
+} from './testing';
 
 // Export key utilities for use elsewhere in the application
 export { 
@@ -48,7 +74,14 @@ export {
   trackUxEvent,
   UxEventType,
   InteractionType,
-  PerformanceMetricType
+  PerformanceMetricType,
+  DashboardType,
+  logSecurityEvent,
+  SecurityEventType,
+  sendAlert,
+  AlertSeverity,
+  AlertIntegration,
+  TestType
 };
 
 /**
@@ -79,6 +112,25 @@ export async function initializeDevOps(app: Express): Promise<() => void> {
     // 6. Initialize CI/CD integration
     initializeCiCd(app);
     
+    // 7. Register role-based dashboards
+    registerDashboardRoutes(app);
+    
+    // 8. Initialize security monitoring and protection
+    registerSecurityRoutes(app);
+    
+    // 9. Initialize external system integrations
+    initializeDefaultAlerts();
+    registerIntegrationRoutes(app);
+    
+    // 10. Initialize synthetic testing framework
+    initializeStandardTests();
+    registerTestingRoutes(app);
+    
+    // Start scheduled synthetic tests if enabled
+    if (process.env.ENABLE_SYNTHETIC_TESTS === 'true') {
+      startScheduledTests();
+    }
+    
     // Register error tracking middleware
     app.use(errorTrackingMiddleware);
     
@@ -90,6 +142,7 @@ export async function initializeDevOps(app: Express): Promise<() => void> {
     // Return cleanup function
     return () => {
       stopMonitoring();
+      stopScheduledTests();
       logger.info('DevOps system stopped');
     };
   } catch (error) {
