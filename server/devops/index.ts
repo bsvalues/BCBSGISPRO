@@ -2,7 +2,8 @@
  * BentonGeoPro DevOps System
  * 
  * This module provides a central entry point for all DevOps functionality,
- * including monitoring, feature flags, deployment management, and error tracking.
+ * including monitoring, feature flags, deployment management, error tracking,
+ * UX metrics, and CI/CD integration.
  */
 
 import { Express } from 'express';
@@ -28,12 +29,26 @@ import {
   richErrorHandler,
   trackError
 } from './error-tracking';
+import {
+  initializeUxMetrics,
+  trackUxEvent,
+  UxEventType,
+  InteractionType,
+  PerformanceMetricType
+} from './ux-metrics';
+import {
+  initializeCiCd
+} from './ci-cd';
 
 // Export key utilities for use elsewhere in the application
 export { 
   getFeatureFlag,
   trackError,
-  updateWebSocketMetrics
+  updateWebSocketMetrics,
+  trackUxEvent,
+  UxEventType,
+  InteractionType,
+  PerformanceMetricType
 };
 
 /**
@@ -57,6 +72,12 @@ export async function initializeDevOps(app: Express): Promise<() => void> {
     
     // 4. Initialize error tracking
     initializeErrorTracking(app);
+    
+    // 5. Initialize UX metrics collection
+    initializeUxMetrics(app);
+    
+    // 6. Initialize CI/CD integration
+    initializeCiCd(app);
     
     // Register error tracking middleware
     app.use(errorTrackingMiddleware);
