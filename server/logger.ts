@@ -1,5 +1,5 @@
 /**
- * Simple logger utility for consistent log formatting
+ * Enhanced logger utility for consistent log formatting and error tracking
  */
 
 const ENABLE_DEBUG = process.env.NODE_ENV === 'development';
@@ -23,30 +23,46 @@ function formatLogMessage(level: string, message: string): string {
 }
 
 /**
- * Logger with different log levels
+ * Enhanced logger with different log levels and support for metadata
  */
 export const logger = {
-  debug(message: string): void {
+  debug(message: string, metadata?: any): void {
     if (ACTIVE_LOG_LEVEL <= LogLevel.DEBUG) {
-      console.debug(formatLogMessage('DEBUG', message));
+      if (metadata) {
+        console.debug(formatLogMessage('DEBUG', message), metadata);
+      } else {
+        console.debug(formatLogMessage('DEBUG', message));
+      }
     }
   },
   
-  info(message: string): void {
+  info(message: string, metadata?: any): void {
     if (ACTIVE_LOG_LEVEL <= LogLevel.INFO) {
-      console.info(formatLogMessage('INFO', message));
+      if (metadata) {
+        console.info(formatLogMessage('INFO', message), metadata);
+      } else {
+        console.info(formatLogMessage('INFO', message));
+      }
     }
   },
   
-  warn(message: string): void {
+  warn(message: string, metadata?: any): void {
     if (ACTIVE_LOG_LEVEL <= LogLevel.WARN) {
-      console.warn(formatLogMessage('WARN', message));
+      if (metadata) {
+        console.warn(formatLogMessage('WARN', message), metadata);
+      } else {
+        console.warn(formatLogMessage('WARN', message));
+      }
     }
   },
   
-  error(message: string): void {
+  error(message: string, metadata?: any): void {
     if (ACTIVE_LOG_LEVEL <= LogLevel.ERROR) {
-      console.error(formatLogMessage('ERROR', message));
+      if (metadata) {
+        console.error(formatLogMessage('ERROR', message), metadata);
+      } else {
+        console.error(formatLogMessage('ERROR', message));
+      }
     }
   }
 };

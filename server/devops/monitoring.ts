@@ -109,8 +109,8 @@ function updateSystemMetrics() {
 // Update database status
 async function updateDatabaseStatus() {
   try {
-    const isConnected = await getDatabaseStatus();
-    metrics.database.connected = isConnected;
+    const status = await getDatabaseStatus();
+    metrics.database.connected = status === true;
   } catch (error) {
     metrics.database.connected = false;
     if (error instanceof Error) {

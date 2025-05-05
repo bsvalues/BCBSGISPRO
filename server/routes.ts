@@ -101,12 +101,18 @@ const operationTitles: Record<GeospatialOperationType, string> = {
 
 // Import WebSocketServerManager later to avoid duplicate declarations
 
+// Import DevOps system
+import { initializeDevOps } from './devops';
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
   
   // Create HTTP server (this will be returned at the end of the function)
   const httpServer = createServer(app);
+  
+  // Initialize DevOps system
+  await initializeDevOps(app);
   
   // Import WebSocketServerManager
   const { WebSocketServerManager } = await import('./websocket-manager');

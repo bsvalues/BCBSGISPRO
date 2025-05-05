@@ -132,7 +132,7 @@ export function getFeatureFlag(
   // Targeted flag evaluation
   if (flag.targetType === FlagTargetType.TARGETED && flag.targetRules && context) {
     try {
-      const targetRules = flag.targetRules as any[];
+      const targetRules = Array.isArray(flag.targetRules) ? flag.targetRules : [];
       
       // Evaluate each rule until one matches
       for (const rule of targetRules) {
@@ -148,7 +148,9 @@ export function getFeatureFlag(
   // Percentage rollout
   if (flag.targetType === FlagTargetType.PERCENTAGE && context?.userId) {
     try {
-      const percentage = flag.targetRules?.percentage || 0;
+      const targetRulesObj = flag.targetRules as Record<string, any> || {};
+      const percentage = typeof targetRulesObj.percentage === 'number' ? targetRulesObj.percentage : 0;
+      
       if (isUserInPercentage(context.userId, flagName, percentage)) {
         return flag.enabled;
       }
@@ -161,10 +163,10 @@ export function getFeatureFlag(
   // A/B testing with variants
   if (flag.variationType === FlagVariationType.VARIANT && flag.variants && context?.userId) {
     try {
-      const variants = flag.variants as any[];
+      const variants = Array.isArray(flag.variants) ? flag.variants : [];
       const variantIndex = getVariantForUser(context.userId, flagName, variants.length);
-      const variant = variants[variantIndex];
-      return variant?.enabled || false;
+      const variant = variantIndex < variants.length ? variants[variantIndex] : null;
+      return variant && variant.enabled === true;
     } catch (error) {
       logger.error(`Error evaluating variants for flag ${flagName}`, error);
     }

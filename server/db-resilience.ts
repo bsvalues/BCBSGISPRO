@@ -94,7 +94,14 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 /**
  * Gets the current database connection status
  */
-export function getDatabaseStatus() {
+export function getDatabaseStatus(): boolean {
+  return connectionStatus.isConnected;
+}
+
+/**
+ * Gets the detailed database connection status
+ */
+export function getDetailedDatabaseStatus() {
   return {
     ...connectionStatus,
     // Convert lastError to a string if it exists
