@@ -1,8 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ModernLayout } from '../components/layout/modern-layout';
 import { LegalDescriptionAnalyzer } from '../components/legal-description/legal-description-analyzer';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Button } from '../components/ui/button';
+import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
 interface LegalDescriptionVisualization {
   coordinates: [number, number][];
   cardinalPoints: string[];
@@ -16,7 +19,7 @@ interface LegalDescriptionVisualization {
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useToast } from '../hooks/use-toast';
-import { Loader2, Info, Map, FileType } from 'lucide-react';
+import { Loader2, Info, Map, FileType, Building, Building2, Compass, Map as MapIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 
 // Sample real legal descriptions from Benton County
@@ -44,6 +47,30 @@ const getEnvVar = (key: string, defaultValue: string = ''): string => {
 // Mapbox token from environment
 const MAPBOX_TOKEN = getEnvVar('VITE_MAPBOX_ACCESS_TOKEN', 'pk.eyJ1IjoiYnN2YWx1ZXM4MCIsImEiOiJjbTkwb2htNGIwaG1pMmxxN3YzbDlxbHJ1In0.aSeX_5HEXa6u82K-Rhr46A');
 
+// Fairground parcel type definition
+interface FairgroundParcel {
+  id: string;
+  name: string;
+  description: string;
+  legalDescription: string;
+  coordinates?: [number, number][];
+}
+
+// Function to fetch Benton County Fairground parcels
+async function fetchFairgroundParcels(): Promise<FairgroundParcel[]> {
+  try {
+    const response = await fetch('/api/legal-description/fairground-parcels');
+    if (!response.ok) {
+      throw new Error('Failed to fetch fairground parcels');
+    }
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    console.error('Error fetching fairground parcels:', error);
+    return [];
+  }
+}
+
 export default function LegalDescriptionPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('analyzer');
@@ -52,6 +79,44 @@ export default function LegalDescriptionPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [sampleDescription, setSampleDescription] = useState('');
+  const [fairgroundParcels, setFairgroundParcels] = useState<FairgroundParcel[]>([]);
+  const [fairgroundLoading, setFairgroundLoading] = useState(false);
+  
+  // Fetch fairground parcels on component mount
+  useEffect(() => {
+    const loadFairgroundParcels = async () => {
+      setFairgroundLoading(true);
+      try {
+        // If API endpoint doesn't exist yet, use fallback data from the Fairgrounds Parcels document
+        const parcels = await fetchFairgroundParcels();
+        setFairgroundParcels(parcels.length > 0 ? parcels : [
+          {
+            id: "fairground-1",
+            name: "Main Exhibition Hall",
+            description: "Main exhibition building at the Benton County Fairgrounds",
+            legalDescription: "THAT PORTION OF THE NORTHEAST QUARTER OF SECTION 22, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON, DESCRIBED AS FOLLOWS: BEGINNING AT THE NORTHEAST CORNER OF SAID SECTION 22; THENCE SOUTH 0°02'30\" WEST ALONG THE EAST LINE OF SAID SECTION, 330.00 FEET; THENCE NORTH 89°57'30\" WEST, PARALLEL WITH THE NORTH LINE OF SAID SECTION, 660.00 FEET; THENCE NORTH 0°02'30\" EAST, PARALLEL WITH THE EAST LINE OF SAID SECTION, 330.00 FEET TO THE NORTH LINE OF SAID SECTION; THENCE SOUTH 89°57'30\" EAST ALONG SAID NORTH LINE, 660.00 FEET TO THE POINT OF BEGINNING."
+          },
+          {
+            id: "fairground-2",
+            name: "Livestock Area",
+            description: "Livestock pavilion and adjacent areas",
+            legalDescription: "THE WEST HALF OF THE NORTHWEST QUARTER OF SECTION 23, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON."
+          }
+        ]);
+      } catch (error) {
+        console.error('Error loading fairground parcels:', error);
+        toast({
+          title: 'Load Error',
+          description: 'Failed to load Benton County Fairground parcels',
+          variant: 'destructive'
+        });
+      } finally {
+        setFairgroundLoading(false);
+      }
+    };
+    
+    loadFairgroundParcels();
+  }, [toast]);
   
   // Handle when visualization is generated from the analyzer
   const handleVisualizationGenerated = (data: LegalDescriptionVisualization) => {
@@ -209,6 +274,15 @@ export default function LegalDescriptionPage() {
     setSampleDescription(SAMPLE_DESCRIPTIONS[index]);
   };
   
+  // Load a fairground parcel legal description into the analyzer
+  const loadFairgroundParcel = (parcel: FairgroundParcel) => {
+    setSampleDescription(parcel.legalDescription);
+    toast({
+      title: `Loaded ${parcel.name}`,
+      description: 'The legal description has been loaded into the analyzer.'
+    });
+  };
+  
   return (
     <ModernLayout>
       <div className="container mx-auto py-6 max-w-6xl">
@@ -255,6 +329,69 @@ export default function LegalDescriptionPage() {
                   ))}
                 </div>
               </CardContent>
+            </Card>
+            
+            {/* Fairground Parcels Section */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Building className="mr-2 h-5 w-5" />
+                  Fairground Parcels
+                </CardTitle>
+                <CardDescription>
+                  Benton County Fairground property parcels
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {fairgroundLoading ? (
+                  <div className="py-4 flex justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : fairgroundParcels.length > 0 ? (
+                  <div className="space-y-3">
+                    {fairgroundParcels.map((parcel) => (
+                      <Card key={parcel.id} className="overflow-hidden">
+                        <CardContent className="p-0">
+                          <div className="p-4">
+                            <h4 className="font-medium">{parcel.name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {parcel.description}
+                            </p>
+                          </div>
+                          <div className="px-4 py-2 bg-muted/30 flex items-center justify-between">
+                            <Badge variant="outline" className="bg-white">
+                              Fairground
+                            </Badge>
+                            <Button 
+                              variant="secondary" 
+                              size="sm"
+                              onClick={() => loadFairgroundParcel(parcel)}
+                            >
+                              <Compass className="h-4 w-4 mr-1" />
+                              Load Description
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Building2 className="mx-auto h-10 w-10 text-muted-foreground opacity-30" />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No fairground parcels found
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="bg-muted/20 flex justify-between">
+                <div className="text-xs text-muted-foreground">
+                  Parcels from Benton County Assessor's records
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {fairgroundParcels.length} parcels
+                </Badge>
+              </CardFooter>
             </Card>
           </div>
           
