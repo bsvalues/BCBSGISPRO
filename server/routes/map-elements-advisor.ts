@@ -1,107 +1,79 @@
-import { Router, Request, Response } from 'express';
-import { mapElementsAdvisor } from '../services/map-elements-advisor';
-import { logger } from '../logger';
-import { z } from 'zod';
+import express from 'express';
+import { mapElementsAdvisorService } from '../services/map-elements-advisor';
+import asyncHandler from 'express-async-handler';
 
-const router = Router();
-
-// Schema for map evaluation request
-const EvaluateMapSchema = z.object({
-  mapDescription: z.string().min(1, "Map description is required"),
-  mapPurpose: z.string().min(1, "Map purpose is required"),
-  mapContext: z.string().optional()
-});
-
-// Schema for element suggestions request
-const ElementSuggestionsSchema = z.object({
-  elementId: z.string().min(1, "Element ID is required"),
-  mapDescription: z.string().min(1, "Map description is required")
-});
+const router = express.Router();
 
 /**
- * Evaluate a map against best practices
- * POST /api/map-elements/evaluate
- */
-router.post('/evaluate', async (req: Request, res: Response) => {
-  try {
-    // Validate request body
-    const validationResult = EvaluateMapSchema.safeParse(req.body);
-    
-    if (!validationResult.success) {
-      return res.status(400).json({ 
-        error: "Invalid request",
-        details: validationResult.error.format() 
-      });
-    }
-    
-    const { mapDescription, mapPurpose, mapContext } = validationResult.data;
-    
-    // Process the evaluation
-    const result = await mapElementsAdvisor.evaluateMap(
-      mapDescription,
-      mapPurpose,
-      mapContext
-    );
-    
-    return res.json(result);
-  } catch (error) {
-    logger.error(`Error in /map-elements/evaluate: ${error.message}`);
-    return res.status(500).json({ 
-      error: "Failed to evaluate map",
-      message: error.message 
-    });
-  }
-});
-
-/**
- * Get suggestions for a specific map element
- * POST /api/map-elements/suggestions
- */
-router.post('/suggestions', async (req: Request, res: Response) => {
-  try {
-    // Validate request body
-    const validationResult = ElementSuggestionsSchema.safeParse(req.body);
-    
-    if (!validationResult.success) {
-      return res.status(400).json({ 
-        error: "Invalid request",
-        details: validationResult.error.format() 
-      });
-    }
-    
-    const { elementId, mapDescription } = validationResult.data;
-    
-    // Get suggestions for the specified element
-    const suggestions = await mapElementsAdvisor.getElementSuggestions(
-      elementId,
-      mapDescription
-    );
-    
-    return res.json({ suggestions });
-  } catch (error) {
-    logger.error(`Error in /map-elements/suggestions: ${error.message}`);
-    return res.status(500).json({ 
-      error: "Failed to get suggestions",
-      message: error.message 
-    });
-  }
-});
-
-/**
- * Get all standard map elements
  * GET /api/map-elements/standards
+ * 
+ * Get the standard map elements based on cartographic best practices
  */
-router.get('/standards', async (req: Request, res: Response) => {
-  try {
-    const elements = mapElementsAdvisor.getStandardElements();
-    return res.json({ elements });
-  } catch (error) {
-    logger.error(`Error in /map-elements/standards: ${error.message}`);
-    return res.status(500).json({ 
-      error: "Failed to get standard elements",
-      message: error.message 
-    });
+router.get('/standards', asyncHandler(async (req, res) => {
+  const elements = mapElementsAdvisorService.getStandardElements();
+  res.json({ elements });
+}));
+
+/**
+ * POST /api/map-elements/evaluate
+ * 
+ * Evaluate a map description against the standard map elements
+ * 
+ * Request body:
+ * - mapDescription: Description of the map to evaluate
+ * - mapPurpose: Purpose of the map
+ * - mapContext: (Optional) Additional context about the map's usage
+ */
+router.post('/evaluate', asyncHandler(async (req, res) => {
+  const { mapDescription, mapPurpose, mapContext } = req.body;
+  
+  if (!mapDescription) {
+    res.status(400).json({ error: 'Map description is required' });
+    return;
   }
-});
+  
+  if (!mapPurpose) {
+    res.status(400).json({ error: 'Map purpose is required' });
+    return;
+  }
+  
+  const evaluation = await mapElementsAdvisorService.evaluateMap(
+    mapDescription,
+    mapPurpose,
+    mapContext
+  );
+  
+  res.json(evaluation);
+}));
+
+/**
+ * POST /api/map-elements/suggestions
+ * 
+ * Get detailed suggestions for implementing a specific map element
+ * 
+ * Request body:
+ * - elementId: ID of the element to get suggestions for
+ * - mapDescription: Description of the map for context
+ */
+router.post('/suggestions', asyncHandler(async (req, res) => {
+  const { elementId, mapDescription } = req.body;
+  
+  if (!elementId) {
+    res.status(400).json({ error: 'Element ID is required' });
+    return;
+  }
+  
+  if (!mapDescription) {
+    res.status(400).json({ error: 'Map description is required' });
+    return;
+  }
+  
+  const suggestions = await mapElementsAdvisorService.getElementSuggestions(
+    elementId,
+    mapDescription
+  );
+  
+  res.json({ suggestions });
+}));
 
 export default router;

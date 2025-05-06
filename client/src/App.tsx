@@ -5,6 +5,7 @@ import LandingPage from './pages/landing-page';
 import DemoDashboard from './pages/demo-dashboard';
 import DemoMapViewer from './pages/demo-map-viewer';
 import DemoDocumentClassification from './pages/demo-document-classification';
+import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 
 const App: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ const App: React.FC = () => {
         <Route path="/dashboard" component={DemoDashboard} />
         <Route path="/map" component={DemoMapViewer} />
         <Route path="/documents" component={DemoDocumentClassification} />
+        <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
       </Switch>
     </AuthProvider>
   );

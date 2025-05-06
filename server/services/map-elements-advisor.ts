@@ -1,444 +1,426 @@
 import { openAIService } from './openai-service';
-import { logger } from '../logger';
-
-// Define types for map element suggestions
-export interface MapElementSuggestion {
-  id: string;
-  name: string;
-  description: string;
-  importance: 'critical' | 'recommended' | 'optional';
-  implementationStatus?: 'implemented' | 'missing' | 'partial';
-  category: 'structure' | 'information' | 'design' | 'technical' | 'legal';
-  bestPractices: string[];
-  aiTips?: string;
-}
-
-export interface MapEvaluationResult {
-  overallScore: number; // 0-100
-  implementedElements: string[];
-  missingElements: string[];
-  partialElements: string[];
-  suggestions: MapElementSuggestion[];
-  improvementAreas: string[];
-}
+import { MapElementSuggestion, MapEvaluationResult } from '../../client/src/lib/map-elements-api';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Map Elements Advisor Service
- * 
- * Uses OpenAI to provide intelligent suggestions for map elements based on
- * cartographic best practices and the 33 essential map elements.
+ * Service for providing AI-powered map element suggestions and evaluations
  */
 export class MapElementsAdvisorService {
-  // Standard map elements based on the 33 essentials
-  private readonly standardMapElements: MapElementSuggestion[] = [
+  // Standard map elements based on cartographic best practices
+  private standardElements: MapElementSuggestion[] = [
     {
-      id: 'clear-purpose',
-      name: 'Clear Purpose',
-      description: 'Map has a clear purpose and intention that guides its design',
-      importance: 'critical',
-      category: 'structure',
+      id: "title",
+      name: "Title",
+      description: "Clear, concise title describing the map's content",
+      importance: "critical",
+      category: "information",
       bestPractices: [
-        'Define a single primary purpose for the map',
-        'Ensure all elements support the stated purpose',
-        'Make the purpose evident in the title and design'
+        "Place at the top of the map in a prominent position",
+        "Use a font size larger than other text elements",
+        "Keep it concise but descriptive"
       ]
     },
     {
-      id: 'descriptive-title',
-      name: 'Descriptive Title',
-      description: 'Title reflects the author\'s intention and map purpose',
-      importance: 'critical',
-      category: 'information',
+      id: "legend",
+      name: "Legend",
+      description: "Guide explaining all symbols, colors, and patterns used on the map",
+      importance: "critical",
+      category: "information",
       bestPractices: [
-        'Include geographic location in the title',
-        'Use a concise but descriptive title',
-        'Position the title prominently'
+        "Include all map symbols with clear labels",
+        "Use a logical organization (grouping similar elements)",
+        "Position in a non-intrusive location, typically bottom-right"
       ]
     },
     {
-      id: 'appropriate-template',
-      name: 'Appropriate Template',
-      description: 'Map uses a suitable template and orientation for its content',
-      importance: 'recommended',
-      category: 'design',
+      id: "scale",
+      name: "Scale Bar",
+      description: "Visual or numeric indication of the map's scale",
+      importance: "critical",
+      category: "technical",
       bestPractices: [
-        'Use landscape for east-west features (highways, pipelines)',
-        'Use portrait for north-south features',
-        'Consider the output medium when selecting a template'
+        "Use round numbers that are easy to interpret",
+        "Include both metric and imperial units when appropriate",
+        "Place in a consistent location, typically bottom-left"
       ]
     },
     {
-      id: 'branding',
-      name: 'Branding Elements',
-      description: 'Map includes organization and client logo when appropriate',
-      importance: 'recommended',
-      category: 'information',
+      id: "north-arrow",
+      name: "North Arrow",
+      description: "Indicator showing the map's orientation to North",
+      importance: "recommended",
+      category: "technical",
       bestPractices: [
-        'Verify permission to use logos',
-        'Use the most recent logo versions',
-        'Position logos consistently across map products'
+        "Use a simple, clear design",
+        "Only necessary when north is not at the top of the map",
+        "Place in a non-intrusive corner location"
       ]
     },
     {
-      id: 'correct-extent',
-      name: 'Appropriate Map Extent',
-      description: 'Map shows an appropriate level of detail and coverage',
-      importance: 'critical',
-      category: 'technical',
+      id: "source",
+      name: "Data Source",
+      description: "Attribution of data sources and creation information",
+      importance: "critical",
+      category: "legal",
       bestPractices: [
-        'Center the main feature',
-        'Include reference features for context',
-        'Use an appropriate scale for the intended purpose'
+        "Include organization names and dates of data collection",
+        "Add creation date and map author when appropriate",
+        "Use small text that doesn't distract from the main content"
       ]
     },
     {
-      id: 'defined-projection',
-      name: 'Defined Projection',
-      description: 'Map uses an appropriate projection for its purpose',
-      importance: 'critical',
-      category: 'technical',
+      id: "inset-map",
+      name: "Inset Map",
+      description: "Smaller secondary map showing context or detail",
+      importance: "recommended",
+      category: "structure",
       bestPractices: [
-        'Document the projection in metadata',
-        'Select projections that preserve the relevant property (area, direction, or scale)',
-        'Use standard projections for your region when possible'
+        "Use for location context or to show detail that doesn't fit in the main map",
+        "Clearly indicate the relationship between inset and main map",
+        "Keep styling consistent with the main map"
       ]
     },
     {
-      id: 'correct-content',
-      name: 'Correct Content',
-      description: 'Map displays accurate and properly validated data',
-      importance: 'critical',
-      category: 'information',
+      id: "grid",
+      name: "Coordinate Grid",
+      description: "Reference system of lines showing coordinates",
+      importance: "optional",
+      category: "technical",
       bestPractices: [
-        'Verify data sources before mapping',
-        'Link to the correct and most current data files',
-        'Validate data accuracy'
+        "Include when precise location reference is needed",
+        "Label grid lines clearly but unobtrusively",
+        "Use appropriate coordinate system for the map's purpose"
       ]
     },
     {
-      id: 'inset-map',
-      name: 'Inset Map',
-      description: 'Map includes a smaller map providing geographic context',
-      importance: 'recommended',
-      category: 'information',
+      id: "labels",
+      name: "Feature Labels",
+      description: "Text identifying key features on the map",
+      importance: "critical",
+      category: "information",
       bestPractices: [
-        'Use inset maps to show the location in a broader context',
-        'Use insets to focus on areas of special interest',
-        'Keep inset maps simple and uncluttered'
+        "Use consistent font styling for similar features",
+        "Place text to avoid crossing lines or obscuring features",
+        "Consider text halos or masks to improve readability over complex backgrounds"
       ]
     },
     {
-      id: 'key-map',
-      name: 'Key Map',
-      description: 'Shows relationships between multiple map views if needed',
-      importance: 'optional',
-      category: 'information',
+      id: "projection",
+      name: "Projection Information",
+      description: "Details about the map's spatial reference system",
+      importance: "optional",
+      category: "technical",
       bestPractices: [
-        'Use for complex, multi-view map products',
-        'Clearly indicate the relationship between views',
-        'Keep key maps simple'
+        "Include for scientific or technical maps",
+        "State projection name and parameters",
+        "Place in an unobtrusive location with other technical details"
       ]
     },
     {
-      id: 'clear-labeling',
-      name: 'Clear Labeling',
-      description: 'Map has purposeful, well-placed labels',
-      importance: 'critical',
-      category: 'information',
+      id: "base-map",
+      name: "Base Map",
+      description: "Background reference layer providing context",
+      importance: "recommended",
+      category: "structure",
       bestPractices: [
-        'Place labels left-to-right and south-to-north when possible',
-        'Size labels based on feature importance',
-        'Avoid label overlapping with features',
-        'Offset labels from lines with appropriate placement'
+        "Use a subtle design that doesn't compete with thematic data",
+        "Include only features relevant to the map's purpose",
+        "Ensure adequate contrast with foreground data"
       ]
     },
     {
-      id: 'neat-lines',
-      name: 'Neat Lines',
-      description: 'Map has clean border lines containing the content',
-      importance: 'recommended',
-      category: 'design',
+      id: "color-scheme",
+      name: "Color Scheme",
+      description: "Consistent and appropriate use of colors",
+      importance: "critical",
+      category: "design",
       bestPractices: [
-        'Use consistent line weight for neat lines',
-        'Include neat lines to frame the map composition',
-        'Ensure neat lines don\'t interfere with map elements'
+        "Use color schemes appropriate for the data type (sequential, diverging, qualitative)",
+        "Consider color-blind friendly palettes",
+        "Ensure sufficient contrast between colors"
       ]
     },
     {
-      id: 'layer-ordering',
-      name: 'Logical Layer Order',
-      description: 'Layers are arranged to ensure visibility of all important elements',
-      importance: 'critical',
-      category: 'technical',
+      id: "typography",
+      name: "Typography",
+      description: "Consistent and legible fonts throughout the map",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Place point features above line and polygon features',
-        'Use transparency for overlapping features',
-        'Order layers by importance and type'
+        "Limit to 2-3 font families",
+        "Use serif fonts for titles and sans-serif for detail",
+        "Ensure text size is appropriate for both digital and print use"
       ]
     },
     {
-      id: 'clear-legend',
-      name: 'Clear Legend',
-      description: 'Legend explains all symbols used on the map',
-      importance: 'critical',
-      category: 'information',
+      id: "hierarchy",
+      name: "Visual Hierarchy",
+      description: "Organization of elements by importance using size, color, etc.",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Include all map symbols in the legend',
-        'Order items logically (points, lines, polygons)',
-        'Align legend items consistently',
-        'Exclude obvious or basemap features if space is limited'
+        "Make important information visually prominent",
+        "Use consistent visual cues for similar importance levels",
+        "Guide the viewer's eye through the map logically"
       ]
     },
     {
-      id: 'scale-bar',
-      name: 'Scale Bar',
-      description: 'Graphical representation of map scale',
-      importance: 'critical',
-      category: 'technical',
+      id: "margin",
+      name: "Margins",
+      description: "Adequate space around the edge of the map",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Use appropriate units for the map audience',
-        'Place scale bar in a consistent location',
-        'Ensure scale bar is accurate for the projection'
+        "Ensure consistent margin width",
+        "Allow enough space for all elements without crowding",
+        "Consider intended output medium (print requires larger margins)"
       ]
     },
     {
-      id: 'production-date',
-      name: 'Production Date',
-      description: 'Date when the map was created or last updated',
-      importance: 'recommended',
-      category: 'information',
+      id: "date",
+      name: "Date",
+      description: "When the map was created or data was collected",
+      importance: "recommended",
+      category: "information",
       bestPractices: [
-        'Include both creation and revision dates if applicable',
-        'Use a consistent date format',
-        'Update dates when map content changes'
+        "Include creation date for all maps",
+        "Add data collection dates when relevant",
+        "Place with other metadata in an unobtrusive location"
       ]
     },
     {
-      id: 'metadata',
-      name: 'Metadata',
-      description: 'Information about the map data and creation',
-      importance: 'recommended',
-      category: 'information',
+      id: "author",
+      name: "Author/Organization",
+      description: "Who created the map",
+      importance: "recommended",
+      category: "information",
       bestPractices: [
-        'Include data sources',
-        'Document data processing steps',
-        'Include contact information for questions'
+        "Include creator name or organization",
+        "Add logo when appropriate",
+        "Place with other metadata in an unobtrusive location"
       ]
     },
     {
-      id: 'north-arrow',
-      name: 'North Arrow',
-      description: 'Indicates the direction of geographic north',
-      importance: 'critical',
-      category: 'technical',
+      id: "borders",
+      name: "Borders and Neatlines",
+      description: "Frame around the map and its elements",
+      importance: "optional",
+      category: "design",
       bestPractices: [
-        'Use a simple, clear north arrow design',
-        'Place consistently on all maps',
-        'Consider if the map projection affects the north direction'
+        "Use subtle borders that don't distract from map content",
+        "Consider different border styles for the map vs. legend/other elements",
+        "Ensure consistent styling throughout"
       ]
     },
     {
-      id: 'filled-voids',
-      name: 'Filled Voids',
-      description: 'No empty or white spaces in the mapped area',
-      importance: 'recommended',
-      category: 'design',
+      id: "graticules",
+      name: "Graticules",
+      description: "Network of longitude and latitude lines",
+      importance: "optional",
+      category: "technical",
       bestPractices: [
-        'Use basemaps to fill voids',
-        'Include appropriate attribution for basemaps',
-        'Ensure basemap doesn\'t distract from primary content'
+        "Use when geographic coordinates are important to the map purpose",
+        "Style subtly to avoid visual distraction",
+        "Label clearly at margins"
       ]
     },
     {
-      id: 'disclaimer',
-      name: 'Appropriate Disclaimer',
-      description: 'Legal disclaimers about map use and accuracy',
-      importance: 'recommended',
-      category: 'legal',
+      id: "layout",
+      name: "Balanced Layout",
+      description: "Thoughtful arrangement of all map elements",
+      importance: "critical",
+      category: "design",
       bestPractices: [
-        'Have legal review disclaimers',
-        'Keep disclaimers concise',
-        'Include liability limitations'
+        "Balance visual weight across the composition",
+        "Group related elements together",
+        "Use white space effectively to create visual separation"
       ]
     },
     {
-      id: 'data-sources',
-      name: 'Data Sources',
-      description: 'List of data origins and references',
-      importance: 'recommended',
-      category: 'information',
+      id: "extent",
+      name: "Appropriate Extent",
+      description: "Map area covers all relevant features with minimal empty space",
+      importance: "critical",
+      category: "structure",
       bestPractices: [
-        'Include source names and dates',
-        'Provide links or references to data origins',
-        'Credit all data contributors'
+        "Include all relevant features plus context area",
+        "Minimize empty or irrelevant space",
+        "Consider using inset maps for disconnected areas"
       ]
     },
     {
-      id: 'graticules',
-      name: 'Graticules',
-      description: 'Grid lines showing coordinates',
-      importance: 'optional',
-      category: 'technical',
+      id: "symbols",
+      name: "Intuitive Symbols",
+      description: "Easy-to-understand symbols that follow conventions",
+      importance: "critical",
+      category: "design",
       bestPractices: [
-        'Use appropriate spacing for the map scale',
-        'Label graticules clearly',
-        'Use subtle styling that doesn\'t overwhelm the map'
+        "Use conventional symbols when possible (e.g., blue for water)",
+        "Create visually distinct symbols for different feature types",
+        "Consider symbol size appropriate for the map scale"
       ]
     },
     {
-      id: 'standard-symbology',
-      name: 'Standard Symbology',
-      description: 'Consistent symbols that follow cartographic conventions',
-      importance: 'critical',
-      category: 'design',
+      id: "thematic-layer",
+      name: "Thematic Layers",
+      description: "Clear presentation of the main map theme or data",
+      importance: "critical",
+      category: "structure",
       bestPractices: [
-        'Use intuitive symbols',
-        'Be consistent across all map products',
-        'Follow industry standards when they exist'
+        "Make the primary thematic information visually prominent",
+        "Use appropriate visualization method for the data type",
+        "Ensure clear visual separation from the base map"
       ]
     },
     {
-      id: 'scale-appropriate-symbols',
-      name: 'Scale Appropriate Symbols',
-      description: 'Symbols sized and designed for the map scale',
-      importance: 'recommended',
-      category: 'design',
+      id: "context",
+      name: "Context Features",
+      description: "Reference information that helps orient the viewer",
+      importance: "recommended",
+      category: "information",
       bestPractices: [
-        'Adjust symbol complexity based on scale',
-        'Use points for features at small scales, polygons at large scales',
-        'Ensure symbols remain legible at the output size'
+        "Include recognizable features that help orient the viewer",
+        "Style context features more subtly than primary features",
+        "Only include context that's relevant to the map purpose"
       ]
     },
     {
-      id: 'thematic-colors',
-      name: 'Thematic Colors',
-      description: 'Color scheme that reflects map theme and purpose',
-      importance: 'critical',
-      category: 'design',
+      id: "labels-placement",
+      name: "Label Placement",
+      description: "Strategic positioning of text to maximize clarity",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Use color conventions (blue for water, etc.)',
-        'Consider color-blindness in your palette',
-        'Use ColorBrewer or similar tools for thematic colors',
-        'Limit the number of colors to avoid confusion'
+        "Follow cartographic conventions (e.g., place city names to the right)",
+        "Avoid overlapping or crossing lines",
+        "Use curved text for linear features when appropriate"
       ]
     },
     {
-      id: 'appropriate-map-type',
-      name: 'Appropriate Map Type',
-      description: 'Map type matches the data and purpose',
-      importance: 'critical',
-      category: 'structure',
+      id: "classification",
+      name: "Data Classification",
+      description: "Appropriate grouping of numeric data into categories",
+      importance: "recommended",
+      category: "technical",
       bestPractices: [
-        'Use choropleth maps for normalized data by area',
-        'Use proportional symbols for totals',
-        'Select the simplest map type that communicates the message'
+        "Choose classification method appropriate for the data distribution",
+        "Use a reasonable number of classes (typically 4-7)",
+        "Consider using round numbers for class breaks"
       ]
     },
     {
-      id: 'appropriate-typeface',
-      name: 'Appropriate Typeface',
-      description: 'Font selection enhances readability and map style',
-      importance: 'recommended',
-      category: 'design',
+      id: "resolution",
+      name: "Appropriate Resolution",
+      description: "Suitable level of detail for the map's purpose and scale",
+      importance: "recommended",
+      category: "technical",
       bestPractices: [
-        'Use serif fonts (e.g., Times) for base features',
-        'Use sans-serif fonts (e.g., Arial) for thematic features',
-        'Limit font variety to 2-3 fonts per map'
+        "Match data resolution to map scale",
+        "Generalize features appropriately for the scale",
+        "Consider final output medium when determining resolution"
       ]
     },
     {
-      id: 'limited-features',
-      name: 'Limited Feature Count',
-      description: 'Appropriate number of features for clarity',
-      importance: 'recommended',
-      category: 'design',
+      id: "consistency",
+      name: "Visual Consistency",
+      description: "Uniform styling throughout the map",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Include only features relevant to the map purpose',
-        'Split complex maps into multiple, simpler maps',
-        'Use insets for areas requiring more detail'
+        "Maintain consistent styling for similar elements",
+        "Use a limited palette of colors, symbols, and fonts",
+        "Ensure consistent scale and level of detail throughout"
       ]
     },
     {
-      id: 'water-feature-styling',
-      name: 'Water Feature Styling',
-      description: 'Appropriate styling for water features',
-      importance: 'recommended',
-      category: 'design',
+      id: "copyright",
+      name: "Copyright Information",
+      description: "Legal protection notices for proprietary data",
+      importance: "optional",
+      category: "legal",
       bestPractices: [
-        'Use blue colors for water',
-        'Use italic fonts for water labels',
-        'Scale text size based on feature importance'
+        "Include when using licensed or proprietary data",
+        "Follow data provider requirements for attribution",
+        "Place in an unobtrusive location with other metadata"
       ]
     },
     {
-      id: 'non-overlapping-text',
-      name: 'Non-overlapping Text',
-      description: 'Text placement that ensures readability',
-      importance: 'critical',
-      category: 'design',
+      id: "metadata",
+      name: "Additional Metadata",
+      description: "Technical details about the map's data and creation",
+      importance: "optional",
+      category: "technical",
       bestPractices: [
-        'Manually adjust label positions to avoid conflicts',
-        'Use halos or masks to improve text visibility',
-        'Use call-outs for crowded areas'
+        "Include for technical or scientific maps",
+        "Consider using QR codes or links for detailed metadata",
+        "Keep unobtrusive but accessible"
       ]
     },
     {
-      id: 'author-information',
-      name: 'Author Information',
-      description: 'Credits for map creation and review',
-      importance: 'optional',
-      category: 'information',
+      id: "explanatory-text",
+      name: "Explanatory Text",
+      description: "Brief text explaining complex aspects of the map",
+      importance: "optional",
+      category: "information",
       bestPractices: [
-        'Include creator and reviewer names',
-        'Add contact information if appropriate',
-        'Acknowledge contributors'
+        "Use for complex maps that need additional explanation",
+        "Keep concise and focused on key information",
+        "Position near related map features"
       ]
     },
     {
-      id: 'correct-spelling',
-      name: 'Correct Spelling',
-      description: 'No spelling errors in map text',
-      importance: 'critical',
-      category: 'information',
+      id: "contact",
+      name: "Contact Information",
+      description: "How to reach the map author or organization",
+      importance: "optional",
+      category: "information",
       bestPractices: [
-        'Proofread all text elements',
-        'Check place names against authoritative sources',
-        'Verify abbreviations are correct and consistent'
+        "Include for maps intended for public distribution",
+        "Provide email, website, or other relevant contact method",
+        "Place with other metadata in an unobtrusive location"
       ]
     },
     {
-      id: 'complete-legend',
-      name: 'Complete Legend',
-      description: 'Legend includes all map features and uses singular forms',
-      importance: 'critical',
-      category: 'information',
+      id: "revision",
+      name: "Revision Information",
+      description: "Details about map updates or versions",
+      importance: "optional",
+      category: "information",
       bestPractices: [
-        'Use singular forms for legend items (e.g., "City" not "Cities")',
-        'Verify all map symbols appear in the legend',
-        'Ensure legend items match exactly what appears on the map'
+        "Include for maps that are regularly updated",
+        "Indicate version number or last update date",
+        "Place with other metadata in an unobtrusive location"
       ]
     },
     {
-      id: 'balanced-layout',
-      name: 'Balanced Layout',
-      description: 'Overall map composition has visual harmony',
-      importance: 'recommended',
-      category: 'design',
+      id: "accessibility",
+      name: "Accessibility Features",
+      description: "Design elements that make the map usable for all people",
+      importance: "recommended",
+      category: "design",
       bestPractices: [
-        'Distribute elements evenly in the layout',
-        'Use white space effectively',
-        'Align elements to create structure',
-        'Create a clear visual hierarchy'
+        "Use colorblind-friendly palettes",
+        "Ensure sufficient text size and contrast",
+        "Provide text alternatives for complex visual information"
       ]
     }
   ];
 
   /**
-   * Evaluates a map description against best practices
+   * Get the standard map elements
    * 
-   * @param mapDescription Description of the current map state
-   * @param mapPurpose The intended purpose of the map
-   * @param mapContext Additional context about the map use case
+   * @returns Array of standard map elements
+   */
+  getStandardElements(): MapElementSuggestion[] {
+    return this.standardElements;
+  }
+
+  /**
+   * Evaluate a map description against the 33 standard map elements
+   * 
+   * @param mapDescription Description of the map
+   * @param mapPurpose Purpose of the map
+   * @param mapContext Additional context about the map
    * @returns Evaluation results with suggestions
    */
   async evaluateMap(
@@ -446,157 +428,130 @@ export class MapElementsAdvisorService {
     mapPurpose: string,
     mapContext?: string
   ): Promise<MapEvaluationResult> {
+    const systemPrompt = `
+      You are a cartography expert evaluating maps against best practices.
+      Analyze the provided map description and determine which of the 33 essential map elements are present, missing, or partially implemented.
+      Be objective and precise in your assessment.
+    `;
+
+    const prompt = `
+      I need you to evaluate a map description against the 33 standard map elements in cartography.
+      
+      Map Description: ${mapDescription}
+      Map Purpose: ${mapPurpose}
+      ${mapContext ? `Additional Context: ${mapContext}` : ''}
+
+      For each element, determine if it is:
+      - "implemented" (clearly present and well-executed)
+      - "partial" (present but needs improvement)
+      - "missing" (not present or inadequately implemented)
+
+      Please respond with a JSON object that contains:
+      1. "overallScore": A number from 0-100 representing the overall quality
+      2. "implementedElements": Array of element IDs that are implemented
+      3. "missingElements": Array of element IDs that are missing
+      4. "partialElements": Array of element IDs that are partially implemented
+      5. "suggestions": Array of map element objects, including each element's status and custom suggestions
+      6. "improvementAreas": Array of strings describing key areas for improvement
+
+      For context, here are the IDs of the 33 standard map elements:
+      ${this.standardElements.map(el => `"${el.id}"`).join(', ')}
+    `;
+
     try {
-      logger.info(`Evaluating map with purpose: ${mapPurpose}`);
-
-      // Construct the system prompt
-      const systemPrompt = `
-You are a professional cartographer and GIS expert analyzing a map's elements.
-Based on the map description, purpose, and context provided, evaluate which of the 33 essential map elements are implemented, missing, or partially implemented.
-Then provide specific suggestions for improvement.
-
-Respond with a JSON object with the following properties:
-- overallScore: number from 0-100 representing the overall quality of the map
-- implementedElements: array of element IDs that are fully implemented
-- missingElements: array of element IDs that are completely missing
-- partialElements: array of element IDs that are partially implemented
-- suggestions: array of detailed suggestions, with each suggestion containing:
-  - elementId: string matching one of the standard map elements
-  - importance: string rating of 'critical', 'recommended', or 'optional'
-  - issue: string describing what's missing or could be improved
-  - recommendation: string with specific actionable advice
-- improvementAreas: array of 3-5 high-level areas to focus on for improvement
-
-Use the following element IDs for your analysis: ${this.standardMapElements.map(e => e.id).join(', ')}
-      `;
-
-      // Construct the user query combining the description, purpose, and context
-      const userQuery = `
-Map Description: ${mapDescription}
-
-Map Purpose: ${mapPurpose}
-
-${mapContext ? `Additional Context: ${mapContext}` : ''}
-
-Based on this information, please evaluate which map elements are implemented, missing, or need improvement.
-      `;
-
-      // Get response from OpenAI
-      interface OpenAIMapEvaluation {
+      const result = await openAIService.generateJsonResponse<{
         overallScore: number;
         implementedElements: string[];
         missingElements: string[];
         partialElements: string[];
-        suggestions: {
-          elementId: string;
-          importance: 'critical' | 'recommended' | 'optional';
-          issue: string;
-          recommendation: string;
-        }[];
+        suggestions: Array<{
+          id: string;
+          implementationStatus: 'implemented' | 'missing' | 'partial';
+          aiTips?: string;
+        }>;
         improvementAreas: string[];
-      }
+      }>(prompt, systemPrompt, { temperature: 0.2 });
 
-      const evaluation = await openAIService.generateJSON<OpenAIMapEvaluation>(
-        systemPrompt,
-        userQuery
-      );
+      // Enhance the response with complete element details
+      const suggestions = result.suggestions.map(suggestion => {
+        const standardElement = this.standardElements.find(std => std.id === suggestion.id);
+        if (!standardElement) {
+          throw new Error(`Unknown element ID: ${suggestion.id}`);
+        }
 
-      // Transform the response to our internal format
-      const result: MapEvaluationResult = {
-        overallScore: evaluation.overallScore,
-        implementedElements: evaluation.implementedElements,
-        missingElements: evaluation.missingElements,
-        partialElements: evaluation.partialElements,
-        improvementAreas: evaluation.improvementAreas,
-        suggestions: evaluation.suggestions.map(suggestion => {
-          // Find the standard element that matches this suggestion
-          const standardElement = this.standardMapElements.find(e => e.id === suggestion.elementId);
-          
-          if (!standardElement) {
-            // Fallback if element not found
-            return {
-              id: suggestion.elementId,
-              name: suggestion.elementId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-              description: suggestion.issue,
-              importance: suggestion.importance,
-              implementationStatus: 'missing',
-              category: 'information', // Default category
-              bestPractices: [suggestion.recommendation],
-              aiTips: suggestion.recommendation
-            };
-          }
-          
-          // Merge the standard element with the AI suggestions
-          return {
-            ...standardElement,
-            implementationStatus: evaluation.implementedElements.includes(suggestion.elementId)
-              ? 'implemented'
-              : evaluation.partialElements.includes(suggestion.elementId)
-                ? 'partial'
-                : 'missing',
-            aiTips: suggestion.recommendation
-          };
-        })
+        return {
+          ...standardElement,
+          implementationStatus: suggestion.implementationStatus,
+          aiTips: suggestion.aiTips
+        };
+      });
+
+      return {
+        overallScore: result.overallScore,
+        implementedElements: result.implementedElements,
+        missingElements: result.missingElements,
+        partialElements: result.partialElements,
+        suggestions,
+        improvementAreas: result.improvementAreas
       };
-
-      return result;
     } catch (error) {
-      logger.error(`Error evaluating map: ${error.message}`);
-      throw new Error(`Failed to evaluate map: ${error.message}`);
+      console.error('Error evaluating map:', error);
+      throw new Error(`Failed to evaluate map: ${(error as Error).message}`);
     }
   }
 
   /**
-   * Get suggestions for a specific map element
+   * Get detailed suggestions for implementing a specific map element
    * 
-   * @param elementId ID of the map element to get suggestions for
-   * @param mapDescription Current map description
+   * @param elementId ID of the element to get suggestions for
+   * @param mapDescription Description of the map for context
    * @returns Detailed suggestions for implementation
    */
   async getElementSuggestions(
     elementId: string,
     mapDescription: string
   ): Promise<string> {
-    try {
-      const element = this.standardMapElements.find(e => e.id === elementId);
-      
-      if (!element) {
-        throw new Error(`Map element with ID ${elementId} not found`);
-      }
-      
-      const prompt = `
-You are a professional cartographer providing specific advice on implementing the "${element.name}" element in a map.
-
-Map element details:
-- Name: ${element.name}
-- Description: ${element.description}
-- Category: ${element.category}
-- Importance: ${element.importance}
-- Best practices: ${element.bestPractices.join(', ')}
-
-Current map description: ${mapDescription}
-
-Please provide detailed, practical advice for implementing or improving this map element in the described map.
-Focus on how to apply cartographic best practices for this specific element.
-Your response should be helpful, educational, and actionable.
-      `;
-      
-      return await openAIService.generateText(prompt);
-    } catch (error) {
-      logger.error(`Error getting element suggestions: ${error.message}`);
-      throw new Error(`Failed to get element suggestions: ${error.message}`);
+    const element = this.standardElements.find(el => el.id === elementId);
+    if (!element) {
+      throw new Error(`Unknown element ID: ${elementId}`);
     }
-  }
 
-  /**
-   * Get the list of all standard map elements
-   * 
-   * @returns Array of standard map elements
-   */
-  getStandardElements(): MapElementSuggestion[] {
-    return this.standardMapElements;
+    const systemPrompt = `
+      You are a cartography expert providing specific, actionable advice on how to implement map elements.
+      Your suggestions should be tailored to the specific map being described and the element requested.
+      Be concise but thorough, focusing on practical implementation techniques.
+    `;
+
+    const prompt = `
+      I need detailed suggestions for implementing the "${element.name}" element on a map.
+      
+      Map Description: ${mapDescription}
+      
+      Element Details:
+      - Name: ${element.name}
+      - Description: ${element.description}
+      - Importance: ${element.importance}
+      - Category: ${element.category}
+      - Best Practices: ${element.bestPractices.join(', ')}
+      
+      Please provide specific, actionable advice for implementing this element on the described map.
+      Include:
+      1. Placement recommendations
+      2. Design suggestions
+      3. Common pitfalls to avoid
+      4. Tools or techniques that might help
+      
+      Keep your response under 350 words and focus on practical implementation.
+    `;
+
+    try {
+      return await openAIService.generateResponse(prompt, systemPrompt, { temperature: 0.3 });
+    } catch (error) {
+      console.error('Error getting element suggestions:', error);
+      throw new Error(`Failed to get suggestions: ${(error as Error).message}`);
+    }
   }
 }
 
-// Export singleton instance
-export const mapElementsAdvisor = new MapElementsAdvisorService();
+// Create a singleton instance for use throughout the application
+export const mapElementsAdvisorService = new MapElementsAdvisorService();

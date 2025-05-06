@@ -31,6 +31,12 @@ const DemoDashboard: React.FC = () => {
                   Documents
                 </span>
               </Link>
+              <Link href="/map-elements-advisor">
+                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer relative">
+                  Map Advisor
+                  <span className="absolute -top-1 -right-1 bg-primary text-xs text-primary-foreground px-1 rounded-full">New</span>
+                </span>
+              </Link>
             </nav>
           </div>
           
