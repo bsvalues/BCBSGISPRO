@@ -68,7 +68,7 @@ async function extractTextFromImage(imagePath: string): Promise<string> {
     });
 
     return response.choices[0].message.content || '';
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error extracting text from image:', error);
     throw new Error(`Failed to extract text from image: ${error.message}`);
   }

@@ -5327,6 +5327,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const legalDescriptionRoutes = await import('./routes/legal-description-routes').then(m => m.default);
   app.use('/api/legal-description', legalDescriptionRoutes);
   
+  // Register document scanner routes
+  registerDocumentScannerRoutes(app);
+  
   // Standalone Map Elements Advisor page route
   const standaloneMapAdvisorRoutes = await import('./routes/standalone-map-advisor').then(m => m.default);
   app.use('/standalone/map-advisor', standaloneMapAdvisorRoutes);

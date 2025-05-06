@@ -9,9 +9,15 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { ApiError, asyncHandler } from '../error-handler';
 import { analyzeDocument } from '../services/document-analyzer-service';
 import { logger } from '../logger';
+
+// Get the directory path in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
@@ -44,7 +50,7 @@ const fileFilter = (req, file, cb) => {
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new ApiError.badRequest('File type not supported. Please upload a PDF or image file.'), false);
+    cb(ApiError.badRequest('File type not supported. Please upload a PDF or image file.'), false);
   }
 };
 
