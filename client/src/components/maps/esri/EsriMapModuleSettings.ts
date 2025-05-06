@@ -54,7 +54,7 @@ const defaultMapSettings: EsriMapModuleSettings = {
     visible: true,
     order: 0
   },
-  center: [-123.2615, 44.5646], // Default to Benton County, Oregon
+  center: [-119.2984, 46.2587], // Default to Benton County, Washington
   zoom: 12,
   padding: { top: 50, right: 0, bottom: 0, left: 0 },
   bentonCountyBasemap: {
