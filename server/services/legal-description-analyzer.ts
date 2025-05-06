@@ -1,10 +1,18 @@
 /**
  * Legal Description Analyzer Service
- * Specialized for analyzing parcel descriptions and boundaries
+ * Specialized for analyzing Benton County parcel descriptions and boundaries.
+ * Incorporates both OpenAI and Anthropic for enhanced reliability and accuracy,
+ * with automatic failover between services.
  */
 
 import { logger } from '../logger';
 import OpenAI from 'openai';
+import { legalDescriptionService } from './anthropic-service';
+import { 
+  ParsedLegalDescription,
+  LegalDescriptionResult,
+  LegalDescriptionVisualization 
+} from '../../shared/schema';
 
 // Create OpenAI client instance
 const openai = new OpenAI({
@@ -130,21 +138,60 @@ const FAIRGROUND_PARCELS = [
 ];
 
 /**
- * Parse a legal description and extract key components like bearings and distances
+ * Parse a legal description and extract key components like bearings and distances.
+ * Uses both OpenAI and Anthropic services with failover capability.
+ * 
+ * @param description The legal description text to parse
+ * @returns Structured data about the legal description
  */
-export async function parseLegalDescription(description: string): Promise<any> {
+export async function parseLegalDescription(description: string): Promise<ParsedLegalDescription> {
+  if (!description) {
+    logger.error('No legal description provided');
+    throw new Error('Legal description text is required');
+  }
+
   try {
     logger.info(`Parsing legal description: ${description.substring(0, 50)}...`);
     
-    // Try to use OpenAI for parsing if available
+    // First, try to use Anthropic for parsing
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        logger.info('Attempting to parse with Anthropic Claude');
+        const result = await legalDescriptionService.parseLegalDescription(description);
+        logger.info('Successfully parsed legal description with Anthropic Claude');
+        return {
+          ...result,
+          parseMethod: 'anthropic-claude'
+        };
+      }
+    } catch (error: any) {
+      logger.warn(`Error using Anthropic for legal description parsing: ${error.message}`);
+    }
+    
+    // If Anthropic fails, try OpenAI as backup
     try {
       if (process.env.OPENAI_API_KEY) {
+        logger.info('Attempting to parse with OpenAI GPT-4o');
         const response = await openai.chat.completions.create({
           model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
           messages: [
             {
               role: "system",
-              content: "You are a specialized AI for analyzing legal property descriptions in Benton County, Washington. Extract structural information from the legal description, including section/township/range data, cardinal bearings, and boundary measurements."
+              content: `You are a specialized AI for analyzing legal property descriptions in Benton County, Washington.
+              Extract structural information from the legal description, including section/township/range data, 
+              cardinal bearings, and boundary measurements. Return JSON with the following structure:
+              {
+                "section": string,
+                "township": string,
+                "range": string,
+                "plat": string,
+                "lot": string,
+                "block": string,
+                "subdivision": string,
+                "boundaryPoints": string[],
+                "acreage": string,
+                "quarterSections": string[]
+              }`
             },
             {
               role: "user",
@@ -155,43 +202,69 @@ export async function parseLegalDescription(description: string): Promise<any> {
           temperature: 0.3,
         });
         
-        const result = JSON.parse(response.choices[0].message.content);
-        logger.info(`Successfully parsed legal description`);
-        return result;
+        const openaiResult = JSON.parse(response.choices[0].message.content);
+        logger.info('Successfully parsed legal description with OpenAI GPT-4o');
+        
+        return {
+          section: openaiResult.section,
+          township: openaiResult.township,
+          range: openaiResult.range,
+          plat: openaiResult.plat,
+          lot: openaiResult.lot,
+          block: openaiResult.block,
+          subdivision: openaiResult.subdivision,
+          boundaryPoints: openaiResult.boundaryPoints || [],
+          acreage: openaiResult.acreage,
+          quarterSections: openaiResult.quarterSections || [],
+          rawDescription: description,
+          parseMethod: 'openai-gpt4o'
+        };
       }
     } catch (error: any) {
       logger.warn(`Error using OpenAI for legal description parsing: ${error.message}`);
     }
     
-    // If OpenAI not available or fails, use basic regex parsing
+    // If both AI services fail, use our basic regex parsing as last resort
+    logger.info('Using basic regex parsing as fallback');
     const section = description.match(/Section\s+(\d+)/i)?.[1] || "";
     const township = description.match(/Township\s+(\d+)\s+North/i)?.[1] || "";
     const range = description.match(/Range\s+(\d+)\s+East/i)?.[1] || "";
+    const plat = description.match(/Plat\s+of\s+([^,\.]+)/i)?.[1] || "";
+    const lot = description.match(/Lot\s+(\d+)/i)?.[1] || "";
+    const block = description.match(/Block\s+(\d+)/i)?.[1] || "";
     
     // Extract bearings and distances
     const bearingPattern = /(N|S)\s*(\d+)°(\d+)'(\d+)"\s*(E|W)/g;
     const distancePattern = /(\d+\.\d+)\s+feet/g;
     
-    const bearings: string[] = [];
-    const distances: string[] = [];
+    const boundaryPoints: string[] = [];
     
     let match;
     while ((match = bearingPattern.exec(description)) !== null) {
-      bearings.push(match[0]);
+      boundaryPoints.push(match[0]);
     }
     
-    while ((match = distancePattern.exec(description)) !== null) {
-      distances.push(match[0]);
+    // Find quarter sections (e.g., "NE 1/4")
+    const quarterPattern = /(N[EW]|S[EW])\s+1\/4/g;
+    const quarterSections: string[] = [];
+    
+    while ((match = quarterPattern.exec(description)) !== null) {
+      quarterSections.push(match[0]);
     }
     
     return {
       section,
       township,
       range,
-      bearings,
-      distances,
-      meridian: "Willamette",
-      acreage: description.match(/(\d+\.\d+)\s+acres/i)?.[1] || ""
+      plat,
+      lot,
+      block,
+      subdivision: "",
+      boundaryPoints,
+      acreage: description.match(/(\d+\.\d+)\s+acres/i)?.[1] || "",
+      quarterSections,
+      rawDescription: description,
+      parseMethod: 'basic-regex'
     };
   } catch (error: any) {
     logger.error('Error parsing legal description:', error);
@@ -200,76 +273,144 @@ export async function parseLegalDescription(description: string): Promise<any> {
 }
 
 /**
- * Visualize a legal description by creating a graphical representation
+ * Visualize a legal description by creating a graphical representation.
+ * Uses both Anthropic and OpenAI with failover for enhanced visualization quality.
+ * 
+ * @param description The legal description text to visualize
+ * @returns Visualization data suitable for a map display
  */
-export async function visualizeLegalDescription(description: string): Promise<any> {
+export async function visualizeLegalDescription(description: string): Promise<LegalDescriptionVisualization> {
+  if (!description) {
+    logger.error('No legal description provided');
+    throw new Error('Legal description text is required');
+  }
+
   try {
     logger.info(`Visualizing legal description: ${description.substring(0, 50)}...`);
     
-    // First look for a matching parcel in our static data
+    // First look for a matching parcel in our static data (highest precedence for known parcels)
     const foundParcel = FAIRGROUND_PARCELS.find(p => 
       description.includes(p.name) || (description.length > 20 && p.description.startsWith(description.substring(0, 20)))
     );
     
     if (foundParcel) {
       logger.info(`Found matching predefined parcel: ${foundParcel.name}`);
+      
+      // Convert from our internal format to the expected LegalDescriptionVisualization format
+      const cardinalPoints = foundParcel.boundaryPoints.map(bp => 
+        `${bp.direction} for ${bp.distance}`
+      );
+      
+      // Convert our lat/lng format to the expected coordinates format
+      const coordinates: [number, number][] = foundParcel.coordinates.map(coord => 
+        [coord.lng, coord.lat]
+      );
+      
       return {
-        ...foundParcel,
-        source: "predefined"
+        coordinates,
+        cardinalPoints,
+        shapeType: "polygon",
+        estimatedArea: foundParcel.acreage, 
+        source: "predefined",
+        parcelName: foundParcel.name,
+        parcelId: foundParcel.id
       };
     }
     
-    // Try to use OpenAI for visualization if available
+    // Try to use Anthropic for visualization if available (more detailed visualization)
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        logger.info('Attempting to visualize with Anthropic Claude');
+        const baseCoordinate: [number, number] = [-119.2100, 46.2200]; // Center of Benton County
+        const result = await legalDescriptionService.generateVisualizationData(description, baseCoordinate);
+        
+        logger.info('Successfully generated visualization data with Anthropic Claude');
+        
+        return {
+          ...result,
+          source: 'anthropic-claude',
+          parcelName: "Benton County Parcel"
+        };
+      }
+    } catch (error: any) {
+      logger.warn(`Error using Anthropic for visualization: ${error.message}`);
+    }
+    
+    // Try to use OpenAI for visualization if Anthropic fails or is unavailable
     try {
       if (process.env.OPENAI_API_KEY) {
+        logger.info('Attempting to visualize with OpenAI GPT-4o');
         const response = await openai.chat.completions.create({
           model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
           messages: [
             {
               role: "system",
-              content: "You are a specialized AI for analyzing legal property descriptions. Generate a visualization structure for the property boundaries described in the legal description."
+              content: `You are a specialized AI for analyzing legal property descriptions in Benton County, Washington.
+              Generate a visualization structure for the property boundaries described. You are 
+              an expert in the Public Land Survey System (PLSS) used in Benton County.
+              Focus especially on township, range, section, and quarter-section information.`
             },
             {
               role: "user",
-              content: `Please create a visualization structure for this property description:\n\n${description}\n\nGenerate a JSON object with these fields: id, name, acreage, and boundaryPoints (an array of objects with direction and distance properties).`
+              content: `Please create a visualization data for this property description:
+              
+              ${description}
+              
+              Generate a JSON object with these fields:
+              - coordinates: Array of coordinate pairs [lng, lat] representing the polygon corners
+              - cardinalPoints: Array of cardinal direction measurements in plain English
+              - shapeType: Type of shape (polygon, rectangle, etc.)
+              - estimatedArea: Estimated area in acres (number)
+              
+              Use approximately [-119.2100, 46.2200] as a reference coordinate in Benton County if needed.`
             }
           ],
           response_format: { type: "json_object" },
           temperature: 0.3,
         });
         
-        const result = JSON.parse(response.choices[0].message.content);
-        logger.info(`Successfully generated visualization data`);
+        const openaiResult = JSON.parse(response.choices[0].message.content);
+        logger.info('Successfully generated visualization data with OpenAI GPT-4o');
         
-        // Add generic coordinates since we can't determine actual geo coordinates
-        result.coordinates = [
-          { lat: 46.2200, lng: -119.2100 },
-          { lat: 46.2220, lng: -119.2100 },
-          { lat: 46.2220, lng: -119.2050 },
-          { lat: 46.2200, lng: -119.2050 }
-        ];
-        
-        result.source = "ai-generated";
-        return result;
+        return {
+          coordinates: openaiResult.coordinates || [[-119.2100, 46.2200], [-119.2050, 46.2200], [-119.2050, 46.2220], [-119.2100, 46.2220]],
+          cardinalPoints: openaiResult.cardinalPoints || [],
+          shapeType: openaiResult.shapeType || "polygon",
+          estimatedArea: openaiResult.estimatedArea || 0,
+          source: "openai-gpt4o",
+          parcelName: "Benton County Parcel"
+        };
       }
     } catch (error: any) {
       logger.warn(`Error using OpenAI for visualization: ${error.message}`);
     }
     
-    // If OpenAI not available or fails, return a generic visualization
+    // If both AI services fail, generate a generic visualization as a last resort
+    logger.info('Using generic visualization as fallback');
+    
+    // Extract any acreage information we can find with regex
+    const acreageMatch = description.match(/(\d+\.\d+)\s+acres/i);
+    const estimatedArea = acreageMatch ? parseFloat(acreageMatch[1]) : 1.0;
+    
+    // Create a small generic polygon in Benton County
     return {
-      id: "generic-parcel",
-      name: "Parcel",
-      description: description.substring(0, 100) + "...",
-      acreage: description.match(/(\d+\.\d+)\s+acres/i)?.[1] || "Unknown",
       coordinates: [
-        { lat: 46.2200, lng: -119.2100 },
-        { lat: 46.2220, lng: -119.2100 },
-        { lat: 46.2220, lng: -119.2050 },
-        { lat: 46.2200, lng: -119.2050 }
+        [-119.2100, 46.2200],
+        [-119.2050, 46.2200],
+        [-119.2050, 46.2220],
+        [-119.2100, 46.2220]
       ],
-      boundaryPoints: [],
-      source: "generic"
+      cardinalPoints: [
+        "North for 1320 feet",
+        "East for 1320 feet",
+        "South for 1320 feet",
+        "West for 1320 feet"
+      ],
+      shapeType: "rectangle",
+      estimatedArea,
+      source: "generic-fallback",
+      parcelName: "Unknown Parcel",
+      parcelId: "generic-parcel"
     };
   } catch (error: any) {
     logger.error('Error visualizing legal description:', error);
@@ -280,43 +421,90 @@ export async function visualizeLegalDescription(description: string): Promise<an
 /**
  * Validate a legal description for completeness and correctness
  */
-export async function validateLegalDescription(description: string): Promise<any> {
+export async function validateLegalDescription(description: string): Promise<LegalDescriptionResult> {
+  if (!description) {
+    logger.error('No legal description provided');
+    throw new Error('Legal description text is required');
+  }
+
   try {
     logger.info(`Validating legal description: ${description.substring(0, 50)}...`);
     
-    // Try to use OpenAI for validation if available
+    // First, try to use Anthropic for validation (more detailed recommendations)
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        logger.info('Attempting to validate with Anthropic Claude');
+        const result = await legalDescriptionService.analyzeLegalDescription(description);
+        
+        logger.info('Successfully validated legal description with Anthropic Claude');
+        return {
+          ...result,
+          validationMethod: 'anthropic-claude'
+        };
+      }
+    } catch (error: any) {
+      logger.warn(`Error using Anthropic for legal description validation: ${error.message}`);
+    }
+    
+    // If Anthropic fails, try OpenAI as backup
     try {
       if (process.env.OPENAI_API_KEY) {
+        logger.info('Attempting to validate with OpenAI GPT-4o');
         const response = await openai.chat.completions.create({
           model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
           messages: [
             {
               role: "system",
-              content: "You are a specialized AI for analyzing legal property descriptions in Benton County, Washington. Validate the legal description for completeness, correctness, and potential issues."
+              content: `You are a specialized AI for analyzing legal property descriptions in Benton County, Washington. 
+              Validate the legal description for completeness, correctness, and potential issues using standards
+              relevant to the Public Land Survey System (PLSS) and Washington state property descriptions.`
             },
             {
               role: "user",
-              content: `Please validate this legal description:\n\n${description}\n\nGenerate a JSON object with these fields: isValid (boolean), confidence (0-100), issues (array of strings describing any problems), and recommendations (array of strings with suggestions for improvement).`
+              content: `Please validate this legal description:
+
+${description}
+
+Generate a JSON object with these fields:
+- validationScore: Number from 0-100 representing how valid/complete the description is
+- issues: Array of potential issues found (strings)
+- recommendations: Array of recommendations to improve the description (strings)
+- interpretation: Plain English explanation of what this legal description means
+- boundaryDescription: Simplified description of the boundary in plain English
+- drawingInstructions: Step by step instructions that would help someone draw this parcel manually (array of strings)`
             }
           ],
           response_format: { type: "json_object" },
           temperature: 0.3,
         });
         
-        const result = JSON.parse(response.choices[0].message.content);
-        logger.info(`Successfully validated legal description`);
-        return result;
+        const openaiResult = JSON.parse(response.choices[0].message.content);
+        logger.info('Successfully validated legal description with OpenAI GPT-4o');
+        
+        return {
+          validationScore: openaiResult.validationScore,
+          issues: openaiResult.issues || [],
+          recommendations: openaiResult.recommendations || [],
+          interpretation: openaiResult.interpretation || "No interpretation available",
+          boundaryDescription: openaiResult.boundaryDescription || "No boundary description available",
+          drawingInstructions: openaiResult.drawingInstructions || [],
+          validationMethod: 'openai-gpt4o'
+        };
       }
     } catch (error: any) {
       logger.warn(`Error using OpenAI for validation: ${error.message}`);
     }
     
-    // Basic validation checks if OpenAI not available
+    // If both AI services fail, use basic regex validation as last resort
+    logger.info('Using basic regex validation as fallback');
+    
     const hasSection = description.match(/Section\s+(\d+)/i) !== null;
     const hasTownship = description.match(/Township\s+(\d+)\s+North/i) !== null;
     const hasRange = description.match(/Range\s+(\d+)\s+East/i) !== null;
     const hasMeridian = description.match(/Willamette\s+Meridian/i) !== null;
     const hasAcreage = description.match(/(\d+\.\d+)\s+acres/i) !== null;
+    const hasQuarterSection = description.match(/(N[EW]|S[EW])\s+1\/4/i) !== null;
+    const hasBoundaries = description.match(/(N|S)\s*(\d+)°(\d+)'(\d+)"/i) !== null;
     
     const issues = [];
     if (!hasSection) issues.push("Missing section information");
@@ -325,11 +513,34 @@ export async function validateLegalDescription(description: string): Promise<any
     if (!hasMeridian) issues.push("Missing meridian reference");
     if (!hasAcreage) issues.push("Missing acreage information");
     
+    const recommendations = [];
+    if (!hasSection) recommendations.push("Add section number");
+    if (!hasTownship) recommendations.push("Add township designation");
+    if (!hasRange) recommendations.push("Add range designation");
+    if (!hasMeridian) recommendations.push("Add meridian reference (Willamette Meridian for Benton County)");
+    if (!hasAcreage) recommendations.push("Include parcel acreage");
+    if (!hasQuarterSection && !hasBoundaries) recommendations.push("Specify quarter sections or boundary measurements");
+    
+    // Calculate a validation score
+    const validationScore = 100 - (issues.length * 15);
+    
+    // Extract essential information for interpretation
+    const section = description.match(/Section\s+(\d+)/i)?.[1] || "unknown section";
+    const township = description.match(/Township\s+(\d+)\s+North/i)?.[1] || "unknown township";
+    const range = description.match(/Range\s+(\d+)\s+East/i)?.[1] || "unknown range";
+    const acreage = description.match(/(\d+\.\d+)\s+acres/i)?.[1] || "unknown acreage";
+    
     return {
-      isValid: issues.length === 0,
-      confidence: issues.length === 0 ? 90 : (100 - (issues.length * 20)),
+      validationScore: Math.max(0, validationScore),
       issues,
-      recommendations: issues.length > 0 ? ["Add missing components to the legal description"] : []
+      recommendations,
+      interpretation: `This appears to be a property in Section ${section}, Township ${township} North, Range ${range} East, of approximately ${acreage} acres.`,
+      boundaryDescription: "Property boundaries cannot be determined from basic validation.",
+      drawingInstructions: [
+        "Basic validation cannot provide reliable drawing instructions.",
+        "Consider using AI assistance or consulting a professional surveyor."
+      ],
+      validationMethod: 'basic-regex'
     };
   } catch (error: any) {
     logger.error('Error validating legal description:', error);

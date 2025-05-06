@@ -110,6 +110,7 @@ export interface LegalDescriptionResult {
   interpretation: string;
   boundaryDescription: string;
   drawingInstructions: string[];
+  validationMethod?: string;
 }
 
 export interface LegalDescriptionVisualization {
