@@ -12,7 +12,7 @@ import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
 import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
-import legalDescriptionRoutes from "./routes/legal-description-routes";
+import { registerLegalDescriptionRoutes } from "./routes/legal-description-routes";
 import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes";
 import { 
   mapElements,
@@ -5324,8 +5324,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/map-elements-advisor', mapElementsAdvisorRoutes);
   
   // Register AI-enhanced legal description routes
-  const legalDescriptionRoutes = await import('./routes/legal-description-routes').then(m => m.default);
-  app.use('/api/legal-description', legalDescriptionRoutes);
+  // Register legal description routes
+  registerLegalDescriptionRoutes(app);
   
   // Register document scanner routes
   registerDocumentScannerRoutes(app);
