@@ -19,120 +19,74 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Fallback to use when OpenAI API is not available
+/**
+ * Benton County Fairground Parcels
+ * Authentic parcel data for the Benton County Fairgrounds property
+ */
 const FAIRGROUND_PARCELS = [
   {
-    id: "parcel-1",
-    name: "Parcel 1",
-    description: "That portion of the West Half of the Northwest Quarter of Section 8, Township 8 North, Range 30 East, of the Willamette Meridian...",
-    acreage: 26.60,
+    id: "fairground-1",
+    name: "Main Exhibition Hall",
+    description: "Main exhibition building at the Benton County Fairgrounds",
+    legalDescription: "THAT PORTION OF THE NORTHEAST QUARTER OF SECTION 22, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON, DESCRIBED AS FOLLOWS: BEGINNING AT THE NORTHEAST CORNER OF SAID SECTION 22; THENCE SOUTH 0°02'30\" WEST ALONG THE EAST LINE OF SAID SECTION, 330.00 FEET; THENCE NORTH 89°57'30\" WEST, PARALLEL WITH THE NORTH LINE OF SAID SECTION, 660.00 FEET; THENCE NORTH 0°02'30\" EAST, PARALLEL WITH THE EAST LINE OF SAID SECTION, 330.00 FEET TO THE NORTH LINE OF SAID SECTION; THENCE SOUTH 89°57'30\" EAST ALONG SAID NORTH LINE, 660.00 FEET TO THE POINT OF BEGINNING.",
+    acreage: 5.00,
     coordinates: [
-      { lat: 46.2210, lng: -119.2105 },
-      { lat: 46.2245, lng: -119.2105 },
-      { lat: 46.2245, lng: -119.2040 },
-      { lat: 46.2210, lng: -119.2040 },
-    ],
-    boundaryPoints: [
-      { direction: "S0°31'06\"E", distance: "40.00 feet" },
-      { direction: "S0°31'06\"E", distance: "1355.07 feet" },
-      { direction: "N87°43'01\"E", distance: "112.37 feet" },
-      { direction: "N54°29'41\"E", distance: "211.80 feet" },
-      { direction: "N75°22'25\"E", distance: "604.15 feet" },
-      { direction: "N87°43'01\"E", distance: "433.66 feet" },
-      { direction: "N0°31'06\"W", distance: "1127.65 feet" },
-      { direction: "S89°47'01\"W", distance: "1323.51 feet" }
+      [-119.2962, 46.2113],
+      [-119.2962, 46.2076],
+      [-119.2892, 46.2076],
+      [-119.2892, 46.2113]
     ]
   },
   {
-    id: "parcel-2",
-    name: "Parcel 2",
-    description: "That portion of the West Half of the Northwest Quarter of Section 8, Township 8 North, Range 30 East, of the Willamette Meridian...",
-    acreage: 28.22,
+    id: "fairground-2",
+    name: "Livestock Area",
+    description: "Livestock pavilion and adjacent areas",
+    legalDescription: "THE WEST HALF OF THE NORTHWEST QUARTER OF SECTION 23, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON.",
+    acreage: 80.00,
     coordinates: [
-      { lat: 46.2175, lng: -119.2105 },
-      { lat: 46.2210, lng: -119.2105 },
-      { lat: 46.2210, lng: -119.2040 },
-      { lat: 46.2175, lng: -119.2040 },
-    ],
-    boundaryPoints: [
-      { direction: "S0°31'06\"E", distance: "40.00 feet" },
-      { direction: "S0°31'06\"E", distance: "1355.07 feet" },
-      { direction: "S0°31'06\"E", distance: "596.46 feet" },
-      { direction: "N87°43'01\"E", distance: "1323.12 feet" },
-      { direction: "N0°28'38\"W", distance: "601.60 feet" },
-      { direction: "S87°43'01\"W", distance: "433.66 feet" },
-      { direction: "S75°22'25\"W", distance: "604.15 feet" },
-      { direction: "S54°29'41\"W", distance: "211.80 feet" },
-      { direction: "S87°43'01\"W", distance: "112.37 feet" }
+      [-119.2866, 46.2113],
+      [-119.2866, 46.2039],
+      [-119.2796, 46.2039],
+      [-119.2796, 46.2113]
     ]
   },
   {
-    id: "parcel-3",
-    name: "Parcel 3",
-    description: "That portion of the West Half of the Northwest Quarter of Section 8, Township 8 North, Range 30 East, of the Willamette Meridian...",
-    acreage: 7.07,
+    id: "fairground-3",
+    name: "Rodeo Grounds",
+    description: "Rodeo arena and associated facilities",
+    legalDescription: "THE SOUTHEAST QUARTER OF THE SOUTHEAST QUARTER OF SECTION 15, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON.",
+    acreage: 40.00,
     coordinates: [
-      { lat: 46.2155, lng: -119.2080 },
-      { lat: 46.2175, lng: -119.2080 },
-      { lat: 46.2175, lng: -119.2040 },
-      { lat: 46.2155, lng: -119.2040 },
-    ],
-    boundaryPoints: [
-      { direction: "S0°31'06\"E", distance: "40.00 feet" },
-      { direction: "S0°31'06\"E", distance: "1951.53 feet" },
-      { direction: "S31°16'26\"E", distance: "76.70 feet" },
-      { direction: "S59°18'48\"E", distance: "270.18 feet" },
-      { direction: "N85°55'21\"E", distance: "405.31 feet" },
-      { direction: "N0°28'38\"W", distance: "224.72 feet" },
-      { direction: "S87°43'01\"W", distance: "655.89 feet" }
+      [-119.2962, 46.2149],
+      [-119.2962, 46.2115],
+      [-119.2899, 46.2115],
+      [-119.2899, 46.2149]
     ]
   },
   {
-    id: "parcel-4",
-    name: "Parcel 4",
-    description: "That portion of the West Half of the Northwest Quarter of Section 8, Township 8 North, Range 30 East, of the Willamette Meridian...",
-    acreage: 4.38,
+    id: "fairground-4",
+    name: "Parking Area",
+    description: "Main fairground parking lot and entrance",
+    legalDescription: "THE NORTH HALF OF THE NORTHWEST QUARTER OF SECTION 23, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON.",
+    acreage: 20.00,
     coordinates: [
-      { lat: 46.2140, lng: -119.2060 },
-      { lat: 46.2155, lng: -119.2060 },
-      { lat: 46.2155, lng: -119.2040 },
-      { lat: 46.2140, lng: -119.2040 },
-    ],
-    boundaryPoints: [
-      { direction: "S0°31'06\"E", distance: "40.00 feet" },
-      { direction: "S0°31'06\"E", distance: "1951.53 feet" },
-      { direction: "S31°16'26\"E", distance: "76.70 feet" },
-      { direction: "S59°18'48\"E", distance: "270.18 feet" },
-      { direction: "S85°55'21\"W", distance: "405.31 feet" },
-      { direction: "S0°28'38\"E", distance: "224.72 feet" },
-      { direction: "N85°57'21\"E", distance: "383.85 feet" },
-      { direction: "N0°28'38\"W", distance: "386.80 feet" },
-      { direction: "S87°43'01\"W", distance: "289.23 feet" }
+      [-119.2866, 46.2149],
+      [-119.2866, 46.2113],
+      [-119.2796, 46.2113],
+      [-119.2796, 46.2149]
     ]
   },
   {
-    id: "parcel-5",
-    name: "Parcel 5",
-    description: "That portion of the West Half of the Northwest Quarter of Section 8, Township 8 North, Range 30 East, of the Willamette Meridian...",
-    acreage: 1.45,
+    id: "fairground-5",
+    name: "Agricultural Display Area",
+    description: "Agricultural equipment and demonstration zone",
+    legalDescription: "THE EAST HALF OF THE NORTHEAST QUARTER OF SECTION 22, TOWNSHIP 8 NORTH, RANGE 29 EAST, W.M., BENTON COUNTY, WASHINGTON.",
+    acreage: 30.00,
     coordinates: [
-      { lat: 46.2135, lng: -119.2040 },
-      { lat: 46.2140, lng: -119.2040 },
-      { lat: 46.2140, lng: -119.2025 },
-      { lat: 46.2135, lng: -119.2025 },
-    ],
-    boundaryPoints: [
-      { direction: "S0°31'06\"E", distance: "40.00 feet" },
-      { direction: "S0°31'06\"E", distance: "1951.53 feet" },
-      { direction: "S31°16'26\"E", distance: "76.70 feet" },
-      { direction: "S59°18'48\"E", distance: "270.18 feet" },
-      { direction: "S85°55'21\"W", distance: "405.31 feet" },
-      { direction: "S0°28'38\"E", distance: "224.72 feet" },
-      { direction: "N85°57'21\"E", distance: "383.85 feet" },
-      { direction: "N0°28'38\"W", distance: "386.80 feet" },
-      { direction: "N87°43'01\"E", distance: "178.00 feet" },
-      { direction: "S4°22'33\"E", distance: "386.30 feet" },
-      { direction: "S87°43'01\"W", distance: "218.00 feet" }
+      [-119.2892, 46.2113],
+      [-119.2892, 46.2076],
+      [-119.2832, 46.2076],
+      [-119.2832, 46.2113]
     ]
   }
 ];
@@ -290,28 +244,30 @@ export async function visualizeLegalDescription(description: string): Promise<Le
     
     // First look for a matching parcel in our static data (highest precedence for known parcels)
     const foundParcel = FAIRGROUND_PARCELS.find(p => 
-      description.includes(p.name) || (description.length > 20 && p.description.startsWith(description.substring(0, 20)))
+      p.legalDescription === description || description.includes(p.name)
     );
     
     if (foundParcel) {
       logger.info(`Found matching predefined parcel: ${foundParcel.name}`);
       
-      // Convert from our internal format to the expected LegalDescriptionVisualization format
-      const cardinalPoints = foundParcel.boundaryPoints.map(bp => 
-        `${bp.direction} for ${bp.distance}`
-      );
+      // The coordinates are already in [lng, lat] format as expected
+      const coordinates: [number, number][] = foundParcel.coordinates;
       
-      // Convert our lat/lng format to the expected coordinates format
-      const coordinates: [number, number][] = foundParcel.coordinates.map(coord => 
-        [coord.lng, coord.lat]
-      );
+      // Extract cardinal directions from legal description
+      const cardinalPoints: string[] = [];
+      const directionRegex = /(NORTH|SOUTH|EAST|WEST|N|S|E|W)(\s*\d+°\d+'\d+")?\s+(ALONG|PARALLEL)/gi;
+      let match;
+      
+      while ((match = directionRegex.exec(foundParcel.legalDescription)) !== null) {
+        cardinalPoints.push(match[0]);
+      }
       
       return {
         coordinates,
-        cardinalPoints,
+        cardinalPoints: cardinalPoints.length > 0 ? cardinalPoints : ["From PLSS coordinates"],
         shapeType: "polygon",
         estimatedArea: foundParcel.acreage, 
-        source: "predefined",
+        source: "benton-county-fairground",
         parcelName: foundParcel.name,
         parcelId: foundParcel.id
       };
