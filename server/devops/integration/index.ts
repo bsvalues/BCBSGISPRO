@@ -7,8 +7,8 @@
 
 import { Request, Response } from 'express';
 import { logger } from '../../logger';
-import { getMetrics } from '../monitoring';
-import { getErrorStats } from '../error-tracking';
+import { getMetricsSnapshot } from '../monitoring';
+import { getErrors } from '../error-tracking';
 import { getDeploymentInfo } from '../deployment';
 
 /**
