@@ -287,6 +287,106 @@ export type RecentlyViewedParcel = typeof recentlyViewedParcels.$inferSelect;
 export type InsertRecentlyViewedParcel = typeof recentlyViewedParcels.$inferInsert;
 export const insertRecentlyViewedParcelSchema = createInsertSchema(recentlyViewedParcels);
 
+// AI Co-worker relationships tables
+export const coworkerProfiles = pgTable('coworker_profiles', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  role: varchar('role', { length: 100 }).notNull(),
+  description: text('description'),
+  avatarUrl: varchar('avatar_url', { length: 255 }),
+  specialties: json('specialties').$type<string[]>(), // Areas of expertise
+  defaultMode: coworkerModeEnum('default_mode').default('ASSISTANT'),
+  systemPrompt: text('system_prompt'), // Base system prompt for this co-worker
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type CoworkerProfile = typeof coworkerProfiles.$inferSelect;
+export type InsertCoworkerProfile = typeof coworkerProfiles.$inferInsert;
+export const insertCoworkerProfileSchema = createInsertSchema(coworkerProfiles);
+
+// User preferences for co-worker interactions
+export const userCoworkerPreferences = pgTable('user_coworker_preferences', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  coworkerId: integer('coworker_id').references(() => coworkerProfiles.id).notNull(),
+  preferredMode: coworkerModeEnum('preferred_mode'),
+  customName: varchar('custom_name', { length: 100 }),
+  enabledFeatures: json('enabled_features').$type<string[]>().default([]),
+  disabledFeatures: json('disabled_features').$type<string[]>().default([]),
+  notificationPreferences: json('notification_preferences'),
+  visibilitySettings: json('visibility_settings'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+}, (table) => {
+  return {
+    userCoworkerIdx: uniqueIndex('user_coworker_idx').on(table.userId, table.coworkerId)
+  }
+});
+
+export type UserCoworkerPreference = typeof userCoworkerPreferences.$inferSelect;
+export type InsertUserCoworkerPreference = typeof userCoworkerPreferences.$inferInsert;
+export const insertUserCoworkerPreferenceSchema = createInsertSchema(userCoworkerPreferences);
+
+// Co-worker conversation sessions
+export const coworkerSessions = pgTable('coworker_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  coworkerId: integer('coworker_id').references(() => coworkerProfiles.id).notNull(),
+  title: varchar('title', { length: 255 }),
+  contextData: json('context_data'), // Current conversation context data
+  mode: coworkerModeEnum('mode').default('ASSISTANT'),
+  status: varchar('status', { length: 50 }).default('ACTIVE'),
+  startedAt: timestamp('started_at').defaultNow(),
+  endedAt: timestamp('ended_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type CoworkerSession = typeof coworkerSessions.$inferSelect;
+export type InsertCoworkerSession = typeof coworkerSessions.$inferInsert;
+export const insertCoworkerSessionSchema = createInsertSchema(coworkerSessions);
+
+// Messages exchanged during co-worker sessions
+export const coworkerMessages = pgTable('coworker_messages', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').references(() => coworkerSessions.id).notNull(),
+  senderId: integer('sender_id'), // User ID if sent by human, null if sent by AI
+  coworkerId: integer('coworker_id').references(() => coworkerProfiles.id),
+  content: text('content').notNull(),
+  type: coworkerInteractionTypeEnum('type').default('CHAT'),
+  contextSnapshot: json('context_snapshot'), // State of relevant context when message was sent
+  metadata: json('metadata'), // Additional message metadata (timing, formatting, etc.)
+  relatedEntityType: varchar('related_entity_type', { length: 100 }), // Type of entity this message refers to (parcel, document, etc.)
+  relatedEntityId: integer('related_entity_id'), // ID of the entity in its respective table
+  sentAt: timestamp('sent_at').defaultNow(),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export type CoworkerMessage = typeof coworkerMessages.$inferSelect;
+export type InsertCoworkerMessage = typeof coworkerMessages.$inferInsert;
+export const insertCoworkerMessageSchema = createInsertSchema(coworkerMessages);
+
+// Feedback on co-worker interactions
+export const coworkerFeedback = pgTable('coworker_feedback', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  coworkerId: integer('coworker_id').references(() => coworkerProfiles.id).notNull(),
+  messageId: integer('message_id').references(() => coworkerMessages.id),
+  sessionId: integer('session_id').references(() => coworkerSessions.id).notNull(),
+  rating: integer('rating'), // Numeric rating (1-5)
+  feedback: text('feedback'), // Textual feedback
+  category: varchar('category', { length: 100 }), // Type of feedback (accuracy, helpfulness, etc.)
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
+export type CoworkerFeedback = typeof coworkerFeedback.$inferSelect;
+export type InsertCoworkerFeedback = typeof coworkerFeedback.$inferInsert;
+export const insertCoworkerFeedbackSchema = createInsertSchema(coworkerFeedback);
+
 // Helper types
 export interface ParsedLegalDescription {
   township: string;

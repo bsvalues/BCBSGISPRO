@@ -16,6 +16,7 @@ import mapServicesRoutes from "./routes/map-services";
 import complianceRoutes from "./routes/compliance";
 import { dataQualityRouter } from "./routes/data-quality-routes";
 import agentFrameworkRoutes from "./routes/agent-framework";
+import aiCoworkerRoutes from "./routes/ai-coworker-routes";
 import { 
   parcels,
   documents,
@@ -5307,6 +5308,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register agent framework routes
   const agentFrameworkRoutes = await import('./routes/agent-framework').then(m => m.default);
   app.use('/api/agent-framework', agentFrameworkRoutes);
+  
+  // Register AI co-worker routes
+  const aiCoworkerRoutes = await import('./routes/ai-coworker-routes').then(m => m.default);
+  app.use('/api/coworker', aiCoworkerRoutes);
   
   // Create convenience routes that map to agent framework routes
   // These routes match the client-side API expectations
