@@ -1,91 +1,95 @@
-import { apiRequest } from '@/lib/queryClient';
+/**
+ * API client for map elements advisor service
+ */
+
+import { apiRequest } from './queryClient';
 
 /**
- * Map Element Suggestion
- * 
- * Represents a suggestion for a map element based on cartographic best practices
+ * Map element model
  */
-export interface MapElementSuggestion {
+export interface MapElement {
   id: string;
   name: string;
   description: string;
-  importance: 'critical' | 'recommended' | 'optional';
-  implementationStatus?: 'implemented' | 'missing' | 'partial';
-  category: 'structure' | 'information' | 'design' | 'technical' | 'legal';
-  bestPractices: string[];
+  category: string;
+  importance: 'high' | 'medium' | 'low';
+  implementationStatus?: 'implemented' | 'partial' | 'missing';
   aiTips?: string;
 }
 
 /**
- * Map Evaluation Result
- * 
- * Results of evaluating a map against cartographic best practices
+ * Map element category constants
+ */
+export const mapElementCategories = {
+  layout: 'layout',
+  navigation: 'navigation',
+  identification: 'identification',
+  data: 'data',
+  visual: 'visual',
+  technical: 'technical',
+};
+
+/**
+ * Map element evaluation request model
+ */
+export interface MapEvaluationRequest {
+  mapDescription: string;
+  mapPurpose: string;
+  mapContext?: string;
+}
+
+/**
+ * Map element evaluation response model
  */
 export interface MapEvaluationResult {
-  overallScore: number; // 0-100
-  implementedElements: string[];
-  missingElements: string[];
-  partialElements: string[];
-  suggestions: MapElementSuggestion[];
+  overallScore: number;
+  suggestions: MapElement[];
+  implementedElements: MapElement[];
+  partialElements: MapElement[];
+  missingElements: MapElement[];
   improvementAreas: string[];
 }
 
 /**
- * Map Elements API client
- * 
- * Provides functions to interact with the map elements advisor service
+ * Map element suggestion response model
  */
+export interface MapElementSuggestionResult {
+  elementId: string;
+  suggestions: string;
+}
 
 /**
- * Evaluate a map description against best practices
- * 
- * @param mapDescription Description of the current map
- * @param mapPurpose The purpose of the map
- * @param mapContext Additional context about the map's usage
- * @returns Evaluation results with suggestions
+ * Get a list of standard map elements
+ * @returns Promise with map elements
  */
-export const evaluateMap = async (
-  mapDescription: string, 
-  mapPurpose: string, 
-  mapContext?: string
-): Promise<MapEvaluationResult> => {
+export async function fetchStandardMapElements(): Promise<MapElement[]> {
+  return apiRequest('/api/map-elements/standard');
+}
+
+/**
+ * Evaluate a map description and get AI-powered suggestions
+ * @param request Evaluation request
+ * @returns Promise with evaluation result
+ */
+export async function evaluateMapElements(request: MapEvaluationRequest): Promise<MapEvaluationResult> {
   return apiRequest('/api/map-elements/evaluate', {
     method: 'POST',
-    data: {
-      mapDescription,
-      mapPurpose,
-      mapContext
-    }
+    body: JSON.stringify(request),
   });
-};
+}
 
 /**
  * Get detailed suggestions for a specific map element
- * 
- * @param elementId ID of the element to get suggestions for
- * @param mapDescription Description of the current map
- * @returns Detailed suggestions for implementation
+ * @param elementId Element ID
+ * @param mapDescription Map description for context
+ * @returns Promise with element suggestions
  */
-export const getElementSuggestions = async (
+export async function fetchElementSuggestions(
   elementId: string,
   mapDescription: string
-): Promise<{suggestions: string}> => {
-  return apiRequest('/api/map-elements/suggestions', {
+): Promise<MapElementSuggestionResult> {
+  return apiRequest(`/api/map-elements/suggestions/${elementId}`, {
     method: 'POST',
-    data: {
-      elementId,
-      mapDescription
-    }
+    body: JSON.stringify({ mapDescription }),
   });
-};
-
-/**
- * Get the standard map elements
- * 
- * @returns Array of standard map elements
- */
-export const getStandardElements = async (): Promise<{elements: MapElementSuggestion[]}> => {
-  return apiRequest('/api/map-elements/standards', {
-    method: 'GET'
-  });
-};
+}

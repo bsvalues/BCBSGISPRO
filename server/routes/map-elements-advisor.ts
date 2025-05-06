@@ -1,79 +1,96 @@
-import express from 'express';
+import { Router, Request, Response } from 'express';
 import { mapElementsAdvisorService } from '../services/map-elements-advisor';
 import asyncHandler from 'express-async-handler';
 
-const router = express.Router();
+/**
+ * Map Elements Advisor routes
+ */
+const router = Router();
 
 /**
- * GET /api/map-elements/standards
+ * Get standard map elements
  * 
- * Get the standard map elements based on cartographic best practices
+ * @route GET /standards
+ * @returns {Object} Standard map elements
  */
-router.get('/standards', asyncHandler(async (req, res) => {
-  const elements = mapElementsAdvisorService.getStandardElements();
-  res.json({ elements });
+router.get('/standards', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const elements = await mapElementsAdvisorService.getStandardElements();
+    res.json({ elements });
+  } catch (error) {
+    console.error('Error fetching standard map elements:', error);
+    res.status(500).json({ error: 'Failed to fetch standard map elements' });
+  }
 }));
 
 /**
- * POST /api/map-elements/evaluate
+ * Evaluate a map description
  * 
- * Evaluate a map description against the standard map elements
- * 
- * Request body:
- * - mapDescription: Description of the map to evaluate
- * - mapPurpose: Purpose of the map
- * - mapContext: (Optional) Additional context about the map's usage
+ * @route POST /evaluate
+ * @param {Object} req.body.mapDescription - Description of the map
+ * @param {Object} req.body.mapPurpose - Purpose of the map
+ * @param {Object} req.body.mapContext - Additional context (optional)
+ * @returns {Object} Evaluation results
  */
-router.post('/evaluate', asyncHandler(async (req, res) => {
-  const { mapDescription, mapPurpose, mapContext } = req.body;
-  
-  if (!mapDescription) {
-    res.status(400).json({ error: 'Map description is required' });
-    return;
+router.post('/evaluate', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { mapDescription, mapPurpose, mapContext } = req.body;
+    
+    if (!mapDescription) {
+      return res.status(400).json({ error: 'Map description is required' });
+    }
+    
+    if (!mapPurpose) {
+      return res.status(400).json({ error: 'Map purpose is required' });
+    }
+    
+    const evaluation = await mapElementsAdvisorService.evaluateMapDescription(
+      mapDescription,
+      mapPurpose,
+      mapContext
+    );
+    
+    res.json(evaluation);
+  } catch (error) {
+    console.error('Error evaluating map:', error);
+    res.status(500).json({ error: 'Failed to evaluate map' });
   }
-  
-  if (!mapPurpose) {
-    res.status(400).json({ error: 'Map purpose is required' });
-    return;
-  }
-  
-  const evaluation = await mapElementsAdvisorService.evaluateMap(
-    mapDescription,
-    mapPurpose,
-    mapContext
-  );
-  
-  res.json(evaluation);
 }));
 
 /**
- * POST /api/map-elements/suggestions
- * 
  * Get detailed suggestions for implementing a specific map element
  * 
- * Request body:
- * - elementId: ID of the element to get suggestions for
- * - mapDescription: Description of the map for context
+ * @route POST /suggestions
+ * @param {Object} req.body.elementId - ID of the element
+ * @param {Object} req.body.mapDescription - Description of the map for context
+ * @returns {Object} Detailed suggestions
  */
-router.post('/suggestions', asyncHandler(async (req, res) => {
-  const { elementId, mapDescription } = req.body;
-  
-  if (!elementId) {
-    res.status(400).json({ error: 'Element ID is required' });
-    return;
+router.post('/suggestions', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { elementId, mapDescription } = req.body;
+    
+    if (!elementId) {
+      return res.status(400).json({ error: 'Element ID is required' });
+    }
+    
+    if (!mapDescription) {
+      return res.status(400).json({ error: 'Map description is required for context' });
+    }
+    
+    const result = await mapElementsAdvisorService.getElementSuggestions(
+      elementId,
+      mapDescription
+    );
+    
+    res.json({ 
+      elementId,
+      elementName: result.element.name,
+      suggestions: result.suggestions
+    });
+  } catch (error) {
+    console.error('Error getting element suggestions:', error);
+    res.status(500).json({ error: 'Failed to get element suggestions' });
   }
-  
-  if (!mapDescription) {
-    res.status(400).json({ error: 'Map description is required' });
-    return;
-  }
-  
-  const suggestions = await mapElementsAdvisorService.getElementSuggestions(
-    elementId,
-    mapDescription
-  );
-  
-  res.json({ suggestions });
 }));
 
 export default router;

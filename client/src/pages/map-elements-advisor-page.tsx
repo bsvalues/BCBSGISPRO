@@ -1,20 +1,28 @@
 import React from 'react';
-import { MapElementsAdvisor } from '@/components/maps/map-elements-advisor';
-import { PageHeader } from '@/components/ui/page-header';
-import { Brain, Map } from 'lucide-react';
+import { MapElementsAdvisor } from '../components/maps/map-elements-advisor';
 
+/**
+ * Page for the Map Elements Advisor feature
+ */
 export default function MapElementsAdvisorPage() {
   return (
-    <div className="container py-6 space-y-6 max-w-6xl">
-      <PageHeader
-        title="Map Elements Advisor"
-        description="AI-powered recommendations for creating professional maps based on cartographic best practices"
-        icon={<Brain className="h-6 w-6" />}
-      />
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm py-4 border-b">
+        <div className="container mx-auto px-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-800">BentonGeoPro</h1>
+          <div className="text-sm text-gray-500">Map Elements Advisor</div>
+        </div>
+      </header>
       
-      <div className="grid grid-cols-1 gap-6">
+      <main className="py-6">
         <MapElementsAdvisor />
-      </div>
+      </main>
+      
+      <footer className="bg-white border-t py-4 mt-8">
+        <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
+          &copy; {new Date().getFullYear()} Benton County Assessor's Office. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 }
