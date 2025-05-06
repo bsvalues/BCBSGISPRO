@@ -9,8 +9,7 @@ import DemoMapViewer from './pages/demo-map-viewer';
 import DemoDocumentClassification from './pages/demo-document-classification';
 import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 
-// Standalone pages routes
-import standalonePage from './pages/standalone-map-advisor.html';
+// Modern layout ensures consistent navigation across all pages
 
 const App: React.FC = () => {
   return (
