@@ -72,6 +72,13 @@ const BentonCountyMap: React.FC<BentonCountyMapProps> = ({
       
       // Get map bounds for spatial query
       const bounds = map.current.getBounds();
+      // Check if bounds exist to satisfy TypeScript
+      if (!bounds) {
+        setError('Could not determine map bounds');
+        setLoading(false);
+        return;
+      }
+      
       const extent: [number, number, number, number] = [
         bounds.getWest(),
         bounds.getSouth(),

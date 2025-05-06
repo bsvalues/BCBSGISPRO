@@ -136,7 +136,7 @@ export default function BentonCountyMapPage() {
           
           {/* Side Panel */}
           <div className="w-80 border-l bg-white overflow-y-auto">
-            <Tabs defaultValue="layers" className="w-full">
+            <Tabs defaultValue="layers">
               <TabsList className="grid grid-cols-3 w-full">
                 <TabsTrigger value="layers" className="flex items-center gap-1">
                   <Layers className="h-4 w-4" />
@@ -164,7 +164,7 @@ export default function BentonCountyMapPage() {
                     <Switch
                       id="parcels-toggle"
                       checked={showParcels}
-                      onCheckedChange={setShowParcels}
+                      onChange={(e) => setShowParcels(e.target.checked)}
                     />
                   </div>
                   
