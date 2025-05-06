@@ -8,60 +8,26 @@ import { setupAuth } from "./auth";
 import { hashPassword } from "./auth";
 import { ApiError, asyncHandler } from "./error-handler";
 import { registerMapFeatureRoutes } from "./routes/map-features";
-import { registerDocumentLineageRoutes } from "./document-lineage";
 import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
-import mapServicesRoutes from "./routes/map-services";
-import complianceRoutes from "./routes/compliance";
-import { dataQualityRouter } from "./routes/data-quality-routes";
-import agentFrameworkRoutes from "./routes/agent-framework";
-import aiCoworkerRoutes from "./routes/ai-coworker-routes";
 import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
 import { 
-  parcels,
-  documents,
-  annotations,
-  mapBookmarks,
-  mapPreferences,
-  recentlyViewedParcels,
-  arcgisMapConfigs,
-  arcgisLayers,
-  arcgisSketches,
-  arcgisAnalysisResults,
-  rcwRequirements,
-  complianceChecks,
-  complianceAuditLogs,
-  dataQualityRules,
-  dataQualityEvaluations,
-  dataQualityScores,
-  workflows,
-  workflowEvents,
-  workflowStates,
-  mapLayers,
-  documentParcelRelationships,
-  insertParcelSchema,
-  insertDocumentSchema,
-  insertAnnotationSchema,
-  insertMapBookmarkSchema,
-  insertMapPreferenceSchema,
-  insertArcGISMapConfigSchema,
-  insertArcGISLayerSchema,
-  insertArcGISSketchSchema,
-  insertArcGISAnalysisResultSchema,
-  insertDocumentParcelRelationshipSchema,
-  Parcel,
-  Document,
-  Annotation,
-  MapBookmark,
-  MapPreference,
-  RecentlyViewedParcel,
-  ArcGISMapConfig,
-  ArcGISLayer,
-  ArcGISSketch,
-  ArcGISAnalysisResult,
-  DocumentParcelRelationship,
-  ParsedLegalDescription
+  mapElements,
+  mapEvaluations,
+  elementEvaluations,
+  users,
+  bentonCountyMaps,
+  insertMapElementSchema,
+  insertMapEvaluationSchema,
+  insertElementEvaluationSchema,
+  insertUserSchema,
+  insertBentonCountyMapSchema,
+  MapElement,
+  MapEvaluation,
+  ElementEvaluation,
+  User,
+  BentonCountyMap
 } from "../shared/schema";
 import { DocumentType } from "../shared/document-types";
 import { documentService } from "./services/document-service";

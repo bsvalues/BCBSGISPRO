@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import * as schema from "../shared/schema";
 
 // Database connection string from environment variables
 const connectionString = process.env.DATABASE_URL || 
@@ -20,8 +21,8 @@ const pgOptions = {
 // Create Postgres client with error handling
 const client = postgres(connectionString, pgOptions);
 
-// Create Drizzle instance
-export const db = drizzle(client);
+// Create Drizzle instance with schema
+export const db = drizzle(client, { schema });
 
 // Add connection error handling
 process.on('SIGINT', () => {

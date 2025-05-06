@@ -1,145 +1,153 @@
-import { openAIService } from './openai-service';
-
-// Define the standard 33 map elements
-const standardMapElements = [
-  {
-    id: 'title',
-    name: 'Map Title',
-    description: 'Clear, concise title that describes the map content',
-    category: 'identification',
-    importance: 'high',
-  },
-  {
-    id: 'legend',
-    name: 'Legend',
-    description: 'Explanation of symbols, colors, and patterns used in the map',
-    category: 'identification',
-    importance: 'high',
-  },
-  {
-    id: 'scale',
-    name: 'Scale Bar',
-    description: 'Visual or numerical representation of map distance to real-world distance',
-    category: 'technical',
-    importance: 'high',
-  },
-  {
-    id: 'north-arrow',
-    name: 'North Arrow',
-    description: 'Indicator showing the direction of geographic north',
-    category: 'navigation',
-    importance: 'high',
-  },
-  {
-    id: 'data-source',
-    name: 'Data Source',
-    description: 'Attribution of where the map data came from',
-    category: 'technical',
-    importance: 'medium',
-  },
-  {
-    id: 'projection',
-    name: 'Projection Information',
-    description: 'Details about the map projection method used',
-    category: 'technical',
-    importance: 'medium',
-  },
-  {
-    id: 'date',
-    name: 'Date',
-    description: 'When the map was created or the data was collected',
-    category: 'technical',
-    importance: 'medium',
-  },
-  {
-    id: 'author',
-    name: 'Author/Publisher',
-    description: 'Who created or published the map',
-    category: 'identification',
-    importance: 'medium',
-  },
-  {
-    id: 'grid',
-    name: 'Grid/Graticule',
-    description: 'Coordinate system grid lines for precise location reference',
-    category: 'navigation',
-    importance: 'medium',
-  },
-  {
-    id: 'inset-map',
-    name: 'Inset/Locator Map',
-    description: 'Smaller map showing where the main map is located in a broader context',
-    category: 'navigation',
-    importance: 'medium',
-  }
-  // Note: We're only listing 10 elements here for brevity, the AI will generate the full 33
-];
+import { storage } from '../storage';
+import openAIService from './openai-service';
+import { logger } from '../logger';
 
 /**
- * Service for map elements advisor functionality
+ * Service for providing map element advice based on Benton County's 33 essential map elements
  */
-export class MapElementsAdvisorService {
+class MapElementsAdvisorService {
   /**
-   * Get the standard map elements
-   * @returns List of standard map elements
+   * Get all standard map elements from the database
+   * @returns Array of map elements
    */
-  getStandardMapElements() {
-    return standardMapElements;
+  async getStandardMapElements() {
+    try {
+      const elements = await storage.getAllMapElements();
+      return elements;
+    } catch (error) {
+      logger.error('Error fetching map elements:', error);
+      throw new Error('Failed to fetch map elements');
+    }
   }
 
   /**
-   * Evaluate a map description and provide AI-powered suggestions
-   * 
+   * Get map elements by category
+   * @param category Category to filter by
+   * @returns Array of map elements in the specified category
+   */
+  async getMapElementsByCategory(category: string) {
+    try {
+      const elements = await storage.getMapElementsByCategory(category);
+      return elements;
+    } catch (error) {
+      logger.error(`Error fetching map elements for category ${category}:`, error);
+      throw new Error('Failed to fetch map elements by category');
+    }
+  }
+
+  /**
+   * Get map elements by importance level
+   * @param importance Importance level ('high', 'medium', or 'low')
+   * @returns Array of map elements with the specified importance
+   */
+  async getMapElementsByImportance(importance: string) {
+    try {
+      const elements = await storage.getMapElementsByImportance(importance);
+      return elements;
+    } catch (error) {
+      logger.error(`Error fetching map elements with importance ${importance}:`, error);
+      throw new Error('Failed to fetch map elements by importance');
+    }
+  }
+
+  /**
+   * Search map elements by query string
+   * @param query Search query
+   * @returns Array of matching map elements
+   */
+  async searchMapElements(query: string) {
+    try {
+      const elements = await storage.searchMapElements(query);
+      return elements;
+    } catch (error) {
+      logger.error(`Error searching map elements for "${query}":`, error);
+      throw new Error('Failed to search map elements');
+    }
+  }
+
+  /**
+   * Evaluate a map description and provide AI-powered element recommendations
    * @param mapDescription Description of the map
    * @param mapPurpose Purpose of the map
-   * @param mapContext Additional context about the map
-   * @returns Evaluation result with suggestions
+   * @param mapContext Additional context about the map (optional)
+   * @returns AI evaluation and recommendations
    */
-  async evaluateMapElements(
-    mapDescription: string,
-    mapPurpose: string,
-    mapContext?: string
-  ) {
+  async evaluateMapElements(mapDescription: string, mapPurpose: string, mapContext?: string) {
     try {
-      // Get AI-powered suggestions
-      const result = await openAIService.generateMapElementsSuggestions(
+      // Get AI recommendations
+      const aiRecommendations = await openAIService.analyzeMapElements(
         mapDescription,
         mapPurpose,
         mapContext
       );
-      
-      return result;
+
+      // Create a map evaluation record
+      const evaluation = await storage.createMapEvaluation({
+        mapDescription,
+        mapPurpose,
+        mapContext,
+        overallScore: aiRecommendations.overallScore || 0,
+        aiRecommendations: JSON.stringify(aiRecommendations.recommendations || '')
+      });
+
+      // Create element evaluation records for each recommendation
+      if (aiRecommendations.elementRecommendations && Array.isArray(aiRecommendations.elementRecommendations)) {
+        for (const rec of aiRecommendations.elementRecommendations) {
+          await storage.createElementEvaluation({
+            mapEvaluationId: evaluation.id,
+            elementId: rec.elementId,
+            implementationStatus: rec.implemented ? 'implemented' : 'missing',
+            aiTips: rec.implementationTips
+          });
+        }
+      }
+
+      return {
+        evaluationId: evaluation.id,
+        overallScore: aiRecommendations.overallScore,
+        recommendations: aiRecommendations.recommendations,
+        elements: aiRecommendations.elementRecommendations
+      };
     } catch (error) {
-      console.error('Error evaluating map elements:', error);
-      throw new Error('Failed to evaluate map elements');
+      logger.error('Error evaluating map elements:', error);
+      throw new Error(`Failed to evaluate map elements: ${error.message}`);
     }
   }
 
   /**
    * Get detailed AI suggestions for a specific map element
-   * 
-   * @param elementId ID of the element
-   * @param mapDescription Description of the map for context
-   * @returns Detailed suggestions for the element
+   * @param elementId ID of the element to get suggestions for
+   * @param mapDescription Description of the map
+   * @param mapPurpose Purpose of the map
+   * @returns Detailed suggestions for implementing the element
    */
-  async getElementSuggestions(elementId: string, mapDescription: string) {
+  async getElementSuggestions(elementId: string, mapDescription: string, mapPurpose?: string) {
     try {
-      // Find the element details from our standard elements
-      const element = standardMapElements.find(e => e.id === elementId);
+      // Get element details
+      const element = await storage.getMapElementByElementId(elementId);
       
       if (!element) {
-        // Try to find in AI results or use a generic name
-        const elementName = elementId;
-        return openAIService.generateElementSuggestions(elementId, elementName, mapDescription);
+        throw new Error(`Element with ID ${elementId} not found`);
       }
-      
-      return openAIService.generateElementSuggestions(elementId, element.name, mapDescription);
+
+      // Get AI improvement plan
+      const improvementPlan = await openAIService.generateElementImprovement(
+        elementId,
+        element.name,
+        element.description,
+        mapDescription,
+        mapPurpose || 'Not specified'
+      );
+
+      return {
+        element,
+        suggestions: improvementPlan
+      };
     } catch (error) {
-      console.error('Error getting element suggestions:', error);
-      throw new Error('Failed to get element suggestions');
+      logger.error(`Error getting suggestions for element ${elementId}:`, error);
+      throw new Error(`Failed to get element suggestions: ${error.message}`);
     }
   }
 }
 
-// Export a singleton instance
 export const mapElementsAdvisorService = new MapElementsAdvisorService();

@@ -83,6 +83,13 @@ export class ApiError extends Error {
   static internal(message: string, code: string = 'INTERNAL_ERROR', details?: any, isOperational: boolean = false): ApiError {
     return new ApiError(code, message, 500, details, isOperational, true);
   }
+  
+  /**
+   * Create an Internal Server Error (500) - alias for backward compatibility
+   */
+  static internalError(message: string, code: string = 'INTERNAL_ERROR', details?: any): ApiError {
+    return ApiError.internal(message, code, details, false);
+  }
 
   /**
    * Create a Bad Gateway error (502)

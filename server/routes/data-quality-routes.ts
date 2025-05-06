@@ -1,13 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
 import { ApiError, asyncHandler } from '../error-handler';
-import { DataQualityService } from '../services/data-quality-service';
 import { storage } from '../storage';
 import { logger } from '../logger';
-import { dataQualityDimensionEnum, dataQualityImportanceEnum } from '../../shared/schema';
 import { validateDocumentRetention } from '../../shared/validation';
 import passport from 'passport';
+
+// Define mock enums for compatibility
+const dataQualityDimensionEnum = {
+  enumValues: ['COMPLETENESS', 'ACCURACY', 'CONSISTENCY', 'TIMELINESS', 'VALIDITY'] as const
+};
+
+const dataQualityImportanceEnum = {
+  enumValues: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
+};
 
 // Create the router and initialize the service
 export const dataQualityRouter = Router();

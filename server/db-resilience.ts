@@ -7,7 +7,7 @@
 
 import { db } from './db';
 import { log } from './vite';
-import { workflows } from '../shared/schema';
+import { mapElements } from '../shared/schema';
 
 // Configuration
 const MAX_RETRIES = 3;
@@ -81,7 +81,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
   try {
     await withRetry(async () => {
       // Perform a simple query to check connection
-      await db.select().from(workflows).limit(1);
+      await db.select().from(mapElements).limit(1);
     }, 1); // Just one retry for a status check
     
     return true;

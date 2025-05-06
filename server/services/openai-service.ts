@@ -1,141 +1,171 @@
 import OpenAI from "openai";
+import { config } from "dotenv";
 
-// Initialize OpenAI client with the API key from environment
+// Load environment variables
+config();
+
+// Initialize OpenAI with API key from environment variables
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+const DEFAULT_MODEL = "gpt-4o";
+
 /**
- * Service for OpenAI API operations
+ * Analyze map description and provide recommendations based on Benton County's 33 map elements
+ * @param mapDescription Description of the map being created
+ * @param mapPurpose Purpose of the map (what it will be used for)
+ * @param mapContext Optional context for the map
+ * @param existingElements Array of element IDs that are already implemented in the map
+ * @returns Object with AI recommendations and element-specific evaluations
  */
-export class OpenAIService {
-  /**
-   * Generate map element suggestions using OpenAI
-   * 
-   * @param mapDescription Description of the map
-   * @param mapPurpose Purpose of the map
-   * @param mapContext Additional context about the map
-   * @returns Generated evaluation and suggestions
-   */
-  async generateMapElementsSuggestions(
-    mapDescription: string,
-    mapPurpose: string,
-    mapContext?: string
-  ) {
-    try {
-      // Create a comprehensive prompt for map element evaluation
-      const prompt = `
-You are an expert cartographer with deep knowledge of the 33 essential elements that should be included in professional maps.
+export async function analyzeMapElements(
+  mapDescription: string, 
+  mapPurpose: string, 
+  mapContext: string | undefined = undefined,
+  existingElements: string[] = []
+) {
+  try {
+    // Build the prompt with Benton County specific context
+    const contextLine = mapContext ? `Additional Context: ${mapContext}` : '';
+    
+    const prompt = `
+    As a GIS expert for Benton County, Washington, analyze this map project and provide recommendations based on the 33 essential map elements.
 
-CONTEXT:
-A map designer has provided the following details about their map:
-- Description: ${mapDescription}
-- Purpose: ${mapPurpose}
-${mapContext ? `- Additional Context: ${mapContext}` : ''}
+    Map Description: ${mapDescription}
+    Map Purpose: ${mapPurpose}
+    ${contextLine}
+    
+    Elements already implemented: ${existingElements.join(', ')}
 
-TASK:
-Analyze the map description and provide a comprehensive evaluation using the 33 essential map elements as a framework.
-Follow these steps:
-
-1. Based on the description, determine which elements appear to be implemented, partially implemented, or missing.
-2. Assign an implementation status to each element: "implemented", "partial", or "missing".
-3. For each element, provide brief AI tips on how to implement or improve it.
-4. Calculate an overall map quality score (0-100%).
-5. Identify key areas for improvement.
-
-RESPONSE FORMAT:
-Provide your analysis in JSON format with the following structure:
-{
-  "overallScore": number, // 0-100
-  "suggestions": [
+    Evaluate which of the 33 map elements would be most important for this specific Benton County map project. 
+    For each recommended element, provide:
+    1. Why it's important specifically for this Benton County map
+    2. How it should be implemented (with specific Benton County considerations)
+    3. Best practices for this element in Benton County's context
+    
+    Return the response as a JSON object with the following structure:
     {
-      "id": "string", // Unique ID for the element
-      "name": "string", // Name of the map element
-      "description": "string", // Brief description of what this element is
-      "category": "string", // One of: layout, navigation, identification, data, visual, technical
-      "importance": "string", // One of: high, medium, low
-      "implementationStatus": "string", // One of: implemented, partial, missing
-      "aiTips": "string" // Brief tips on how to implement or improve this element
-    },
-    // ... repeat for all applicable elements
-  ],
-  "improvementAreas": ["string"] // 3-5 key areas where the map could be improved
-}
-
-Only return the JSON object, no additional text.
-`;
-
-      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-        response_format: { type: "json_object" },
-      });
-
-      // Parse and return the generated JSON
-      const result = JSON.parse(response.choices[0].message.content || "{}");
-      
-      // Make sure to process the result to match our expected format
-      return {
-        overallScore: result.overallScore || 0,
-        suggestions: result.suggestions || [],
-        implementedElements: result.suggestions?.filter((s: any) => s.implementationStatus === "implemented") || [],
-        partialElements: result.suggestions?.filter((s: any) => s.implementationStatus === "partial") || [],
-        missingElements: result.suggestions?.filter((s: any) => s.implementationStatus === "missing") || [],
-        improvementAreas: result.improvementAreas || [],
-      };
-    } catch (error) {
-      console.error('Error generating map element suggestions:', error);
-      throw new Error('Failed to generate map element suggestions');
+      "overallScore": number (1-100 indicating how well the map follows best practices),
+      "recommendations": "General advice about improving the map for Benton County users",
+      "elementRecommendations": [
+        {
+          "elementId": "element_id",
+          "name": "Element Name",
+          "importance": "high/medium/low",
+          "implemented": boolean,
+          "implementationTips": "Specific advice for this map",
+          "bentonCountyConsiderations": "Special considerations for Benton County"
+        }
+      ]
     }
-  }
+    
+    Focus on providing practical, specific advice tailored to Benton County's geography, demographics, and needs.
+    `;
 
-  /**
-   * Generate detailed suggestions for a specific map element
-   * 
-   * @param elementId ID of the element to generate suggestions for
-   * @param elementName Name of the element
-   * @param mapDescription Description of the map for context
-   * @returns Detailed suggestions for the element
-   */
-  async generateElementSuggestions(
-    elementId: string,
-    elementName: string,
-    mapDescription: string
-  ) {
-    try {
-      const prompt = `
-You are an expert cartographer with deep knowledge of the 33 essential elements that should be included in professional maps.
+    // Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: DEFAULT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert GIS consultant specializing in creating maps for Benton County, Washington. You have extensive knowledge of cartographic best practices and local Benton County geography, landmarks, and data sources."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
 
-CONTEXT:
-- Map Element: ${elementName}
-- Map Description: ${mapDescription}
-
-TASK:
-Provide detailed, step-by-step suggestions for implementing the "${elementName}" element in this map.
-Your suggestions should be practical, specific, and tailored to the context of the map description.
-Include best practices, common pitfalls to avoid, and innovative approaches.
-
-RESPONSE FORMAT:
-Provide your suggestions as a detailed text with 3-5 actionable recommendations.
-`;
-
-      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      });
-
-      return {
-        elementId,
-        suggestions: response.choices[0].message.content || "",
-      };
-    } catch (error) {
-      console.error('Error generating element suggestions:', error);
-      throw new Error('Failed to generate element suggestions');
+    // Parse and return the JSON response
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("Empty response from OpenAI");
     }
+    
+    const aiResponse = JSON.parse(content);
+    return aiResponse;
+  } catch (error) {
+    console.error("Error analyzing map elements:", error);
+    throw new Error(`Failed to analyze map elements: ${error.message}`);
   }
 }
 
-// Export a singleton instance
-export const openAIService = new OpenAIService();
+/**
+ * Generate an improvement plan for a specific map element in Benton County context
+ * @param elementId ID of the map element to focus on
+ * @param elementName Name of the map element
+ * @param elementDescription Description of the element
+ * @param mapDescription Description of the map being created
+ * @param mapPurpose Purpose of the map
+ * @returns Detailed improvement plan for the specific element
+ */
+export async function generateElementImprovement(
+  elementId: string,
+  elementName: string,
+  elementDescription: string,
+  mapDescription: string,
+  mapPurpose: string
+) {
+  try {
+    const prompt = `
+    As a GIS expert for Benton County, Washington, provide detailed guidance on implementing the "${elementName}" map element (${elementId}) for this specific map project.
+
+    Element Description: ${elementDescription}
+    Map Description: ${mapDescription}
+    Map Purpose: ${mapPurpose}
+
+    Provide a comprehensive improvement plan including:
+    1. Specific implementation steps for Benton County
+    2. Local examples from Benton County
+    3. Common mistakes to avoid
+    4. Tools or techniques specific to this element
+    5. How this element enhances maps in Benton County's context
+
+    Return your response as a JSON object with the following structure:
+    {
+      "elementId": "${elementId}",
+      "name": "${elementName}",
+      "implementationSteps": ["Step 1...", "Step 2..."],
+      "bentonCountyExamples": ["Example 1...", "Example 2..."],
+      "commonMistakes": ["Mistake 1...", "Mistake 2..."],
+      "toolsAndTechniques": ["Tool 1...", "Technique 2..."],
+      "enhancementValue": "Description of how this improves maps for Benton County"
+    }
+    `;
+
+    // Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: DEFAULT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert GIS consultant specializing in creating maps for Benton County, Washington. You have extensive knowledge of cartographic best practices and local Benton County geography, landmarks, and data sources."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    // Parse and return the JSON response
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("Empty response from OpenAI");
+    }
+    
+    const aiResponse = JSON.parse(content);
+    return aiResponse;
+  } catch (error) {
+    console.error(`Error generating improvement plan for ${elementId}:`, error);
+    throw new Error(`Failed to generate improvement plan: ${error.message}`);
+  }
+}
+
+export default {
+  analyzeMapElements,
+  generateElementImprovement
+};

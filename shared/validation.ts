@@ -1,112 +1,54 @@
 import { z } from 'zod';
-import { insertWorkflowSchema, insertWorkflowStateSchema, insertWorkflowEventSchema, insertChecklistItemSchema } from './schema';
 
-// Enhanced data validation schemas with WA state regulation compliance
+// Benton County Map Element validation schemas
 
 /**
- * Enhanced workflow validation schema with additional validation rules
- * Ensures data quality and regulatory compliance
+ * Map element validation schema
  */
-export const enhancedWorkflowSchema = insertWorkflowSchema.extend({
-  // Validate workflow type according to Benton County requirements
-  type: z.enum([
-    'PARCEL_SPLIT', 
-    'PROPERTY_TRANSFER', 
-    'LONG_PLAT', 
-    'SHORT_PLAT', 
-    'BOUNDARY_LINE_ADJUSTMENT',
-    'PROPERTY_APPEAL',
-    'VALUATION_REVIEW',
-    'EXEMPTION_APPLICATION',
-    'TAX_DEFERRAL',
-    'SENIOR_EXEMPTION'
-  ], {
-    errorMap: () => ({ message: 'Workflow type must be a valid Benton County workflow type' })
-  }),
-  
-  // Validate status according to workflow process
-  status: z.enum([
-    'DRAFT', 
-    'SUBMITTED', 
-    'IN_REVIEW', 
-    'PENDING_APPROVAL',
-    'APPROVED',
-    'REJECTED',
-    'COMPLETED',
-    'CANCELLED',
-    'ON_HOLD'
-  ], {
-    errorMap: () => ({ message: 'Workflow status must be valid according to county processes' })
-  }),
-  
-  // Enhanced priority validation
-  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT'], {
-    errorMap: () => ({ message: 'Priority must be one of: LOW, NORMAL, HIGH, URGENT' })
-  }),
-  
-  // Title must be descriptive
-  title: z.string().min(5, 'Title must be at least 5 characters').max(100)
-    .refine((val) => !val.includes('test'), 'Production workflows cannot include "test" in the title'),
-  
-  // Due date must be in the future when provided
-  dueDate: z.date().nullable().refine(
-    (date) => date === null || date > new Date(), 
-    'Due date must be in the future'
-  ).optional()
+export const mapElementSchema = z.object({
+  elementId: z.string().min(3).max(50),
+  name: z.string().min(3).max(100),
+  description: z.string().min(10),
+  category: z.string().min(3).max(50),
+  importance: z.enum(['high', 'medium', 'low']),
+  bentonCountyUsage: z.string().min(10),
+  bentonCountyExample: z.string().optional(),
+  sortOrder: z.number().int().positive()
 });
 
 /**
- * Enhanced workflow state validation
+ * Map evaluation validation schema
  */
-export const enhancedWorkflowStateSchema = insertWorkflowStateSchema.extend({
-  // Ensure form data has required fields based on workflow type
-  formData: z.record(z.any()).refine(
-    (data) => {
-      // Common validation - ensure data isn't empty
-      return Object.keys(data).length > 0;
-    },
-    {
-      message: 'Form data cannot be empty'
-    }
-  )
+export const mapEvaluationSchema = z.object({
+  mapDescription: z.string().min(10, 'Map description must be at least 10 characters'),
+  mapPurpose: z.string().min(10, 'Map purpose must be at least 10 characters'),
+  mapContext: z.string().optional(),
+  overallScore: z.number().int().min(0).max(100),
+  aiRecommendations: z.string()
 });
 
 /**
- * Enhanced workflow event validation with audit requirements
+ * Element evaluation validation schema
  */
-export const enhancedWorkflowEventSchema = insertWorkflowEventSchema.extend({
-  eventType: z.enum([
-    'CREATED',
-    'UPDATED',
-    'STATUS_CHANGED',
-    'DOCUMENT_ADDED',
-    'DOCUMENT_REMOVED',
-    'COMMENT_ADDED',
-    'ASSIGNED',
-    'REASSIGNED',
-    'PRIORITY_CHANGED',
-    'CHECKLIST_UPDATED',
-    'DUE_DATE_CHANGED',
-    'APPROVAL_REQUESTED',
-    'APPROVED',
-    'REJECTED'
-  ], {
-    errorMap: () => ({ message: 'Event type must be a valid workflow event type' })
-  }),
-  
-  // Ensure descriptions are meaningful
-  description: z.string().min(5, 'Description must be at least 5 characters')
+export const elementEvaluationSchema = z.object({
+  mapEvaluationId: z.number().int().positive(),
+  elementId: z.string().min(3).max(50),
+  implementationStatus: z.enum(['implemented', 'partial', 'missing']),
+  aiTips: z.string().optional()
 });
 
 /**
- * Enhanced checklist item validation
+ * Benton County Map validation schema
  */
-export const enhancedChecklistItemSchema = insertChecklistItemSchema.extend({
-  title: z.string().min(3, 'Checklist item title must be at least 3 characters')
-    .max(100, 'Checklist item title cannot exceed 100 characters'),
-  
-  // Order must be positive
-  order: z.number().int().positive('Order must be a positive integer')
+export const bentonCountyMapSchema = z.object({
+  title: z.string().min(5).max(255),
+  description: z.string().optional(),
+  purpose: z.string().min(10),
+  creator: z.string().optional(),
+  department: z.string().optional(),
+  userId: z.number().int().positive().optional(),
+  isPublic: z.boolean().default(false),
+  mapUrl: z.string().url().optional()
 });
 
 /**
@@ -179,7 +121,7 @@ export function validateDocumentRetention(documentType: string): {
     retentionPeriod: 7, // 7 years default
     requiresNotarization: false,
     requiresRecording: false,
-    securityLevel: 'PUBLIC' as const
+    securityLevel: 'PUBLIC' as 'PUBLIC' | 'PROTECTED' | 'CONFIDENTIAL'
   };
   
   switch (documentType.toUpperCase()) {
