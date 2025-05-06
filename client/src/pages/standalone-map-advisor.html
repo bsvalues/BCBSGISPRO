@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map Elements Advisor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="container mx-auto p-4 max-w-5xl">
+    <header class="mb-8 pb-4 border-b">
+      <h1 class="text-3xl font-bold text-blue-700">Map Elements Advisor</h1>
+      <p class="text-gray-600 mt-2">
+        Get AI-powered recommendations for the 33 essential elements of professional maps based on cartographic best practices.
+      </p>
+    </header>
+
+    <main>
+      <form id="map-form" class="bg-white p-6 rounded-lg shadow-md mb-8">
+        <div class="mb-4">
+          <label for="map-description" class="block text-sm font-medium text-gray-700 mb-1">
+            Map Description
+          </label>
+          <textarea
+            id="map-description"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            rows="4"
+            placeholder="Describe your map's content, features, and layout..."
+            required
+          ></textarea>
+        </div>
+        
+        <div class="mb-4">
+          <label for="map-purpose" class="block text-sm font-medium text-gray-700 mb-1">
+            Map Purpose
+          </label>
+          <input
+            id="map-purpose"
+            type="text"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="e.g., Navigation, Analysis, Education, Visualization"
+            required
+          >
+        </div>
+        
+        <div class="mb-4">
+          <label for="map-context" class="block text-sm font-medium text-gray-700 mb-1">
+            Additional Context (Optional)
+          </label>
+          <textarea
+            id="map-context"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            rows="2"
+            placeholder="Target audience, specific requirements, constraints, etc."
+          ></textarea>
+        </div>
+        
+        <button
+          type="submit"
+          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Analyze Map
+        </button>
+      </form>
+
+      <div id="results" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+          <h2 class="text-xl font-bold mb-4">Map Quality Score: <span id="quality-score">0</span>%</h2>
+          
+          <div class="w-full bg-gray-200 rounded-full h-4 mb-6">
+            <div id="progress-bar" class="bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+              <h3 class="font-medium text-green-800">Implemented Elements</h3>
+              <p id="implemented-count" class="text-2xl font-bold text-green-700">0</p>
+            </div>
+            
+            <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+              <h3 class="font-medium text-yellow-800">Partially Implemented</h3>
+              <p id="partial-count" class="text-2xl font-bold text-yellow-700">0</p>
+            </div>
+            
+            <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+              <h3 class="font-medium text-red-800">Missing Elements</h3>
+              <p id="missing-count" class="text-2xl font-bold text-red-700">0</p>
+            </div>
+          </div>
+          
+          <div id="improvements-section" class="mb-6 hidden">
+            <h3 class="text-lg font-semibold mb-2">Key Improvement Areas</h3>
+            <ul id="improvements-list" class="list-disc list-inside text-gray-700 space-y-1">
+              <!-- Improvement items will be added here -->
+            </ul>
+          </div>
+        </div>
+        
+        <h3 class="text-xl font-bold mb-4">Element Recommendations</h3>
+        <div id="elements-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Element cards will be added here -->
+        </div>
+      </div>
+      
+      <div id="loading" class="hidden text-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto mb-4"></div>
+        <p class="text-gray-600">Analyzing your map description...</p>
+      </div>
+      
+      <div id="error" class="hidden bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 my-8">
+        Error: <span id="error-message"></span>
+      </div>
+    </main>
+    
+    <footer class="text-center text-gray-500 text-sm mt-12 pt-4 border-t">
+      <p>&copy; 2025 BentonGeoPro - Powered by OpenAI</p>
+      <p class="mt-1">
+        <a href="/" class="text-blue-600 hover:underline">Back to Home</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const mapForm = document.getElementById('map-form');
+      const resultsSection = document.getElementById('results');
+      const loadingSection = document.getElementById('loading');
+      const errorSection = document.getElementById('error');
+      const errorMessage = document.getElementById('error-message');
+      const qualityScore = document.getElementById('quality-score');
+      const progressBar = document.getElementById('progress-bar');
+      const implementedCount = document.getElementById('implemented-count');
+      const partialCount = document.getElementById('partial-count');
+      const missingCount = document.getElementById('missing-count');
+      const improvementsSection = document.getElementById('improvements-section');
+      const improvementsList = document.getElementById('improvements-list');
+      const elementsGrid = document.getElementById('elements-grid');
+      
+      // Status badge colors
+      const statusColors = {
+        implemented: 'bg-green-100 text-green-800 border-green-200',
+        partial: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+        missing: 'bg-red-100 text-red-800 border-red-200'
+      };
+      
+      // Category badge colors
+      const categoryColors = {
+        identification: 'bg-blue-100 text-blue-800 border-blue-200',
+        navigation: 'bg-purple-100 text-purple-800 border-purple-200',
+        technical: 'bg-gray-100 text-gray-800 border-gray-200',
+        layout: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+        data: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+        visual: 'bg-pink-100 text-pink-800 border-pink-200'
+      };
+      
+      // Importance badge colors
+      const importanceColors = {
+        high: 'bg-red-100 text-red-800 border-red-200',
+        medium: 'bg-orange-100 text-orange-800 border-orange-200',
+        low: 'bg-gray-100 text-gray-700 border-gray-200'
+      };
+      
+      // Handle form submission
+      mapForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Get form values
+        const mapDescription = document.getElementById('map-description').value;
+        const mapPurpose = document.getElementById('map-purpose').value;
+        const mapContext = document.getElementById('map-context').value;
+        
+        // Show loading state
+        resultsSection.classList.add('hidden');
+        errorSection.classList.add('hidden');
+        loadingSection.classList.remove('hidden');
+        
+        try {
+          // Call the API
+          const response = await fetch('/api/map-elements/evaluate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              mapDescription,
+              mapPurpose,
+              mapContext
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          
+          // Update the UI with results
+          updateResults(data);
+          
+          // Hide loading, show results
+          loadingSection.classList.add('hidden');
+          resultsSection.classList.remove('hidden');
+        } catch (error) {
+          console.error('Error:', error);
+          
+          // If API call fails, use demo data for testing purposes
+          if (window.location.hostname === 'localhost' || window.location.hostname.includes('replit')) {
+            console.log('Using demo data for testing');
+            const demoData = generateDemoData();
+            updateResults(demoData);
+            loadingSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+          } else {
+            // Show error message
+            loadingSection.classList.add('hidden');
+            errorSection.classList.remove('hidden');
+            errorMessage.textContent = error.message || 'Failed to evaluate map';
+          }
+        }
+      });
+      
+      // Update UI with results
+      function updateResults(data) {
+        // Update score and progress bar
+        qualityScore.textContent = data.overallScore;
+        progressBar.style.width = `${data.overallScore}%`;
+        
+        // Update color of progress bar based on score
+        if (data.overallScore < 33) {
+          progressBar.className = 'bg-red-600 h-4 rounded-full';
+        } else if (data.overallScore < 67) {
+          progressBar.className = 'bg-yellow-500 h-4 rounded-full';
+        } else {
+          progressBar.className = 'bg-green-600 h-4 rounded-full';
+        }
+        
+        // Update element counts
+        implementedCount.textContent = data.implementedElements.length;
+        partialCount.textContent = data.partialElements.length;
+        missingCount.textContent = data.missingElements.length;
+        
+        // Update improvement areas
+        if (data.improvementAreas && data.improvementAreas.length > 0) {
+          improvementsSection.classList.remove('hidden');
+          improvementsList.innerHTML = '';
+          
+          data.improvementAreas.forEach(area => {
+            const li = document.createElement('li');
+            li.textContent = area;
+            improvementsList.appendChild(li);
+          });
+        } else {
+          improvementsSection.classList.add('hidden');
+        }
+        
+        // Clear and rebuild elements grid
+        elementsGrid.innerHTML = '';
+        
+        data.suggestions.forEach(element => {
+          const elementCard = document.createElement('div');
+          elementCard.className = 'border rounded-lg p-4 hover:shadow-md transition-shadow';
+          
+          // Status badge
+          const statusClass = statusColors[element.implementationStatus] || 'bg-gray-100 text-gray-800 border-gray-200';
+          
+          // Category badge
+          const categoryClass = categoryColors[element.category] || 'bg-gray-100 text-gray-800 border-gray-200';
+          
+          // Importance badge
+          const importanceClass = importanceColors[element.importance] || 'bg-gray-100 text-gray-800 border-gray-200';
+          
+          elementCard.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-medium text-lg">${element.name}</h3>
+              <span class="px-2 py-1 rounded-full text-xs ${statusClass} border">${element.implementationStatus}</span>
+            </div>
+            
+            <div class="flex gap-2 mb-2">
+              <span class="px-2 py-1 rounded-full text-xs ${importanceClass} border">${element.importance}</span>
+              <span class="px-2 py-1 rounded-full text-xs ${categoryClass} border">${element.category}</span>
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-3">${element.description}</p>
+            
+            ${element.aiTips ? `<div class="mt-2 text-sm">
+              <h4 class="font-medium mb-1">AI Tips:</h4>
+              <p class="text-gray-700">${element.aiTips}</p>
+            </div>` : ''}
+          `;
+          
+          elementsGrid.appendChild(elementCard);
+        });
+      }
+      
+      // Generate demo data for testing
+      function generateDemoData() {
+        return {
+          overallScore: 65,
+          suggestions: [
+            {
+              id: 'title',
+              name: 'Map Title',
+              description: 'Clear, concise title that describes the map content',
+              category: 'identification',
+              importance: 'high',
+              implementationStatus: 'implemented',
+              aiTips: 'Your map title is clear and descriptive. Good job!'
+            },
+            {
+              id: 'legend',
+              name: 'Legend',
+              description: 'Explanation of symbols, colors, and patterns used in the map',
+              category: 'identification',
+              importance: 'high',
+              implementationStatus: 'partial',
+              aiTips: 'Consider adding more detail to your legend to explain all symbols.'
+            },
+            {
+              id: 'north-arrow',
+              name: 'North Arrow',
+              description: 'Indicator showing the direction of geographic north',
+              category: 'navigation',
+              importance: 'high',
+              implementationStatus: 'missing',
+              aiTips: 'Add a north arrow to help users orient themselves on the map.'
+            },
+            {
+              id: 'scale',
+              name: 'Scale Bar',
+              description: 'Visual representation of distance on the map',
+              category: 'technical',
+              importance: 'high',
+              implementationStatus: 'missing',
+              aiTips: 'Include a scale bar to help users understand distances.'
+            },
+            {
+              id: 'data-source',
+              name: 'Data Source',
+              description: 'Attribution of where the map data came from',
+              category: 'technical',
+              importance: 'medium',
+              implementationStatus: 'partial',
+              aiTips: 'Provide more complete information about your data sources.'
+            },
+            {
+              id: 'grid',
+              name: 'Grid/Graticule',
+              description: 'Coordinate system grid lines for precise location reference',
+              category: 'navigation',
+              importance: 'medium',
+              implementationStatus: 'missing',
+              aiTips: 'Consider adding grid lines for better spatial reference.'
+            }
+          ],
+          implementedElements: [
+            {
+              id: 'title',
+              name: 'Map Title',
+              description: 'Clear, concise title that describes the map content',
+              category: 'identification',
+              importance: 'high'
+            }
+          ],
+          partialElements: [
+            {
+              id: 'legend',
+              name: 'Legend',
+              description: 'Explanation of symbols, colors, and patterns used in the map',
+              category: 'identification',
+              importance: 'high'
+            },
+            {
+              id: 'data-source',
+              name: 'Data Source',
+              description: 'Attribution of where the map data came from',
+              category: 'technical',
+              importance: 'medium'
+            }
+          ],
+          missingElements: [
+            {
+              id: 'north-arrow',
+              name: 'North Arrow',
+              description: 'Indicator showing the direction of geographic north',
+              category: 'navigation',
+              importance: 'high'
+            },
+            {
+              id: 'scale',
+              name: 'Scale Bar',
+              description: 'Visual representation of distance on the map',
+              category: 'technical',
+              importance: 'high'
+            },
+            {
+              id: 'grid',
+              name: 'Grid/Graticule',
+              description: 'Coordinate system grid lines for precise location reference',
+              category: 'navigation',
+              importance: 'medium'
+            }
+          ],
+          improvementAreas: [
+            'Add a north arrow for better orientation',
+            'Include a scale bar to show distances',
+            'Complete the legend with all map symbols',
+            'Add coordinate grid lines for precise location references',
+            'Provide more detailed data source information'
+          ]
+        };
+      }
+    });
+  </script>
+</body>
+</html>

@@ -77,17 +77,25 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
           
-          <a href="/map-elements-advisor" className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow hover:bg-primary/5">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-center mb-2">Map Elements Advisor</h3>
-            <p className="text-muted-foreground text-center">
-              AI-powered recommendations for map elements based on cartographic best practices.
-            </p>
-          </a>
+          <div className="space-y-4">
+            <a href="/map-elements-advisor" className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow hover:bg-primary/5 block">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-center mb-2">Map Elements Advisor</h3>
+              <p className="text-muted-foreground text-center">
+                AI-powered recommendations for map elements based on cartographic best practices.
+              </p>
+            </a>
+            
+            <a href="/standalone/map-advisor" className="bg-green-50 shadow-lg rounded-lg p-4 hover:shadow-xl transition-shadow hover:bg-green-100 block">
+              <p className="text-green-700 text-center font-medium">
+                Try Standalone Version
+              </p>
+            </a>
+          </div>
         </div>
       </section>
       

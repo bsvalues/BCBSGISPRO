@@ -5349,6 +5349,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const mapElementsAdvisorRoutes = await import('./routes/map-elements-advisor').then(m => m.default);
   app.use('/api/map-elements', mapElementsAdvisorRoutes);
   
+  // Standalone Map Elements Advisor page route
+  const standaloneMapAdvisorRoutes = await import('./routes/standalone-map-advisor').then(m => m.default);
+  app.use('/standalone/map-advisor', standaloneMapAdvisorRoutes);
+  
   // Create convenience routes that map to agent framework routes
   // These routes match the client-side API expectations
   
