@@ -8,6 +8,7 @@ import {
   PenTool, Download, Share2, RotateCw, Database, Globe
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import MapboxMap from '../components/maps/mapbox-map';
 
 /**
  * Map Page Component - The focal point of the application
@@ -15,6 +16,7 @@ import { cn } from '../lib/utils';
 export default function MapPage() {
   const [activeTab, setActiveTab] = useState('map');
   const [loading, setLoading] = useState(false);
+  const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/streets-v11');
 
   // Simulate loading state for demonstration
   useEffect(() => {
@@ -81,13 +83,13 @@ export default function MapPage() {
                 </div>
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <MapIcon className="h-20 w-20 mx-auto text-primary/20 mb-4" />
-                  <h2 className="text-2xl font-bold text-gray-400 mb-2">Map Display Area</h2>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    This is where the interactive GIS map will be displayed. The map is the central 
-                    feature of the application, allowing users to visualize geographic data.
+              /* Render the actual Mapbox map component */
+              <div className="h-full w-full relative">
+                <MapboxMap style={mapStyle} />
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur shadow-md rounded-md p-3 max-w-xs">
+                  <h3 className="text-sm font-medium mb-1">Benton County, Oregon</h3>
+                  <p className="text-xs text-gray-500">
+                    Explore property parcels and assessment data using the tools in the toolbar.
                   </p>
                 </div>
               </div>
@@ -146,10 +148,30 @@ export default function MapPage() {
               <TabsContent value="basemap" className="p-4">
                 <h3 className="font-medium text-lg mb-3">Basemap Selection</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <BasemapOption name="Streets" active />
-                  <BasemapOption name="Satellite" />
-                  <BasemapOption name="Topographic" />
-                  <BasemapOption name="Light" />
+                  <BasemapOption 
+                    name="Streets" 
+                    active={mapStyle === 'mapbox://styles/mapbox/streets-v11'} 
+                    style="mapbox://styles/mapbox/streets-v11"
+                    onClick={setMapStyle}
+                  />
+                  <BasemapOption 
+                    name="Satellite" 
+                    active={mapStyle === 'mapbox://styles/mapbox/satellite-v9'} 
+                    style="mapbox://styles/mapbox/satellite-v9"
+                    onClick={setMapStyle}
+                  />
+                  <BasemapOption 
+                    name="Outdoors" 
+                    active={mapStyle === 'mapbox://styles/mapbox/outdoors-v12'} 
+                    style="mapbox://styles/mapbox/outdoors-v12"
+                    onClick={setMapStyle}
+                  />
+                  <BasemapOption 
+                    name="Light" 
+                    active={mapStyle === 'mapbox://styles/mapbox/light-v11'} 
+                    style="mapbox://styles/mapbox/light-v11"
+                    onClick={setMapStyle}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
@@ -191,13 +213,34 @@ function LayerItem({ name, active = false }: { name: string; active?: boolean })
 }
 
 // Basemap option component
-function BasemapOption({ name, active = false }: { name: string; active?: boolean }) {
+interface BasemapOptionProps {
+  name: string;
+  active?: boolean;
+  style: string;
+  onClick: (style: string) => void;
+  thumbnail?: string;
+}
+
+function BasemapOption({ 
+  name, 
+  active = false, 
+  style,
+  onClick,
+  thumbnail = 'bg-gray-200' 
+}: BasemapOptionProps) {
   return (
-    <div className={cn(
-      "p-3 border rounded-md text-center",
-      active ? "border-primary bg-primary/5 text-primary" : "border-gray-200"
-    )}>
-      <div className="h-12 bg-gray-200 rounded mb-2"></div>
+    <div 
+      className={cn(
+        "p-3 border rounded-md text-center cursor-pointer hover:border-primary/70 transition-colors",
+        active ? "border-primary bg-primary/5 text-primary" : "border-gray-200"
+      )}
+      onClick={() => onClick(style)}
+    >
+      <div className={`h-12 rounded mb-2 ${thumbnail !== 'bg-gray-200' ? '' : thumbnail}`}>
+        {thumbnail !== 'bg-gray-200' && (
+          <img src={thumbnail} alt={name} className="h-full w-full object-cover rounded" />
+        )}
+      </div>
       <span className={active ? "font-medium" : ""}>{name}</span>
     </div>
   );
