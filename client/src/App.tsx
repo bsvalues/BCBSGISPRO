@@ -9,6 +9,7 @@ import MapPage from './pages/MapPage';
 import DemoDocumentClassification from './pages/demo-document-classification';
 import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 import BentonCountyMapPage from './pages/BentonCountyMapPage';
+import LegalDescriptionPage from './pages/LegalDescriptionPage';
 
 // Modern layout ensures consistent navigation across all pages
 
@@ -22,6 +23,7 @@ const App: React.FC = () => {
             <Route path="/dashboard" component={DemoDashboard} />
             <Route path="/map" component={MapPage} />
             <Route path="/benton-map" component={BentonCountyMapPage} />
+            <Route path="/legal-description" component={LegalDescriptionPage} />
             <Route path="/documents" component={DemoDocumentClassification} />
             <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
           </Switch>
