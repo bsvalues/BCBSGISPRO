@@ -474,14 +474,15 @@ export function registerIntegrationRoutes(app: any) {
       }
       
       // Gather system information
-      const metrics = await getMetrics();
-      const errors = await getErrorStats({ limit: 5, onlyUnresolved: true });
+      const metrics = await getMetricsSnapshot();
+      const errorsData = await getErrors({ limit: 5, resolved: false });
+      const errors = errorsData.errors;
       const deploymentInfo = await getDeploymentInfo();
       
       // Determine severity based on metrics
       const hasCriticalErrors = errors.some(e => e.count > 10);
-      const hasHighCpuUsage = metrics.resourceMetrics.cpu > 80;
-      const hasHighMemUsage = metrics.resourceMetrics.memory > 80;
+      const hasHighCpuUsage = metrics.system.cpu > 80;
+      const hasHighMemUsage = metrics.system.memory > 80;
       
       let severity = AlertSeverity.INFO;
       if (hasCriticalErrors) {

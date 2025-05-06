@@ -68,7 +68,7 @@ export async function getDashboardData(type: DashboardType, req: Request) {
     case DashboardType.DEVELOPER:
       return {
         ...baseData,
-        featureFlags: await getFeatureFlags(),
+        featureFlags: await getAllFeatureFlags(),
         errors: await getErrors({ limit: 10, resolved: false }),
         performanceMetrics: (await getMetricsSnapshot()).responseTimes,
         cicdStatus: await getCiCdDashboardData(),
@@ -90,7 +90,7 @@ export async function getDashboardData(type: DashboardType, req: Request) {
         ...baseData,
         errors: await getErrors({ limit: 20, tags: ['component'] }),
         testCoverage: (await getCiCdDashboardData()).testMetrics,
-        featureFlags: await getFeatureFlags(),
+        featureFlags: await getAllFeatureFlags(),
         systemHealth: {
           database: getDatabaseStatus(),
           apiEndpoints: (await getMetricsSnapshot()).requests.byEndpoint,
