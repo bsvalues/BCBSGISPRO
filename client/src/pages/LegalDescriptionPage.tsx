@@ -1,14 +1,23 @@
 import React, { useState, useRef } from 'react';
 import { ModernLayout } from '../components/layout/modern-layout';
 import { LegalDescriptionAnalyzer } from '../components/legal-description/legal-description-analyzer';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { LegalDescriptionVisualization } from '../../shared/schema';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+interface LegalDescriptionVisualization {
+  coordinates: [number, number][];
+  cardinalPoints: string[];
+  shapeType: string;
+  estimatedArea: number;
+  geometry?: {
+    type: string;
+    coordinates: any;
+  };
+}
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '../hooks/use-toast';
 import { Loader2, Info, Map, FileType } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 
 // Sample real legal descriptions from Benton County
 const SAMPLE_DESCRIPTIONS = [
@@ -23,8 +32,17 @@ THENCE SOUTH 0°02'30" WEST ALONG SAID EAST LINE, 660.00 FEET TO THE POINT OF BE
   `LOT 7, BLOCK 3, KENNEWICK IRRIGATION DISTRICT SUBDIVISION HIGHLANDS, ACCORDING TO THE PLAT THEREOF RECORDED IN VOLUME 1 OF PLATS, PAGE 93, RECORDS OF BENTON COUNTY, WASHINGTON.`
 ];
 
+// Helper to safely access environment variables
+const getEnvVar = (key: string, defaultValue: string = ''): string => {
+  if (typeof import.meta.env === 'object' && import.meta.env[key]) {
+    return import.meta.env[key] as string;
+  }
+  console.warn(`Environment variable ${key} not found, using default value`);
+  return defaultValue;
+};
+
 // Mapbox token from environment
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+const MAPBOX_TOKEN = getEnvVar('VITE_MAPBOX_ACCESS_TOKEN', 'pk.eyJ1IjoiYnN2YWx1ZXM4MCIsImEiOiJjbTkwb2htNGIwaG1pMmxxN3YzbDlxbHJ1In0.aSeX_5HEXa6u82K-Rhr46A');
 
 export default function LegalDescriptionPage() {
   const { toast } = useToast();

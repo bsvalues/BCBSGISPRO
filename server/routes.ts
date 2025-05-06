@@ -598,7 +598,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Use the already imported function
     const analysis = analyzeLegalDescription(text);
     
-    return res.json(analysis);
+    return res.json({
+      success: true,
+      data: analysis
+    });
+  }));
+
+  app.post("/api/legal-description/visualize", asyncHandler(async (req, res) => {
+    const { description, baseCoordinate } = req.body;
+    
+    if (!description) {
+      throw ApiError.badRequest('Legal description is required');
+    }
+    
+    try {
+      // Generate visualization data using AI
+      const visualizationData = await generateVisualizationData(description, baseCoordinate);
+      
+      return res.json({
+        success: true,
+        data: visualizationData
+      });
+    } catch (error) {
+      console.error('Error generating visualization data:', error);
+      throw ApiError.internal('Failed to generate visualization data', 'VISUALIZATION_ERROR', {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   }));
   
   // Legal description parsing using our enhanced parser

@@ -6,7 +6,39 @@ import { useToast } from '../../hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Progress } from '../ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import type { LegalDescriptionResult, LegalDescriptionVisualization, ParsedLegalDescription } from '../../../shared/schema';
+interface LegalDescriptionResult {
+  validationScore: number;
+  issues: string[];
+  recommendations: string[];
+  interpretation: string;
+  boundaryDescription: string;
+  drawingInstructions: string[];
+}
+
+interface ParsedLegalDescription {
+  section?: string | null;
+  township?: string | null;
+  range?: string | null;
+  plat?: string | null;
+  lot?: string | null;
+  block?: string | null;
+  subdivision?: string | null;
+  boundaryPoints?: string[] | null;
+  acreage?: string | null;
+  quarterSections?: string[] | null;
+  rawDescription: string;
+}
+
+interface LegalDescriptionVisualization {
+  coordinates: [number, number][];
+  cardinalPoints: string[];
+  shapeType: string;
+  estimatedArea: number;
+  geometry?: {
+    type: string;
+    coordinates: any;
+  };
+}
 import { Loader2, AlertTriangle, Check, Map, FileText, PieChart, CornerDownRight } from 'lucide-react';
 import { Badge } from '../ui/badge';
 
