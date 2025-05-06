@@ -12,6 +12,7 @@ import { ftpService, FileType, type FtpConfig } from "./services/ftp-service";
 import multer from "multer";
 import { logger } from "./logger";
 import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
+import legalDescriptionRoutes from "./routes/legal-description-routes";
 import { 
   mapElements,
   mapEvaluations,

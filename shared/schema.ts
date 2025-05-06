@@ -87,3 +87,35 @@ export type MapEvaluation = typeof mapEvaluations.$inferSelect;
 export type ElementEvaluation = typeof elementEvaluations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type BentonCountyMap = typeof bentonCountyMaps.$inferSelect;
+
+// Legal Description Types
+export interface ParsedLegalDescription {
+  section?: string;
+  township?: string;
+  range?: string;
+  plat?: string;
+  lot?: string;
+  block?: string;
+  subdivision?: string;
+  boundaryPoints?: string[];
+  acreage?: string;
+  quarterSections?: string[];
+  rawDescription: string;
+}
+
+export interface LegalDescriptionResult {
+  validationScore: number;
+  issues: string[];
+  recommendations: string[];
+  interpretation: string;
+  boundaryDescription: string;
+  drawingInstructions: string[];
+}
+
+export interface LegalDescriptionVisualization {
+  coordinates: [number, number][];
+  cardinalPoints: string[];
+  shapeType: string;
+  estimatedArea: number;
+  geometry?: any; // GeoJSON geometry
+}
