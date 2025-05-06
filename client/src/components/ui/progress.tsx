@@ -1,72 +1,65 @@
 import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
-const Progress = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
-    value?: number;
-    max?: number;
-    showValue?: boolean;
-    size?: "default" | "sm" | "lg";
-    colorMapping?: Record<string, string>;
-    thresholds?: number[];
+const progressVariants = cva(
+  "relative w-full overflow-hidden rounded-full bg-gray-200",
+  {
+    variants: {
+      size: {
+        default: "h-2",
+        sm: "h-1",
+        lg: "h-4",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
   }
->(
-  (
-    { 
-      className, 
-      value = 0, 
-      max = 100, 
-      showValue = false, 
-      size = "default",
-      colorMapping,
-      thresholds,
-      ...props 
-    }, 
-    ref
-  ) => {
-    // Calculate the progress percentage
-    const percent = Math.min(Math.max(0, value), max) / max;
+);
+
+export interface ProgressProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof progressVariants> {
+  value?: number;
+  max?: number;
+  showValue?: boolean;
+  colorMapping?: {
+    [key: string]: string;
+  };
+  thresholds?: number[];
+}
+
+const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
+  ({ className, size, value = 0, max = 100, showValue = false, colorMapping, thresholds, ...props }, ref) => {
+    // Calculate the percentage value
+    const percentage = Math.min(Math.max(0, (value / max) * 100), 100);
     
-    // Determine the color based on thresholds
+    // Determine the color based on thresholds and color mapping
     let colorClass = "bg-primary";
     
-    if (thresholds && colorMapping) {
+    if (colorMapping && thresholds) {
       for (let i = 0; i < thresholds.length; i++) {
-        if (percent * 100 <= thresholds[i]) {
+        if (percentage <= thresholds[i]) {
           colorClass = colorMapping[`threshold${i}`] || "bg-primary";
           break;
         }
       }
     }
     
-    // Set size-specific classes
-    const sizeClasses = {
-      sm: "h-2",
-      default: "h-4",
-      lg: "h-6"
-    };
-    
     return (
       <div
         ref={ref}
-        className={cn(
-          "relative w-full overflow-hidden rounded-full bg-secondary",
-          sizeClasses[size],
-          className
-        )}
+        className={cn(progressVariants({ size }), className)}
         {...props}
       >
         <div
-          className={cn(
-            "h-full w-full flex-1 transition-all",
-            colorClass
-          )}
-          style={{ transform: `translateX(-${100 - percent * 100}%)` }}
+          className={cn("h-full transition-all", colorClass)}
+          style={{ width: `${percentage}%` }}
         />
         {showValue && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-medium">
-            {Math.round(percent * 100)}%
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white">
+            {Math.round(percentage)}%
           </div>
         )}
       </div>

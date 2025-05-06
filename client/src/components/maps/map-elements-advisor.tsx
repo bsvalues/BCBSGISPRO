@@ -5,6 +5,9 @@ import { Progress } from '../../components/ui/progress';
 import { MapElement, MapEvaluationResult } from '../../lib/map-elements-api';
 import { calculatePercentage } from '../../lib/utils';
 
+// Force timeout for fake data (remove in production)
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 interface MapElementsAdvisorProps {
   defaultMapDescription?: string;
   defaultMapPurpose?: string;
@@ -28,7 +31,7 @@ export function MapElementsAdvisor({
   const elementSuggestionsQuery = useElementSuggestions(selectedElementId, mapDescription);
   
   // Derived state
-  const evaluation: MapEvaluationResult | null = evaluationMutation.data || null;
+  const evaluation = evaluationMutation.data as MapEvaluationResult | undefined;
   const isEvaluating = evaluationMutation.isPending;
   const evaluationError = evaluationMutation.error;
 

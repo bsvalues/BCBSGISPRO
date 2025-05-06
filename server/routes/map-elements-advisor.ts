@@ -1,80 +1,60 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { mapElementsAdvisorService } from '../services/map-elements-advisor';
-import asyncHandler from 'express-async-handler';
 
-/**
- * Map Elements Advisor routes
- */
 const router = Router();
 
 /**
+ * GET /api/map-elements/standard
  * Get standard map elements
- * 
- * @route GET /standards
- * @returns {Object} Standard map elements
  */
-router.get('/standards', asyncHandler(async (req: Request, res: Response) => {
+router.get('/standard', (req, res) => {
   try {
-    const elements = await mapElementsAdvisorService.getStandardElements();
-    res.json({ elements });
+    const elements = mapElementsAdvisorService.getStandardMapElements();
+    res.json(elements);
   } catch (error) {
     console.error('Error fetching standard map elements:', error);
     res.status(500).json({ error: 'Failed to fetch standard map elements' });
   }
-}));
+});
 
 /**
- * Evaluate a map description
- * 
- * @route POST /evaluate
- * @param {Object} req.body.mapDescription - Description of the map
- * @param {Object} req.body.mapPurpose - Purpose of the map
- * @param {Object} req.body.mapContext - Additional context (optional)
- * @returns {Object} Evaluation results
+ * POST /api/map-elements/evaluate
+ * Evaluate a map description and provide AI-powered suggestions
  */
-router.post('/evaluate', asyncHandler(async (req: Request, res: Response) => {
+router.post('/evaluate', async (req, res) => {
   try {
     const { mapDescription, mapPurpose, mapContext } = req.body;
     
-    if (!mapDescription) {
-      return res.status(400).json({ error: 'Map description is required' });
+    if (!mapDescription || !mapPurpose) {
+      return res.status(400).json({ error: 'Map description and purpose are required' });
     }
     
-    if (!mapPurpose) {
-      return res.status(400).json({ error: 'Map purpose is required' });
-    }
-    
-    const evaluation = await mapElementsAdvisorService.evaluateMapDescription(
+    const result = await mapElementsAdvisorService.evaluateMapElements(
       mapDescription,
       mapPurpose,
       mapContext
     );
     
-    res.json(evaluation);
+    res.json(result);
   } catch (error) {
-    console.error('Error evaluating map:', error);
-    res.status(500).json({ error: 'Failed to evaluate map' });
+    console.error('Error evaluating map elements:', error);
+    res.status(500).json({ error: 'Failed to evaluate map elements' });
   }
-}));
+});
 
 /**
- * Get detailed suggestions for implementing a specific map element
- * 
- * @route POST /suggestions
- * @param {Object} req.body.elementId - ID of the element
- * @param {Object} req.body.mapDescription - Description of the map for context
- * @returns {Object} Detailed suggestions
+ * POST /api/map-elements/suggestions/:elementId
+ * Get detailed AI suggestions for a specific map element
  */
-router.post('/suggestions', asyncHandler(async (req: Request, res: Response) => {
+router.post('/suggestions/:elementId', async (req, res) => {
   try {
-    const { elementId, mapDescription } = req.body;
+    const { elementId } = req.params;
+    const { mapDescription } = req.body;
     
-    if (!elementId) {
-      return res.status(400).json({ error: 'Element ID is required' });
-    }
-    
-    if (!mapDescription) {
-      return res.status(400).json({ error: 'Map description is required for context' });
+    if (!elementId || !mapDescription) {
+      return res.status(400).json({ 
+        error: 'Element ID and map description are required' 
+      });
     }
     
     const result = await mapElementsAdvisorService.getElementSuggestions(
@@ -82,15 +62,11 @@ router.post('/suggestions', asyncHandler(async (req: Request, res: Response) => 
       mapDescription
     );
     
-    res.json({ 
-      elementId,
-      elementName: result.element.name,
-      suggestions: result.suggestions
-    });
+    res.json(result);
   } catch (error) {
     console.error('Error getting element suggestions:', error);
     res.status(500).json({ error: 'Failed to get element suggestions' });
   }
-}));
+});
 
 export default router;

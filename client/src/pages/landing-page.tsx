@@ -40,7 +40,7 @@ const LandingPage: React.FC = () => {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
         <h2 className="text-3xl font-bold text-center mb-10">Key Features</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
               <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,6 +76,18 @@ const LandingPage: React.FC = () => {
               Role-based access control with real-time collaboration features for team coordination.
             </p>
           </div>
+          
+          <a href="/map-elements-advisor" className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow hover:bg-primary/5">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-center mb-2">Map Elements Advisor</h3>
+            <p className="text-muted-foreground text-center">
+              AI-powered recommendations for map elements based on cartographic best practices.
+            </p>
+          </a>
         </div>
       </section>
       
