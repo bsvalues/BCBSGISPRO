@@ -49,7 +49,8 @@ import {
 import {
   parseDescription,
   getExampleDescriptions,
-  analyzeLegalDescription
+  analyzeLegalDescription,
+  generateVisualizationData
 } from "./services/legal-description-service";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
