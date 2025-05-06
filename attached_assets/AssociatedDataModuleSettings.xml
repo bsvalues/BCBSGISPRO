@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AssociatedDataModuleSettings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ConnectionName>PACS Database</ConnectionName>
+  <GridOrientation>Vertical</GridOrientation>
+  <QueryTaxYear>2024</QueryTaxYear>
+  <LastQueryByConnection>
+    <LastQueryModel>
+      <ConnectionName>Rockwall current release</ConnectionName>
+      <QueryName>Prop VAL</QueryName>
+    </LastQueryModel>
+    <LastQueryModel>
+      <ConnectionName>Rockwall current</ConnectionName>
+      <QueryName>prop pro</QueryName>
+    </LastQueryModel>
+    <LastQueryModel>
+      <ConnectionName>Rockwall Direct SQL</ConnectionName>
+      <QueryName>Permits</QueryName>
+    </LastQueryModel>
+    <LastQueryModel>
+      <ConnectionName>rockwall excel</ConnectionName>
+      <QueryName>all tables</QueryName>
+    </LastQueryModel>
+    <LastQueryModel>
+      <ConnectionName>Rockwall test db</ConnectionName>
+      <QueryName>test</QueryName>
+    </LastQueryModel>
+    <LastQueryModel>
+      <ConnectionName>PACS Database</ConnectionName>
+      <QueryName>Property</QueryName>
+    </LastQueryModel>
+  </LastQueryByConnection>
+  <SearchFetchSize>500</SearchFetchSize>
+  <MaxDataRecords>10000</MaxDataRecords>
+</AssociatedDataModuleSettings>

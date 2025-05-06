@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AvailableModulesSettings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <DebugModuleDirectories>
+    <string>Place Debug Path here</string>
+  </DebugModuleDirectories>
+  <LaunchableModules>
+     <string>ESRI Map</string>
+     <string>CAMA Data</string>
+     <string>Parcel List</string>
+     <string>Pictometry Online</string>
+     <string>App to App</string>
+  </LaunchableModules>
+  <LoadableFolderList />
+</AvailableModulesSettings>

@@ -1,19 +1,75 @@
 import { db } from '../db';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { 
-  rcwRequirements, 
-  complianceChecks, 
-  complianceAuditLogs,
-  complianceStatusEnum,
-  complianceSeverityEnum,
-  complianceCategoryEnum,
-  type RcwRequirement,
-  type InsertRcwRequirement,
-  type ComplianceCheck,
-  type InsertComplianceCheck,
-  type ComplianceAuditLog,
-  type InsertComplianceAuditLog
-} from '../../shared/schema';
+import { pgTable, serial, varchar, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
+
+// Since the compliance tables are no longer in the schema, define them here temporarily
+// These will eventually need to be moved back to the schema
+
+// Enums
+export const complianceStatusEnum = {
+  enumValues: ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW', 'EXEMPT', 'NOT_APPLICABLE'] as const
+};
+
+export const complianceSeverityEnum = {
+  enumValues: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
+};
+
+export const complianceCategoryEnum = {
+  enumValues: ['ASSESSMENT', 'VALUATION', 'RECORD_KEEPING', 'APPEALS', 'REPORTING'] as const
+};
+
+// Tables
+export const rcwRequirements = pgTable('rcw_requirements', {
+  id: serial('id').primaryKey(),
+  rcwCode: varchar('rcw_code', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  category: varchar('category', { length: 50 }).notNull(),
+  severity: varchar('severity', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at')
+});
+
+export const complianceChecks = pgTable('compliance_checks', {
+  id: serial('id').primaryKey(),
+  requirementId: integer('requirement_id').notNull(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(),
+  entityId: integer('entity_id').notNull(),
+  status: varchar('status', { length: 20 }).notNull(),
+  lastCheckedAt: timestamp('last_checked_at').notNull(),
+  nextCheckDue: timestamp('next_check_due'),
+  details: jsonb('details'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at'),
+  createdBy: integer('created_by')
+});
+
+export const complianceAuditLogs = pgTable('compliance_audit_logs', {
+  id: serial('id').primaryKey(),
+  checkId: integer('check_id').notNull(),
+  oldStatus: varchar('old_status', { length: 20 }),
+  newStatus: varchar('new_status', { length: 20 }).notNull(),
+  notes: text('notes'),
+  performedBy: integer('performed_by'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// Zod schemas for validation
+export const insertRcwRequirementSchema = createInsertSchema(rcwRequirements).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertComplianceCheckSchema = createInsertSchema(complianceChecks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertComplianceAuditLogSchema = createInsertSchema(complianceAuditLogs).omit({ id: true, createdAt: true });
+
+// Types using Zod inference
+export type InsertRcwRequirement = z.infer<typeof insertRcwRequirementSchema>;
+export type InsertComplianceCheck = z.infer<typeof insertComplianceCheckSchema>;
+export type InsertComplianceAuditLog = z.infer<typeof insertComplianceAuditLogSchema>;
+
+// Select types using Drizzle inference
+export type RcwRequirement = typeof rcwRequirements.$inferSelect;
+export type ComplianceCheck = typeof complianceChecks.$inferSelect;
+export type ComplianceAuditLog = typeof complianceAuditLogs.$inferSelect;
 
 /**
  * Service for managing Washington RCW compliance requirements and checks

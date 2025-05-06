@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AssociatedDataStateSettings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <DataUserSettings>
+    <DataUserSettingModel>
+      <Name>AssociatedDataView_11455439</Name>
+      <LayoutName>Data view</LayoutName>
+    </DataUserSettingModel>
+    <DataUserSettingModel>
+      <Name>AssociatedDataView_11455439</Name>
+      <LayoutName>App to App1</LayoutName>
+      <FieldCustomizations>&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;xamDataPresenter version="15.1.20151.2055" formatVersion="1.8"&gt;
+  &lt;fieldLayouts&gt;
+    &lt;fieldLayout key="" orientation="Vertical" fieldList="" /&gt;
+  &lt;/fieldLayouts&gt;
+&lt;/xamDataPresenter&gt;</FieldCustomizations>
+    </DataUserSettingModel>
+  </DataUserSettings>
+</AssociatedDataStateSettings>

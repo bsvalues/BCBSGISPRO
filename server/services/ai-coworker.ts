@@ -6,19 +6,64 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { 
-  coworkerProfiles,
-  CoworkerProfile, 
-  coworkerSessions, 
-  CoworkerSession,
-  coworkerMessages,
-  UserCoworkerPreference,
+// Import types directly from schema, but define tables locally since they don't exist in the shared schema
+import {
   coworkerInteractionTypeEnum,
   coworkerModeEnum
 } from '../../shared/schema';
+import { pgTable, serial, varchar, text, timestamp, integer, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
+
 import { db } from '../db';
 import { eq, desc, and } from 'drizzle-orm';
 import { logger } from '../logger';
+import { v4 as uuidv4 } from 'uuid';
+
+// Define coworker tables locally since they're not exported from schema
+export const coworkerProfiles = pgTable('coworker_profiles', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  avatar: varchar('avatar', { length: 255 }),
+  systemPrompt: text('system_prompt'),
+  specialization: varchar('specialization', { length: 100 }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at')
+});
+
+export type CoworkerProfile = typeof coworkerProfiles.$inferSelect;
+
+export const coworkerSessions = pgTable('coworker_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  coworkerId: integer('coworker_id').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  contextData: jsonb('context_data').default({}),
+  mode: varchar('mode', { length: 50 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at'),
+  endedAt: timestamp('ended_at')
+});
+
+export type CoworkerSession = typeof coworkerSessions.$inferSelect;
+
+// Define coworkerMessages locally since it's not exported from schema
+export const coworkerMessages = pgTable('coworker_messages', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').notNull(),
+  senderId: integer('sender_id'),
+  coworkerId: integer('coworker_id'),
+  content: text('content').notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  sentAt: timestamp('sent_at').defaultNow(),
+  contextSnapshot: jsonb('context_snapshot'),
+  metadata: jsonb('metadata').default({}),
+  relatedEntityType: varchar('related_entity_type', { length: 50 }),
+  relatedEntityId: integer('related_entity_id')
+});
 
 // Initialize Anthropic client
 // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025

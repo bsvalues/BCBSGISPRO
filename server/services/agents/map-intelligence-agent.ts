@@ -24,7 +24,28 @@ import {
 } from '../../../shared/agent-framework';
 import { Agent as AgentSchema, AgentEvent, agentEvents } from '../../../shared/agent-schema';
 import { db } from '../../db';
-import { mapLayers, MapLayer } from '../../../shared/schema';
+// Importing from schema directly is not possible as mapLayers is not exported
+// Define mapLayers locally for now
+import { pgTable, serial, text, varchar, timestamp, integer, jsonb, boolean } from 'drizzle-orm/pg-core';
+
+// Define the map layers table locally
+export const mapLayers = pgTable('map_layers', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  url: text('url').notNull(),
+  source: varchar('source', { length: 255 }),
+  description: text('description'),
+  isDefault: boolean('is_default').default(false),
+  opacity: integer('opacity').default(100),
+  visible: boolean('visible').default(true),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at')
+});
+
+// Define the MapLayer type
+export type MapLayer = typeof mapLayers.$inferSelect;
 import { eq, and, sql } from 'drizzle-orm';
 import { logger } from '../../logger';
 import { z } from 'zod';

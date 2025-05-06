@@ -5290,18 +5290,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register the map feature routes from the separate module
   registerMapFeatureRoutes(app, storage);
   
-  // Register document lineage routes
-  registerDocumentLineageRoutes(app);
+  // Register map elements advisor routes
+  const mapElementsAdvisorRoutes = await import('./routes/map-elements-advisor').then(m => m.default);
+  app.use('/api/map-elements-advisor', mapElementsAdvisorRoutes);
   
-  // Register map services routes
-  app.use('/api/map-services', mapServicesRoutes);
-  
-  // Register compliance routes
-  const complianceRoutes = await import('./routes/compliance').then(m => m.default);
-  app.use('/api/compliance', complianceRoutes);
-  
-  // Register consolidated data quality routes
-  app.use('/api/data-quality', dataQualityRouter);
+  // Standalone Map Elements Advisor page route
+  const standaloneMapAdvisorRoutes = await import('./routes/standalone-map-advisor').then(m => m.default);
+  app.use('/standalone/map-advisor', standaloneMapAdvisorRoutes);
   
   // Register agent framework routes
   const agentFrameworkRoutes = await import('./routes/agent-framework').then(m => m.default);
@@ -5310,14 +5305,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register AI co-worker routes
   const aiCoworkerRoutes = await import('./routes/ai-coworker-routes').then(m => m.default);
   app.use('/api/coworker', aiCoworkerRoutes);
-  
-  // Register map elements advisor routes
-  const mapElementsAdvisorRoutes = await import('./routes/map-elements-advisor').then(m => m.default);
-  app.use('/api/map-elements', mapElementsAdvisorRoutes);
-  
-  // Standalone Map Elements Advisor page route
-  const standaloneMapAdvisorRoutes = await import('./routes/standalone-map-advisor').then(m => m.default);
-  app.use('/standalone/map-advisor', standaloneMapAdvisorRoutes);
   
   // Create convenience routes that map to agent framework routes
   // These routes match the client-side API expectations
