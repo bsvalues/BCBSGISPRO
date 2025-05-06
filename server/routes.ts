@@ -569,20 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ exists });
   });
   
-  // Legal description parsing endpoints
-  app.post("/api/legal-description/parse", asyncHandler(async (req, res) => {
-    const { text, referencePoint } = req.body;
-    
-    if (!text) {
-      throw ApiError.badRequest('Legal description text is required');
-    }
-    
-    // Use direct import instead of dynamic import since we've already added it
-    const result = await parseDescription(text, referencePoint);
-    
-    return res.json(result);
-  }));
-  
+  // Legal description examples endpoint
   app.get("/api/legal-description/examples", asyncHandler(async (req, res) => {
     // Use the already imported function
     const examples = getExampleDescriptions();
@@ -590,65 +577,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(examples);
   }));
   
-  app.post("/api/legal-description/analyze", asyncHandler(async (req, res) => {
-    const { text } = req.body;
-    
-    if (!text) {
-      throw ApiError.badRequest('Legal description text is required');
-    }
-    
-    // Use the already imported function
-    const analysis = analyzeLegalDescription(text);
-    
-    return res.json({
-      success: true,
-      data: analysis
-    });
-  }));
+  // Legal description analysis is now handled in registerLegalDescriptionRoutes
 
-  app.post("/api/legal-description/visualize", asyncHandler(async (req, res) => {
-    const { description, baseCoordinate } = req.body;
-    
-    if (!description) {
-      throw ApiError.badRequest('Legal description is required');
-    }
-    
-    try {
-      // Generate visualization data using AI
-      const visualizationData = await generateVisualizationData(description, baseCoordinate);
-      
-      return res.json({
-        success: true,
-        data: visualizationData
-      });
-    } catch (error) {
-      console.error('Error generating visualization data:', error);
-      throw ApiError.internal('Failed to generate visualization data', 'VISUALIZATION_ERROR', {
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }));
+  // Legal description visualization is now handled in registerLegalDescriptionRoutes
   
-  // Legal description parsing using our enhanced parser
-  app.post("/api/legal-description/parse", asyncHandler(async (req, res) => {
-    const { text } = req.body;
-    
-    if (!text) {
-      throw ApiError.badRequest('Legal description text is required');
-    }
-    
-    try {
-      // Parse the legal description using our service
-      const result: ParsedLegalDescription = parseLegalDescription(text);
-      
-      return res.json(result);
-    } catch (error) {
-      console.error('Error parsing legal description:', error);
-      throw ApiError.internal('Failed to parse legal description', 'PARSER_ERROR', {
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }));
+  // Legal description parsing is now handled in registerLegalDescriptionRoutes
   
   // Create a new parcel from legal description
   app.post("/api/parcels", asyncHandler(async (req, res) => {
