@@ -2,10 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// You would normally store this in an environment variable
-// For demo purposes, using a public token (restricted by URL)
-// In production, you should use your own Mapbox token and store it securely
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmVudG9uZ2VvcHJvIiwiYSI6ImNsczFqbWJ6MTA2ZTUyanA5bzVpbW85emQifQ.PSRlMX1ZfSlU4mHihGH3uA';
+// Using environment variable for Mapbox token
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
 
 interface MapboxMapProps {
   center?: [number, number];
@@ -15,7 +13,7 @@ interface MapboxMapProps {
 }
 
 const MapboxMap: React.FC<MapboxMapProps> = ({
-  center = [-123.2620, 44.5646], // Default center at Benton County, OR
+  center = [-94.3534, 39.1178], // Default center at Jackson County, MO
   zoom = 12,
   style = 'mapbox://styles/mapbox/streets-v11',
   className = 'h-full w-full'
