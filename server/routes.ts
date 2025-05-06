@@ -742,14 +742,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parcelInfo = await storage.getParcelInfo(parcelIdMatch[0]);
         if (parcelInfo) {
           return res.json([{
-            id: parcelInfo.parcelId,
-            taxParcelId: parcelInfo.parcelId,
+            id: parcelInfo.id,
+            taxParcelId: parcelInfo.parcelNumber,
             address: parcelInfo.address || 'No address on file',
-            owner: parcelInfo.ownerName || 'Unknown',
-            zoning: parcelInfo.zones?.[0] || 'R-1',
+            owner: parcelInfo.owner || 'Unknown',
+            zoning: parcelInfo.propertyType || 'R-1',
             acreage: Number(parcelInfo.acres) || 0,
             assessedValue: parcelInfo.assessedValue || 0,
-            yearBuilt: parcelInfo.improvements?.[0]?.yearBuilt || null
+            yearBuilt: parcelInfo.lastPhysicalInspection ? new Date(parcelInfo.lastPhysicalInspection).getFullYear() : null
           }]);
         }
       }
@@ -759,14 +759,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Format results for the client
       const formattedResults = results.map(parcel => ({
-        id: parcel.parcelId,
-        taxParcelId: parcel.parcelId,
+        id: parcel.id,
+        taxParcelId: parcel.parcelNumber,
         address: parcel.address || 'No address on file',
-        owner: parcel.ownerName || 'Unknown',
-        zoning: parcel.zones?.[0] || 'R-1',
+        owner: parcel.owner || 'Unknown',
+        zoning: parcel.propertyType || 'R-1',
         acreage: Number(parcel.acres) || 0,
         assessedValue: parcel.assessedValue || 0,
-        yearBuilt: parcel.improvements?.[0]?.yearBuilt || null
+        yearBuilt: parcel.lastPhysicalInspection ? new Date(parcel.lastPhysicalInspection).getFullYear() : null
       }));
       
       res.json(formattedResults);
@@ -792,14 +792,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Format the property details for the client
       const formattedDetails = {
-        id: parcelInfo.parcelId,
-        taxParcelId: parcelInfo.parcelId,
+        id: parcelInfo.id,
+        taxParcelId: parcelInfo.parcelNumber,
         address: parcelInfo.address || 'No address on file',
-        owner: parcelInfo.ownerName || 'Unknown',
-        zoning: parcelInfo.zones?.[0] || 'R-1',
+        owner: parcelInfo.owner || 'Unknown',
+        zoning: parcelInfo.propertyType || 'R-1',
         acreage: Number(parcelInfo.acres) || 0,
         assessedValue: parcelInfo.assessedValue || 0,
-        yearBuilt: parcelInfo.improvements?.[0]?.yearBuilt || null,
+        yearBuilt: parcelInfo.lastPhysicalInspection ? new Date(parcelInfo.lastPhysicalInspection).getFullYear() : null,
         legalDescription: parcelInfo.legalDescription || '',
         propertyType: parcelInfo.propertyType || 'Residential',
         city: parcelInfo.city || '',
