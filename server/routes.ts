@@ -5345,6 +5345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const aiCoworkerRoutes = await import('./routes/ai-coworker-routes').then(m => m.default);
   app.use('/api/coworker', aiCoworkerRoutes);
   
+  // Register map elements advisor routes
+  const mapElementsAdvisorRoutes = await import('./routes/map-elements-advisor').then(m => m.default);
+  app.use('/api/map-elements', mapElementsAdvisorRoutes);
+  
   // Create convenience routes that map to agent framework routes
   // These routes match the client-side API expectations
   
