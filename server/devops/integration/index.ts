@@ -481,8 +481,8 @@ export function registerIntegrationRoutes(app: any) {
       
       // Determine severity based on metrics
       const hasCriticalErrors = errors.some(e => e.count > 10);
-      const hasHighCpuUsage = metrics.system.cpu > 80;
-      const hasHighMemUsage = metrics.system.memory > 80;
+      const hasHighCpuUsage = metrics.system.cpuLoad > 80;
+      const hasHighMemUsage = metrics.system.memoryUsage.percentUsed > 80;
       
       let severity = AlertSeverity.INFO;
       if (hasCriticalErrors) {
@@ -500,13 +500,13 @@ export function registerIntegrationRoutes(app: any) {
         timestamp: new Date(),
         details: {
           resources: {
-            cpu: `${metrics.resourceMetrics.cpu}%`,
-            memory: `${metrics.resourceMetrics.memory}%`,
-            database: metrics.databaseStatus ? 'Connected' : 'Disconnected'
+            cpu: `${metrics.system.cpuLoad}%`,
+            memory: `${metrics.system.memoryUsage.percentUsed}%`,
+            database: metrics.database.connected ? 'Connected' : 'Disconnected'
           },
           errors: errors.map(e => `${e.type}: ${e.count} occurrences`),
-          endpointPerformance: Object.entries(metrics.endpointStatus)
-            .map(([endpoint, data]) => `${endpoint}: ${data.averageResponseTime}ms (${data.requestCount} requests)`)
+          endpointPerformance: Object.entries(metrics.responseTimes.byEndpoint)
+            .map(([endpoint, avgTime]) => `${endpoint}: ${avgTime}ms (${metrics.requests.byEndpoint[endpoint] || 0} requests)`)
             .slice(0, 5)
         }
       };
