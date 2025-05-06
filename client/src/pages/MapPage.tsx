@@ -87,7 +87,7 @@ export default function MapPage() {
               <div className="h-full w-full relative">
                 <MapboxMap style={mapStyle} />
                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur shadow-md rounded-md p-3 max-w-xs">
-                  <h3 className="text-sm font-medium mb-1">Jackson County, Missouri</h3>
+                  <h3 className="text-sm font-medium mb-1">Benton County, Washington</h3>
                   <p className="text-xs text-gray-500">
                     Explore property parcels and assessment data using the tools in the toolbar.
                   </p>
@@ -180,9 +180,9 @@ export default function MapPage() {
         
         {/* Status Bar */}
         <div className="bg-gray-100 border-t px-4 py-1 text-sm text-gray-600 flex justify-between">
-          <div>Coordinates: 39.1178° N, 94.3534° W</div>
+          <div>Coordinates: 46.2587° N, 119.2984° W</div>
           <div>Scale: 1:10,000</div>
-          <div>Jackson County, MO</div>
+          <div>Benton County, WA</div>
         </div>
       </div>
     </ModernLayout>

@@ -13,7 +13,7 @@ interface MapboxMapProps {
 }
 
 const MapboxMap: React.FC<MapboxMapProps> = ({
-  center = [-94.3534, 39.1178], // Default center at Jackson County, MO
+  center = [-119.2984, 46.2587], // Default center at Benton County, WA
   zoom = 12,
   style = 'mapbox://styles/mapbox/streets-v11',
   className = 'h-full w-full'
