@@ -17,6 +17,7 @@ import complianceRoutes from "./routes/compliance";
 import { dataQualityRouter } from "./routes/data-quality-routes";
 import agentFrameworkRoutes from "./routes/agent-framework";
 import aiCoworkerRoutes from "./routes/ai-coworker-routes";
+import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
 import { 
   parcels,
   documents,
