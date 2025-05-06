@@ -813,6 +813,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Mapbox token endpoint for map services
+  app.get("/api/map-services/mapbox-token", (req, res) => {
+    // Check if MAPBOX_ACCESS_TOKEN is available in environment
+    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
+    
+    if (!mapboxToken) {
+      console.error("MAPBOX_ACCESS_TOKEN not found in environment");
+      return res.status(500).json({ 
+        error: "Mapbox access token not available",
+        message: "Please ensure the MAPBOX_ACCESS_TOKEN environment variable is set"
+      });
+    }
+    
+    // Return the token to the client
+    res.json({ token: mapboxToken });
+  });
+  
+  // Fallback endpoint for Mapbox token (for backward compatibility)
+  app.get("/api/mapbox-token", (req, res) => {
+    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
+    
+    if (!mapboxToken) {
+      console.error("MAPBOX_ACCESS_TOKEN not found in environment");
+      return res.status(500).json({ 
+        error: "Mapbox access token not available" 
+      });
+    }
+    
+    res.json({ token: mapboxToken });
+  });
+  
   // Enhanced health check endpoint with resilience
   app.get("/api/health", async (req, res) => {
     const { checkDatabaseConnection, getDatabaseStatus } = await import("./db-resilience");
