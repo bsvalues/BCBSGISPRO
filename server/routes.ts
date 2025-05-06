@@ -13,6 +13,7 @@ import multer from "multer";
 import { logger } from "./logger";
 import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
 import legalDescriptionRoutes from "./routes/legal-description-routes";
+import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes";
 import { 
   mapElements,
   mapEvaluations,
