@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { DocumentType as ImportedDocumentType } from './document-types';
 import { AgentTypeEnum, CapabilityEnum, PriorityLevel, MessageStatus } from './agent-framework';
 
+// AI Co-worker enums
+export const coworkerModeEnum = pgEnum('coworker_mode', ['ASSISTANT', 'COLLABORATOR', 'PARTNER', 'SUPERVISOR']);
+export const coworkerInteractionTypeEnum = pgEnum('coworker_interaction_type', ['CHAT', 'GUIDANCE', 'REVIEW', 'CORRECTION', 'SUGGESTION', 'APPROVAL', 'REJECTION', 'QUESTION', 'ANSWER']);
+
 // Washington RCW compliance enums
 export const complianceStatusEnum = pgEnum('compliance_status', ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW', 'EXEMPT', 'NOT_APPLICABLE']);
 export const complianceSeverityEnum = pgEnum('compliance_severity', ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
