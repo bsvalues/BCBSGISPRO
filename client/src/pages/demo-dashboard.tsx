@@ -3,64 +3,16 @@ import { Link } from 'wouter';
 import { useAuth } from '../context/auth-context';
 import { demoProperties, propertyStatistics } from '../data/demo-property-data';
 import { formatCurrency } from '../lib/utils';
+import ModernLayout from '../components/layout/modern-layout';
 
 // Basic dashboard component to show property statistics
 const DemoDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header/Navigation */}
-      <header className="bg-card shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center">
-            <h1 className="text-xl font-semibold text-primary">BentonGeoPro</h1>
-            <nav className="ml-10 flex space-x-4">
-              <Link href="/dashboard">
-                <span className="px-3 py-2 text-sm font-medium rounded-md bg-primary/10 text-primary cursor-pointer">
-                  Dashboard
-                </span>
-              </Link>
-              <Link href="/map">
-                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
-                  Map Viewer
-                </span>
-              </Link>
-              <Link href="/documents">
-                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
-                  Documents
-                </span>
-              </Link>
-              <Link href="/map-elements-advisor">
-                <span className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer relative">
-                  Map Advisor
-                  <span className="absolute -top-1 -right-1 bg-primary text-xs text-primary-foreground px-1 rounded-full">New</span>
-                </span>
-              </Link>
-            </nav>
-          </div>
-          
-          <div className="flex items-center">
-            {user && (
-              <div className="flex items-center space-x-4">
-                <div className="text-sm">
-                  <p className="font-medium">{user.fullName}</p>
-                  <p className="text-muted-foreground">{user.role}</p>
-                </div>
-                <button 
-                  onClick={logout}
-                  className="px-3 py-2 text-sm font-medium rounded-md text-foreground hover:bg-destructive/10 hover:text-destructive"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-      
+    <ModernLayout>
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl font-bold">Welcome, {user?.fullName}</h2>
           <p className="text-muted-foreground">
@@ -175,8 +127,8 @@ const DemoDashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </ModernLayout>
   );
 };
 

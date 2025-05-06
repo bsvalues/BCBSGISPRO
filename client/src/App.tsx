@@ -9,6 +9,9 @@ import DemoMapViewer from './pages/demo-map-viewer';
 import DemoDocumentClassification from './pages/demo-document-classification';
 import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 
+// Standalone pages routes
+import standalonePage from './pages/standalone-map-advisor.html';
+
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -21,16 +24,6 @@ const App: React.FC = () => {
             <Route path="/documents" component={DemoDocumentClassification} />
             <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
           </Switch>
-
-          {/* Add navigation link to map elements advisor for testing */}
-          <div className="fixed bottom-4 right-4 z-50">
-            <a 
-              href="/map-elements-advisor" 
-              className="bg-primary text-white px-4 py-2 rounded-md shadow-lg hover:bg-primary/90 transition-colors"
-            >
-              Map Elements Advisor
-            </a>
-          </div>
         </div>
       </AuthProvider>
     </QueryClientProvider>
