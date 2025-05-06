@@ -5,7 +5,7 @@ import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './context/auth-context';
 import LandingPage from './pages/landing-page';
 import DemoDashboard from './pages/demo-dashboard';
-import DemoMapViewer from './pages/demo-map-viewer';
+import MapPage from './pages/MapPage';
 import DemoDocumentClassification from './pages/demo-document-classification';
 import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 
@@ -19,7 +19,7 @@ const App: React.FC = () => {
           <Switch>
             <Route path="/" component={LandingPage} />
             <Route path="/dashboard" component={DemoDashboard} />
-            <Route path="/map" component={DemoMapViewer} />
+            <Route path="/map" component={MapPage} />
             <Route path="/documents" component={DemoDocumentClassification} />
             <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
           </Switch>

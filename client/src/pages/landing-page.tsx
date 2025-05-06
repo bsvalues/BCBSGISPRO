@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/auth-context';
 import { Button } from '../components/ui/button';
+import { Link } from 'wouter';
 import { demoUsers } from '../data/demo-property-data';
 import ModernLayout from '../components/layout/modern-layout';
 
@@ -43,54 +44,62 @@ const LandingPage: React.FC = () => {
           <h2 className="text-3xl font-bold text-center mb-10">Key Features</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-center mb-2">Advanced Mapping</h3>
-              <p className="text-muted-foreground text-center">
-                Interactive GIS tools with measurement, drawing, and advanced feature identification capabilities.
-              </p>
-            </div>
-            
-            <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-center mb-2">Document Classification</h3>
-              <p className="text-muted-foreground text-center">
-                AI-powered document analysis with automatic property identification and metadata extraction.
-              </p>
-            </div>
-            
-            <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-center mb-2">Collaborative Workflows</h3>
-              <p className="text-muted-foreground text-center">
-                Role-based access control with real-time collaboration features for team coordination.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <a href="/map-elements-advisor" className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow hover:bg-primary/5 block">
+            <Link href="/map">
+              <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
                   <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-center mb-2">Map Elements Advisor</h3>
+                <h3 className="text-xl font-semibold text-center mb-2">Advanced Mapping</h3>
                 <p className="text-muted-foreground text-center">
-                  AI-powered recommendations for map elements based on cartographic best practices.
+                  Interactive GIS tools with measurement, drawing, and advanced feature identification capabilities.
                 </p>
-              </a>
+              </div>
+            </Link>
+            
+            <Link href="/documents">
+              <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                  <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-center mb-2">Document Classification</h3>
+                <p className="text-muted-foreground text-center">
+                  AI-powered document analysis with automatic property identification and metadata extraction.
+                </p>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard">
+              <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                  <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-center mb-2">Collaborative Workflows</h3>
+                <p className="text-muted-foreground text-center">
+                  Role-based access control with real-time collaboration features for team coordination.
+                </p>
+              </div>
+            </Link>
+            
+            <div className="space-y-4">
+              <Link href="/map-elements-advisor">
+                <div className="bg-card shadow-lg rounded-lg p-6 hover:shadow-xl transition-shadow hover:bg-primary/5 block cursor-pointer">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                    <svg className="w-6 h-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-center mb-2">Map Elements Advisor</h3>
+                  <p className="text-muted-foreground text-center">
+                    AI-powered recommendations for map elements based on cartographic best practices.
+                  </p>
+                </div>
+              </Link>
             </div>
           </div>
         </section>
