@@ -11,6 +11,7 @@ import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 import BentonCountyMapPage from './pages/BentonCountyMapPage';
 import LegalDescriptionPage from './pages/LegalDescriptionPage';
 import DocumentScannerPage from './pages/DocumentScannerPage';
+import AgentToolsPage from './pages/agent-tools-page';
 
 // Modern layout ensures consistent navigation across all pages
 
@@ -28,6 +29,7 @@ const App: React.FC = () => {
             <Route path="/documents" component={DemoDocumentClassification} />
             <Route path="/document-scanner" component={DocumentScannerPage} />
             <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
+            <Route path="/agent-tools" component={AgentToolsPage} />
           </Switch>
         </div>
       </AuthProvider>
