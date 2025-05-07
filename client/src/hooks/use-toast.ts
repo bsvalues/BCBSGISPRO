@@ -1,77 +1,80 @@
-// hooks/use-toast.ts
-import { useState, useCallback, useMemo } from "react";
-import type { ToastProps } from "../components/ui/toast";
+import { useState, useEffect } from "react";
+import { Toast, ToastProps } from "../components/ui/toast";
 
-type ToastWithId = ToastProps & { id: string };
+// Define a unique ID for each toast
+let toastIdCounter = 0;
 
-// Toast context type
-type ToastContextType = {
-  toasts: ToastWithId[];
-  toast: (props: ToastProps) => void;
-  dismissToast: (id: string) => void;
-  dismissAllToasts: () => void;
+// Define the toast interface with an ID
+export type ToastType = ToastProps & { id: string };
+
+// Create a state manager for toasts (quasi-store pattern)
+type ToastStore = {
+  toasts: ToastType[];
+  addToast: (toast: ToastProps) => void;
+  removeToast: (id: string) => void;
+  updateToast: (id: string, toast: Partial<ToastProps>) => void;
 };
 
-// Generate unique ID for toasts
-const generateUniqueId = () => {
-  return Math.random().toString(36).substring(2, 9);
+const toastStore: ToastStore = {
+  toasts: [],
+  addToast: (toast: ToastProps) => {
+    const id = `toast-${toastIdCounter++}`;
+    toastStore.toasts = [...toastStore.toasts, { ...toast, id }];
+    notifyListeners();
+    
+    // Auto-dismiss the toast if duration is specified
+    if (toast.duration !== undefined && toast.duration > 0) {
+      setTimeout(() => {
+        toastStore.removeToast(id);
+      }, toast.duration);
+    }
+    
+    return id;
+  },
+  removeToast: (id: string) => {
+    toastStore.toasts = toastStore.toasts.filter((t) => t.id !== id);
+    notifyListeners();
+  },
+  updateToast: (id: string, toast: Partial<ToastProps>) => {
+    toastStore.toasts = toastStore.toasts.map((t) =>
+      t.id === id ? { ...t, ...toast } : t
+    );
+    notifyListeners();
+  },
 };
 
-// Create toast store
-let toasts: ToastWithId[] = [];
-let listeners: Array<(toasts: ToastWithId[]) => void> = [];
+// Listeners for store updates
+const listeners: Array<() => void> = [];
 
-const emitChange = () => {
-  listeners.forEach((listener) => {
-    listener(toasts);
-  });
-};
+function notifyListeners() {
+  listeners.forEach((listener) => listener());
+}
 
-const addToast = (props: ToastProps) => {
-  const id = generateUniqueId();
-  const newToast = { id, ...props };
-  toasts = [...toasts, newToast];
-  emitChange();
-  return id;
-};
+// Hook to use the toast store
+export function useToast() {
+  const [toasts, setToasts] = useState<ToastType[]>(toastStore.toasts);
 
-const dismissToast = (id: string) => {
-  toasts = toasts.filter((toast) => toast.id !== id);
-  emitChange();
-};
-
-const dismissAllToasts = () => {
-  toasts = [];
-  emitChange();
-};
-
-// Custom hook to use toast
-export function useToast(): ToastContextType {
-  // Setup state to track toasts
-  const [state, setState] = useState<ToastWithId[]>(toasts);
-
-  // Setup listener
-  useMemo(() => {
-    const listener = (newToasts: ToastWithId[]) => {
-      setState([...newToasts]);
+  useEffect(() => {
+    // Subscribe to store updates
+    const handleChange = () => {
+      setToasts([...toastStore.toasts]);
     };
     
-    listeners.push(listener);
+    listeners.push(handleChange);
+    
+    // Cleanup on unmount
     return () => {
-      listeners = listeners.filter((l) => l !== listener);
+      const index = listeners.indexOf(handleChange);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
     };
   }, []);
 
-  // Toast function
-  const toast = useCallback((props: ToastProps) => {
-    return addToast(props);
-  }, []);
-
-  // Return context
   return {
-    toasts: state,
-    toast,
-    dismissToast,
-    dismissAllToasts,
+    toasts,
+    toast: toastStore.addToast,
+    dismiss: toastStore.removeToast,
+    update: toastStore.updateToast,
   };
 }

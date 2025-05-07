@@ -14,6 +14,7 @@ import DocumentScannerPage from './pages/DocumentScannerPage';
 import AgentToolsPage from './pages/agent-tools-page';
 import SyncDashboardPage from './pages/sync-dashboard-page';
 import AchievementsPage from './pages/achievements';
+import { Toaster } from './components/ui/toaster';
 
 // Modern layout ensures consistent navigation across all pages
 
@@ -35,6 +36,7 @@ const App: React.FC = () => {
             <Route path="/sync-dashboard" component={SyncDashboardPage} />
             <Route path="/achievements" component={AchievementsPage} />
           </Switch>
+          <Toaster />
         </div>
       </AuthProvider>
     </QueryClientProvider>

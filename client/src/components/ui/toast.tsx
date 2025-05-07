@@ -1,18 +1,23 @@
 import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
 
+// Toast component variants
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-2 overflow-hidden rounded-md border p-4 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-4 shadow-lg transition-all data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]",
   {
     variants: {
       variant: {
-        default: "border bg-background text-foreground",
-        destructive:
-          "destructive group border-destructive bg-destructive text-destructive-foreground",
+        default: "bg-background border",
         success:
-          "success group border-success bg-success text-success-foreground",
+          "bg-green-50 border border-green-200 text-green-900 dark:bg-green-950 dark:border-green-800 dark:text-green-50",
+        error:
+          "bg-red-50 border border-red-200 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-50",
+        warning:
+          "bg-yellow-50 border border-yellow-200 text-yellow-900 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-50",
+        info:
+          "bg-blue-50 border border-blue-200 text-blue-900 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-50",
       },
     },
     defaultVariants: {
@@ -24,7 +29,7 @@ const toastVariants = cva(
 export interface ToastProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof toastVariants> {
-  title?: string;
+  title?: React.ReactNode;
   description?: React.ReactNode;
   action?: React.ReactNode;
   onClose?: () => void;
@@ -33,16 +38,16 @@ export interface ToastProps
 
 export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
   (
-    {
-      className,
-      title,
-      variant,
-      description,
-      action,
-      onClose,
-      children,
-      ...props
-    },
+    { 
+      className, 
+      variant, 
+      title, 
+      description, 
+      action, 
+      onClose, 
+      duration, 
+      ...props 
+    }, 
     ref
   ) => {
     return (
@@ -52,19 +57,18 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
         {...props}
       >
         <div className="flex-1 grid gap-1">
-          {title && <div className="text-sm font-semibold">{title}</div>}
-          {description && (
-            <div className="text-sm opacity-90">{description}</div>
-          )}
+          {title && <div className="font-semibold">{title}</div>}
+          {description && <div className="text-sm opacity-90">{description}</div>}
+          {action && <div className="mt-2">{action}</div>}
         </div>
-        {action && <div className="flex-none">{action}</div>}
+        
         {onClose && (
           <button
+            className="rounded-full p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
             onClick={onClose}
-            className="absolute right-1 top-1 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-1 group-hover:opacity-100"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
           </button>
         )}
       </div>
@@ -73,12 +77,9 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
 );
 Toast.displayName = "Toast";
 
-export interface ToastViewportProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
-
 export const ToastViewport = React.forwardRef<
   HTMLDivElement,
-  ToastViewportProps
+  React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
@@ -90,11 +91,3 @@ export const ToastViewport = React.forwardRef<
   />
 ));
 ToastViewport.displayName = "ToastViewport";
-
-export interface ToastProviderProps {
-  children: React.ReactNode;
-}
-
-export const ToastProvider = ({ children }: ToastProviderProps) => {
-  return <>{children}</>;
-};

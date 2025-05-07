@@ -1,161 +1,194 @@
 import React from 'react';
-import { 
-  Award, 
-  Trophy, 
-  Medal,
-  Crown,
-  Star,
-  CheckCircle2,
-  Shield,
-  Timer,
-  ClipboardCheck,
-  Zap,
-  ShieldCheck 
-} from 'lucide-react';
 import { Achievement, UserAchievement } from '../../services/achievements-service';
+import { Award, CheckCircle, AlertCircle, Lock } from 'lucide-react';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '../ui/tooltip';
+import { Progress } from '../ui/progress';
 import { cn } from '../../lib/utils';
+import { Badge } from '../ui/badge';
+import { format } from 'date-fns';
 
-interface AchievementBadgeProps {
+// Dynamic icon import from Lucide icons
+import * as LucideIcons from 'lucide-react';
+
+export type AchievementBadgeSize = 'sm' | 'md' | 'lg' | 'xl';
+
+export interface AchievementBadgeProps {
   achievement: Achievement;
   earned?: boolean;
   userAchievement?: UserAchievement;
-  size?: 'sm' | 'md' | 'lg';
   showDetails?: boolean;
+  size?: AchievementBadgeSize;
+  className?: string;
   onClick?: () => void;
 }
 
-export function AchievementBadge({ 
-  achievement, 
-  earned = false, 
+export const AchievementBadge: React.FC<AchievementBadgeProps> = ({
+  achievement,
+  earned = false,
   userAchievement,
-  size = 'md', 
   showDetails = false,
+  size = 'md',
+  className,
   onClick
-}: AchievementBadgeProps) {
-  // Map of icon names to Lucide components
-  const getIcon = (iconName: string) => {
-    const iconSizes = {
-      sm: 'h-4 w-4',
-      md: 'h-6 w-6',
-      lg: 'h-8 w-8'
-    };
-    
-    const iconProps = { className: iconSizes[size] };
-    
-    switch (iconName) {
-      case 'Trophy': return <Trophy {...iconProps} />;
-      case 'Medal': return <Medal {...iconProps} />;
-      case 'Crown': return <Crown {...iconProps} />;
-      case 'Star': return <Star {...iconProps} />;
-      case 'CheckCircle': return <CheckCircle2 {...iconProps} />;
-      case 'Timer': return <Timer {...iconProps} />;
-      case 'Shield': return <Shield {...iconProps} />;
-      case 'ClipboardCheck': return <ClipboardCheck {...iconProps} />;
-      case 'Zap': return <Zap {...iconProps} />;
-      case 'ShieldCheck': return <ShieldCheck {...iconProps} />;
-      case 'Upload': return <Award {...iconProps} />;
-      default: return <Award {...iconProps} />;
+}) => {
+  // Get the progress if available
+  const progress = userAchievement?.progress || 0;
+  
+  // Dynamic icon component based on the achievement's icon property
+  const IconComponent = (LucideIcons as any)[achievement.icon] || Award;
+  
+  // Size classes
+  const sizeClasses = {
+    sm: {
+      badge: 'h-16 w-16',
+      icon: 'h-8 w-8',
+      text: 'text-xs',
+      details: 'text-xs max-w-[150px]'
+    },
+    md: {
+      badge: 'h-20 w-20',
+      icon: 'h-10 w-10',
+      text: 'text-sm',
+      details: 'text-sm max-w-[200px]'
+    },
+    lg: {
+      badge: 'h-24 w-24',
+      icon: 'h-12 w-12',
+      text: 'text-base',
+      details: 'text-base max-w-[250px]'
+    },
+    xl: {
+      badge: 'h-32 w-32',
+      icon: 'h-16 w-16',
+      text: 'text-lg',
+      details: 'text-lg max-w-[300px]'
     }
   };
-
-  // Get the size classes
-  const getBadgeSize = () => {
-    switch (size) {
-      case 'sm': return 'h-10 w-10';
-      case 'lg': return 'h-20 w-20';
-      case 'md':
-      default: return 'h-16 w-16';
-    }
-  };
-
-  // Get the opacity for locked achievements
-  const getOpacityClass = () => {
-    return earned ? 'opacity-100' : 'opacity-40';
-  };
-
-  // Calculate progress percentage if available
-  const progressPercentage = userAchievement?.progress ?? 0;
-
-  return (
-    <div 
-      className={cn(
-        "flex flex-col items-center",
-        onClick ? "cursor-pointer" : "",
-        size === 'lg' ? "gap-3" : "gap-2"
-      )}
-      onClick={onClick}
-    >
-      <div 
-        className={cn(
-          "relative rounded-full flex items-center justify-center",
-          getBadgeSize(),
-          earned ? "" : "grayscale",
-          getOpacityClass()
-        )}
-        style={{ 
-          backgroundColor: earned ? `${achievement.color}15` : '#f0f0f0',
-          border: earned ? `2px solid ${achievement.color}` : '2px solid #d0d0d0'
-        }}
-      >
-        {/* Progress indicator (circular) for badges with progress */}
-        {userAchievement && userAchievement.progress !== undefined && userAchievement.progress < 100 && (
-          <svg className="absolute inset-0" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="46"
-              fill="none"
-              stroke="#e6e6e6"
-              strokeWidth="8"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="46"
-              fill="none"
-              stroke={achievement.color}
-              strokeWidth="8"
-              strokeDasharray={`${progressPercentage * 2.89} 289`}
-              strokeLinecap="round"
-              transform="rotate(-90, 50, 50)"
-            />
-          </svg>
-        )}
-        
-        {/* Icon */}
-        <div style={{ color: earned ? achievement.color : '#a0a0a0' }}>
-          {getIcon(achievement.icon)}
+  
+  // Create tooltip content
+  const tooltipContent = (
+    <div className="space-y-2 p-1">
+      <div className="font-semibold">{achievement.name}</div>
+      <div className="text-xs text-muted-foreground">{achievement.description}</div>
+      {!earned && (
+        <div className="text-xs font-semibold">
+          <span className="text-muted-foreground">Criteria: </span>
+          {achievement.criteria}
         </div>
+      )}
+      {userAchievement && progress < 100 && (
+        <div className="text-xs">
+          <div className="flex justify-between mb-1">
+            <span>Progress</span>
+            <span>{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-1.5" />
+        </div>
+      )}
+      {userAchievement && progress === 100 && (
+        <div className="text-xs text-muted-foreground">
+          Earned on {format(new Date(userAchievement.earnedAt), 'PPP')}
+        </div>
+      )}
+      <div className="text-xs flex items-center mt-1">
+        <Badge variant="outline" className="flex gap-1 items-center">
+          <Award className="h-3 w-3" />
+          <span>{achievement.points} points</span>
+        </Badge>
       </div>
-      
-      {/* Name and details */}
-      {showDetails && (
-        <div className="text-center">
-          <h4 className={cn(
-            "font-semibold",
-            size === 'sm' ? "text-xs" : size === 'lg' ? "text-base" : "text-sm"
-          )}>
-            {achievement.name}
-          </h4>
-          
-          {size !== 'sm' && (
-            <p className="text-xs text-muted-foreground">
-              {earned ? (
-                <>Earned {userAchievement?.earnedAt ? new Date(userAchievement.earnedAt).toLocaleDateString() : ''}</>
-              ) : (
-                <>{achievement.criteria}</>
-              )}
-            </p>
-          )}
-          
-          {/* Points badge */}
-          {size !== 'sm' && (
-            <div className="mt-1 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-              {achievement.points} points
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
-}
+
+  // Render the badge
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div 
+            className={cn(
+              'relative flex flex-col items-center',
+              className,
+              { 'cursor-pointer': !!onClick }
+            )}
+            onClick={onClick}
+          >
+            <div 
+              className={cn(
+                'relative rounded-full flex items-center justify-center',
+                sizeClasses[size].badge,
+                earned 
+                  ? 'bg-gradient-to-br from-primary/20 to-primary/10 border-2 border-primary/50'
+                  : 'bg-muted border-2 border-muted-foreground/10'
+              )}
+              style={{
+                boxShadow: earned ? `0 0 15px ${achievement.color}40` : 'none',
+              }}
+            >
+              <IconComponent 
+                className={cn(
+                  sizeClasses[size].icon,
+                  earned ? 'text-primary' : 'text-muted-foreground/50'
+                )}
+                style={{
+                  color: earned ? achievement.color : undefined
+                }}
+              />
+              
+              {earned && (
+                <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                  <CheckCircle className="h-4 w-4" />
+                </div>
+              )}
+              
+              {!earned && userAchievement && progress > 0 && progress < 100 && (
+                <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+              )}
+              
+              {!earned && !userAchievement && (
+                <div className="absolute -top-1 -right-1 bg-muted-foreground/30 text-white rounded-full p-0.5">
+                  <Lock className="h-4 w-4" />
+                </div>
+              )}
+              
+              {userAchievement && progress < 100 && (
+                <div className="absolute bottom-0 left-0 right-0 bg-background/80 h-4 flex items-center justify-center">
+                  <div className="w-full px-1">
+                    <Progress value={progress} className="h-1.5" />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {showDetails && (
+              <div className={cn('mt-2 text-center', sizeClasses[size].text)}>
+                <div className="font-semibold truncate max-w-full">
+                  {achievement.name}
+                </div>
+                {earned && (
+                  <div className="text-xs text-primary font-medium">
+                    {achievement.points} points
+                  </div>
+                )}
+                {!earned && (
+                  <div className="text-xs text-muted-foreground">
+                    {achievement.points} points
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {tooltipContent}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
