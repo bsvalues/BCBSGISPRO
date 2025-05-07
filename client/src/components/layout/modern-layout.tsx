@@ -34,6 +34,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
               <NavLink href="/map" active={isActive('/map')}>Map</NavLink>
               <NavLink href="/benton-map" active={isActive('/benton-map')}>Benton County GIS</NavLink>
               <NavLink href="/legal-description" active={isActive('/legal-description')}>Legal Description</NavLink>
+              <NavLink href="/document-scanner" active={isActive('/document-scanner')}>Document Scanner</NavLink>
               <NavLink href="/documents" active={isActive('/documents')}>Documents</NavLink>
               <NavLink href="/map-elements-advisor" active={isActive('/map-elements-advisor')}>Map Advisor</NavLink>
             </div>
@@ -82,6 +83,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
                 <MobileNavLink href="/map" active={isActive('/map')}>Map</MobileNavLink>
                 <MobileNavLink href="/benton-map" active={isActive('/benton-map')}>Benton County GIS</MobileNavLink>
                 <MobileNavLink href="/legal-description" active={isActive('/legal-description')}>Legal Description</MobileNavLink>
+                <MobileNavLink href="/document-scanner" active={isActive('/document-scanner')}>Document Scanner</MobileNavLink>
                 <MobileNavLink href="/documents" active={isActive('/documents')}>Documents</MobileNavLink>
                 <MobileNavLink href="/map-elements-advisor" active={isActive('/map-elements-advisor')}>Map Advisor</MobileNavLink>
               </nav>
