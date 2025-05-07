@@ -16,6 +16,7 @@ import { registerLegalDescriptionRoutes } from "./routes/legal-description-route
 import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes";
 import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
+import achievementsRoutes from "./routes/achievements";
 import { 
   mapElements,
   mapEvaluations,
