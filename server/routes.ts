@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 import { storage } from "./storage";
@@ -17,6 +16,7 @@ import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes"
 import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
+import { setupWebSocketServer } from "./websocket";
 import { 
   mapElements,
   mapEvaluations,
@@ -5361,6 +5361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const data = await response.json();
     res.status(response.status).json(data);
   }));
+  
+  // Setup WebSocket server
+  setupWebSocketServer(httpServer);
   
   return httpServer;
 }
