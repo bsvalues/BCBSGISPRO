@@ -4,6 +4,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './context/auth-context';
 import { WebSocketProvider } from './context/websocket-context';
+import { AgentSystemProvider } from './context/agent-system-context';
+import AgentWebSocketHandler from './components/agent-system/agent-websocket-handler';
 import LandingPage from './pages/landing-page';
 import DemoDashboard from './pages/demo-dashboard';
 import MapPage from './pages/MapPage';
@@ -24,22 +26,31 @@ const App: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <WebSocketProvider>
-          <div className="app">
-            <Switch>
-              <Route path="/" component={LandingPage} />
-              <Route path="/dashboard" component={DemoDashboard} />
-              <Route path="/map" component={MapPage} />
-              <Route path="/benton-map" component={BentonCountyMapPage} />
-              <Route path="/legal-description" component={LegalDescriptionPage} />
-              <Route path="/documents" component={DemoDocumentClassification} />
-              <Route path="/document-scanner" component={DocumentScannerPage} />
-              <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
-              <Route path="/agent-tools" component={AgentToolsPage} />
-              <Route path="/sync-dashboard" component={SyncDashboardPage} />
-              <Route path="/achievements" component={AchievementsPage} />
-            </Switch>
-            <Toaster />
-          </div>
+          {/* The AgentSystemProvider provides access to AI agents via context */}
+          <AgentSystemProvider>
+            {/* 
+              AgentWebSocketHandler manages the WebSocket communication for AI agents
+              and processes the Claude API calls
+            */}
+            <AgentWebSocketHandler>
+              <div className="app">
+                <Switch>
+                  <Route path="/" component={LandingPage} />
+                  <Route path="/dashboard" component={DemoDashboard} />
+                  <Route path="/map" component={MapPage} />
+                  <Route path="/benton-map" component={BentonCountyMapPage} />
+                  <Route path="/legal-description" component={LegalDescriptionPage} />
+                  <Route path="/documents" component={DemoDocumentClassification} />
+                  <Route path="/document-scanner" component={DocumentScannerPage} />
+                  <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
+                  <Route path="/agent-tools" component={AgentToolsPage} />
+                  <Route path="/sync-dashboard" component={SyncDashboardPage} />
+                  <Route path="/achievements" component={AchievementsPage} />
+                </Switch>
+                <Toaster />
+              </div>
+            </AgentWebSocketHandler>
+          </AgentSystemProvider>
         </WebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>

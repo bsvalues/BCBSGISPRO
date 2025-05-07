@@ -1,58 +1,137 @@
-import React, { createContext, useContext, useEffect } from 'react';
-import { useWebSocket } from '../hooks/use-websocket';
-import { useAuth } from './auth-context';
+/**
+ * WebSocket Context
+ * 
+ * This context provides application-wide access to the WebSocket connection
+ * and related functionality for real-time communication.
+ */
 
-// WebSocket context type
-interface WebSocketContextType {
-  status: 'disconnected' | 'connecting' | 'connected';
-  connect: () => void;
-  disconnect: () => void;
-  subscribeToAchievements: (userId: number) => void;
-  subscribeToWorkflow: (workflowId: number) => void;
-  unsubscribe: (channel: string) => void;
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import useWebSocket, { ConnectionStatus, UseWebSocketReturn } from '../hooks/use-websocket';
+import { useToast } from '../hooks/use-toast';
+
+// AI Agent channel subscriptions
+const AGENT_CHANNELS = [
+  'agent-updates',
+  'system-announcements'
+];
+
+// Context interface
+interface WebSocketContextValue extends UseWebSocketReturn {
+  // Additional context-specific properties
+  connectionStatus: ConnectionStatus;
+  isConnected: boolean;
+  isReconnecting: boolean;
+  hasConnectionError: boolean;
+  reconnectionAttempts: number;
 }
 
-// Create the context with default values
-const WebSocketContext = createContext<WebSocketContextType>({
-  status: 'disconnected',
-  connect: () => {},
-  disconnect: () => {},
-  subscribeToAchievements: () => {},
-  subscribeToWorkflow: () => {},
-  unsubscribe: () => {}
-});
+// Create context with default values
+const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
-// Custom hook to use the WebSocket context
-export const useWebSocketContext = () => useContext(WebSocketContext);
+// Props for the provider component
+interface WebSocketProviderProps {
+  children: React.ReactNode;
+}
 
-// WebSocket provider component
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { status, connect, disconnect, subscribeToAchievements, subscribeToWorkflow, unsubscribe } = useWebSocket();
-  const { user } = useAuth();
-
-  // Auto-subscribe to user's achievement channel when user is available
+// Provider component
+export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }) => {
+  const [reconnectionAttempts, setReconnectionAttempts] = useState(0);
+  const { toast } = useToast();
+  
+  // Initialize the WebSocket hook with auto-connect and agent channels
+  const websocket = useWebSocket(true, AGENT_CHANNELS);
+  
+  // Compute additional status indicators
+  const connectionStatus = websocket.status;
+  const isConnected = connectionStatus === 'connected';
+  const isReconnecting = connectionStatus === 'connecting';
+  const hasConnectionError = !!websocket.lastError;
+  
+  // Handle connection status changes
   useEffect(() => {
-    if (user && typeof user.id === 'string') {
-      // Convert string ID to number for the WebSocket subscription 
-      const userId = parseInt(user.id);
-      if (!isNaN(userId)) {
-        subscribeToAchievements(userId);
+    if (connectionStatus === 'connected') {
+      // Reset reconnection attempts on successful connection
+      if (reconnectionAttempts > 0) {
+        // Show reconnection success toast only if we were previously disconnected
+        toast({
+          title: 'Connection Restored',
+          description: 'Real-time connection has been re-established.',
+          variant: 'success',
+          duration: 3000
+        });
+        setReconnectionAttempts(0);
       }
+    } 
+    else if (connectionStatus === 'connecting') {
+      // Increment reconnection attempts when trying to reconnect
+      setReconnectionAttempts(prev => prev + 1);
+      
+      // Show reconnection toast if attempts are greater than 1
+      if (reconnectionAttempts > 0) {
+        toast({
+          title: 'Reconnecting...',
+          description: `Attempting to restore real-time connection (${reconnectionAttempts})`,
+          variant: 'loading',
+          duration: 5000
+        });
+      }
+    } 
+    else if (connectionStatus === 'disconnected' && reconnectionAttempts > 0) {
+      // Only show disconnection toast if we were previously connected
+      toast({
+        title: 'Connection Lost',
+        description: 'Real-time connection has been lost. Attempting to reconnect...',
+        variant: 'warning',
+        duration: 5000
+      });
     }
-  }, [user, subscribeToAchievements]);
+  }, [connectionStatus, reconnectionAttempts, toast]);
 
+  // Handle critical connection errors
+  useEffect(() => {
+    if (websocket.lastError && reconnectionAttempts > 5) {
+      toast({
+        title: 'Connection Error',
+        description: 'Unable to establish real-time connection. Some features may be limited.',
+        variant: 'destructive',
+        duration: 10000
+      });
+    }
+  }, [websocket.lastError, reconnectionAttempts, toast]);
+  
+  // Create context value with additional properties
+  const contextValue = useMemo(() => ({
+    ...websocket,
+    connectionStatus,
+    isConnected,
+    isReconnecting,
+    hasConnectionError,
+    reconnectionAttempts
+  }), [
+    websocket,
+    connectionStatus,
+    isConnected,
+    isReconnecting,
+    hasConnectionError,
+    reconnectionAttempts
+  ]);
+  
   return (
-    <WebSocketContext.Provider
-      value={{
-        status,
-        connect,
-        disconnect,
-        subscribeToAchievements,
-        subscribeToWorkflow,
-        unsubscribe
-      }}
-    >
+    <WebSocketContext.Provider value={contextValue}>
       {children}
     </WebSocketContext.Provider>
   );
 };
+
+// Custom hook to use the WebSocket context
+export const useWebSocketContext = () => {
+  const context = useContext(WebSocketContext);
+  
+  if (!context) {
+    throw new Error('useWebSocketContext must be used within a WebSocketProvider');
+  }
+  
+  return context;
+};
+
+export default WebSocketContext;
