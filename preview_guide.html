@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Guide Preview</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+        .preview-controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TerraFusionSync User Guide Preview</h1>
+        
+        <div class="preview-controls">
+            <button onclick="window.open('TerraFusionSync_UserGuide_Enhanced.html', '_blank')">Open Full Guide</button>
+            <button onclick="simulatePdfDownload()">Download as PDF</button>
+        </div>
+        
+        <p>Below is a preview of the enhanced user guide with screenshots:</p>
+        
+        <iframe src="TerraFusionSync_UserGuide_Enhanced.html"></iframe>
+        
+        <div class="preview-controls">
+            <button onclick="window.open('screenshots/login_screen.html', '_blank')">View Login Screen</button>
+            <button onclick="window.open('screenshots/dashboard.html', '_blank')">View Dashboard</button>
+            <button onclick="window.open('screenshots/diff_viewer.html', '_blank')">View Diff Viewer</button>
+        </div>
+    </div>
+    
+    <script>
+        function simulatePdfDownload() {
+            alert('In a production environment, this would generate and download a PDF version of the guide.');
+            console.log('Converting HTML to PDF...');
+            setTimeout(() => {
+                console.log('PDF generated successfully!');
+                alert('PDF generated successfully!\n\nIn a real environment, your download would start automatically.');
+            }, 1500);
+        }
+    </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, timestamp, integer, boolean, json } from 'drizzle-orm/pg-core';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
@@ -67,12 +67,40 @@ export const bentonCountyMaps = pgTable('benton_county_maps', {
   evaluationId: integer('evaluation_id'), // Reference to AI evaluation if available
 });
 
+// Achievements table - for the gamified achievement system
+export const achievements = pgTable('achievements', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description').notNull(),
+  category: varchar('category', { length: 50 }).notNull(), // e.g., 'sync', 'map', 'legal', 'document'
+  type: varchar('type', { length: 50 }).notNull(), // e.g., 'milestone', 'streak', 'skill'
+  points: integer('points').notNull().default(10),
+  icon: varchar('icon', { length: 100 }).notNull(), // Icon name from lucide-react
+  color: varchar('color', { length: 20 }).notNull(), // CSS color for the badge
+  criteria: text('criteria').notNull(), // Description of how to earn the achievement
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// User Achievements table - tracks which users have earned which achievements
+export const userAchievements = pgTable('user_achievements', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  achievementId: integer('achievement_id').notNull(),
+  earnedAt: timestamp('earned_at').defaultNow(),
+  progress: integer('progress').notNull().default(100), // Can be < 100 for partial completion
+  metadata: json('metadata'), // Additional data about how achievement was earned
+});
+
 // Zod schemas for validation
 export const insertMapElementSchema = createInsertSchema(mapElements).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMapEvaluationSchema = createInsertSchema(mapEvaluations).omit({ id: true, createdAt: true, overallScore: true, aiRecommendations: true });
 export const insertElementEvaluationSchema = createInsertSchema(elementEvaluations).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
 export const insertBentonCountyMapSchema = createInsertSchema(bentonCountyMaps).omit({ id: true, createdAt: true, updatedAt: true, evaluationId: true });
+export const insertAchievementSchema = createInsertSchema(achievements).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserAchievementSchema = createInsertSchema(userAchievements).omit({ id: true, earnedAt: true });
 
 // Types using Zod inference
 export type InsertMapElement = z.infer<typeof insertMapElementSchema>;
@@ -80,6 +108,8 @@ export type InsertMapEvaluation = z.infer<typeof insertMapEvaluationSchema>;
 export type InsertElementEvaluation = z.infer<typeof insertElementEvaluationSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertBentonCountyMap = z.infer<typeof insertBentonCountyMapSchema>;
+export type InsertAchievement = z.infer<typeof insertAchievementSchema>;
+export type InsertUserAchievement = z.infer<typeof insertUserAchievementSchema>;
 
 // Select types using Drizzle inference
 export type MapElement = typeof mapElements.$inferSelect;
@@ -87,6 +117,8 @@ export type MapEvaluation = typeof mapEvaluations.$inferSelect;
 export type ElementEvaluation = typeof elementEvaluations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type BentonCountyMap = typeof bentonCountyMaps.$inferSelect;
+export type Achievement = typeof achievements.$inferSelect;
+export type UserAchievement = typeof userAchievements.$inferSelect;
 
 // Legal Description Types
 export interface ParsedLegalDescription {
