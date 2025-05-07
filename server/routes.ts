@@ -15,6 +15,7 @@ import mapElementsAdvisorRoutes from "./routes/map-elements-advisor";
 import { registerLegalDescriptionRoutes } from "./routes/legal-description-routes";
 import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes";
 import agentToolsRoutes from "./routes/agent-tools";
+import syncRoutes from "./routes/sync-routes";
 import { 
   mapElements,
   mapEvaluations,
