@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useToast } from './use-toast';
-import { useCurrentUser } from './use-current-user';
+import { useAuth } from '../context/auth-context';
 
 // Message types from WebSocket server
 interface WebSocketMessage {
@@ -55,8 +55,9 @@ export function useWebSocket() {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const socketRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
-  const { user } = useCurrentUser();
-  const userId = user?.id;
+  const { user } = useAuth();
+  // Convert string ID from auth context to number for WebSocket
+  const userId = user ? parseInt(user.id) : undefined;
   
   // Connect to WebSocket server
   const connect = useCallback(() => {
@@ -171,7 +172,7 @@ export function useWebSocket() {
           title: `Achievement Unlocked: ${achievementMsg.achievement.title}`,
           description: achievementMsg.achievement.description,
           duration: 5000,
-          variant: 'default',
+          variant: 'success',
         });
         
         // Trigger any achievement-specific events (like animations or sounds)
@@ -203,8 +204,9 @@ export function useWebSocket() {
           title: notificationMsg.title,
           description: notificationMsg.message,
           duration: 5000,
-          variant: notificationMsg.level === 'error' ? 'destructive' : 
-                  notificationMsg.level === 'warning' ? 'warning' : 'default',
+          // Map notification level to appropriate toast variant
+          variant: notificationMsg.level === 'error' ? 'error' : 
+                  notificationMsg.level === 'warning' ? 'warning' : 'info',
         });
         break;
       }

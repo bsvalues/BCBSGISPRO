@@ -243,8 +243,13 @@ achievementsRouter.post('/user/:userId', async (req, res) => {
 
     // Broadcast achievement notification via WebSocket
     try {
-      const { broadcastAchievement } = await import('../websocket');
-      broadcastAchievement(userId, achievement, newUserAchievement);
+      const { WebSocketServerManager } = await import('../websocket-manager');
+      const wsManager = global.wsManager as InstanceType<typeof WebSocketServerManager>;
+      if (wsManager) {
+        wsManager.broadcastAchievement(userId, achievement, newUserAchievement);
+      } else {
+        console.warn('WebSocket manager not available');
+      }
     } catch (error) {
       console.error('Failed to broadcast achievement notification:', error);
     }
@@ -297,8 +302,13 @@ achievementsRouter.put('/user/:userId/achievement/:achievementId', async (req, r
     // If progress reached 100%, broadcast achievement notification via WebSocket
     if (progress === 100 && userAchievement.progress < 100) {
       try {
-        const { broadcastAchievement } = await import('../websocket');
-        broadcastAchievement(userId, achievement, updatedUserAchievement);
+        const { WebSocketServerManager } = await import('../websocket-manager');
+        const wsManager = global.wsManager as InstanceType<typeof WebSocketServerManager>;
+        if (wsManager) {
+          wsManager.broadcastAchievement(userId, achievement, updatedUserAchievement);
+        } else {
+          console.warn('WebSocket manager not available');
+        }
       } catch (error) {
         console.error('Failed to broadcast achievement notification:', error);
       }

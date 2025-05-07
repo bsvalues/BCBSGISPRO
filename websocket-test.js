@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 
 // Test variables
 const userId = 1; // Test user ID
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000; // Updated to match the server port
 const baseUrl = `http://localhost:${port}`;
 
 // Create WebSocket connection

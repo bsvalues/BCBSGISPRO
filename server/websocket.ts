@@ -1,141 +1,222 @@
-import { Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { logger } from './logger';
+import http from 'http';
 
-// WebSocket client interface
-interface Client {
-  ws: WebSocket;
-  subscriptions: Set<string>;
+interface SubscriptionEntry {
+  socket: WebSocket;
+  userId?: number;
 }
 
-// WebSocket message interface
-interface WebSocketMessage {
-  type: string;
-  channel?: string;
-  [key: string]: any;
-}
-
-// Store connected clients
-const clients = new Map<number, Client>();
-
-// Setup WebSocket server
-export function setupWebSocketServer(httpServer: Server) {
-  // Create WebSocket server for real-time notifications
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+export class WebSocketManager {
+  private wss: WebSocketServer;
+  private subscriptions: Map<string, Set<SubscriptionEntry>> = new Map();
   
-  // Handle WebSocket connections
-  wss.on('connection', (ws) => {
-    const clientId = Date.now();
-    const subscriptions = new Set<string>();
-    
-    // Store this client connection
-    clients.set(clientId, {
-      ws,
-      subscriptions
+  constructor(server: http.Server) {
+    // Create WebSocket server on the same HTTP server but with distinct path
+    this.wss = new WebSocketServer({ 
+      server,
+      path: '/ws'
     });
     
-    logger.info(`WebSocket client connected: ${clientId}`);
+    this.setupEventHandlers();
     
-    // Handle messages from clients
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString()) as WebSocketMessage;
-        
-        // Handle subscription requests
-        if (data.type === 'subscribe' && data.channel) {
-          subscriptions.add(data.channel);
-          logger.info(`Client ${clientId} subscribed to ${data.channel}`);
-          
-          // Send confirmation
-          ws.send(JSON.stringify({
-            type: 'subscribed',
-            channel: data.channel
-          }));
+    console.log('WebSocket server initialized');
+  }
+
+  private setupEventHandlers() {
+    this.wss.on('connection', (socket, req) => {
+      console.log(`WebSocket connection established from ${req.socket.remoteAddress}`);
+      
+      // Send connected confirmation
+      this.sendToSocket(socket, {
+        type: 'connected',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Handle incoming messages
+      socket.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          this.handleMessage(socket, message);
+        } catch (error) {
+          console.error('Error handling WebSocket message:', error);
         }
+      });
+      
+      // Handle disconnection
+      socket.on('close', (code, reason) => {
+        console.log(`WebSocket connection closed: ${code} - ${reason}`);
+        this.removeSocketFromAllChannels(socket);
+      });
+      
+      // Handle errors
+      socket.on('error', (error) => {
+        console.error('WebSocket error:', error);
+      });
+    });
+  }
+  
+  private handleMessage(socket: WebSocket, message: any) {
+    console.log('Received message:', message);
+    
+    switch (message.type) {
+      case 'subscribe':
+        this.handleSubscribe(socket, message.channel, message.userId);
+        break;
         
-        // Handle unsubscribe requests
-        if (data.type === 'unsubscribe' && data.channel) {
-          subscriptions.delete(data.channel);
-          logger.info(`Client ${clientId} unsubscribed from ${data.channel}`);
-          
-          // Send confirmation
-          ws.send(JSON.stringify({
-            type: 'unsubscribed',
-            channel: data.channel
-          }));
+      case 'unsubscribe':
+        this.handleUnsubscribe(socket, message.channel);
+        break;
+        
+      default:
+        console.log(`Unknown message type: ${message.type}`);
+        break;
+    }
+  }
+  
+  private handleSubscribe(socket: WebSocket, channel: string, userId?: number) {
+    if (!channel) {
+      return;
+    }
+    
+    // Get or create channel subscription set
+    if (!this.subscriptions.has(channel)) {
+      this.subscriptions.set(channel, new Set());
+    }
+    
+    const channelSubs = this.subscriptions.get(channel)!;
+    
+    // Add socket to channel subscriptions
+    channelSubs.add({ socket, userId });
+    
+    console.log(`Socket subscribed to channel: ${channel}`);
+    
+    // Send confirmation
+    this.sendToSocket(socket, {
+      type: 'subscribed',
+      channel,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  private handleUnsubscribe(socket: WebSocket, channel: string) {
+    if (!channel || !this.subscriptions.has(channel)) {
+      return;
+    }
+    
+    const channelSubs = this.subscriptions.get(channel)!;
+    
+    // Find and remove the entry with this socket
+    for (const entry of channelSubs) {
+      if (entry.socket === socket) {
+        channelSubs.delete(entry);
+        console.log(`Socket unsubscribed from channel: ${channel}`);
+        break;
+      }
+    }
+    
+    // Clean up empty channels
+    if (channelSubs.size === 0) {
+      this.subscriptions.delete(channel);
+    }
+    
+    // Send confirmation
+    this.sendToSocket(socket, {
+      type: 'unsubscribed',
+      channel,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  private removeSocketFromAllChannels(socket: WebSocket) {
+    // Iterate through all channels and remove this socket
+    for (const [channel, subscribers] of this.subscriptions.entries()) {
+      let found = false;
+      
+      for (const entry of subscribers) {
+        if (entry.socket === socket) {
+          subscribers.delete(entry);
+          found = true;
+          break;
         }
-      } catch (error) {
-        logger.error('WebSocket message parse error:', error);
+      }
+      
+      // Clean up empty channels
+      if (found && subscribers.size === 0) {
+        this.subscriptions.delete(channel);
+      }
+    }
+  }
+  
+  private sendToSocket(socket: WebSocket, data: any) {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(data));
+    }
+  }
+  
+  // Public methods
+  
+  /**
+   * Broadcast a message to all subscribers of a channel
+   */
+  public broadcast(channel: string, message: any) {
+    if (!this.subscriptions.has(channel)) {
+      console.log(`No subscribers for channel: ${channel}`);
+      return;
+    }
+    
+    const subscribers = this.subscriptions.get(channel)!;
+    console.log(`Broadcasting to ${subscribers.size} subscribers on channel: ${channel}`);
+    
+    for (const { socket } of subscribers) {
+      this.sendToSocket(socket, message);
+    }
+  }
+  
+  /**
+   * Broadcast achievement notification to a specific user
+   */
+  public notifyAchievement(userId: number, achievement: any, userAchievement: any) {
+    const channel = `user-achievements-${userId}`;
+    
+    this.broadcast(channel, {
+      type: 'achievement-earned',
+      achievement,
+      userAchievement,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Broadcast workflow update
+   */
+  public notifyWorkflowUpdate(workflowId: number, status: string, data: any) {
+    const channel = `workflow-${workflowId}`;
+    
+    this.broadcast(channel, {
+      type: 'workflow-update',
+      status,
+      data,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Send system notification to all connected clients
+   */
+  public broadcastSystemNotification(title: string, message: string, level: 'info' | 'warning' | 'error' = 'info') {
+    const notification = {
+      type: 'system-notification',
+      title,
+      message,
+      level,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Send to all connected sockets
+    this.wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(notification));
       }
     });
-    
-    // Handle disconnections
-    ws.on('close', () => {
-      clients.delete(clientId);
-      logger.info(`WebSocket client disconnected: ${clientId}`);
-    });
-    
-    // Send initial welcome message
-    ws.send(JSON.stringify({
-      type: 'connected',
-      message: 'Connected to TerraFusionSync WebSocket server',
-      clientId
-    }));
-  });
-  
-  return wss;
-}
-
-// Broadcast achievement notification
-export function broadcastAchievement(userId: number, achievement: any, userAchievement: any) {
-  const channel = `user-achievements-${userId}`;
-  const message = JSON.stringify({
-    type: 'achievement-earned',
-    achievement,
-    userAchievement
-  });
-  
-  // Broadcast to all subscribed clients
-  clients.forEach((client) => {
-    if (client.subscriptions.has(channel) && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(message);
-    }
-  });
-  
-  logger.info(`Achievement notification sent to channel ${channel}`);
-}
-
-// Broadcast workflow status update
-export function broadcastWorkflowUpdate(workflowId: number, status: string, data: any) {
-  const channel = `workflow-${workflowId}`;
-  const message = JSON.stringify({
-    type: 'workflow-update',
-    status,
-    data
-  });
-  
-  // Broadcast to all subscribed clients
-  clients.forEach((client) => {
-    if (client.subscriptions.has(channel) && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(message);
-    }
-  });
-}
-
-// Broadcast system notification
-export function broadcastSystemNotification(title: string, message: string, level: 'info' | 'warning' | 'error' = 'info') {
-  const systemMessage = JSON.stringify({
-    type: 'system-notification',
-    title,
-    message,
-    level,
-    timestamp: new Date().toISOString()
-  });
-  
-  // Broadcast to all clients
-  clients.forEach((client) => {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(systemMessage);
-    }
-  });
+  }
 }

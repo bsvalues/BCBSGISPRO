@@ -16,7 +16,7 @@ import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes"
 import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
-import { setupWebSocketServer } from "./websocket";
+// Using WebSocketManager from websocket.ts
 import { 
   mapElements,
   mapEvaluations,
@@ -5362,8 +5362,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(response.status).json(data);
   }));
   
-  // Setup WebSocket server
-  setupWebSocketServer(httpServer);
+  // WebSocket server is already initialized above with WebSocketServerManager
+  // Store the WebSocket manager instance in global scope for access from other modules
+  global.wsManager = wsManager;
   
   return httpServer;
 }
