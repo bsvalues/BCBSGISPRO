@@ -13,6 +13,7 @@ import LegalDescriptionPage from './pages/LegalDescriptionPage';
 import DocumentScannerPage from './pages/DocumentScannerPage';
 import AgentToolsPage from './pages/agent-tools-page';
 import SyncDashboardPage from './pages/sync-dashboard-page';
+import AchievementsPage from './pages/achievements';
 
 // Modern layout ensures consistent navigation across all pages
 
@@ -32,6 +33,7 @@ const App: React.FC = () => {
             <Route path="/map-elements-advisor" component={MapElementsAdvisorPage} />
             <Route path="/agent-tools" component={AgentToolsPage} />
             <Route path="/sync-dashboard" component={SyncDashboardPage} />
+            <Route path="/achievements" component={AchievementsPage} />
           </Switch>
         </div>
       </AuthProvider>
