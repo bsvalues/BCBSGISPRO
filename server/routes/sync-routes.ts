@@ -10,6 +10,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateSHA256 } from './sync-helpers';
+import { achievementService } from '../services/achievement-service';
 
 // Create Express router
 const router = express.Router();

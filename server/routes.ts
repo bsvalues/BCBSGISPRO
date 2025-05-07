@@ -5266,6 +5266,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const syncRoutes = await import('./routes/sync-routes').then(m => m.default);
   app.use('/api/sync', syncRoutes);
   
+  // Register achievement routes for gamification system
+  const achievementsRoutes = await import('./routes/achievements').then(m => m.default);
+  app.use('/api/achievements', achievementsRoutes);
+  
   // Register AI-enhanced legal description routes
   // Register legal description routes
   registerLegalDescriptionRoutes(app);
