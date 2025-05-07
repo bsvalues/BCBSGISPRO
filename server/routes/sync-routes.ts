@@ -141,6 +141,29 @@ router.post('/import', upload.single('file'), async (req, res) => {
     // Log the import
     await logSync(originalFilename, propId, sha256Hash);
     
+    // Award achievement if user is authenticated
+    if (req.user && (req.user as any).id) {
+      const userId = (req.user as any).id;
+      
+      // Award "First Upload" achievement
+      await achievementService.handleSyncMilestone(userId, 'upload_first_file', {
+        filename: originalFilename,
+        propId,
+        timestamp: new Date()
+      });
+      
+      // Check if this is part of a processing streak
+      // In a real app, we'd check how many files the user processed today
+      const userUploadsToday = 1; // Placeholder - in a real app, query from database
+      
+      if (userUploadsToday >= 1) {
+        await achievementService.handleSyncMilestone(userId, 'processing_streak', {
+          streak: userUploadsToday,
+          timestamp: new Date()
+        });
+      }
+    }
+    
     // Return success response
     res.status(200).json({
       status: 'success',
@@ -293,6 +316,42 @@ router.post('/approve/:id', async (req, res) => {
     
     // Log to sync log
     await logSync(upload.filename, upload.prop_id, upload.sha256);
+    
+    // Award achievement if user is authenticated
+    if (req.user && (req.user as any).id) {
+      const userId = (req.user as any).id;
+      
+      // Award "First Approval" achievement
+      await achievementService.handleSyncMilestone(userId, 'approve_first_file', {
+        filename: upload.filename,
+        propId: upload.prop_id,
+        timestamp: new Date()
+      });
+      
+      // Check processing time to award "Lightning Fast" achievement if applicable
+      const uploadTime = new Date(upload.timestamp);
+      const approvalTime = new Date();
+      const processingTimeMs = approvalTime.getTime() - uploadTime.getTime();
+      const processingTimeSeconds = processingTimeMs / 1000;
+      
+      if (processingTimeSeconds < 30) {
+        await achievementService.handleSyncMilestone(userId, 'lightning_fast', {
+          processingTime: processingTimeSeconds,
+          filename: upload.filename,
+          timestamp: new Date()
+        });
+      }
+      
+      // In a real app, check total property records processed to award "Data Champion"
+      const mockTotalRecordsProcessed = 100; // Simulate having processed 100 records
+      
+      if (mockTotalRecordsProcessed >= 100) {
+        await achievementService.handleSyncMilestone(userId, 'data_champion', {
+          processedFiles: mockTotalRecordsProcessed,
+          timestamp: new Date()
+        });
+      }
+    }
     
     res.json({
       status: 'success',
