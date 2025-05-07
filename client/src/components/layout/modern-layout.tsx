@@ -38,6 +38,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
               <NavLink href="/documents" active={isActive('/documents')}>Documents</NavLink>
               <NavLink href="/map-elements-advisor" active={isActive('/map-elements-advisor')}>Map Advisor</NavLink>
               <NavLink href="/agent-tools" active={isActive('/agent-tools')}>Agent Tools</NavLink>
+              <NavLink href="/sync-dashboard" active={isActive('/sync-dashboard')}>Sync Dashboard</NavLink>
             </div>
             
             <div className="flex md:hidden">
@@ -88,6 +89,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
                 <MobileNavLink href="/documents" active={isActive('/documents')}>Documents</MobileNavLink>
                 <MobileNavLink href="/map-elements-advisor" active={isActive('/map-elements-advisor')}>Map Advisor</MobileNavLink>
                 <MobileNavLink href="/agent-tools" active={isActive('/agent-tools')}>Agent Tools</MobileNavLink>
+                <MobileNavLink href="/sync-dashboard" active={isActive('/sync-dashboard')}>Sync Dashboard</MobileNavLink>
               </nav>
             </div>
           </div>
