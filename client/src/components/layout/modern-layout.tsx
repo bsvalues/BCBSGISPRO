@@ -120,14 +120,14 @@ const NavLink: React.FC<{ href: string; active: boolean; children: React.ReactNo
 }) => {
   return (
     <Link href={href}>
-      <a className={cn(
-        "inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium",
+      <div className={cn(
+        "inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium cursor-pointer",
         active
           ? "border-primary text-gray-900"
           : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
       )}>
         {children}
-      </a>
+      </div>
     </Link>
   );
 };
@@ -140,14 +140,14 @@ const MobileNavLink: React.FC<{ href: string; active: boolean; children: React.R
 }) => {
   return (
     <Link href={href}>
-      <a className={cn(
-        "block px-3 py-2 rounded-md text-base font-medium",
+      <div className={cn(
+        "block px-3 py-2 rounded-md text-base font-medium cursor-pointer",
         active
           ? "bg-primary/10 text-primary"
           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
       )}>
         {children}
-      </a>
+      </div>
     </Link>
   );
 };
