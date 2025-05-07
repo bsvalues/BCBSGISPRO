@@ -5,7 +5,7 @@ import { useTitle } from '../hooks/use-title';
 import { AchievementNotificationListener } from '../components/achievements/achievement-notification';
 import { Link } from 'wouter';
 import { Award } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../components/ui/button';
 
 const SyncDashboardPage: React.FC = () => {
   useTitle('ICSF Sync - BentonGeoPro');

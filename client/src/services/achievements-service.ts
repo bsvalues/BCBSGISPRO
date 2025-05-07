@@ -1,179 +1,122 @@
-/**
- * Achievements Service
- * 
- * Provides client-side functions for interacting with the achievements API
- */
+// Achievement service for interacting with the achievement API
 
-import { apiRequest } from '../lib/queryClient';
-
-const BASE_URL = '/api/achievements';
-
+// Achievement type definition
 export interface Achievement {
   id: number;
   name: string;
   description: string;
   category: string;
-  type: string;
   points: number;
   icon: string;
   color: string;
   criteria: string;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
+// User achievement type definition
 export interface UserAchievement {
   id: number;
   userId: number;
   achievementId: number;
-  earnedAt: string;
-  progress: number;
-  metadata: any;
+  earnedAt: Date;
+  progress?: number;
   achievement?: Achievement;
 }
 
-export interface AchievementProgress {
-  userId: number;
-  points: number;
-  achievements: UserAchievement[];
-  recentAchievements: UserAchievement[];
-}
-
-/**
- * Fetches all achievements
- */
+// Get all achievements
 export async function getAllAchievements(): Promise<Achievement[]> {
-  return apiRequest<Achievement[]>(BASE_URL);
+  const response = await fetch('/api/achievements');
+  if (!response.ok) {
+    throw new Error('Failed to fetch achievements');
+  }
+  return response.json();
 }
 
-/**
- * Fetches achievements by category
- */
-export async function getAchievementsByCategory(category: string): Promise<Achievement[]> {
-  return apiRequest<Achievement[]>(`${BASE_URL}/category/${category}`);
-}
-
-/**
- * Fetches achievements by type
- */
-export async function getAchievementsByType(type: string): Promise<Achievement[]> {
-  return apiRequest<Achievement[]>(`${BASE_URL}/type/${type}`);
-}
-
-/**
- * Fetches a specific achievement by ID
- */
+// Get a specific achievement by ID
 export async function getAchievement(id: number): Promise<Achievement> {
-  return apiRequest<Achievement>(`${BASE_URL}/${id}`);
+  const response = await fetch(`/api/achievements/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch achievement with ID ${id}`);
+  }
+  return response.json();
 }
 
-/**
- * Fetches achievements earned by a specific user
- */
+// Get all achievements for a user
 export async function getUserAchievements(userId: number): Promise<UserAchievement[]> {
-  return apiRequest<UserAchievement[]>(`${BASE_URL}/user/${userId}`);
+  const response = await fetch(`/api/users/${userId}/achievements`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch achievements for user ${userId}`);
+  }
+  return response.json();
 }
 
-/**
- * Gets a user's total achievement points
- */
-export async function getUserPoints(userId: number): Promise<{ userId: number; points: number }> {
-  return apiRequest<{ userId: number; points: number }>(`${BASE_URL}/user/${userId}/points`);
+// Award an achievement to a user
+export async function awardAchievement(userId: number, achievementId: number): Promise<UserAchievement> {
+  const response = await fetch(`/api/users/${userId}/achievements`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ achievementId })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to award achievement ${achievementId} to user ${userId}`);
+  }
+  
+  return response.json();
 }
 
-/**
- * Awards an achievement to a user
- */
-export async function awardAchievement(
+// Update achievement progress for a user
+export async function updateAchievementProgress(
   userId: number, 
   achievementId: number, 
-  progress: number = 100,
-  metadata?: any
+  progress: number
 ): Promise<UserAchievement> {
-  return apiRequest<UserAchievement>(`${BASE_URL}/award`, {
-    method: 'POST',
-    body: JSON.stringify({
-      userId,
-      achievementId,
-      progress,
-      metadata
-    })
-  });
-}
-
-/**
- * Updates a user's achievement progress
- */
-export async function updateAchievementProgress(
-  userAchievementId: number,
-  progress: number,
-  metadata?: any
-): Promise<UserAchievement> {
-  return apiRequest<UserAchievement>(`${BASE_URL}/user-achievement/${userAchievementId}`, {
+  const response = await fetch(`/api/users/${userId}/achievements/${achievementId}/progress`, {
     method: 'PUT',
-    body: JSON.stringify({
-      progress,
-      metadata
-    })
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ progress })
   });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to update progress for achievement ${achievementId}`);
+  }
+  
+  return response.json();
 }
 
-/**
- * Checks if a user has a specific achievement and its progress
- */
-export async function checkUserAchievement(userId: number, achievementName: string): Promise<{
-  earned: boolean;
-  progress: number;
-  achievement?: Achievement;
-  userAchievement?: UserAchievement;
+// Get achievements by category
+export async function getAchievementsByCategory(category: string): Promise<Achievement[]> {
+  const response = await fetch(`/api/achievements/category/${category}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch achievements for category ${category}`);
+  }
+  return response.json();
+}
+
+// Get all categories
+export async function getAchievementCategories(): Promise<string[]> {
+  const response = await fetch('/api/achievements/categories');
+  if (!response.ok) {
+    throw new Error('Failed to fetch achievement categories');
+  }
+  return response.json();
+}
+
+// Get user achievement stats (total points, achievements earned, etc.)
+export async function getUserAchievementStats(userId: number): Promise<{
+  totalPoints: number;
+  achievementsEarned: number;
+  totalAchievements: number;
+  topCategory: string;
 }> {
-  // First, get all achievements to find the one with the specified name
-  const allAchievements = await getAllAchievements();
-  const achievement = allAchievements.find(a => a.name === achievementName);
-  
-  if (!achievement) {
-    return { earned: false, progress: 0 };
+  const response = await fetch(`/api/users/${userId}/achievements/stats`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch achievement stats for user ${userId}`);
   }
-  
-  // Then, get the user's achievements
-  const userAchievements = await getUserAchievements(userId);
-  const userAchievement = userAchievements.find(ua => ua.achievementId === achievement.id);
-  
-  if (!userAchievement) {
-    return { earned: false, progress: 0, achievement };
-  }
-  
-  return {
-    earned: userAchievement.progress === 100,
-    progress: userAchievement.progress,
-    achievement,
-    userAchievement
-  };
-}
-
-/**
- * Gets a comprehensive summary of a user's achievement progress
- */
-export async function getUserAchievementProgress(userId: number): Promise<AchievementProgress> {
-  // Get user's points
-  const { points } = await getUserPoints(userId);
-  
-  // Get user's achievements with details
-  const achievements = await getUserAchievements(userId);
-  
-  // Sort recent achievements (in the last 7 days) by newest first
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
-  const recentAchievements = achievements
-    .filter(a => new Date(a.earnedAt) >= sevenDaysAgo)
-    .sort((a, b) => new Date(b.earnedAt).getTime() - new Date(a.earnedAt).getTime());
-  
-  return {
-    userId,
-    points,
-    achievements,
-    recentAchievements
-  };
+  return response.json();
 }
