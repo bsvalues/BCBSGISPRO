@@ -235,10 +235,21 @@ achievementsRouter.post('/user/:userId', async (req, res) => {
       progress
     });
 
-    res.status(201).json({
+    // Prepare response data
+    const responseData = {
       ...newUserAchievement,
       achievement
-    });
+    };
+
+    // Broadcast achievement notification via WebSocket
+    try {
+      const { broadcastAchievement } = await import('../websocket');
+      broadcastAchievement(userId, achievement, newUserAchievement);
+    } catch (error) {
+      console.error('Failed to broadcast achievement notification:', error);
+    }
+
+    res.status(201).json(responseData);
   } catch (error) {
     console.error(`Error awarding achievement to user ${req.params.userId}:`, error);
     res.status(500).json({ error: 'Failed to award achievement' });
@@ -278,10 +289,22 @@ achievementsRouter.put('/user/:userId/achievement/:achievementId', async (req, r
     // Get the full achievement details
     const achievement = await storage.getAchievement(achievementId);
     
-    res.json({
+    const responseData = {
       ...updatedUserAchievement,
       achievement
-    });
+    };
+
+    // If progress reached 100%, broadcast achievement notification via WebSocket
+    if (progress === 100 && userAchievement.progress < 100) {
+      try {
+        const { broadcastAchievement } = await import('../websocket');
+        broadcastAchievement(userId, achievement, updatedUserAchievement);
+      } catch (error) {
+        console.error('Failed to broadcast achievement notification:', error);
+      }
+    }
+    
+    res.json(responseData);
   } catch (error) {
     console.error(`Error updating achievement progress for user ${req.params.userId}:`, error);
     res.status(500).json({ error: 'Failed to update achievement progress' });
