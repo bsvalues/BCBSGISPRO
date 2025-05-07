@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BentonGeoPro Sync Dashboard - User Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .note {
+            background-color: #f0f7fb;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+        }
+        .toc {
+            background-color: #f5f5f5;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 15px;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 0.9em;
+            color: #777;
+        }
+        @media print {
+            body {
+                font-size: 12pt;
+            }
+            .no-print {
+                display: none;
+            }
+            h1, h2, h3 {
+                page-break-after: avoid;
+            }
+            img, table {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>BentonGeoPro Sync Dashboard - User Guide</h1>
+    <p>Version 1.0.0 | May 2025</p>
+    
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ul>
+            <li><a href="#introduction">1. Introduction</a></li>
+            <li><a href="#installation">2. Installation</a></li>
+            <li><a href="#authentication">3. Authentication & Access Control</a></li>
+            <li><a href="#using">4. Using the Dashboard</a>
+                <ul>
+                    <li><a href="#uploading">4.1 Uploading Property Data Files</a></li>
+                    <li><a href="#reviewing">4.2 Reviewing Changes</a></li>
+                    <li><a href="#approving">4.3 Approving Updates</a></li>
+                    <li><a href="#exporting">4.4 Exporting Logs</a></li>
+                    <li><a href="#rollback">4.5 Rolling Back Changes</a></li>
+                </ul>
+            </li>
+            <li><a href="#best-practices">5. Best Practices</a></li>
+            <li><a href="#troubleshooting">6. Troubleshooting</a></li>
+            <li><a href="#contact">7. Contact Support</a></li>
+        </ul>
+    </div>
+
+    <h2 id="introduction">1. Introduction</h2>
+    <p>The BentonGeoPro Sync Dashboard is a secure, ICSF-compliant property data synchronization system designed for the Benton County Assessor's Office. This application enables staff to upload, review, approve, and audit property data changes with role-based access controls and comprehensive logging.</p>
+    
+    <div class="note">
+        <strong>ICSF Compliance:</strong> This application is designed to meet the Internal Controls Security Framework (ICSF) requirements for secure data handling, including approval workflows, activity logging, and role separation.
+    </div>
+
+    <h2 id="installation">2. Installation</h2>
+    <h3>Docker Installation (Recommended for IT Administrators)</h3>
+    <p>The Docker installation method is recommended for server deployments and ensures consistent behavior across different operating systems.</p>
+    <ol>
+        <li>Install Docker on your server or workstation</li>
+        <li>Clone or download the repository</li>
+        <li>Run the script for your platform:
+            <ul>
+                <li>Windows: Double-click <code>run_docker.bat</code></li>
+                <li>Mac/Linux: Run <code>./run_docker.sh</code></li>
+            </ul>
+        </li>
+        <li>The dashboard will be available at <a href="http://localhost:8000">http://localhost:8000</a></li>
+    </ol>
+
+    <h3>Windows Standalone Installation</h3>
+    <p>For individual users who prefer a simple, self-contained application:</p>
+    <ol>
+        <li>Download the <code>BentonGeoProSyncDashboard.exe</code> executable</li>
+        <li>Double-click the executable to start the application</li>
+        <li>A browser window will open automatically</li>
+        <li>If the browser doesn't open, navigate to <a href="http://localhost:8000">http://localhost:8000</a></li>
+    </ol>
+
+    <div class="warning">
+        <strong>Important:</strong> Always download the executable from official sources only. Do not install software from untrusted sources.
+    </div>
+
+    <h2 id="authentication">3. Authentication & Access Control</h2>
+    <p>The system enforces role-based access control (RBAC) to ensure that users can only perform actions appropriate to their role.</p>
+    
+    <h3>Authentication</h3>
+    <p>When you first access the dashboard, you'll be prompted for your authentication token. This is typically your domain username in the format: <code>CO\username</code></p>
+    
+    <h3>Available Roles and Permissions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Role</th>
+                <th>Example Token</th>
+                <th>Available Permissions</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Assessor</td>
+                <td><code>CO\jdoe</code></td>
+                <td>view, approve, diff</td>
+                <td>Can view data, approve changes, and see differences</td>
+            </tr>
+            <tr>
+                <td>Staff</td>
+                <td><code>CO\mjohnson</code></td>
+                <td>view, upload</td>
+                <td>Can view data and upload new files</td>
+            </tr>
+            <tr>
+                <td>ITAdmin</td>
+                <td><code>CO\bsmith</code></td>
+                <td>view, upload, approve, rollback, export, diff</td>
+                <td>Has full system access</td>
+            </tr>
+            <tr>
+                <td>Auditor</td>
+                <td><code>CO\tauditor</code></td>
+                <td>view, diff</td>
+                <td>Can view data and differences for audit purposes</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="using">4. Using the Dashboard</h2>
+    
+    <h3 id="uploading">4.1 Uploading Property Data Files</h3>
+    <p>To upload a new property data file:</p>
+    <ol>
+        <li>Log in with a role that has "upload" permission (Staff or ITAdmin)</li>
+        <li>Navigate to the "Staging Area" tab</li>
+        <li>Click "Choose File" and select the property data file (typically an XML file)</li>
+        <li>Click "Upload File"</li>
+        <li>The system will process the file, calculate its SHA-256 hash, and extract the property ID</li>
+        <li>The file will appear in the staging area with a "PENDING" status</li>
+    </ol>
+
+    <div class="note">
+        <strong>Note:</strong> Each file upload creates a unique identifier (Upload ID) that is used to track the file throughout the system.
+    </div>
+
+    <h3 id="reviewing">4.2 Reviewing Changes</h3>
+    <p>Before approving any changes, you should review the differences between the current property data and the proposed changes:</p>
+    <ol>
+        <li>In the staging area, find the file you want to review</li>
+        <li>Click the "View Diff" button next to the file</li>
+        <li>A popup will appear showing:
+            <ul>
+                <li>The property ID</li>
+                <li>Each changed field (e.g., land_value, building_value, tax_due)</li>
+                <li>Current values in the system</li>
+                <li>Proposed values from the uploaded file</li>
+                <li>The delta (difference) between current and proposed values</li>
+            </ul>
+        </li>
+        <li>Green values indicate increases, red values indicate decreases</li>
+        <li>Review the changes carefully before proceeding</li>
+    </ol>
+
+    <h3 id="approving">4.3 Approving Updates</h3>
+    <p>To approve property data changes:</p>
+    <ol>
+        <li>Log in with a role that has "approve" permission (Assessor or ITAdmin)</li>
+        <li>Review the changes as described in the previous section</li>
+        <li>If the changes are correct, click the "Approve" button next to the file</li>
+        <li>The system will:
+            <ul>
+                <li>Mark the file as "APPROVED" in the staging area</li>
+                <li>Add a record to the audit log</li>
+                <li>Apply the changes to the property data</li>
+            </ul>
+        </li>
+    </ol>
+
+    <div class="warning">
+        <strong>Warning:</strong> Approval cannot be undone except through the rollback process. Be sure to verify all changes before approving.
+    </div>
+
+    <h3 id="exporting">4.4 Exporting Logs</h3>
+    <p>For audit and compliance purposes, you can export logs of all system activity:</p>
+    <ol>
+        <li>Log in with a role that has "export" permission (ITAdmin)</li>
+        <li>Click the "Export Logs" button</li>
+        <li>The system will generate a CSV file containing:
+            <ul>
+                <li>All file uploads with timestamps</li>
+                <li>File hashes for verification</li>
+                <li>Property IDs</li>
+                <li>Current status (PENDING, APPROVED, etc.)</li>
+                <li>User information</li>
+            </ul>
+        </li>
+        <li>The CSV file will download to your computer</li>
+    </ol>
+
+    <h3 id="rollback">4.5 Rolling Back Changes</h3>
+    <p>If an error is discovered after approval, you can roll back the changes:</p>
+    <ol>
+        <li>Log in with a role that has "rollback" permission (ITAdmin)</li>
+        <li>Navigate to the "Rollback" tab</li>
+        <li>Enter the Upload ID of the approved change you want to roll back</li>
+        <li>Click the "Rollback" button</li>
+        <li>The system will:
+            <ul>
+                <li>Remove the change from the approved audit log</li>
+                <li>Add a record to the rollback history</li>
+                <li>Revert the property data to its previous state</li>
+            </ul>
+        </li>
+    </ol>
+
+    <div class="note">
+        <strong>Note:</strong> All rollback activities are logged for compliance purposes. The rollback history can be viewed in the "Rollback History" tab.
+    </div>
+
+    <h2 id="best-practices">5. Best Practices</h2>
+    <ul>
+        <li><strong>Regular Backups:</strong> Export logs regularly for backup purposes</li>
+        <li><strong>Verification:</strong> Always review differences before approving changes</li>
+        <li><strong>Separation of Duties:</strong> Maintain role separation - have different people upload and approve changes</li>
+        <li><strong>Documentation:</strong> Keep records of why changes were made and who authorized them</li>
+        <li><strong>Testing:</strong> Test complex changes in a staging environment before applying them to production</li>
+    </ul>
+
+    <h2 id="troubleshooting">6. Troubleshooting</h2>
+    
+    <h3>Common Issues and Solutions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Issue</th>
+                <th>Possible Cause</th>
+                <th>Solution</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Unable to access dashboard</td>
+                <td>Application not running or port conflict</td>
+                <td>Check if the application is running. Try restarting the application.</td>
+            </tr>
+            <tr>
+                <td>Authentication error</td>
+                <td>Incorrect token format or unauthorized user</td>
+                <td>Ensure you're using the correct format (CO\username) and that your user has been added to the system.</td>
+            </tr>
+            <tr>
+                <td>File upload fails</td>
+                <td>Invalid file format or size limit</td>
+                <td>Ensure the file is in the correct format and under the size limit (typically 10MB).</td>
+            </tr>
+            <tr>
+                <td>Cannot approve changes</td>
+                <td>Insufficient permissions</td>
+                <td>You must have the "approve" permission. Contact your ITAdmin if you need this permission.</td>
+            </tr>
+            <tr>
+                <td>Docker container not starting</td>
+                <td>Docker not running or port conflict</td>
+                <td>Ensure Docker is running and port 8000 is not used by another application.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="contact">7. Contact Support</h2>
+    <p>If you encounter issues that cannot be resolved using this guide, please contact the Benton County IT support team:</p>
+    <ul>
+        <li>Email: it-support@bentoncounty.gov</li>
+        <li>Phone: (555) 123-4567</li>
+        <li>Help Desk Hours: Monday-Friday, 8:00 AM - 5:00 PM</li>
+    </ul>
+
+    <p>When contacting support, please provide the following information:</p>
+    <ul>
+        <li>Your name and role</li>
+        <li>A detailed description of the issue</li>
+        <li>Steps to reproduce the problem</li>
+        <li>Any error messages you received</li>
+        <li>The approximate time when the issue occurred</li>
+    </ul>
+
+    <div class="footer">
+        <p>BentonGeoPro Sync Dashboard User Guide | Version 1.0.0</p>
+        <p>© 2025 Benton County Assessor's Office. All rights reserved.</p>
+    </div>
+</body>
+</html>

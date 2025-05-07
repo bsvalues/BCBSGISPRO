@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  sync_dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/server/logs
+      - ./uploads:/app/server/uploads
+    restart: unless-stopped
+    environment:
+      - TZ=America/Los_Angeles
+      - LOG_LEVEL=INFO
