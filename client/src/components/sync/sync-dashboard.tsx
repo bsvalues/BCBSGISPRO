@@ -34,7 +34,7 @@ import {
   AlertTitle 
 } from '../../components/ui/alert';
 import { 
-  FileUpload, 
+  File, 
   Upload, 
   FileCheck, 
   CheckCircle2, 
@@ -301,7 +301,7 @@ const SyncDashboard: React.FC = () => {
                 <CardContent>
                   <div className="grid gap-4">
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                      <FileUpload className="mx-auto h-12 w-12 text-gray-400" />
+                      <File className="mx-auto h-12 w-12 text-gray-400" />
                       <p className="mt-2 text-sm text-gray-500">
                         Click to upload or drag and drop
                       </p>
@@ -327,7 +327,7 @@ const SyncDashboard: React.FC = () => {
                   </Button>
                   <div className="space-x-2">
                     <Button 
-                      variant="secondary" 
+                      variant="outline" 
                       onClick={handleStage} 
                       disabled={!selectedFile || stageMutation.isPending}
                     >
@@ -338,7 +338,7 @@ const SyncDashboard: React.FC = () => {
                       onClick={handleImport} 
                       disabled={!selectedFile || importMutation.isPending}
                     >
-                      {importMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <FileUpload className="mr-2 h-4 w-4" />}
+                      {importMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <File className="mr-2 h-4 w-4" />}
                       Direct Import
                     </Button>
                   </div>

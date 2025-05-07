@@ -5261,6 +5261,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register Agent Tools Routes
   app.use('/api/agent-tools', agentToolsRoutes);
   
+  // Register Sync Dashboard Routes
+  const syncRoutes = await import('./routes/sync-routes').then(m => m.default);
+  app.use('/api/sync', syncRoutes);
+  
   // Register AI-enhanced legal description routes
   // Register legal description routes
   registerLegalDescriptionRoutes(app);
