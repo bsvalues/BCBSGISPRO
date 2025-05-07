@@ -5257,6 +5257,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const mapElementsAdvisorRoutes = await import('./routes/map-elements-advisor').then(m => m.default);
   app.use('/api/map-elements-advisor', mapElementsAdvisorRoutes);
   
+  // Register Agent Tools Routes
+  app.use('/api/agent-tools', agentToolsRoutes);
+  
   // Register AI-enhanced legal description routes
   // Register legal description routes
   registerLegalDescriptionRoutes(app);
