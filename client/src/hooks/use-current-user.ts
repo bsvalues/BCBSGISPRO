@@ -1,52 +1,49 @@
-import { useCallback, useState, useEffect } from 'react';
+/**
+ * Current User Hook
+ * 
+ * A hook to access the current authenticated user information.
+ */
+
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-// Current user interface
 interface User {
   id: number;
   username: string;
   email: string;
   fullName: string | null;
-  lastLogin: string | null;
 }
 
-/**
- * Hook to get and manage the current logged-in user
- */
 export function useCurrentUser() {
   const [user, setUser] = useState<User | null>(null);
-  
-  // Fetch current user data
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/user/current'],
-    queryFn: async () => {
-      try {
-        const response = await fetch('/api/user/current');
-        if (!response.ok) {
-          if (response.status === 401) {
-            // Not authenticated
-            return null;
-          }
-          throw new Error(`Failed to fetch current user: ${response.statusText}`);
-        }
-        return response.json();
-      } catch (error) {
-        console.error('Error fetching current user:', error);
-        return null;
-      }
-    }
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Query for user data
+  const { data, isError, isLoading: queryLoading, refetch } = useQuery({
+    queryKey: ['/api/auth/me'],
+    retry: false
   });
-  
-  // Update user state when data changes
+
+  // Update local state when query completes
   useEffect(() => {
-    if (data) {
+    if (data && !isError) {
       setUser(data);
-    } else {
+      setIsLoading(false);
+      setError(null);
+    } else if (isError) {
       setUser(null);
+      setIsLoading(false);
+      setError(new Error('Failed to fetch user data'));
+    } else if (!queryLoading) {
+      // No data but no error - user is not authenticated
+      setUser(null);
+      setIsLoading(false);
+      setError(null);
     }
-  }, [data]);
-  
-  // Login function
+  }, [data, isError, queryLoading]);
+
+  // Handle user login
   const login = useCallback(async (username: string, password: string) => {
     try {
       const response = await fetch('/api/auth/login', {
@@ -54,48 +51,59 @@ export function useCurrentUser() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Login failed: ${response.statusText}`);
+        throw new Error('Login failed');
       }
-      
+
       const userData = await response.json();
       setUser(userData);
-      refetch(); // Refresh the current user data
-      return { success: true };
-    } catch (error) {
-      console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred during login'
-      };
+      await refetch();
+      return userData;
+    } catch (err) {
+      setError(err as Error);
+      throw err;
     }
   }, [refetch]);
-  
-  // Logout function
+
+  // Handle user logout
   const logout = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/logout', {
-        method: 'POST'
+        method: 'POST',
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Logout failed: ${response.statusText}`);
+        throw new Error('Logout failed');
       }
-      
+
       setUser(null);
-      return { success: true };
-    } catch (error) {
-      console.error('Logout error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred during logout'
-      };
+      await refetch();
+      return true;
+    } catch (err) {
+      setError(err as Error);
+      throw err;
     }
-  }, []);
-  
+  }, [refetch]);
+
+  // For development - mock a user if none exists
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && !isLoading && !user) {
+      // Create a mock user for development if needed
+      const mockUser = {
+        id: 1,
+        username: 'demo_user',
+        email: 'demo@example.com',
+        fullName: 'Demo User'
+      };
+      setUser(mockUser);
+    }
+  }, [isLoading, user]);
+
   return {
     user,
     isLoading,

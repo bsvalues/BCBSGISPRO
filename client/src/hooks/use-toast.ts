@@ -1,80 +1,47 @@
-import { useState, useEffect } from "react";
-import { Toast, ToastProps } from "../components/ui/toast";
+/**
+ * Toast Hook
+ * 
+ * A hook for displaying toast notifications.
+ */
 
-// Define a unique ID for each toast
-let toastIdCounter = 0;
+import { 
+  Toast,
+  ToastActionElement, 
+  ToastProps 
+} from "../components/ui/toast";
 
-// Define the toast interface with an ID
-export type ToastType = ToastProps & { id: string };
+import {
+  useToast as useToastPrimitive
+} from "../components/ui/use-toast";
 
-// Create a state manager for toasts (quasi-store pattern)
-type ToastStore = {
-  toasts: ToastType[];
-  addToast: (toast: ToastProps) => void;
-  removeToast: (id: string) => void;
-  updateToast: (id: string, toast: Partial<ToastProps>) => void;
-};
+export type ToastVariant = 'default' | 'destructive' | 'success' | 'warning' | 'info';
 
-const toastStore: ToastStore = {
-  toasts: [],
-  addToast: (toast: ToastProps) => {
-    const id = `toast-${toastIdCounter++}`;
-    toastStore.toasts = [...toastStore.toasts, { ...toast, id }];
-    notifyListeners();
-    
-    // Auto-dismiss the toast if duration is specified
-    if (toast.duration !== undefined && toast.duration > 0) {
-      setTimeout(() => {
-        toastStore.removeToast(id);
-      }, toast.duration);
-    }
-    
-    return id;
-  },
-  removeToast: (id: string) => {
-    toastStore.toasts = toastStore.toasts.filter((t) => t.id !== id);
-    notifyListeners();
-  },
-  updateToast: (id: string, toast: Partial<ToastProps>) => {
-    toastStore.toasts = toastStore.toasts.map((t) =>
-      t.id === id ? { ...t, ...toast } : t
-    );
-    notifyListeners();
-  },
-};
+type ToastOptions = Partial<
+  Pick<Toast, "id" | "duration" | "className"> & {
+    variant: ToastVariant;
+    action: ToastActionElement;
+    description: React.ReactNode;
+    title: React.ReactNode;
+  }
+>;
 
-// Listeners for store updates
-const listeners: Array<() => void> = [];
-
-function notifyListeners() {
-  listeners.forEach((listener) => listener());
-}
-
-// Hook to use the toast store
+/**
+ * A hook for displaying toast notifications
+ * 
+ * @returns The toast API
+ */
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastType[]>(toastStore.toasts);
-
-  useEffect(() => {
-    // Subscribe to store updates
-    const handleChange = () => {
-      setToasts([...toastStore.toasts]);
-    };
-    
-    listeners.push(handleChange);
-    
-    // Cleanup on unmount
-    return () => {
-      const index = listeners.indexOf(handleChange);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
-    };
-  }, []);
+  const toast = useToastPrimitive();
 
   return {
-    toasts,
-    toast: toastStore.addToast,
-    dismiss: toastStore.removeToast,
-    update: toastStore.updateToast,
+    ...toast,
+    toast: (options: ToastOptions) => {
+      const { variant, ...rest } = options;
+      
+      return toast.toast({
+        ...rest,
+        variant: variant as ToastProps['variant'],
+      });
+    }
   };
 }

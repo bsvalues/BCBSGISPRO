@@ -1,111 +1,47 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
-import { demoUsers } from '../data/demo-property-data';
+import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { useCurrentUser } from '../hooks/use-current-user';
 
-// Define the user type
-export interface User {
-  id: string;
-  username: string;
-  fullName: string;
-  role: string;
-  permissions: string[];
-}
-
-// Define the auth context type
+// Define the Authentication Context interface
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
+  isLoading: boolean;
   isAuthenticated: boolean;
-  isAuthenticating: boolean;
-  login: (username: string, password: string) => void;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<any>;
+  logout: () => Promise<boolean>;
 }
 
 // Create the context with a default value
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  isLoading: true,
   isAuthenticated: false,
-  isAuthenticating: false,
-  login: () => {},
-  logout: () => {},
+  login: async () => null,
+  logout: async () => false
 });
 
-// Custom hook to use the auth context
+// Export the hook to use this context
 export const useAuth = () => useContext(AuthContext);
 
-// Auth provider component
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [, setLocation] = useLocation();
-  
-  // Check for existing session on mount
+// Provider component
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user, isLoading, login, logout } = useCurrentUser();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Update authentication state when user data changes
   useEffect(() => {
-    const storedUser = localStorage.getItem('bentonGeoPro_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Failed to parse stored user:', error);
-        localStorage.removeItem('bentonGeoPro_user');
-      }
-    }
-  }, []);
-  
-  // Login function
-  const login = (username: string, password: string) => {
-    setIsAuthenticating(true);
-    
-    // Simulate API request with setTimeout
-    setTimeout(() => {
-      // Find user with matching credentials
-      const foundUser = demoUsers.find(
-        (user) => user.username === username && user.password === password
-      );
-      
-      if (foundUser) {
-        // Create user object without password
-        const authenticatedUser: User = {
-          id: foundUser.id,
-          username: foundUser.username,
-          fullName: foundUser.fullName,
-          role: foundUser.role,
-          permissions: foundUser.permissions || [],
-        };
-        
-        // Set user in state and localStorage
-        setUser(authenticatedUser);
-        localStorage.setItem('bentonGeoPro_user', JSON.stringify(authenticatedUser));
-        
-        // Redirect to dashboard
-        setLocation('/dashboard');
-      } else {
-        console.error('Invalid credentials');
-        // In a real app, would show an error message
-      }
-      
-      setIsAuthenticating(false);
-    }, 800); // Simulate network delay
+    setIsAuthenticated(!!user);
+  }, [user]);
+
+  // Context value
+  const value = {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    logout
   };
-  
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('bentonGeoPro_user');
-    setLocation('/');
-  };
-  
-  // Provide auth context to children
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isAuthenticating,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthContext;

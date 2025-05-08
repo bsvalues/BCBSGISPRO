@@ -1,96 +1,80 @@
 /**
- * AI Agent System Context
+ * Agent System Context
  * 
- * This context provides application-wide access to the AI agent system,
- * allowing components to interact with various AI agents via WebSocket.
+ * This context provides access to the AI agent system throughout the application,
+ * managing agent state, requests, and responses.
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useWebSocketContext } from './websocket-context';
-import { useToast } from '@/hooks/use-toast';
-import { useCurrentUser } from '@/hooks/use-current-user';
+import { useToast } from '../hooks/use-toast';
+import { useCurrentUser } from '../hooks/use-current-user';
 
-// Types for agent interactions
-export interface AgentRequest {
-  query: string;
-  context?: string;
-  agentId: string;
-  requestId: string;
-  tools?: string[];
-}
+// Agent types available in the system
+export type AgentType = 'master_control' | 'data_validation' | 'legal_compliance' | 'map_intelligence';
 
+// Agent response interface
 export interface AgentResponse {
-  response: string;
   requestId: string;
   agentId: string;
+  response: string;
+  userId: number;
   timestamp: string;
   metadata?: Record<string, any>;
 }
 
-// Agent types
-export type AgentType = 
-  | 'data_validation' 
-  | 'legal_compliance' 
-  | 'map_intelligence' 
-  | 'master_control';
-
-// Context interface
-interface AgentSystemContextValue {
-  // Request handling
-  requestAgentAssistance: (
-    agentType: AgentType, 
-    query: string, 
-    context?: string,
-    tools?: string[]
-  ) => string | null;
-  
-  // Response handling
-  lastResponse: AgentResponse | null;
-  responses: Map<string, AgentResponse>;
-  clearResponses: () => void;
-  
-  // Agent system state
-  isProcessing: boolean;
+// Agent system context interface
+interface AgentSystemContextProps {
   isAvailable: boolean;
-  
-  // Active agent tracking
+  isProcessing: boolean;
   activeAgents: AgentType[];
+  lastResponse: AgentResponse | null;
+  responses: Record<string, AgentResponse>;
+  requestAgentAssistance: (agentId: string, query: string, context?: string, tools?: string[]) => string | null;
+  clearResponses: () => void;
 }
 
 // Create context with default values
-const AgentSystemContext = createContext<AgentSystemContextValue | null>(null);
+const AgentSystemContext = createContext<AgentSystemContextProps>({
+  isAvailable: false,
+  isProcessing: false,
+  activeAgents: [],
+  lastResponse: null,
+  responses: {},
+  requestAgentAssistance: () => null,
+  clearResponses: () => {}
+});
 
-// Props for the provider component
-interface AgentSystemProviderProps {
-  children: React.ReactNode;
-}
+// Hook to use the agent system context
+export const useAgentSystem = () => useContext(AgentSystemContext);
 
-// Provider component
-export const AgentSystemProvider: React.FC<AgentSystemProviderProps> = ({ children }) => {
+export const AgentSystemProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+  // Get WebSocket context
   const { isConnected, sendMessage, addMessageListener } = useWebSocketContext();
   const { toast } = useToast();
   const { user } = useCurrentUser();
   
   // State
-  const [lastResponse, setLastResponse] = useState<AgentResponse | null>(null);
-  const [responses, setResponses] = useState<Map<string, AgentResponse>>(new Map());
+  const [isAvailable, setIsAvailable] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeAgents, setActiveAgents] = useState<AgentType[]>([]);
+  const [activeAgents, setActiveAgents] = useState<AgentType[]>([
+    'master_control',
+    'data_validation',
+    'legal_compliance',
+    'map_intelligence'
+  ]);
+  const [lastResponse, setLastResponse] = useState<AgentResponse | null>(null);
+  const [responses, setResponses] = useState<Record<string, AgentResponse>>({});
   
-  // Generate unique request ID
+  // Generate a unique request ID
   const generateRequestId = useCallback(() => {
-    return `req_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
+    return `req_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
   }, []);
   
-  // Check if agent system is available
-  const isAvailable = useMemo(() => {
-    return isConnected && !isProcessing && !!user?.id;
-  }, [isConnected, isProcessing, user]);
-  
-  // Send a request to an AI agent
+  // Request assistance from an agent
   const requestAgentAssistance = useCallback((
-    agentType: AgentType,
-    query: string,
+    agentId: string, 
+    query: string, 
     context?: string,
     tools?: string[]
   ) => {
@@ -98,140 +82,135 @@ export const AgentSystemProvider: React.FC<AgentSystemProviderProps> = ({ childr
       toast({
         title: 'Connection Error',
         description: 'Cannot connect to agent system. Please try again later.',
-        variant: 'destructive',
-        duration: 5000
+        variant: 'destructive'
       });
       return null;
     }
     
-    // Create request object
+    // Generate request ID
     const requestId = generateRequestId();
-    const request: AgentRequest = {
-      query,
-      context,
-      agentId: agentType,
-      requestId,
-      tools
-    };
+    
+    // Set processing state
+    setIsProcessing(true);
     
     // Send request over WebSocket
     sendMessage({
       type: 'agent_request',
+      userId: user.id,
+      agentId,
       content: {
-        ...request,
-        userId: user.id
+        requestId,
+        query,
+        context,
+        userId: user.id,
+        agentId,
+        tools
       }
     });
     
-    // Update processing state
-    setIsProcessing(true);
-    
-    // Show toast notification
-    toast({
-      title: `${agentType.replace('_', ' ')} Agent`,
-      description: 'Processing your request...',
-      variant: 'default',
-      duration: 3000
-    });
-    
     return requestId;
-  }, [isConnected, user, generateRequestId, sendMessage, toast]);
+  }, [isConnected, generateRequestId, sendMessage, user, toast]);
   
-  // Handle agent responses
-  const handleAgentMessage = useCallback((data: any) => {
-    // Only process agent responses
-    if (data.type !== 'agent_response' || !data.content) return;
-    
-    const response = data.content as AgentResponse;
-    
-    // Update processing state
-    setIsProcessing(false);
-    
-    // Update response state
-    setLastResponse(response);
-    setResponses(prev => {
-      const newMap = new Map(prev);
-      newMap.set(response.requestId, response);
-      return newMap;
-    });
-    
-    // Show toast for response received
-    toast({
-      title: `${response.agentId.replace('_', ' ')} Agent`,
-      description: 'Response received',
-      variant: 'success',
-      duration: 3000
-    });
-  }, [toast]);
-  
-  // Clear responses
+  // Clear all stored responses
   const clearResponses = useCallback(() => {
-    setResponses(new Map());
+    setResponses({});
     setLastResponse(null);
   }, []);
   
-  // Setup WebSocket message listener
-  useEffect(() => {
-    const cleanup = addMessageListener(handleAgentMessage);
-    return cleanup;
-  }, [addMessageListener, handleAgentMessage]);
+  // Process WebSocket messages related to agent responses
+  const handleAgentMessage = useCallback((data: any) => {
+    if (data.type === 'agent_response' && data.content) {
+      const response = data.content as AgentResponse;
+      
+      // Store response
+      setResponses(prev => ({
+        ...prev,
+        [response.requestId]: response
+      }));
+      
+      // Set as last response
+      setLastResponse(response);
+      
+      // Reset processing state
+      setIsProcessing(false);
+    }
+    else if (data.type === 'agent_status') {
+      if (data.content?.step === 'error') {
+        // Show error notification
+        toast({
+          title: 'Agent Error',
+          description: data.content.message || 'An error occurred with the agent',
+          variant: 'destructive'
+        });
+        
+        // Reset processing state if error
+        setIsProcessing(false);
+      }
+    }
+    else if (data.type === 'agent_system_status') {
+      // Update agent system availability
+      setIsAvailable(data.content?.available || false);
+      
+      // Update active agents if provided
+      if (data.content?.activeAgents) {
+        setActiveAgents(data.content.activeAgents);
+      }
+    }
+  }, [toast]);
   
-  // Discover active agents
+  // Add WebSocket message listener
   useEffect(() => {
     if (isConnected) {
-      // Request active agents list
+      const cleanup = addMessageListener(handleAgentMessage);
+      
+      // Request initial agent system status
       sendMessage({
-        type: 'agent_discover',
-        content: {
-          userId: user?.id
-        }
+        type: 'agent_system_status_request',
+        userId: user?.id || 0
       });
       
-      // For now, assume all agents are active
-      setActiveAgents([
-        'data_validation',
-        'legal_compliance',
-        'map_intelligence',
-        'master_control'
-      ]);
+      return cleanup;
     }
-  }, [isConnected, sendMessage, user]);
+    
+    return () => {};
+  }, [isConnected, addMessageListener, handleAgentMessage, sendMessage, user]);
   
-  // Create context value
-  const contextValue = useMemo(() => ({
-    requestAgentAssistance,
+  // Check if Anthropic API key is available
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (!import.meta.env.VITE_ANTHROPIC_API_KEY) {
+        toast({
+          title: 'API Key Missing',
+          description: 'Anthropic API key is not configured. Agent capabilities will be limited.',
+          variant: 'warning',
+          duration: 8000
+        });
+        
+        setIsAvailable(false);
+      } else {
+        setIsAvailable(true);
+      }
+    };
+    
+    checkApiKey();
+  }, [toast]);
+  
+  // Context value
+  const value = {
+    isAvailable,
+    isProcessing,
+    activeAgents,
     lastResponse,
     responses,
-    clearResponses,
-    isProcessing,
-    isAvailable,
-    activeAgents
-  }), [
     requestAgentAssistance,
-    lastResponse,
-    responses,
-    clearResponses,
-    isProcessing,
-    isAvailable,
-    activeAgents
-  ]);
+    clearResponses
+  };
   
   return (
-    <AgentSystemContext.Provider value={contextValue}>
+    <AgentSystemContext.Provider value={value}>
       {children}
     </AgentSystemContext.Provider>
   );
-};
-
-// Custom hook to use the agent system context
-export const useAgentSystem = () => {
-  const context = useContext(AgentSystemContext);
-  
-  if (!context) {
-    throw new Error('useAgentSystem must be used within an AgentSystemProvider');
-  }
-  
-  return context;
 };
 
 export default AgentSystemContext;
