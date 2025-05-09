@@ -173,8 +173,8 @@ export function MapEditor({
         setMeasurementResults({});
       });
       
-      mapInstance.on('draw.selectionchange', (e) => {
-        if (e.features.length > 0) {
+      mapInstance.on('draw.selectionchange', (e: { features?: { length: number }[] }) => {
+        if (e.features && e.features.length > 0) {
           updateMeasurements();
         } else {
           setMeasurementResults({});
@@ -443,7 +443,7 @@ export function MapEditor({
     const allFeatures = draw.current.getAll();
     if (allFeatures.features.length === 0) return;
     
-    const featureIds = allFeatures.features.map(f => f.id);
+    const featureIds = allFeatures.features.map(f => f.id).filter(id => typeof id === 'string') as string[];
     draw.current.delete(featureIds);
     
     setMeasurementResults({});
