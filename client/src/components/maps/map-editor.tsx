@@ -665,7 +665,7 @@ export function MapEditor({
                 <Switch 
                   id="parcels" 
                   checked={layerVisibility.parcels} 
-                  onCheckedChange={() => toggleLayer('parcels')} 
+                  onChange={() => toggleLayer('parcels')} 
                 />
               </div>
               
@@ -681,7 +681,7 @@ export function MapEditor({
                 <Switch 
                   id="zoning" 
                   checked={layerVisibility.zoning} 
-                  onCheckedChange={() => toggleLayer('zoning')} 
+                  onChange={() => toggleLayer('zoning')} 
                 />
               </div>
               
@@ -697,7 +697,7 @@ export function MapEditor({
                 <Switch 
                   id="roads" 
                   checked={layerVisibility.roads} 
-                  onCheckedChange={() => toggleLayer('roads')} 
+                  onChange={() => toggleLayer('roads')} 
                 />
               </div>
               
@@ -713,7 +713,7 @@ export function MapEditor({
                 <Switch 
                   id="water" 
                   checked={layerVisibility.water} 
-                  onCheckedChange={() => toggleLayer('water')} 
+                  onChange={() => toggleLayer('water')} 
                 />
               </div>
               
@@ -786,8 +786,8 @@ export function MapEditor({
                 Map Intelligence AI
                 <Button 
                   variant="ghost" 
-                  size="icon"
-                  className="h-5 w-5 ml-auto"
+                  size="sm"
+                  className="h-5 w-5 ml-auto p-0"
                 >
                   {showAIPanel ? (
                     <ChevronDownIcon className="h-4 w-4" />
@@ -847,7 +847,7 @@ export function MapEditor({
       <div className="absolute bottom-2 left-2 z-10">
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full bg-background/80">
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-full bg-background/80">
               <HelpCircle className="h-4 w-4" />
             </Button>
           </DialogTrigger>

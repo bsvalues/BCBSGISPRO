@@ -164,7 +164,6 @@ const MapEditorPage: React.FC = () => {
               defaultValue="edit" 
               value={currentTab}
               onValueChange={setCurrentTab}
-              className="flex-1 flex flex-col"
             >
               <TabsList className="mb-4">
                 <TabsTrigger value="edit">Edit Map</TabsTrigger>
