@@ -18,6 +18,7 @@ import AgentToolsPage from './pages/agent-tools-page';
 import SyncDashboardPage from './pages/sync-dashboard-page';
 import AchievementsPage from './pages/achievements';
 import AgentCollaborationDemo from './pages/agent-collaboration-demo';
+import MapEditorPage from './pages/map-editor-page';
 import { Toaster } from './components/ui/toaster';
 
 // Modern layout ensures consistent navigation across all pages
@@ -39,6 +40,7 @@ const App: React.FC = () => {
                   <Route path="/" component={LandingPage} />
                   <Route path="/dashboard" component={DemoDashboard} />
                   <Route path="/map" component={MapPage} />
+                  <Route path="/map-editor" component={MapEditorPage} />
                   <Route path="/benton-map" component={BentonCountyMapPage} />
                   <Route path="/legal-description" component={LegalDescriptionPage} />
                   <Route path="/documents" component={DemoDocumentClassification} />

@@ -22,9 +22,9 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/">
-                <a className="flex items-center">
+                <div className="flex items-center cursor-pointer">
                   <span className="text-xl font-bold text-primary">BentonGeoPro</span>
-                </a>
+                </div>
               </Link>
             </div>
             
@@ -32,6 +32,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
               <NavLink href="/" active={isActive('/')}>Home</NavLink>
               <NavLink href="/dashboard" active={isActive('/dashboard')}>Dashboard</NavLink>
               <NavLink href="/map" active={isActive('/map')}>Map</NavLink>
+              <NavLink href="/map-editor" active={isActive('/map-editor')}>Map Editor</NavLink>
               <NavLink href="/benton-map" active={isActive('/benton-map')}>Benton County GIS</NavLink>
               <NavLink href="/legal-description" active={isActive('/legal-description')}>Legal Description</NavLink>
               <NavLink href="/document-scanner" active={isActive('/document-scanner')}>Document Scanner</NavLink>
@@ -83,6 +84,7 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
                 <MobileNavLink href="/" active={isActive('/')}>Home</MobileNavLink>
                 <MobileNavLink href="/dashboard" active={isActive('/dashboard')}>Dashboard</MobileNavLink>
                 <MobileNavLink href="/map" active={isActive('/map')}>Map</MobileNavLink>
+                <MobileNavLink href="/map-editor" active={isActive('/map-editor')}>Map Editor</MobileNavLink>
                 <MobileNavLink href="/benton-map" active={isActive('/benton-map')}>Benton County GIS</MobileNavLink>
                 <MobileNavLink href="/legal-description" active={isActive('/legal-description')}>Legal Description</MobileNavLink>
                 <MobileNavLink href="/document-scanner" active={isActive('/document-scanner')}>Document Scanner</MobileNavLink>
