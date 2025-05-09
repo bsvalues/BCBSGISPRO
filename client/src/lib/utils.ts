@@ -27,3 +27,16 @@ export function formatCurrency(value: number, currency = 'USD', locale = 'en-US'
     maximumFractionDigits: 0,
   }).format(value)
 }
+
+/**
+ * Calculates a percentage value
+ * 
+ * @param value The current value
+ * @param total The total value
+ * @param decimals Number of decimal places to include (default: 1)
+ * @returns Calculated percentage as a number
+ */
+export function calculatePercentage(value: number, total: number, decimals = 1): number {
+  if (total === 0) return 0;
+  return parseFloat(((value / total) * 100).toFixed(decimals));
+}

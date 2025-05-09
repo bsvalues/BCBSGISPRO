@@ -2,40 +2,46 @@
  * Agent System Context
  * 
  * This context provides access to the AI agent system throughout the application,
- * managing agent state, requests, and responses.
+ * allowing components to interact with specialized agents and the Master Control Program (MCP).
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useWebSocketContext } from './websocket-context';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { useWebSocketContext, WebSocketMessage } from './websocket-context';
+import { AGENTS } from '../services/agent-collaboration-service';
 import { useToast } from '../hooks/use-toast';
-import { useCurrentUser } from '../hooks/use-current-user';
+import { check_secrets } from '../lib/api';
 
-// Agent types available in the system
-export type AgentType = 'master_control' | 'data_validation' | 'legal_compliance' | 'map_intelligence';
-
-// Agent response interface
+// Define the structure of agent response
 export interface AgentResponse {
   requestId: string;
   agentId: string;
+  query: string;
   response: string;
-  userId: number;
-  timestamp: string;
-  metadata?: Record<string, any>;
+  timestamp: Date;
+  metadata?: {
+    processing_time?: number;
+    routing?: {
+      primaryAgent: string;
+      secondaryAgents?: string[];
+      explanation: string;
+    }
+  }
 }
 
-// Agent system context interface
-interface AgentSystemContextProps {
+// Define the agent system context interface
+interface AgentSystemContextType {
   isAvailable: boolean;
   isProcessing: boolean;
-  activeAgents: AgentType[];
+  activeAgents: string[];
   lastResponse: AgentResponse | null;
   responses: Record<string, AgentResponse>;
-  requestAgentAssistance: (agentId: string, query: string, context?: string, tools?: string[]) => string | null;
+  requestAgentAssistance: (agentId: string, query: string, contextData?: string) => string | null;
   clearResponses: () => void;
 }
 
-// Create context with default values
-const AgentSystemContext = createContext<AgentSystemContextProps>({
+// Create the context
+const AgentSystemContext = createContext<AgentSystemContextType>({
   isAvailable: false,
   isProcessing: false,
   activeAgents: [],
@@ -45,158 +51,165 @@ const AgentSystemContext = createContext<AgentSystemContextProps>({
   clearResponses: () => {}
 });
 
-// Hook to use the agent system context
+// Hook for using the agent system context
 export const useAgentSystem = () => useContext(AgentSystemContext);
 
+// Provider component
 export const AgentSystemProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
-  // Get WebSocket context
+  // State
+  const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [activeAgents, setActiveAgents] = useState<string[]>(['master_control']);
+  const [responses, setResponses] = useState<Record<string, AgentResponse>>({});
+  const [lastResponse, setLastResponse] = useState<AgentResponse | null>(null);
+  
+  // Dependencies
   const { isConnected, sendMessage, addMessageListener } = useWebSocketContext();
   const { toast } = useToast();
-  const { user } = useCurrentUser();
   
-  // State
-  const [isAvailable, setIsAvailable] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [activeAgents, setActiveAgents] = useState<AgentType[]>([
-    'master_control',
-    'data_validation',
-    'legal_compliance',
-    'map_intelligence'
-  ]);
-  const [lastResponse, setLastResponse] = useState<AgentResponse | null>(null);
-  const [responses, setResponses] = useState<Record<string, AgentResponse>>({});
-  
-  // Generate a unique request ID
-  const generateRequestId = useCallback(() => {
-    return `req_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
-  }, []);
-  
-  // Request assistance from an agent
-  const requestAgentAssistance = useCallback((
-    agentId: string, 
-    query: string, 
-    context?: string,
-    tools?: string[]
-  ) => {
-    if (!isConnected || !user?.id) {
-      toast({
-        title: 'Connection Error',
-        description: 'Cannot connect to agent system. Please try again later.',
-        variant: 'destructive'
-      });
-      return null;
-    }
-    
-    // Generate request ID
-    const requestId = generateRequestId();
-    
-    // Set processing state
-    setIsProcessing(true);
-    
-    // Send request over WebSocket
-    sendMessage({
-      type: 'agent_request',
-      userId: user.id,
-      agentId,
-      content: {
-        requestId,
-        query,
-        context,
-        userId: user.id,
-        agentId,
-        tools
-      }
-    });
-    
-    return requestId;
-  }, [isConnected, generateRequestId, sendMessage, user, toast]);
-  
-  // Clear all stored responses
-  const clearResponses = useCallback(() => {
-    setResponses({});
-    setLastResponse(null);
-  }, []);
-  
-  // Process WebSocket messages related to agent responses
-  const handleAgentMessage = useCallback((data: any) => {
-    if (data.type === 'agent_response' && data.content) {
-      const response = data.content as AgentResponse;
-      
-      // Store response
-      setResponses(prev => ({
-        ...prev,
-        [response.requestId]: response
-      }));
-      
-      // Set as last response
-      setLastResponse(response);
-      
-      // Reset processing state
-      setIsProcessing(false);
-    }
-    else if (data.type === 'agent_status') {
-      if (data.content?.step === 'error') {
-        // Show error notification
-        toast({
-          title: 'Agent Error',
-          description: data.content.message || 'An error occurred with the agent',
-          variant: 'destructive'
-        });
+  // Check for API keys
+  useEffect(() => {
+    const checkApiKey = async () => {
+      try {
+        const hasSecret = await check_secrets(['ANTHROPIC_API_KEY']);
+        setIsAvailable(hasSecret.ANTHROPIC_API_KEY);
         
-        // Reset processing state if error
-        setIsProcessing(false);
+        if (!hasSecret.ANTHROPIC_API_KEY) {
+          console.warn('Anthropic API key not configured');
+        }
+      } catch (error) {
+        console.error('Error checking API key:', error);
+        setIsAvailable(false);
       }
-    }
-    else if (data.type === 'agent_system_status') {
-      // Update agent system availability
-      setIsAvailable(data.content?.available || false);
-      
-      // Update active agents if provided
-      if (data.content?.activeAgents) {
-        setActiveAgents(data.content.activeAgents);
-      }
-    }
-  }, [toast]);
+    };
+    
+    checkApiKey();
+  }, []);
   
-  // Add WebSocket message listener
+  // Listen for agent system status updates
   useEffect(() => {
     if (isConnected) {
-      const cleanup = addMessageListener(handleAgentMessage);
+      // Request agent system status
+      sendMessage({ type: 'agent_system_status_request' });
       
-      // Request initial agent system status
-      sendMessage({
-        type: 'agent_system_status_request',
-        userId: user?.id || 0
+      // Set up listener for agent-related WebSocket messages
+      const cleanup = addMessageListener((message: WebSocketMessage) => {
+        // Handle agent system status updates
+        if (message.type === 'agent_system_status') {
+          setIsAvailable(message.content?.available ?? false);
+          setActiveAgents(message.content?.activeAgents ?? ['master_control']);
+        }
+        
+        // Handle agent status updates
+        else if (message.type === 'agent_status') {
+          const { requestId, step, agentId, message: responseMessage, metadata } = message.content || {};
+          
+          // Handle processing status
+          if (step === 'processing') {
+            setIsProcessing(true);
+          }
+          // Handle completed responses
+          else if (step === 'completed' && requestId && agentId) {
+            // Format and store the response
+            const agentResponse: AgentResponse = {
+              requestId,
+              agentId,
+              query: responses[requestId]?.query || '',
+              response: responseMessage,
+              timestamp: new Date(),
+              metadata
+            };
+            
+            // Update responses
+            setResponses(prev => ({
+              ...prev,
+              [requestId]: agentResponse
+            }));
+            
+            // Set as last response
+            setLastResponse(agentResponse);
+            
+            // Mark processing as complete
+            setIsProcessing(false);
+          }
+          // Handle errors
+          else if (step === 'error') {
+            setIsProcessing(false);
+            
+            // Show error toast
+            toast({
+              title: 'Error',
+              description: responseMessage || 'An error occurred while processing your request.',
+              variant: 'destructive'
+            });
+          }
+        }
       });
       
       return cleanup;
     }
     
     return () => {};
-  }, [isConnected, addMessageListener, handleAgentMessage, sendMessage, user]);
+  }, [isConnected, sendMessage, addMessageListener, responses, toast]);
   
-  // Check if Anthropic API key is available
-  useEffect(() => {
-    const checkApiKey = async () => {
-      if (!import.meta.env.VITE_ANTHROPIC_API_KEY) {
-        toast({
-          title: 'API Key Missing',
-          description: 'Anthropic API key is not configured. Agent capabilities will be limited.',
-          variant: 'warning',
-          duration: 8000
-        });
-        
-        setIsAvailable(false);
-      } else {
-        setIsAvailable(true);
+  /**
+   * Request assistance from an agent
+   * 
+   * @param agentId The ID of the agent to request assistance from
+   * @param query The user's query
+   * @param contextData Optional context data
+   * @returns The request ID if successful, otherwise null
+   */
+  const requestAgentAssistance = (agentId: string, query: string, contextData?: string): string | null => {
+    if (!isConnected || !isAvailable || isProcessing) {
+      return null;
+    }
+    
+    // Generate a request ID
+    const requestId = uuidv4();
+    
+    // Create a request message
+    const requestMessage: WebSocketMessage = {
+      type: 'agent_request',
+      agentId,
+      content: {
+        requestId,
+        query,
+        context: contextData
       }
     };
     
-    checkApiKey();
-  }, [toast]);
+    // Store the query
+    setResponses(prev => ({
+      ...prev,
+      [requestId]: {
+        requestId,
+        agentId,
+        query,
+        response: '',
+        timestamp: new Date()
+      }
+    }));
+    
+    // Set processing state
+    setIsProcessing(true);
+    
+    // Send the request
+    sendMessage(requestMessage);
+    
+    return requestId;
+  };
+  
+  /**
+   * Clear all responses
+   */
+  const clearResponses = () => {
+    setResponses({});
+    setLastResponse(null);
+  };
   
   // Context value
-  const value = {
+  const contextValue: AgentSystemContextType = {
     isAvailable,
     isProcessing,
     activeAgents,
@@ -207,10 +220,8 @@ export const AgentSystemProvider: React.FC<{children: React.ReactNode}> = ({ chi
   };
   
   return (
-    <AgentSystemContext.Provider value={value}>
+    <AgentSystemContext.Provider value={contextValue}>
       {children}
     </AgentSystemContext.Provider>
   );
 };
-
-export default AgentSystemContext;
