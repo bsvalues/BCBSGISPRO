@@ -5270,6 +5270,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const achievementsRoutes = await import('./routes/achievements').then(m => m.default);
   app.use('/api/achievements', achievementsRoutes);
   
+  // Register secrets management routes
+  const secretsRoutes = await import('./routes/secrets').then(m => m.default);
+  app.use('/api', secretsRoutes);
+  
   // Register AI-enhanced legal description routes
   // Register legal description routes
   registerLegalDescriptionRoutes(app);
@@ -5360,6 +5364,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const data = await response.json();
     res.status(response.status).json(data);
+  }));
+  
+  // Endpoint to check if environment secrets exist
+  app.post('/api/check-secrets', asyncHandler(async (req, res) => {
+    const { secretKeys } = req.body;
+    
+    // Validate input
+    if (!secretKeys || !Array.isArray(secretKeys)) {
+      return res.status(400).json({ 
+        error: 'Bad Request',
+        message: 'secretKeys must be an array of strings'
+      });
+    }
+    
+    // Check if each secret exists in the environment
+    const secretStatus: Record<string, boolean> = {};
+    for (const key of secretKeys) {
+      // Only check valid string keys
+      if (typeof key === 'string') {
+        // Check if the environment variable exists and has a value
+        secretStatus[key] = !!process.env[key]; 
+      }
+    }
+    
+    // Return the status of each requested secret
+    res.json(secretStatus);
   }));
   
   // WebSocket server is already initialized above with WebSocketServerManager
