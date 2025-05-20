@@ -1,32 +1,50 @@
-# Data Directory
+# TerraFusion County Data Directory
 
-This directory contains county data files for the TerraFusion platform, including sample and demo data.
+This directory contains data files for counties integrated with the TerraFusion platform. Each county has its own subdirectory containing organized data files.
 
-## Structure
-
-Data is organized by county, with each county having its own directory:
+## Directory Structure
 
 ```
-/data/
-  /benton/     # Benton County data
-  /example/    # Example County data (for testing)
-  /templates/  # Templates for new county data
+data/
+├── <county_name>/
+│   ├── parcels/     # Parcel boundary and attribute data
+│   ├── sales/       # Property sale history records
+│   ├── taxcodes/    # Tax code area definitions
+│   ├── plats/       # Plat maps and subdivisions
+│   ├── owners/      # Ownership records (restricted access)
+│   └── documents/   # Associated legal documents
+└── ...
 ```
 
-## Supported Formats
+## Data Types and Formats
 
-- CSV (.csv): For tabular data
-- Shapefile (.shp, .shx, .dbf, etc.): For vector spatial data
-- GeoDatabase (.gdb): For ESRI GeoDatabase format
-- GeoJSON (.geojson): For open standard spatial data
+### Parcels
+- GeoJSON files containing parcel boundaries and attributes
+- CSV files with parcel attributes for non-spatial data
+- Shapefile exports (optional)
 
-## Adding New County Data
+### Sales
+- CSV files containing sales history records
+- Each record includes sale date, price, buyer/seller information, and parcel identifier
 
-1. Create a new directory with the county name
-2. Add data files to the directory
-3. Use the ETL module to import and normalize the data
-4. Verify the import using the CartographyModule
+### Tax Codes
+- CSV files defining tax code areas and rates
+- GeoJSON files for tax code area boundaries
 
-## Sample Data
+### Plats
+- CSV index of plat records
+- PDF scans of recorded plats
+- GeoJSON files for plat boundaries
 
-Sample data is provided for demonstration and testing purposes. Do not use sample data for production purposes.
+## Data Import Guidelines
+
+1. Place raw data files in the appropriate county directory
+2. Use the County Onboarding Workflow to process and validate data
+3. Track all data imports using the ETL logging system
+4. Document data sources and update frequency in county-specific README files
+
+## Security and Access Control
+
+- Access to this data directory should be restricted based on user role
+- All data imports and exports should be logged for audit purposes
+- Sensitive information such as owner details should be access-controlled
