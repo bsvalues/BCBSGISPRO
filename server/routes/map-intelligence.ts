@@ -109,7 +109,9 @@ ${mapState.features.map((feature, index) =>
   });
 
   // Extract the suggestions
-  const suggestions = message.content[0].text;
+  const suggestions = message.content[0].type === 'text'
+    ? message.content[0].text
+    : 'Unable to generate suggestions';
 
   return res.json({ 
     suggestions,
@@ -165,7 +167,9 @@ router.post("/analyze", asyncHandler(async (req, res) => {
   });
 
   // Extract the analysis
-  const analysis = message.content[0].text;
+  const analysis = message.content[0].type === 'text'
+    ? message.content[0].text
+    : 'Unable to generate analysis';
 
   return res.json({ 
     analysis,

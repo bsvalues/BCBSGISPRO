@@ -42,6 +42,7 @@ import { useAgentSystem } from '../../context/agent-system-context';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { analyzeMapQuery, suggestMapImprovements, analyzeMapFeatures } from '../../services/map-intelligence-service';
 
 // Mapbox access token from environment
 const MAPBOX_TOKEN = (import.meta as any).env.VITE_MAPBOX_ACCESS_TOKEN || '';
@@ -502,34 +503,116 @@ export function MapEditor({
     });
   };
   
+  // State for AI responses
+  const [aiResponse, setAiResponse] = useState<string>('');
+  const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
+  
   // Handle AI query submission
-  const handleAIQuery = () => {
-    if (!isAIAvailable || !aiQuery) return;
+  const handleAIQuery = async () => {
+    if (!aiQuery) return;
     
-    // Get current map state for context
-    const mapState = draw.current ? draw.current.getAll() : null;
-    const viewState = map.current ? {
-      center: map.current.getCenter(),
-      zoom: map.current.getZoom(),
-      bearing: map.current.getBearing(),
-      pitch: map.current.getPitch()
-    } : null;
+    setIsLoadingAI(true);
     
-    // Create context object
-    const context = JSON.stringify({
-      mapState,
-      viewState,
-      layers: layerVisibility,
-      lastAction
-    });
+    try {
+      // Get current map state for context
+      const mapState = draw.current ? draw.current.getAll() : null;
+      const viewState = map.current ? {
+        center: map.current.getCenter(),
+        zoom: map.current.getZoom(),
+        bearing: map.current.getBearing(),
+        pitch: map.current.getPitch()
+      } : null;
+      
+      // Create context object
+      const context = {
+        mapState,
+        viewState,
+        layers: layerVisibility,
+        lastAction
+      };
+      
+      // Use the map intelligence service directly with Claude AI
+      const response = await analyzeMapQuery(aiQuery, context);
+      setAiResponse(response);
+      
+      toast({
+        title: 'AI Analysis Complete',
+        description: 'Map intelligence analysis complete',
+      });
+    } catch (error) {
+      console.error('Error querying AI:', error);
+      toast({
+        title: 'AI Analysis Failed',
+        description: 'Failed to get AI analysis. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
+  
+  // Generate map improvement suggestions
+  const handleSuggestImprovements = async () => {
+    if (!draw.current) return;
     
-    // Request assistance from the Map Intelligence agent
-    requestAgentAssistance('map_intelligence', aiQuery, context);
+    setIsLoadingAI(true);
     
-    toast({
-      title: 'Processing Query',
-      description: 'Asking AI for assistance...',
-    });
+    try {
+      const mapState = draw.current.getAll();
+      const suggestions = await suggestMapImprovements(mapState);
+      setAiResponse(suggestions);
+      
+      toast({
+        title: 'Suggestions Ready',
+        description: 'Map improvement suggestions generated',
+      });
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
+      toast({
+        title: 'Suggestions Failed',
+        description: 'Failed to generate suggestions. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
+  
+  // Analyze selected features
+  const handleAnalyzeFeatures = async () => {
+    if (!draw.current) return;
+    
+    const selectedFeatures = draw.current.getSelected();
+    
+    if (selectedFeatures.features.length === 0) {
+      toast({
+        title: 'No Features Selected',
+        description: 'Please select features to analyze',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setIsLoadingAI(true);
+    
+    try {
+      const analysis = await analyzeMapFeatures(selectedFeatures.features);
+      setAiResponse(analysis);
+      
+      toast({
+        title: 'Analysis Complete',
+        description: `Analyzed ${selectedFeatures.features.length} features`,
+      });
+    } catch (error) {
+      console.error('Error analyzing features:', error);
+      toast({
+        title: 'Analysis Failed',
+        description: 'Failed to analyze features. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingAI(false);
+    }
   };
   
   // Update map style

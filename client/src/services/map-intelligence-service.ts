@@ -1,4 +1,9 @@
-import { toast } from "../components/ui/use-toast";
+/**
+ * Map Intelligence Service
+ * 
+ * This service provides AI-powered map analysis capabilities by interfacing with
+ * the map intelligence API, which uses Anthropic's Claude to generate insights.
+ */
 
 interface MapFeature {
   id: string;
@@ -32,34 +37,29 @@ interface MapContext {
  * Analyzes a map query and context to provide intelligent suggestions
  * Uses the Anthropic Claude API through our backend proxy
  */
-export async function analyzeMapQuery(query: string, context: string): Promise<string> {
+export async function analyzeMapQuery(query: string, context: MapContext | null = null): Promise<string> {
   try {
-    // Send to backend which will forward to Anthropic API
-    const response = await fetch('/api/map-intelligence', {
+    const response = await fetch('/api/map-intelligence/query', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         query,
-        context
+        context: context ? JSON.stringify(context) : null,
       }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.response;
   } catch (error) {
-    console.error('Error in map intelligence service:', error);
-    toast({
-      title: 'AI Assistant Error',
-      description: 'Unable to analyze map data. Please try again later.',
-      variant: 'destructive',
-    });
-    return 'I apologize, but I encountered an error analyzing your map. Please try again later.';
+    console.error('Error analyzing map query:', error);
+    return `Sorry, I couldn't analyze your query. Please try again later. ${error instanceof Error ? error.message : ''}`;
   }
 }
 
@@ -67,25 +67,25 @@ export async function analyzeMapQuery(query: string, context: string): Promise<s
  * Generates suggestions for map improvements based on the current map state
  */
 export async function suggestMapImprovements(mapState: MapState): Promise<string> {
-  // This would be a specialized endpoint for map improvements
   try {
-    const response = await fetch('/api/map-suggestions', {
+    const response = await fetch('/api/map-intelligence/suggestions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ mapState }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.suggestions;
   } catch (error) {
-    console.error('Error generating map suggestions:', error);
-    return 'Unable to generate map improvement suggestions at this time.';
+    console.error('Error suggesting map improvements:', error);
+    return `Sorry, I couldn't generate map suggestions. Please try again later. ${error instanceof Error ? error.message : ''}`;
   }
 }
 
@@ -93,24 +93,24 @@ export async function suggestMapImprovements(mapState: MapState): Promise<string
  * Analyzes selected map features and provides information about them
  */
 export async function analyzeMapFeatures(features: MapFeature[]): Promise<string> {
-  // This would be a specialized endpoint for feature analysis
   try {
-    const response = await fetch('/api/analyze-features', {
+    const response = await fetch('/api/map-intelligence/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ features }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.analysis;
   } catch (error) {
     console.error('Error analyzing map features:', error);
-    return 'Unable to analyze map features at this time.';
+    return `Sorry, I couldn't analyze these map features. Please try again later. ${error instanceof Error ? error.message : ''}`;
   }
 }
