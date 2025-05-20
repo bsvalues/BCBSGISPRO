@@ -1,0 +1,83 @@
+\*\*Absolutely. Here’s a power prompt for Replit AI Agent (or any advanced AI agent) to build the entire TerraFusion modular GIS/analytics monorepo per the PRD—**and to do so in a fully autonomous, non-stop, self-refining fashion until you have a running system.**
+
+---
+
+# 🟢 **“One-Prompt Build” for Replit AI Agent**
+
+**Copy, paste, and run this in the Replit AI Agent:**
+
+---
+
+> **You are to fully implement the following PRD as an autonomous engineering agent. Build, modularize, test, and document the project in a single uninterrupted loop—never waiting for confirmation unless you encounter truly ambiguous requirements.**
+>
+> ---
+>
+> **TerraFusion GIS Cartography & Analytics Platform – PRD**
+>
+> 1. Build a modular monorepo structured as:
+>
+>    ```
+>    /apps/CartographyModule      (map rendering, print/export, styling, branding)
+>    /apps/GAMAValuation          (AI/ML/analytics, regression, explainability)
+>    /libs/ETL                    (all data import, cleaning, normalization scripts)
+>    /libs/WorkflowUI             (dashboard/admin/workflow UI, React/TS)
+>    /libs/DevOps                 (health checks, agent orchestration, CI)
+>    /data/                       (all sample, test, and onboarding data)
+>    ```
+>
+> 2. For each module:
+>
+>    * Scaffold, implement, and provide test code and sample usage.
+>    * Ensure CartographyModule renders maps, supports export to PDF, and theming.
+>    * Ensure GAMAValuation can run mass appraisal, regression, and provide explainable “value receipts.”
+>    * ETL scripts must clean, normalize, and validate demo or county data placed in `/data/`.
+>    * WorkflowUI must provide an admin dashboard, data management, model run controls, and reporting features.
+>    * DevOps module must run health checks and support continuous integration.
+>
+> 3. Provide sample `/data/` for at least two counties (test CSV, GDB, or Shapefile data). Show onboarding workflow.
+>
+> 4. Ensure all import paths and module dependencies are correct after any refactor.
+>
+> 5. Generate a detailed `README.md` describing the architecture, modules, onboarding new counties, and how to run/test each component.
+>
+> 6. As you build, review your own work, fix any errors, add missing features, and do not stop for questions unless requirements cannot be determined from context.
+>
+> 7. After build, run all tests and print a summary table of what works, what needs attention, and your recommended next steps.
+>
+> **Do not stop until the project is fully modular, documented, and running.**
+> **If you are uncertain about a decision, make a best-practice recommendation and proceed.**
+> **If demo data or code is missing, generate realistic samples to continue.**
+>
+> ---
+
+---
+
+## **What Happens Next:**
+
+* The AI Agent should immediately begin:
+
+  * Scaffolding folders and apps per your PRD.
+  * Writing code for each module.
+  * Moving/refactoring files and updating paths.
+  * Creating a working monorepo with sample data.
+  * Testing and self-reviewing at each step.
+  * Generating documentation and an onboarding script.
+  * Printing a summary/report at the end.
+
+---
+
+## **What To Do If The Agent Gets Stuck:**
+
+* If it asks for input, clarify in one sentence (“Pretend you’re onboarding County X, keep going”).
+* If it fails on a requirement, tell it to “make best-practice assumptions and continue.”
+* If you see an error, paste it here and I’ll give you a workaround or revised prompt.
+
+---
+
+# **Ready to Build Like a Hero—with the Agent as Your Superpower.**
+
+Just copy, paste, and go.
+If you want a version tailored for **Azure**, **AWS**, or **a specific tech stack**, let me know and I’ll rewrite it instantly.
+**You’re about to see autonomous, next-level software engineering in action.**
+
+**Let me know if you want follow-up prompts for continuous integration, onboarding the third county, or AI-powered code reviews.**
