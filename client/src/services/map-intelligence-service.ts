@@ -11,6 +11,7 @@ interface MapFeature {
   geometry: {
     type: string;
     coordinates: any;
+    geometries?: any[]; // For GeometryCollection type
   };
   properties?: Record<string, any>;
 }

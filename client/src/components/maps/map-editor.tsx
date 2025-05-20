@@ -523,16 +523,35 @@ export function MapEditor({
         pitch: map.current.getPitch()
       } : null;
       
-      // Create context object
-      const context = {
-        mapState,
+      // Create context object with type conversion for MapState
+      const mapContext = {
+        mapState: mapState ? {
+          features: mapState.features.map(f => {
+            // Make sure non-collection geometries have coordinates
+            const geometry = f.geometry.type !== 'GeometryCollection' ? {
+              type: f.geometry.type,
+              coordinates: (f.geometry as any).coordinates
+            } : {
+              // For GeometryCollection, we need a different structure
+              type: 'GeometryCollection', 
+              geometries: (f.geometry as any).geometries
+            };
+            
+            return {
+              id: f.id?.toString() || Math.random().toString(36).substring(2),
+              type: f.geometry.type,
+              geometry: geometry,
+              properties: f.properties || {}
+            };
+          })
+        } : null,
         viewState,
         layers: layerVisibility,
         lastAction
       };
       
       // Use the map intelligence service directly with Claude AI
-      const response = await analyzeMapQuery(aiQuery, context);
+      const response = await analyzeMapQuery(aiQuery, mapContext);
       setAiResponse(response);
       
       toast({
@@ -558,8 +577,29 @@ export function MapEditor({
     setIsLoadingAI(true);
     
     try {
-      const mapState = draw.current.getAll();
-      const suggestions = await suggestMapImprovements(mapState);
+      const drawData = draw.current.getAll();
+      // Convert to our MapState type
+      const mapStateForAI = {
+        features: drawData.features.map(f => {
+          // Handle geometry conversion for different geometry types
+          const geometry = f.geometry.type !== 'GeometryCollection' ? {
+            type: f.geometry.type,
+            coordinates: (f.geometry as any).coordinates
+          } : {
+            // For GeometryCollection, we need a different structure
+            type: 'GeometryCollection', 
+            geometries: (f.geometry as any).geometries
+          };
+          
+          return {
+            id: f.id?.toString() || Math.random().toString(36).substring(2),
+            type: f.geometry.type,
+            geometry: geometry,
+            properties: f.properties || {}
+          };
+        })
+      };
+      const suggestions = await suggestMapImprovements(mapStateForAI);
       setAiResponse(suggestions);
       
       toast({
@@ -596,7 +636,28 @@ export function MapEditor({
     setIsLoadingAI(true);
     
     try {
-      const analysis = await analyzeMapFeatures(selectedFeatures.features);
+      // Convert the MapBox features to the format our API expects
+      const featuresForAI = selectedFeatures.features.map(f => {
+        // Handle geometry conversion for different geometry types
+        const geometry = f.geometry.type !== 'GeometryCollection' ? {
+          type: f.geometry.type,
+          coordinates: (f.geometry as any).coordinates
+        } : {
+          // For GeometryCollection, we need a different structure
+          type: 'GeometryCollection', 
+          geometries: (f.geometry as any).geometries,
+          // Add empty coordinates array to satisfy type requirements while preserving the geometries
+          coordinates: []
+        };
+        
+        return {
+          id: f.id?.toString() || Math.random().toString(36).substring(2),
+          type: f.geometry.type,
+          geometry: geometry,
+          properties: f.properties || {}
+        };
+      });
+      const analysis = await analyzeMapFeatures(featuresForAI);
       setAiResponse(analysis);
       
       toast({
@@ -884,40 +945,60 @@ export function MapEditor({
             {showAIPanel && (
               <CardContent className="p-3">
                 <div className="space-y-3">
-                  {!isAIAvailable ? (
-                    <div className="text-sm text-muted-foreground">
-                      AI assistance is not available. Please check your API key configuration.
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Ask about this map..."
+                      value={aiQuery}
+                      onChange={(e) => setAiQuery(e.target.value)}
+                      className="text-sm"
+                    />
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={handleAIQuery}
+                      disabled={!aiQuery || isLoadingAI}
+                    >
+                      {isLoadingAI ? "..." : "Ask"}
+                    </Button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSuggestImprovements}
+                      disabled={isLoadingAI}
+                      className="text-xs h-7"
+                    >
+                      Suggest Improvements
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAnalyzeFeatures}
+                      disabled={isLoadingAI}
+                      className="text-xs h-7"
+                    >
+                      Analyze Selection
+                    </Button>
+                  </div>
+                  
+                  {isLoadingAI ? (
+                    <div className="bg-muted/50 rounded-md p-2 text-sm">
+                      <p className="flex items-center justify-center py-2">
+                        <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin mr-2"></span>
+                        Analyzing map data...
+                      </p>
+                    </div>
+                  ) : aiResponse ? (
+                    <div className="bg-muted/50 rounded-md p-2 text-sm max-h-40 overflow-y-auto">
+                      <p className="font-medium text-xs mb-1">Map Intelligence:</p>
+                      <p className="text-xs whitespace-pre-line">{aiResponse}</p>
                     </div>
                   ) : (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          placeholder="Ask about this map..."
-                          value={aiQuery}
-                          onChange={(e) => setAiQuery(e.target.value)}
-                          className="text-sm"
-                        />
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          onClick={handleAIQuery}
-                          disabled={!aiQuery}
-                        >
-                          Ask
-                        </Button>
-                      </div>
-                      
-                      {lastResponse && lastResponse.agentId === 'map_intelligence' && (
-                        <div className="bg-muted/50 rounded-md p-2 text-sm">
-                          <p className="font-medium text-xs mb-1">AI Assistant:</p>
-                          <p className="text-xs">{lastResponse.response}</p>
-                        </div>
-                      )}
-                      
-                      <div className="text-xs text-muted-foreground">
-                        Example queries: "Suggest map elements to add", "Help me improve this map", "What zoning applies here?"
-                      </div>
-                    </>
+                    <div className="text-xs text-muted-foreground">
+                      Example queries: "Identify zoning patterns", "What improvements can I make to this map?", "Analyze the parcels shown"
+                    </div>
                   )}
                 </div>
               </CardContent>
