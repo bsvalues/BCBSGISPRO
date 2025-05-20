@@ -68,11 +68,13 @@ Current map state:
     ],
   });
 
-  // Extract the response text
-  const responseText = message.content[0].text;
+  // Extract the response content
+  const responseContent = message.content[0].type === 'text' 
+    ? message.content[0].text 
+    : 'Unable to process response';
 
   return res.json({ 
-    response: responseText,
+    response: responseContent,
     status: "success"
   });
 }));

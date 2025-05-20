@@ -16,6 +16,7 @@ import { registerDocumentScannerRoutes } from "./routes/document-scanner-routes"
 import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
+import mapIntelligenceRoutes from "./routes/map-intelligence";
 // Using WebSocketManager from websocket.ts
 import { 
   mapElements,
@@ -5292,6 +5293,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register AI co-worker routes
   const aiCoworkerRoutes = await import('./routes/ai-coworker-routes').then(m => m.default);
   app.use('/api/coworker', aiCoworkerRoutes);
+  
+  // Register map intelligence routes
+  app.use('/api/map-intelligence', mapIntelligenceRoutes);
   
   // Create convenience routes that map to agent framework routes
   // These routes match the client-side API expectations
