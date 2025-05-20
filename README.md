@@ -1,88 +1,66 @@
-# BentonGeoPro Sync Dashboard
+# TerraFusion GIS Cartography & Analytics Platform
 
-This repository contains a Property Data Synchronization Dashboard for the Benton County Assessor's Office. The system enables ICSF-compliant property data management with:
+A cutting-edge Geographic Information System (GIS) workflow solution for the Benton County Assessor's Office, delivering advanced geospatial data processing with intelligent document management and robust collaborative features.
 
-- ✅ RBAC role enforcement (Assessor, Staff, ITAdmin, Auditor)
-- ✅ Secure file upload with SHA-256 verification
-- ✅ Approval & rollback logic
-- ✅ Visual diff viewing with highlighted deltas
-- ✅ Activity display by role
-- ✅ Audit-safe log routing
+## Project Purpose
 
-## Deployment Options
+TerraFusion is a geospatial SaaS blueprint for cartography and mass appraisal that offers:
 
-### Option 1: Docker Container (Recommended)
+- Advanced map rendering and cartographic tools
+- Data ETL and normalization for various county data formats
+- Workflow management for assessor operations
+- DevOps tools for monitoring and maintaining the application
+- Mass appraisal analytics (GAMA valuation)
 
-#### Prerequisites
-- Docker and Docker Compose installed
-- For Windows: [Docker Desktop](https://www.docker.com/products/docker-desktop)
-- For Mac/Linux: [Docker Engine](https://docs.docker.com/engine/install/)
+## Folder Structure
 
-#### Quick Start
-1. Clone this repository
-2. Run the start script for your platform:
-   - Windows: Double-click `run_docker.bat`
-   - Mac/Linux: Run `./run_docker.sh` (you may need to make it executable with `chmod +x run_docker.sh`)
-3. Access the dashboard at: http://localhost:8000
+The project follows a modular monorepo structure:
 
-#### Manual Start
-```bash
-# Create necessary directories
-mkdir -p logs uploads
+- `/apps/CartographyModule`: All mapping, cartography, and export functionality
+- `/apps/GAMAValuation`: AI/ML valuation and analytics (mass appraisal)
+- `/libs/ETL`: Data import, cleaning, and normalization scripts
+- `/libs/WorkflowUI`: Admin, workflow, and dashboard code (React/TypeScript)
+- `/libs/DevOps`: Health checks, agent orchestration, CI/CD automation
+- `/data`: County data files (CSV, shapefiles, GDBs) for testing and demos
 
-# Build and start the container
-docker-compose up -d
+## How to Run
 
-# View logs
-docker-compose logs -f
+### Starting the Application
+
+```
+npm run dev
 ```
 
-### Option 2: Windows Standalone Executable
+This will start the Express server for the backend and the Vite server for the frontend.
 
-#### Prerequisites
-- Windows 7/8/10/11
+### Running Tests
 
-#### Installation
-1. Download and run the `BentonGeoProSyncDashboard.exe` executable
-2. The application will start and open a browser window automatically
-3. Access the dashboard at: http://localhost:8000
+```
+npm test
+```
 
-#### Building the Windows Executable (for developers)
-1. Make sure Python 3.8+ is installed
-2. Navigate to the `windows_build` directory
-3. Run `build_installer.bat`
-4. The executable will be created in the project root directory
+## Onboarding a New County
 
-## Authentication
+1. **Add Data**
+   - Place new county data files in the `/data/{county-name}/` directory
+   - Supported formats: CSV, Shapefile (.shp), GeoDatabase (.gdb)
 
-The system uses authentication tokens for RBAC (Role-Based Access Control). Available credentials:
+2. **Run ETL**
+   - Execute the appropriate ETL script for the data type
+   - This will clean, normalize, and load the data into the system
 
-| Token | Role | Permissions |
-|-------|------|-------------|
-| `CO\jdoe` | Assessor | view, approve, diff |
-| `CO\mjohnson` | Staff | view, upload |
-| `CO\bsmith` | ITAdmin | view, upload, approve, rollback, export, diff |
-| `CO\tauditor` | Auditor | view, diff |
+3. **Render Maps**
+   - Access the CartographyModule to view and interact with the imported data
+   - Configure layer styling and visualization options
 
-## Data Handling
+## Adding New Modules
 
-- All uploads are secured with SHA-256 hash verification
-- File contents are parsed to extract property IDs
-- Diff views highlight changes between current and proposed values
-- Audit logs track all approvals and rollbacks
+To add a new module:
 
-## Development
-
-This application consists of two implementations:
-1. A Python FastAPI backend (this README focuses on this implementation)
-2. A JavaScript/React implementation (available in the same repository)
-
-Both implementations provide similar functionality with different technology stacks.
-
-To modify the Python implementation:
-1. Edit files in the `server` directory
-2. Rebuild the Docker container with `docker-compose build`
+1. Create a directory in the appropriate location (`/apps/` or `/libs/`)
+2. Update imports and exports to maintain modular structure
+3. Register new routes or components as needed
 
 ## License
 
-Proprietary - Benton County Assessor's Office © 2025
+MIT
