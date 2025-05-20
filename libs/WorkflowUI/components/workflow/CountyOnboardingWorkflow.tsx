@@ -1,746 +1,704 @@
 /**
  * County Onboarding Workflow Component
  * 
- * This component guides users through the process of onboarding
- * a new county to the TerraFusion platform.
+ * This component guides users through the process of onboarding a new county
+ * to the TerraFusion platform, including data import, validation, and configuration.
  */
 
-import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'wouter';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'wouter';
+import { CSVImporter } from '../../../ETL/importers/csv-importer';
 import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
+  createCountyLogger,
+  logPerformance,
+  logDataQualityIssues 
+} from '../../../ETL/utils/logger';
+
+// UI Components
+import { 
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
   CardTitle 
 } from '../ui/card';
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
+
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
 } from '../ui/form';
+
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Stepper, Step } from '../ui/stepper';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { useETLProcess } from '../../hooks/useETLProcess';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useToast } from '../ui/use-toast';
 
-// Define the schema for county information
-const countyInfoSchema = z.object({
-  name: z.string().min(2, "County name must be at least 2 characters"),
-  code: z.string().min(2, "County code must be at least 2 characters"),
-  state: z.string().min(2, "State must be at least 2 characters"),
-  contactEmail: z.string().email("Please provide a valid email"),
-  description: z.string().optional()
-});
+// Toast notifications
+import { useToast } from '../../hooks/use-toast';
 
-// Define the schema for data validation
-const dataValidationSchema = z.object({
-  validateParcelIds: z.boolean().default(true),
-  validateAddresses: z.boolean().default(true),
-  validateOwnerNames: z.boolean().default(true),
-  validateBoundaries: z.boolean().default(true),
-  validateZoning: z.boolean().default(true)
-});
+// Define the workflow steps
+const WORKFLOW_STEPS = [
+  {
+    id: 'county-info',
+    title: 'County Information',
+    description: 'Basic information about the county',
+  },
+  {
+    id: 'data-import',
+    title: 'Data Import',
+    description: 'Upload county data files',
+  },
+  {
+    id: 'validation',
+    title: 'Data Validation',
+    description: 'Validate imported data',
+  },
+  {
+    id: 'configuration',
+    title: 'Configuration',
+    description: 'Configure county-specific settings',
+  },
+  {
+    id: 'review',
+    title: 'Review & Activate',
+    description: 'Review and activate the county',
+  },
+];
 
-type CountyInfoFormValues = z.infer<typeof countyInfoSchema>;
-type DataValidationFormValues = z.infer<typeof dataValidationSchema>;
+// County information form schema
+interface CountyInformation {
+  name: string;
+  state: string;
+  fips: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+}
+
+// Data import configuration
+interface DataImportConfig {
+  parcels: File | null;
+  taxcodes: File | null;
+  sales: File | null;
+  plats: File | null;
+}
+
+// County configuration settings
+interface CountyConfig {
+  useCrs: string;
+  primaryIdField: string;
+  enableAiValuation: boolean;
+  enablePublicAccess: boolean;
+}
 
 /**
- * CountyOnboardingWorkflow guides users through the process of onboarding a new county
+ * County Onboarding Workflow Component
  */
-const CountyOnboardingWorkflow: React.FC = () => {
-  const [step, setStep] = useState(0);
-  const [countyInfo, setCountyInfo] = useState<CountyInfoFormValues | null>(null);
-  const [parcelFiles, setParcelFiles] = useState<File[]>([]);
-  const [platFiles, setPlatFiles] = useState<File[]>([]);
-  const [taxCodeFiles, setTaxCodeFiles] = useState<File[]>([]);
-  const [validationOptions, setValidationOptions] = useState<DataValidationFormValues | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [processingStatus, setProcessingStatus] = useState('');
+export function CountyOnboardingWorkflow() {
+  // State management
+  const [currentStep, setCurrentStep] = useState(0);
+  const [countyInfo, setCountyInfo] = useState<CountyInformation>({
+    name: '',
+    state: '',
+    fips: '',
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+  });
+  const [dataFiles, setDataFiles] = useState<DataImportConfig>({
+    parcels: null,
+    taxcodes: null,
+    sales: null,
+    plats: null,
+  });
+  const [countyConfig, setCountyConfig] = useState<CountyConfig>({
+    useCrs: 'EPSG:4326',
+    primaryIdField: 'parcel_id',
+    enableAiValuation: true,
+    enablePublicAccess: false,
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const [validationResults, setValidationResults] = useState<any>(null);
   
-  const navigate = useNavigate();
+  // Custom hooks
+  const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { uploadFiles, isUploading } = useFileUpload();
-  const { runETLProcess, isRunningETL } = useETLProcess();
-
-  // Setup form for county information
-  const countyInfoForm = useForm<CountyInfoFormValues>({
-    resolver: zodResolver(countyInfoSchema),
-    defaultValues: {
-      name: '',
-      code: '',
-      state: '',
-      contactEmail: '',
-      description: ''
-    }
-  });
-
-  // Setup form for data validation options
-  const validationForm = useForm<DataValidationFormValues>({
-    resolver: zodResolver(dataValidationSchema),
-    defaultValues: {
-      validateParcelIds: true,
-      validateAddresses: true,
-      validateOwnerNames: true,
-      validateBoundaries: true,
-      validateZoning: true
-    }
-  });
-
-  // Handle county info form submission
-  const onCountyInfoSubmit = useCallback((data: CountyInfoFormValues) => {
-    setCountyInfo(data);
-    setStep(1);
-  }, []);
-
-  // Handle file uploads for parcels
-  const handleParcelUpload = useCallback((files: File[]) => {
-    setParcelFiles(files);
-  }, []);
-
-  // Handle file uploads for plats
-  const handlePlatUpload = useCallback((files: File[]) => {
-    setPlatFiles(files);
-  }, []);
-
-  // Handle file uploads for tax codes
-  const handleTaxCodeUpload = useCallback((files: File[]) => {
-    setTaxCodeFiles(files);
-  }, []);
-
-  // Handle data upload step completion
-  const handleDataUploadComplete = useCallback(() => {
-    if (parcelFiles.length === 0) {
-      toast({
-        title: 'Required Files Missing',
-        description: 'Please upload at least one parcel data file',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    setStep(2);
-  }, [parcelFiles.length, toast]);
-
-  // Handle validation options form submission
-  const onValidationOptionsSubmit = useCallback((data: DataValidationFormValues) => {
-    setValidationOptions(data);
-    setStep(3);
-  }, []);
-
-  // Handle the ETL process
-  const handleRunETLProcess = useCallback(async () => {
-    if (!countyInfo) return;
-    
-    try {
-      setIsProcessing(true);
-      setProcessingStatus('Creating county directory structure...');
-      setProcessingProgress(5);
-      
-      // Create the county directories
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-      
-      setProcessingStatus('Uploading data files...');
-      setProcessingProgress(15);
-      
-      // Upload the files
-      const uploadResults = await uploadFiles({
-        countyName: countyInfo.name,
-        parcelFiles,
-        platFiles,
-        taxCodeFiles
-      });
-      
-      setProcessingStatus('Running ETL process...');
-      setProcessingProgress(30);
-      
-      // Run the ETL process
-      const etlResult = await runETLProcess({
-        countyName: countyInfo.name,
-        countyCode: countyInfo.code,
-        validationOptions: validationOptions || undefined
-      }, (progress) => {
-        setProcessingProgress(30 + Math.floor(progress * 0.6));
-        setProcessingStatus(`Processing data (${Math.floor(progress)}%)...`);
-      });
-      
-      setProcessingStatus('Validating data...');
-      setProcessingProgress(90);
-      
-      // Set validation results
-      setValidationResults(etlResult.validationResults);
-      
-      setProcessingStatus('Onboarding complete!');
-      setProcessingProgress(100);
-      
-      // Move to final step
-      setStep(4);
-    } catch (error) {
-      toast({
-        title: 'Processing Error',
-        description: `Error during ETL process: ${error.message}`,
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [countyInfo, parcelFiles, platFiles, taxCodeFiles, uploadFiles, runETLProcess, validationOptions, toast]);
-
-  // Handle completion of the workflow
-  const handleComplete = useCallback(() => {
-    toast({
-      title: 'County Onboarded',
-      description: `${countyInfo?.name} County has been successfully onboarded!`
-    });
-    
-    // Navigate to the county dashboard
-    navigate(`/counties/${countyInfo?.code}`);
-  }, [countyInfo, navigate, toast]);
-
-  // Render the appropriate step
-  const renderStep = () => {
-    switch (step) {
-      case 0:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>County Information</CardTitle>
-              <CardDescription>
-                Enter basic information about the county you're onboarding
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...countyInfoForm}>
-                <form onSubmit={countyInfoForm.handleSubmit(onCountyInfoSubmit)} className="space-y-4">
-                  <FormField
-                    control={countyInfoForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>County Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. Benton" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          The full name of the county
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={countyInfoForm.control}
-                    name="code"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>County Code</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. BEN" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          A short code for the county (2-5 characters)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={countyInfoForm.control}
-                    name="state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>State</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g. WA" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          The state where the county is located
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={countyInfoForm.control}
-                    name="contactEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contact Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="e.g. gis@county.gov" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Email address for county data questions
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={countyInfoForm.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Brief description..." {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          A brief description of the county
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button type="submit">Next: Upload Data</Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        );
-        
-      case 1:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload County Data</CardTitle>
-              <CardDescription>
-                Upload parcel, plat, and tax code data files
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="data-upload-section">
-                  <h3 className="text-lg font-medium">Parcel Data (Required)</h3>
-                  <p className="text-sm text-gray-500 mb-2">
-                    Upload CSV, Shapefile, or GeoDatabase files with parcel data
-                  </p>
-                  <div className="file-upload-control">
-                    {/* File upload component would go here */}
-                    <Button className="mr-2" onClick={() => document.getElementById('parcel-files')?.click()}>
-                      Select Files
-                    </Button>
-                    <span>{parcelFiles.length} files selected</span>
-                    <input 
-                      id="parcel-files" 
-                      type="file" 
-                      hidden 
-                      multiple 
-                      onChange={(e) => handleParcelUpload(Array.from(e.target.files || []))} 
-                    />
-                  </div>
-                  {parcelFiles.length > 0 && (
-                    <ul className="text-sm mt-2">
-                      {parcelFiles.map((file, index) => (
-                        <li key={index}>{file.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                
-                <div className="data-upload-section">
-                  <h3 className="text-lg font-medium">Plat Maps (Optional)</h3>
-                  <p className="text-sm text-gray-500 mb-2">
-                    Upload plat map files if available
-                  </p>
-                  <div className="file-upload-control">
-                    <Button className="mr-2" onClick={() => document.getElementById('plat-files')?.click()}>
-                      Select Files
-                    </Button>
-                    <span>{platFiles.length} files selected</span>
-                    <input 
-                      id="plat-files" 
-                      type="file" 
-                      hidden 
-                      multiple 
-                      onChange={(e) => handlePlatUpload(Array.from(e.target.files || []))} 
-                    />
-                  </div>
-                  {platFiles.length > 0 && (
-                    <ul className="text-sm mt-2">
-                      {platFiles.map((file, index) => (
-                        <li key={index}>{file.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                
-                <div className="data-upload-section">
-                  <h3 className="text-lg font-medium">Tax Code Data (Optional)</h3>
-                  <p className="text-sm text-gray-500 mb-2">
-                    Upload tax code data files if available
-                  </p>
-                  <div className="file-upload-control">
-                    <Button className="mr-2" onClick={() => document.getElementById('tax-files')?.click()}>
-                      Select Files
-                    </Button>
-                    <span>{taxCodeFiles.length} files selected</span>
-                    <input 
-                      id="tax-files" 
-                      type="file" 
-                      hidden 
-                      multiple 
-                      onChange={(e) => handleTaxCodeUpload(Array.from(e.target.files || []))} 
-                    />
-                  </div>
-                  {taxCodeFiles.length > 0 && (
-                    <ul className="text-sm mt-2">
-                      {taxCodeFiles.map((file, index) => (
-                        <li key={index}>{file.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(0)}>
-                Back
-              </Button>
-              <Button onClick={handleDataUploadComplete}>
-                Next: Validation Options
-              </Button>
-            </CardFooter>
-          </Card>
-        );
-        
-      case 2:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Validation Options</CardTitle>
-              <CardDescription>
-                Configure how data should be validated during processing
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...validationForm}>
-                <form onSubmit={validationForm.handleSubmit(onValidationOptionsSubmit)} className="space-y-4">
-                  <FormField
-                    control={validationForm.control}
-                    name="validateParcelIds"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <input 
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            id="validateParcelIds"
-                          />
-                        </FormControl>
-                        <div>
-                          <FormLabel htmlFor="validateParcelIds">Validate Parcel IDs</FormLabel>
-                          <FormDescription>
-                            Check for valid and unique parcel identifiers
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={validationForm.control}
-                    name="validateAddresses"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <input 
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            id="validateAddresses"
-                          />
-                        </FormControl>
-                        <div>
-                          <FormLabel htmlFor="validateAddresses">Validate Addresses</FormLabel>
-                          <FormDescription>
-                            Check for valid property addresses
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={validationForm.control}
-                    name="validateOwnerNames"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <input 
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            id="validateOwnerNames"
-                          />
-                        </FormControl>
-                        <div>
-                          <FormLabel htmlFor="validateOwnerNames">Validate Owner Names</FormLabel>
-                          <FormDescription>
-                            Check for valid property owner names
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={validationForm.control}
-                    name="validateBoundaries"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <input 
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            id="validateBoundaries"
-                          />
-                        </FormControl>
-                        <div>
-                          <FormLabel htmlFor="validateBoundaries">Validate Boundaries</FormLabel>
-                          <FormDescription>
-                            Check for valid and topologically correct boundaries
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={validationForm.control}
-                    name="validateZoning"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl>
-                          <input 
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            id="validateZoning"
-                          />
-                        </FormControl>
-                        <div>
-                          <FormLabel htmlFor="validateZoning">Validate Zoning</FormLabel>
-                          <FormDescription>
-                            Check for valid zoning codes
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button type="submit">Next: Process Data</Button>
-                </form>
-              </Form>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                Back
-              </Button>
-            </CardFooter>
-          </Card>
-        );
-        
-      case 3:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Process Data</CardTitle>
-              <CardDescription>
-                Process and integrate the county data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="process-summary">
-                  <h3 className="text-lg font-medium">Processing Summary</h3>
-                  
-                  <div className="mt-4 space-y-2">
-                    <div>
-                      <strong>County:</strong> {countyInfo?.name}, {countyInfo?.state}
-                    </div>
-                    <div>
-                      <strong>Files:</strong> {parcelFiles.length + platFiles.length + taxCodeFiles.length} total files
-                      ({parcelFiles.length} parcel, {platFiles.length} plat, {taxCodeFiles.length} tax code)
-                    </div>
-                    <div>
-                      <strong>Validation:</strong> {Object.entries(validationOptions || {})
-                        .filter(([_, value]) => value)
-                        .map(([key]) => key.replace('validate', ''))
-                        .join(', ')}
-                    </div>
-                  </div>
-                </div>
-                
-                {isProcessing && (
-                  <div className="processing-status">
-                    <h3 className="text-lg font-medium mb-2">Processing Status</h3>
-                    <div className="progress-bar-container h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="progress-bar h-full bg-blue-500"
-                        style={{ width: `${processingProgress}%` }}
-                      ></div>
-                    </div>
-                    <div className="mt-2 text-sm">{processingStatus}</div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={() => setStep(2)}
-                disabled={isProcessing}
-              >
-                Back
-              </Button>
-              <Button 
-                onClick={handleRunETLProcess}
-                disabled={isProcessing || isUploading || isRunningETL}
-              >
-                {isProcessing ? 'Processing...' : 'Start Processing'}
-              </Button>
-            </CardFooter>
-          </Card>
-        );
-        
-      case 4:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Onboarding Complete</CardTitle>
-              <CardDescription>
-                {countyInfo?.name} County has been successfully onboarded
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="completion-summary">
-                  <h3 className="text-lg font-medium">Summary</h3>
-                  
-                  <div className="mt-4 space-y-2">
-                    <div>
-                      <strong>County:</strong> {countyInfo?.name}, {countyInfo?.state}
-                    </div>
-                    <div>
-                      <strong>Files Processed:</strong> {parcelFiles.length + platFiles.length + taxCodeFiles.length} total files
-                    </div>
-                    
-                    {validationResults && (
-                      <div className="validation-results mt-4">
-                        <h4 className="font-medium">Validation Results</h4>
-                        
-                        <div className="mt-2 p-4 bg-gray-50 rounded-md">
-                          <div className="mb-2">
-                            <strong>Parcels:</strong> {validationResults.parcels?.total} processed
-                            {validationResults.parcels?.errors > 0 && (
-                              <span className="text-red-500 ml-2">
-                                ({validationResults.parcels.errors} errors)
-                              </span>
-                            )}
-                          </div>
-                          
-                          {validationResults.plats && (
-                            <div className="mb-2">
-                              <strong>Plats:</strong> {validationResults.plats.total} processed
-                              {validationResults.plats.errors > 0 && (
-                                <span className="text-red-500 ml-2">
-                                  ({validationResults.plats.errors} errors)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          
-                          {validationResults.tax_codes && (
-                            <div className="mb-2">
-                              <strong>Tax Codes:</strong> {validationResults.tax_codes.total} processed
-                              {validationResults.tax_codes.errors > 0 && (
-                                <span className="text-red-500 ml-2">
-                                  ({validationResults.tax_codes.errors} errors)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="next-steps">
-                  <h3 className="text-lg font-medium">Next Steps</h3>
-                  
-                  <ul className="list-disc pl-5 mt-2 space-y-1">
-                    <li>Review any validation errors and fix them in the source data</li>
-                    <li>Configure map layers and styling for the county</li>
-                    <li>Set up user permissions for county staff</li>
-                    <li>Create workflow templates for the county</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/')}
-              >
-                Back to Dashboard
-              </Button>
-              <Button onClick={handleComplete}>
-                Go to County Dashboard
-              </Button>
-            </CardFooter>
-          </Card>
-        );
-        
-      default:
-        return null;
+  const { uploadFile, uploadProgress } = useFileUpload();
+  const { processData, processingStatus } = useETLProcess();
+  
+  // Logger for this workflow
+  const logger = createCountyLogger('Onboarding');
+  
+  // Handle navigation between steps
+  const goToNextStep = () => {
+    if (currentStep < WORKFLOW_STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
     }
   };
-
+  
+  const goToPreviousStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+  
+  // Handle form submission for county information
+  const handleCountyInfoSubmit = (data: CountyInformation) => {
+    setCountyInfo(data);
+    logger.info(`County information entered for ${data.name}, ${data.state}`);
+    goToNextStep();
+  };
+  
+  // Handle file uploads
+  const handleFileChange = (fileType: keyof DataImportConfig, file: File | null) => {
+    setDataFiles(prev => ({
+      ...prev,
+      [fileType]: file
+    }));
+    
+    if (file) {
+      logger.info(`File selected for ${fileType}: ${file.name}`);
+    }
+  };
+  
+  // Process data imports
+  const handleDataImport = async () => {
+    setIsLoading(true);
+    logger.info(`Starting data import for ${countyInfo.name} county`);
+    
+    const startTime = Date.now();
+    const importResults: Record<string, any> = {};
+    
+    try {
+      // Process each file type if provided
+      for (const [fileType, file] of Object.entries(dataFiles)) {
+        if (file) {
+          // Upload the file
+          const uploadResult = await uploadFile(file, fileType);
+          
+          if (uploadResult.success) {
+            // Process the uploaded file
+            const result = await processData({
+              countyName: countyInfo.name,
+              dataType: fileType,
+              filePath: uploadResult.path
+            });
+            
+            importResults[fileType] = result;
+            
+            toast({
+              title: `${fileType} Import Complete`,
+              description: `Processed ${result.recordCount} records with ${result.errorCount} errors`,
+              variant: result.errorCount > 0 ? 'destructive' : 'default',
+            });
+          }
+        }
+      }
+      
+      // Log performance metrics
+      logPerformance('data-import', startTime, { 
+        county: countyInfo.name,
+        fileCount: Object.values(dataFiles).filter(Boolean).length 
+      });
+      
+      // Store results for validation step
+      setValidationResults(importResults);
+      
+      // Move to next step
+      goToNextStep();
+    } catch (error) {
+      logger.error(`Error during data import`, error);
+      
+      toast({
+        title: 'Import Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle configuration changes
+  const handleConfigChange = (field: keyof CountyConfig, value: any) => {
+    setCountyConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  // Complete the onboarding process
+  const completeOnboarding = async () => {
+    setIsLoading(true);
+    logger.info(`Completing onboarding for ${countyInfo.name} county`);
+    
+    try {
+      // Here we would save all configurations and activate the county
+      // This is a placeholder for the actual implementation
+      
+      // Simulate API call with delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast({
+        title: 'County Onboarding Complete',
+        description: `${countyInfo.name} County has been successfully onboarded!`,
+      });
+      
+      // Navigate to county dashboard
+      navigate(`/counties/${countyInfo.name.toLowerCase()}`);
+    } catch (error) {
+      logger.error(`Error completing onboarding`, error);
+      
+      toast({
+        title: 'Onboarding Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   return (
-    <div className="county-onboarding-workflow">
-      <div className="workflow-header mb-6">
-        <h1 className="text-2xl font-bold">Onboard New County</h1>
-        <p className="text-gray-500">
-          Follow the steps below to onboard a new county to the TerraFusion platform
-        </p>
-      </div>
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-8">County Onboarding Workflow</h1>
       
-      <div className="workflow-stepper mb-8">
-        <Stepper activeStep={step}>
-          <Step label="County Info" />
-          <Step label="Upload Data" />
-          <Step label="Validation Options" />
-          <Step label="Process Data" />
-          <Step label="Complete" />
-        </Stepper>
-      </div>
+      <Stepper
+        currentStep={currentStep}
+        steps={WORKFLOW_STEPS.map(step => step.title)}
+        onStepClick={(step) => {
+          if (step < currentStep) {
+            setCurrentStep(step);
+          }
+        }}
+      />
       
-      <div className="workflow-content">
-        {renderStep()}
-      </div>
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>{WORKFLOW_STEPS[currentStep].title}</CardTitle>
+          <CardDescription>{WORKFLOW_STEPS[currentStep].description}</CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          {/* County Information Step */}
+          {currentStep === 0 && (
+            <div className="space-y-4">
+              <FormField
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>County Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g. Benton" 
+                        value={countyInfo.name}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </FormControl>
+                    <FormDescription>The official name of the county</FormDescription>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                name="state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g. Washington" 
+                        value={countyInfo.state}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, state: e.target.value }))}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                name="fips"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>FIPS Code</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g. 53005" 
+                        value={countyInfo.fips}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, fips: e.target.value }))}
+                      />
+                    </FormControl>
+                    <FormDescription>Federal Information Processing Standards code</FormDescription>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                name="contactName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Primary Contact Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g. John Smith" 
+                        value={countyInfo.contactName}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, contactName: e.target.value }))}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                name="contactEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contact Email</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="email"
+                        placeholder="e.g. john.smith@example.gov" 
+                        value={countyInfo.contactEmail}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, contactEmail: e.target.value }))}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                name="contactPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contact Phone</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g. (555) 123-4567" 
+                        value={countyInfo.contactPhone}
+                        onChange={(e) => setCountyInfo(prev => ({ ...prev, contactPhone: e.target.value }))}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+          
+          {/* Data Import Step */}
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Parcel Data</h3>
+                <p className="text-sm text-gray-500">
+                  Upload a CSV file containing parcel data for the county
+                </p>
+                <Input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={(e) => handleFileChange('parcels', e.target.files?.[0] || null)} 
+                />
+                {dataFiles.parcels && (
+                  <p className="text-sm text-green-600">
+                    Selected: {dataFiles.parcels.name}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Tax Codes</h3>
+                <p className="text-sm text-gray-500">
+                  Upload a CSV file containing tax code information
+                </p>
+                <Input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={(e) => handleFileChange('taxcodes', e.target.files?.[0] || null)} 
+                />
+                {dataFiles.taxcodes && (
+                  <p className="text-sm text-green-600">
+                    Selected: {dataFiles.taxcodes.name}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Sales History</h3>
+                <p className="text-sm text-gray-500">
+                  Upload a CSV file containing sales history data
+                </p>
+                <Input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={(e) => handleFileChange('sales', e.target.files?.[0] || null)} 
+                />
+                {dataFiles.sales && (
+                  <p className="text-sm text-green-600">
+                    Selected: {dataFiles.sales.name}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Plat Maps</h3>
+                <p className="text-sm text-gray-500">
+                  Upload a CSV file containing plat map information
+                </p>
+                <Input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={(e) => handleFileChange('plats', e.target.files?.[0] || null)} 
+                />
+                {dataFiles.plats && (
+                  <p className="text-sm text-green-600">
+                    Selected: {dataFiles.plats.name}
+                  </p>
+                )}
+              </div>
+              
+              {uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Uploading: {uploadProgress.toFixed(0)}%
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Validation Step */}
+          {currentStep === 2 && (
+            <div className="space-y-4">
+              {validationResults ? (
+                <div className="space-y-6">
+                  {Object.entries(validationResults).map(([type, result]) => (
+                    <div key={type} className="border rounded-lg p-4">
+                      <h3 className="text-lg font-semibold capitalize mb-2">{type} Data</h3>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-gray-100 p-3 rounded">
+                          <p className="text-sm text-gray-500">Total Records</p>
+                          <p className="text-2xl font-bold">{result.recordCount}</p>
+                        </div>
+                        
+                        <div className="bg-gray-100 p-3 rounded">
+                          <p className="text-sm text-gray-500">Issues Found</p>
+                          <p className="text-2xl font-bold">{result.errorCount}</p>
+                        </div>
+                      </div>
+                      
+                      {result.errorCount > 0 && (
+                        <div className="mt-4">
+                          <h4 className="text-md font-medium mb-2">Issues to Resolve:</h4>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {result.issues.map((issue: any, i: number) => (
+                              <li key={i} className="text-sm text-red-600">
+                                {issue.message}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <p className="text-lg mb-4">No validation results available</p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Please complete the data import step first
+                  </p>
+                  <Button onClick={() => setCurrentStep(1)}>
+                    Go to Data Import
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Configuration Step */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Coordinate Reference System</h3>
+                <p className="text-sm text-gray-500">
+                  Select the CRS used for this county's data
+                </p>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={countyConfig.useCrs}
+                  onChange={(e) => handleConfigChange('useCrs', e.target.value)}
+                >
+                  <option value="EPSG:4326">EPSG:4326 (WGS 84)</option>
+                  <option value="EPSG:3857">EPSG:3857 (Web Mercator)</option>
+                  <option value="EPSG:2927">EPSG:2927 (NAD83 Washington South)</option>
+                  <option value="custom">Custom...</option>
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Primary ID Field</h3>
+                <p className="text-sm text-gray-500">
+                  Field name used as the primary identifier for parcels
+                </p>
+                <Input 
+                  value={countyConfig.primaryIdField}
+                  onChange={(e) => handleConfigChange('primaryIdField', e.target.value)}
+                  placeholder="e.g. parcel_id, pin, apn"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Features</h3>
+                
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="ai-valuation"
+                    checked={countyConfig.enableAiValuation}
+                    onChange={(e) => handleConfigChange('enableAiValuation', e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="ai-valuation" className="text-sm">
+                    Enable AI-powered valuation
+                  </label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    id="public-access"
+                    checked={countyConfig.enablePublicAccess}
+                    onChange={(e) => handleConfigChange('enablePublicAccess', e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="public-access" className="text-sm">
+                    Enable public data access portal
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Review Step */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-bold">County Information</h3>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">County Name</p>
+                  <p>{countyInfo.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">State</p>
+                  <p>{countyInfo.state}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">FIPS Code</p>
+                  <p>{countyInfo.fips}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Primary Contact</p>
+                  <p>{countyInfo.contactName}</p>
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-bold">Data Files</h3>
+              <div className="space-y-2 mb-6">
+                {Object.entries(dataFiles).map(([type, file]) => (
+                  <div key={type} className="flex items-center">
+                    <div className="w-24 capitalize font-medium">{type}</div>
+                    <div>{file ? file.name : 'No file uploaded'}</div>
+                  </div>
+                ))}
+              </div>
+              
+              <h3 className="text-lg font-bold">Configuration</h3>
+              <div className="space-y-2 mb-6">
+                <div className="flex items-center">
+                  <div className="w-48 font-medium">Coordinate System</div>
+                  <div>{countyConfig.useCrs}</div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-48 font-medium">Primary ID Field</div>
+                  <div>{countyConfig.primaryIdField}</div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-48 font-medium">AI Valuation</div>
+                  <div>{countyConfig.enableAiValuation ? 'Enabled' : 'Disabled'}</div>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-48 font-medium">Public Access</div>
+                  <div>{countyConfig.enablePublicAccess ? 'Enabled' : 'Disabled'}</div>
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      Activating this county will make it live on the platform. All imported data will be accessible to authorized users.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+        
+        <CardFooter className="flex justify-between">
+          <Button
+            variant="outline"
+            onClick={goToPreviousStep}
+            disabled={currentStep === 0 || isLoading}
+          >
+            Back
+          </Button>
+          
+          {currentStep < WORKFLOW_STEPS.length - 1 ? (
+            <Button
+              onClick={() => {
+                if (currentStep === 0) {
+                  handleCountyInfoSubmit(countyInfo);
+                } else if (currentStep === 1) {
+                  handleDataImport();
+                } else {
+                  goToNextStep();
+                }
+              }}
+              disabled={
+                (currentStep === 0 && (!countyInfo.name || !countyInfo.state)) ||
+                (currentStep === 1 && !Object.values(dataFiles).some(Boolean)) ||
+                isLoading
+              }
+            >
+              {isLoading ? 'Processing...' : 'Continue'}
+            </Button>
+          ) : (
+            <Button
+              onClick={completeOnboarding}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Activating...' : 'Activate County'}
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
-};
-
-export default CountyOnboardingWorkflow;
+}
