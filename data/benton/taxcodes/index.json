@@ -1,0 +1,146 @@
+{
+  "county": "Benton",
+  "state": "Washington",
+  "year": 2025,
+  "lastUpdated": "2025-04-15",
+  "source": "Benton County Assessor's Office",
+  "description": "Tax code areas for Benton County, Washington",
+  "taxCodes": [
+    {
+      "id": "TC001",
+      "name": "Kennewick School District",
+      "rate": 0.0125,
+      "components": [
+        {
+          "jurisdictionName": "State",
+          "rate": 0.0030
+        },
+        {
+          "jurisdictionName": "County",
+          "rate": 0.0015
+        },
+        {
+          "jurisdictionName": "City of Kennewick",
+          "rate": 0.0025
+        },
+        {
+          "jurisdictionName": "Kennewick School District",
+          "rate": 0.0055
+        }
+      ],
+      "boundaries": "taxcodes/TC001.geojson",
+      "parcelCount": 25423,
+      "totalAssessedValue": 4689345000
+    },
+    {
+      "id": "TC002",
+      "name": "Richland School District",
+      "rate": 0.0130,
+      "components": [
+        {
+          "jurisdictionName": "State",
+          "rate": 0.0030
+        },
+        {
+          "jurisdictionName": "County",
+          "rate": 0.0015
+        },
+        {
+          "jurisdictionName": "City of Richland",
+          "rate": 0.0025
+        },
+        {
+          "jurisdictionName": "Richland School District",
+          "rate": 0.0060
+        }
+      ],
+      "boundaries": "taxcodes/TC002.geojson",
+      "parcelCount": 19876,
+      "totalAssessedValue": 3895470000
+    },
+    {
+      "id": "TC003",
+      "name": "Prosser School District",
+      "rate": 0.0118,
+      "components": [
+        {
+          "jurisdictionName": "State",
+          "rate": 0.0030
+        },
+        {
+          "jurisdictionName": "County",
+          "rate": 0.0015
+        },
+        {
+          "jurisdictionName": "City of Prosser",
+          "rate": 0.0023
+        },
+        {
+          "jurisdictionName": "Prosser School District",
+          "rate": 0.0050
+        }
+      ],
+      "boundaries": "taxcodes/TC003.geojson",
+      "parcelCount": 8745,
+      "totalAssessedValue": 1123450000
+    },
+    {
+      "id": "TC004",
+      "name": "Kiona-Benton City School District",
+      "rate": 0.0115,
+      "components": [
+        {
+          "jurisdictionName": "State",
+          "rate": 0.0030
+        },
+        {
+          "jurisdictionName": "County",
+          "rate": 0.0015
+        },
+        {
+          "jurisdictionName": "City of Benton City",
+          "rate": 0.0020
+        },
+        {
+          "jurisdictionName": "Kiona-Benton City School District",
+          "rate": 0.0050
+        }
+      ],
+      "boundaries": "taxcodes/TC004.geojson",
+      "parcelCount": 4532,
+      "totalAssessedValue": 567890000
+    },
+    {
+      "id": "TC005",
+      "name": "Finley School District",
+      "rate": 0.0112,
+      "components": [
+        {
+          "jurisdictionName": "State",
+          "rate": 0.0030
+        },
+        {
+          "jurisdictionName": "County",
+          "rate": 0.0015
+        },
+        {
+          "jurisdictionName": "Finley School District",
+          "rate": 0.0067
+        }
+      ],
+      "boundaries": "taxcodes/TC005.geojson",
+      "parcelCount": 1897,
+      "totalAssessedValue": 234560000
+    }
+  ],
+  "metadata": {
+    "spatialReference": "EPSG:2927",
+    "totalTaxCodes": 93,
+    "totalParcels": 65247,
+    "totalAssessedValue": 13890450000,
+    "averageRate": 0.0120,
+    "effectiveDate": "2025-01-01",
+    "expirationDate": "2025-12-31",
+    "notes": "This file contains sample tax code areas for Benton County. In a production environment, this would include all 93 tax code areas."
+  }
+}
