@@ -1,796 +1,1368 @@
 /**
  * County Map Viewer Component
  * 
- * This component provides an interactive map for viewing county parcel data
- * with support for various basemaps, layer controls, and GIS tools.
+ * This component provides a comprehensive mapping interface for county GIS data,
+ * integrating multiple map providers and supporting various data layers, tools,
+ * and interactions.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MapControls, MapView, LayerInfo, MeasurementType, DrawingToolType } from './MapControls';
+import { MeasurementTools, MeasurementResult } from './MeasurementTools';
 import { logger } from '../../../../libs/DevOps/utils/logger';
 
 // Create module-specific logger
-const mapLogger = logger.withTags(['CartographyModule', 'MapViewer']);
+const mapLogger = logger.withTags(['CartographyModule', 'CountyMapViewer']);
 
-// Map provider options
-export enum MapProvider {
+/**
+ * Map provider types
+ */
+export enum MapProviderType {
   MAPBOX = 'mapbox',
   ARCGIS = 'arcgis',
-  LEAFLET = 'leaflet'
+  LEAFLET = 'leaflet',
+  GOOGLE = 'google'
 }
 
-// Basemap styles
-export enum BasemapStyle {
+/**
+ * Base layer types
+ */
+export enum BaseLayerType {
   STREETS = 'streets',
   SATELLITE = 'satellite',
+  HYBRID = 'hybrid',
   TERRAIN = 'terrain',
   LIGHT = 'light',
   DARK = 'dark',
-  OUTDOORS = 'outdoors',
-  TOPO = 'topo'
+  TOPO = 'topo',
+  NONE = 'none'
 }
 
-// Map configuration options
-export interface MapConfig {
-  // Provider options
-  provider: MapProvider;
-  apiKey?: string; // Mapbox or ArcGIS API key
-  
-  // Initial view settings
-  center: [number, number]; // [longitude, latitude]
-  zoom: number;
-  minZoom?: number;
-  maxZoom?: number;
-  bounds?: [[number, number], [number, number]]; // [[sw_lng, sw_lat], [ne_lng, ne_lat]]
-  
-  // Style options
-  basemapStyle: BasemapStyle;
-  customBasemapUrl?: string;
-  
-  // Features
-  enableDraw?: boolean;
-  enableMeasurement?: boolean;
-  enable3D?: boolean;
-  
-  // Layer options
-  showParcelBoundaries?: boolean;
-  showParcelLabels?: boolean;
-  showTaxCodeAreas?: boolean;
-  showZoning?: boolean;
-  
-  // County-specific
-  countyName?: string;
-  countyFips?: string;
+/**
+ * County details interface
+ */
+export interface CountyDetails {
+  id: string;
+  name: string;
+  state: string;
+  fips: string;
+  bounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
+  center?: {
+    lat: number;
+    lng: number;
+  };
 }
 
-// Default map configuration
-const defaultConfig: MapConfig = {
-  provider: MapProvider.MAPBOX,
-  center: [-119.2034, 46.2503], // Benton County, WA
-  zoom: 10,
-  minZoom: 5,
-  maxZoom: 20,
-  basemapStyle: BasemapStyle.STREETS,
-  enableDraw: true,
-  enableMeasurement: true,
-  enable3D: false,
-  showParcelBoundaries: true,
-  showParcelLabels: true
-};
+/**
+ * Feature information
+ */
+export interface FeatureInfo {
+  id: string;
+  type: string;
+  properties: Record<string, any>;
+  geometry: any; // GeoJSON geometry
+}
 
-// Map styling lookup
-const mapboxStyleUrls: Record<BasemapStyle, string> = {
-  [BasemapStyle.STREETS]: 'mapbox://styles/mapbox/streets-v12',
-  [BasemapStyle.SATELLITE]: 'mapbox://styles/mapbox/satellite-v9',
-  [BasemapStyle.TERRAIN]: 'mapbox://styles/mapbox/outdoors-v12',
-  [BasemapStyle.LIGHT]: 'mapbox://styles/mapbox/light-v11',
-  [BasemapStyle.DARK]: 'mapbox://styles/mapbox/dark-v11',
-  [BasemapStyle.OUTDOORS]: 'mapbox://styles/mapbox/outdoors-v12',
-  [BasemapStyle.TOPO]: 'mapbox://styles/mapbox/outdoors-v12' // Fallback, Mapbox doesn't have a dedicated topo style
-};
-
-// Event handler types
-export interface MapEventHandlers {
-  onMapLoaded?: () => void;
-  onMapClick?: (event: { lngLat: [number, number], features?: any[] }) => void;
-  onFeatureSelect?: (features: any[]) => void;
+/**
+ * County map viewer props
+ */
+export interface CountyMapViewerProps {
+  // County to display
+  county: CountyDetails;
+  
+  // Map configuration
+  provider?: MapProviderType;
+  apiKey?: string;
+  baseLayer?: BaseLayerType;
+  initialView?: Partial<MapView>;
+  
+  // Layers to display
+  layers?: LayerInfo[];
+  
+  // Features to highlight
+  highlightedFeatures?: FeatureInfo[];
+  
+  // Controls visibility
+  showControls?: boolean;
+  controlsPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  controlsOrientation?: 'horizontal' | 'vertical';
+  
+  // Component sizing
+  width?: string | number;
+  height?: string | number;
+  
+  // Event handlers
+  onMapReady?: (mapInstance: any) => void;
+  onViewChange?: (view: MapView) => void;
   onLayerToggle?: (layerId: string, visible: boolean) => void;
-  onViewportChange?: (viewport: { center: [number, number], zoom: number }) => void;
-  onDrawComplete?: (geometry: any) => void;
-  onMeasureComplete?: (measurement: { distance?: number, area?: number }) => void;
-}
-
-// Component props
-interface CountyMapViewerProps {
-  config?: Partial<MapConfig>;
-  eventHandlers?: MapEventHandlers;
+  onLayerOpacityChange?: (layerId: string, opacity: number) => void;
+  onFeatureClick?: (feature: FeatureInfo) => void;
+  onFeatureHover?: (feature: FeatureInfo | null) => void;
+  onMeasurementComplete?: (measurement: MeasurementResult) => void;
+  onDrawingComplete?: (feature: any) => void;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
-  isReadOnly?: boolean;
+  
+  // Custom components
+  renderTooltip?: (feature: FeatureInfo | null) => React.ReactNode;
+  renderPopup?: (feature: FeatureInfo) => React.ReactNode;
 }
 
 /**
  * County Map Viewer Component
  */
 export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
-  config = {},
-  eventHandlers = {},
+  county,
+  provider = MapProviderType.MAPBOX,
+  apiKey,
+  baseLayer = BaseLayerType.STREETS,
+  initialView,
+  layers = [],
+  highlightedFeatures = [],
+  showControls = true,
+  controlsPosition = 'top-right',
+  controlsOrientation = 'vertical',
+  width = '100%',
+  height = '600px',
+  onMapReady,
+  onViewChange,
+  onLayerToggle,
+  onLayerOpacityChange,
+  onFeatureClick,
+  onFeatureHover,
+  onMeasurementComplete,
+  onDrawingComplete,
   className = '',
   style = {},
-  isReadOnly = false
+  renderTooltip,
+  renderPopup
 }) => {
-  // Merge with default configuration
-  const mergedConfig: MapConfig = { ...defaultConfig, ...config };
+  // Map container reference
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   
-  // State for the mapbox instance
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  // Map instance reference
+  const mapInstanceRef = useRef<any>(null);
   
-  // State for active layers
-  const [activeLayers, setActiveLayers] = useState<string[]>([]);
+  // State for map view
+  const [mapView, setMapView] = useState<MapView>({
+    center: county.center || { lat: 0, lng: 0 },
+    zoom: 10,
+    bearing: 0,
+    pitch: 0,
+    ...initialView
+  });
   
-  // State for selected features
-  const [selectedFeatures, setSelectedFeatures] = useState<any[]>([]);
+  // State for map loading
+  const [mapLoaded, setMapLoaded] = useState<boolean>(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   
-  // Initialize map
+  // State for active tools
+  const [activeMeasurement, setActiveMeasurement] = useState<MeasurementType | null>(null);
+  const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolType | null>(null);
+  
+  // State for hovered/selected features
+  const [hoveredFeature, setHoveredFeature] = useState<FeatureInfo | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(null);
+  
+  // Initialize map on component mount
   useEffect(() => {
-    // Skip if map is already initialized or container is not available
-    if (map.current || !mapContainer.current) return;
+    initializeMap();
     
-    // Skip if no API key is provided for Mapbox
-    if (mergedConfig.provider === MapProvider.MAPBOX && !mergedConfig.apiKey) {
-      mapLogger.warn('Mapbox API key not provided, map initialization skipped');
-      return;
+    return () => {
+      // Clean up map instance on unmount
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        } catch (error) {
+          mapLogger.error('Error removing map instance', error);
+        }
+      }
+    };
+  }, []);
+  
+  // Update map when county changes
+  useEffect(() => {
+    if (mapLoaded && mapInstanceRef.current) {
+      updateMapForCounty();
     }
-    
-    // Set API key if provided
-    if (mergedConfig.provider === MapProvider.MAPBOX && mergedConfig.apiKey) {
-      mapboxgl.accessToken = mergedConfig.apiKey;
+  }, [county, mapLoaded]);
+  
+  // Update map when layers change
+  useEffect(() => {
+    if (mapLoaded && mapInstanceRef.current) {
+      updateMapLayers();
     }
-    
-    // Get style URL based on basemap style
-    const styleUrl = mergedConfig.customBasemapUrl || 
-                     mapboxStyleUrls[mergedConfig.basemapStyle] || 
-                     mapboxStyleUrls[BasemapStyle.STREETS];
+  }, [layers, mapLoaded]);
+  
+  // Update map when highlighted features change
+  useEffect(() => {
+    if (mapLoaded && mapInstanceRef.current) {
+      updateHighlightedFeatures();
+    }
+  }, [highlightedFeatures, mapLoaded]);
+  
+  /**
+   * Initialize the map
+   */
+  const initializeMap = async () => {
+    if (!mapContainerRef.current) return;
     
     try {
-      // Initialize map
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: styleUrl,
-        center: mergedConfig.center,
-        zoom: mergedConfig.zoom,
-        minZoom: mergedConfig.minZoom,
-        maxZoom: mergedConfig.maxZoom,
-        attributionControl: true
-      });
+      // Clear any previous errors
+      setLoadingError(null);
       
-      // Add navigation controls
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      
-      // Add geolocate control
-      map.current.addControl(
-        new mapboxgl.GeolocateControl({
-          positionOptions: {
-            enableHighAccuracy: true
-          },
-          trackUserLocation: true
-        }),
-        'top-right'
-      );
-      
-      // Add scale control
-      map.current.addControl(
-        new mapboxgl.ScaleControl({
-          maxWidth: 150,
-          unit: 'imperial' // or 'metric'
-        }),
-        'bottom-left'
-      );
-      
-      // Set bounds if provided
-      if (mergedConfig.bounds) {
-        map.current.fitBounds(mergedConfig.bounds, {
-          padding: 50,
-          duration: 0 // Instant fit on initial load
-        });
+      // Initialize map based on provider
+      switch (provider) {
+        case MapProviderType.MAPBOX:
+          await initializeMapbox();
+          break;
+        case MapProviderType.ARCGIS:
+          await initializeArcGIS();
+          break;
+        case MapProviderType.LEAFLET:
+          await initializeLeaflet();
+          break;
+        case MapProviderType.GOOGLE:
+          await initializeGoogle();
+          break;
+        default:
+          throw new Error(`Unsupported map provider: ${provider}`);
       }
       
-      // Handle map load
-      map.current.on('load', () => {
+      mapLogger.info('Map initialized', { provider, county: county.name });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setLoadingError(`Failed to initialize map: ${errorMessage}`);
+      mapLogger.error('Map initialization failed', error);
+    }
+  };
+  
+  /**
+   * Initialize Mapbox map provider
+   */
+  const initializeMapbox = async () => {
+    try {
+      if (!apiKey) {
+        throw new Error('Mapbox API key is required');
+      }
+      
+      // Import Mapbox dynamically
+      const mapboxgl = await import('mapbox-gl');
+      
+      // Set access token
+      mapboxgl.accessToken = apiKey;
+      
+      // Create map instance
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current!,
+        style: getMapboxStyle(baseLayer),
+        center: [mapView.center.lng, mapView.center.lat],
+        zoom: mapView.zoom,
+        bearing: mapView.bearing,
+        pitch: mapView.pitch,
+        attributionControl: true,
+        antialias: true
+      });
+      
+      // Set up event handlers
+      map.on('load', () => {
+        mapInstanceRef.current = map;
         setMapLoaded(true);
         
-        if (eventHandlers.onMapLoaded) {
-          eventHandlers.onMapLoaded();
-        }
+        // Add layers
+        updateMapLayers();
         
-        // Add county boundary layer if county is specified
-        if (mergedConfig.countyName || mergedConfig.countyFips) {
-          addCountyBoundaryLayer();
-        }
+        // Add highlighted features
+        updateHighlightedFeatures();
         
-        // Add parcel layers if enabled
-        if (mergedConfig.showParcelBoundaries) {
-          addParcelLayers();
-        }
-        
-        // Add tax code areas if enabled
-        if (mergedConfig.showTaxCodeAreas) {
-          addTaxCodeLayers();
-        }
-        
-        // Add zoning if enabled
-        if (mergedConfig.showZoning) {
-          addZoningLayers();
+        // Notify parent component
+        if (onMapReady) {
+          onMapReady(map);
         }
       });
       
-      // Handle map click
-      map.current.on('click', (e) => {
-        if (eventHandlers.onMapClick) {
-          // Query features at click point
-          const features = map.current?.queryRenderedFeatures(e.point) || [];
-          
-          eventHandlers.onMapClick({
-            lngLat: [e.lngLat.lng, e.lngLat.lat],
-            features
-          });
+      map.on('move', () => {
+        const center = map.getCenter();
+        const newView: MapView = {
+          center: { lat: center.lat, lng: center.lng },
+          zoom: map.getZoom(),
+          bearing: map.getBearing(),
+          pitch: map.getPitch()
+        };
+        
+        setMapView(newView);
+        
+        // Notify parent component
+        if (onViewChange) {
+          onViewChange(newView);
         }
       });
       
-      // Handle viewport changes
-      map.current.on('moveend', () => {
-        if (eventHandlers.onViewportChange && map.current) {
-          const center = map.current.getCenter();
-          
-          eventHandlers.onViewportChange({
-            center: [center.lng, center.lat],
-            zoom: map.current.getZoom()
-          });
-        }
-      });
+      // Set up click handler
+      map.on('click', handleMapClick);
       
-      mapLogger.info('Map initialized', {
-        metadata: {
-          provider: mergedConfig.provider,
-          center: mergedConfig.center,
-          zoom: mergedConfig.zoom,
-          basemap: mergedConfig.basemapStyle
+      // Set up hover handler
+      map.on('mousemove', handleMapMouseMove);
+      map.on('mouseout', () => {
+        // Clear hover state when mouse leaves map
+        setHoveredFeature(null);
+        
+        // Notify parent component
+        if (onFeatureHover) {
+          onFeatureHover(null);
         }
       });
     } catch (error) {
-      mapLogger.error('Error initializing map', error);
+      mapLogger.error('Failed to initialize Mapbox', error);
+      throw error;
     }
-    
-    // Cleanup on unmount
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
-  }, [mergedConfig, eventHandlers]);
-  
-  // Handle basemap style changes
-  useEffect(() => {
-    if (!map.current || !mapLoaded) return;
-    
-    // Get style URL based on basemap style
-    const styleUrl = mergedConfig.customBasemapUrl || 
-                     mapboxStyleUrls[mergedConfig.basemapStyle] || 
-                     mapboxStyleUrls[BasemapStyle.STREETS];
-    
-    map.current.setStyle(styleUrl);
-    
-    mapLogger.info('Map style updated', {
-      metadata: {
-        style: mergedConfig.basemapStyle,
-        url: styleUrl
-      }
-    });
-  }, [mergedConfig.basemapStyle, mergedConfig.customBasemapUrl, mapLoaded]);
-  
-  // Handle changes to active layers
-  useEffect(() => {
-    if (!map.current || !mapLoaded) return;
-    
-    // Toggle layer visibility based on activeLayers state
-    const toggleLayerVisibility = (layerId: string, visible: boolean) => {
-      if (!map.current) return;
-      
-      const layer = map.current.getLayer(layerId);
-      
-      if (layer) {
-        map.current.setLayoutProperty(
-          layerId,
-          'visibility',
-          visible ? 'visible' : 'none'
-        );
-        
-        mapLogger.info(`Layer ${layerId} visibility set to ${visible ? 'visible' : 'hidden'}`);
-      }
-    };
-    
-    // Update layer visibility
-    activeLayers.forEach(layerId => {
-      toggleLayerVisibility(layerId, true);
-    });
-    
-    // Hide layers not in activeLayers
-    const allLayers = [
-      'county-boundary',
-      'county-boundary-outline',
-      'parcels-fill',
-      'parcels-outline',
-      'parcel-labels',
-      'taxcode-fill',
-      'taxcode-outline',
-      'taxcode-labels',
-      'zoning-fill',
-      'zoning-outline',
-      'zoning-labels'
-    ];
-    
-    allLayers.forEach(layerId => {
-      if (!activeLayers.includes(layerId)) {
-        toggleLayerVisibility(layerId, false);
-      }
-    });
-  }, [activeLayers, mapLoaded]);
-  
-  // Add county boundary layer
-  const addCountyBoundaryLayer = () => {
-    if (!map.current) return;
-    
-    // Check if layer already exists
-    if (map.current.getLayer('county-boundary')) {
-      return;
-    }
-    
-    // In a real implementation, this would load actual county GeoJSON data
-    // from an API or file. For now, we'll use placeholder data.
-    
-    // Add source
-    map.current.addSource('county-boundary-source', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [-119.3035, 46.2503],
-            [-119.1035, 46.2503],
-            [-119.1035, 46.3503],
-            [-119.3035, 46.3503],
-            [-119.3035, 46.2503]
-          ]]
-        },
-        properties: {
-          name: mergedConfig.countyName || 'County',
-          fips: mergedConfig.countyFips || '00000'
-        }
-      }
-    });
-    
-    // Add fill layer
-    map.current.addLayer({
-      id: 'county-boundary',
-      type: 'fill',
-      source: 'county-boundary-source',
-      paint: {
-        'fill-color': '#0080ff',
-        'fill-opacity': 0.1
-      }
-    });
-    
-    // Add outline layer
-    map.current.addLayer({
-      id: 'county-boundary-outline',
-      type: 'line',
-      source: 'county-boundary-source',
-      paint: {
-        'line-color': '#0080ff',
-        'line-width': 2,
-        'line-dasharray': [2, 1]
-      }
-    });
-    
-    // Update active layers
-    setActiveLayers(prev => [...prev, 'county-boundary', 'county-boundary-outline']);
   };
   
-  // Add parcel layers
-  const addParcelLayers = () => {
-    if (!map.current) return;
+  /**
+   * Initialize ArcGIS map provider
+   */
+  const initializeArcGIS = async () => {
+    // This would be implemented for the ArcGIS map provider
+    // The implementation would be similar to Mapbox but with ArcGIS-specific setup
     
-    // Check if layer already exists
-    if (map.current.getLayer('parcels-fill')) {
-      return;
-    }
-    
-    // In a real implementation, this would load actual parcel GeoJSON data
-    // from an API or file. For now, we'll use placeholder data.
-    
-    // Add source
-    map.current.addSource('parcels-source', {
-      type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-119.25, 46.28],
-                [-119.24, 46.28],
-                [-119.24, 46.29],
-                [-119.25, 46.29],
-                [-119.25, 46.28]
-              ]]
-            },
-            properties: {
-              parcelId: '12345',
-              address: '123 Main St',
-              owner: 'John Doe',
-              zoning: 'R1',
-              taxcode: 'TC001',
-              acres: 1.25,
-              value: 250000
-            }
-          },
-          {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-119.24, 46.28],
-                [-119.23, 46.28],
-                [-119.23, 46.29],
-                [-119.24, 46.29],
-                [-119.24, 46.28]
-              ]]
-            },
-            properties: {
-              parcelId: '12346',
-              address: '125 Main St',
-              owner: 'Jane Smith',
-              zoning: 'R1',
-              taxcode: 'TC001',
-              acres: 1.1,
-              value: 230000
-            }
-          }
-        ]
-      }
-    });
-    
-    // Add fill layer
-    map.current.addLayer({
-      id: 'parcels-fill',
-      type: 'fill',
-      source: 'parcels-source',
-      paint: {
-        'fill-color': [
-          'interpolate',
-          ['linear'],
-          ['get', 'value'],
-          100000, '#f7fbff',
-          200000, '#c7dcef',
-          300000, '#8fc2dd',
-          400000, '#5fa1ca',
-          500000, '#3a7eb9',
-          750000, '#2167a8',
-          1000000, '#0e51a2'
-        ],
-        'fill-opacity': 0.6
-      }
-    });
-    
-    // Add outline layer
-    map.current.addLayer({
-      id: 'parcels-outline',
-      type: 'line',
-      source: 'parcels-source',
-      paint: {
-        'line-color': '#555555',
-        'line-width': 1
-      }
-    });
-    
-    // Add labels if enabled
-    if (mergedConfig.showParcelLabels) {
-      map.current.addLayer({
-        id: 'parcel-labels',
-        type: 'symbol',
-        source: 'parcels-source',
-        layout: {
-          'text-field': ['get', 'parcelId'],
-          'text-font': ['Open Sans Regular'],
-          'text-size': 12,
-          'text-offset': [0, 0],
-          'text-anchor': 'center'
-        },
-        paint: {
-          'text-color': '#333333',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 1
+    mapLogger.info('ArcGIS initialization not fully implemented');
+    setLoadingError('ArcGIS map provider not fully implemented yet');
+  };
+  
+  /**
+   * Initialize Leaflet map provider
+   */
+  const initializeLeaflet = async () => {
+    try {
+      // Import Leaflet dynamically
+      const L = await import('leaflet');
+      
+      // Create map instance
+      const map = L.map(mapContainerRef.current!, {
+        center: [mapView.center.lat, mapView.center.lng],
+        zoom: mapView.zoom,
+        attributionControl: true
+      });
+      
+      // Add base layer
+      const baseLayerUrl = getLeafletTileUrl(baseLayer);
+      L.tileLayer(baseLayerUrl, {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      
+      // Set up event handlers
+      map.on('load', () => {
+        mapInstanceRef.current = map;
+        setMapLoaded(true);
+        
+        // Add layers
+        updateMapLayers();
+        
+        // Add highlighted features
+        updateHighlightedFeatures();
+        
+        // Notify parent component
+        if (onMapReady) {
+          onMapReady(map);
         }
       });
       
-      setActiveLayers(prev => [...prev, 'parcel-labels']);
-    }
-    
-    // Add click handler for parcels
-    map.current.on('click', 'parcels-fill', (e) => {
-      if (e.features && e.features.length > 0) {
-        setSelectedFeatures(e.features);
+      map.on('moveend', () => {
+        const center = map.getCenter();
+        const newView: MapView = {
+          center: { lat: center.lat, lng: center.lng },
+          zoom: map.getZoom(),
+          bearing: 0, // Leaflet doesn't support bearing
+          pitch: 0 // Leaflet doesn't support pitch
+        };
         
-        if (eventHandlers.onFeatureSelect) {
-          eventHandlers.onFeatureSelect(e.features);
+        setMapView(newView);
+        
+        // Notify parent component
+        if (onViewChange) {
+          onViewChange(newView);
         }
+      });
+      
+      // Set up click handler
+      map.on('click', (e: any) => {
+        handleMapClick({
+          lngLat: { lng: e.latlng.lng, lat: e.latlng.lat },
+          point: { x: e.containerPoint.x, y: e.containerPoint.y }
+        });
+      });
+      
+      // Set up hover handler
+      map.on('mousemove', (e: any) => {
+        handleMapMouseMove({
+          lngLat: { lng: e.latlng.lng, lat: e.latlng.lat },
+          point: { x: e.containerPoint.x, y: e.containerPoint.y }
+        });
+      });
+      
+      map.on('mouseout', () => {
+        // Clear hover state when mouse leaves map
+        setHoveredFeature(null);
+        
+        // Notify parent component
+        if (onFeatureHover) {
+          onFeatureHover(null);
+        }
+      });
+    } catch (error) {
+      mapLogger.error('Failed to initialize Leaflet', error);
+      throw error;
+    }
+  };
+  
+  /**
+   * Initialize Google map provider
+   */
+  const initializeGoogle = async () => {
+    // This would be implemented for the Google Maps API
+    // The implementation would be similar to other providers but with Google Maps-specific setup
+    
+    mapLogger.info('Google Maps initialization not fully implemented');
+    setLoadingError('Google Maps provider not fully implemented yet');
+  };
+  
+  /**
+   * Update map view and layers for current county
+   */
+  const updateMapForCounty = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    try {
+      // Fit map to county bounds if available
+      if (county.bounds) {
+        if (provider === MapProviderType.MAPBOX) {
+          map.fitBounds([
+            [county.bounds.west, county.bounds.south],
+            [county.bounds.east, county.bounds.north]
+          ], { padding: 50 });
+        } else if (provider === MapProviderType.LEAFLET) {
+          map.fitBounds([
+            [county.bounds.south, county.bounds.west],
+            [county.bounds.north, county.bounds.east]
+          ], { padding: [50, 50] });
+        }
+      } else if (county.center) {
+        // Or center on county center point
+        if (provider === MapProviderType.MAPBOX) {
+          map.setCenter([county.center.lng, county.center.lat]);
+        } else if (provider === MapProviderType.LEAFLET) {
+          map.setView([county.center.lat, county.center.lng]);
+        }
+      }
+      
+      mapLogger.debug(`Map updated for county: ${county.name}, ${county.state}`);
+    } catch (error) {
+      mapLogger.error(`Failed to update map for county: ${county.name}`, error);
+    }
+  };
+  
+  /**
+   * Update map layers
+   */
+  const updateMapLayers = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    try {
+      // Implementation depends on the map provider
+      if (provider === MapProviderType.MAPBOX) {
+        updateMapboxLayers(map);
+      } else if (provider === MapProviderType.LEAFLET) {
+        updateLeafletLayers(map);
+      }
+      
+      mapLogger.debug(`Updated ${layers.length} layers on map`);
+    } catch (error) {
+      mapLogger.error('Failed to update map layers', error);
+    }
+  };
+  
+  /**
+   * Update Mapbox layers
+   */
+  const updateMapboxLayers = (map: any) => {
+    // Remove existing layers first
+    const existingLayers = map.getStyle().layers.filter((layer: any) => 
+      layer.id.startsWith('custom-')
+    );
+    
+    existingLayers.forEach((layer: any) => {
+      map.removeLayer(layer.id);
+    });
+    
+    // Remove existing sources
+    const existingSources = Object.keys(map.getStyle().sources).filter(source => 
+      source.startsWith('custom-')
+    );
+    
+    existingSources.forEach(source => {
+      map.removeSource(source);
+    });
+    
+    // Add new layers, sorted by z-index
+    const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
+    
+    sortedLayers.forEach(layer => {
+      if (!layer.visible) return;
+      
+      // Source ID for this layer
+      const sourceId = `custom-source-${layer.id}`;
+      
+      // Layer ID for this layer
+      const layerId = `custom-layer-${layer.id}`;
+      
+      // Add source based on layer type
+      if (layer.type === 'vector') {
+        // Vector tile source
+        map.addSource(sourceId, {
+          type: 'vector',
+          url: layer.source
+        });
+        
+        // Add layer
+        map.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          'source-layer': layer.attributes?.sourceLayer || '0',
+          paint: {
+            'fill-color': layer.attributes?.fillColor || '#000000',
+            'fill-opacity': layer.opacity,
+            'fill-outline-color': layer.attributes?.outlineColor || '#000000'
+          }
+        });
+        
+        // Add outline layer
+        map.addLayer({
+          id: `${layerId}-outline`,
+          type: 'line',
+          source: sourceId,
+          'source-layer': layer.attributes?.sourceLayer || '0',
+          paint: {
+            'line-color': layer.attributes?.outlineColor || '#000000',
+            'line-width': layer.attributes?.outlineWidth || 1,
+            'line-opacity': layer.opacity
+          }
+        });
+      } else if (layer.type === 'raster') {
+        // Raster tile source
+        map.addSource(sourceId, {
+          type: 'raster',
+          url: layer.source,
+          tileSize: 256
+        });
+        
+        // Add layer
+        map.addLayer({
+          id: layerId,
+          type: 'raster',
+          source: sourceId,
+          paint: {
+            'raster-opacity': layer.opacity,
+            'raster-hue-rotate': layer.attributes?.hueRotate || 0,
+            'raster-brightness-min': layer.attributes?.brightnessMin || 0,
+            'raster-brightness-max': layer.attributes?.brightnessMax || 1,
+            'raster-saturation': layer.attributes?.saturation || 0,
+            'raster-contrast': layer.attributes?.contrast || 0
+          }
+        });
+      }
+    });
+  };
+  
+  /**
+   * Update Leaflet layers
+   */
+  const updateLeafletLayers = (map: any) => {
+    // Remove existing layers first
+    map.eachLayer((layer: any) => {
+      if (layer._url && layer._url.indexOf('tile.openstreetmap.org') === -1) {
+        map.removeLayer(layer);
       }
     });
     
-    // Update active layers
-    setActiveLayers(prev => [...prev, 'parcels-fill', 'parcels-outline']);
+    // Add new layers, sorted by z-index
+    const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
+    
+    sortedLayers.forEach(layer => {
+      if (!layer.visible) return;
+      
+      const L = require('leaflet');
+      
+      if (layer.type === 'vector') {
+        // For vector data, we'd need to fetch the data and add it as GeoJSON
+        // This is a simplified implementation
+        fetch(layer.source)
+          .then(response => response.json())
+          .then(data => {
+            L.geoJSON(data, {
+              style: {
+                color: layer.attributes?.outlineColor || '#000000',
+                weight: layer.attributes?.outlineWidth || 1,
+                opacity: layer.opacity,
+                fillColor: layer.attributes?.fillColor || '#000000',
+                fillOpacity: layer.opacity
+              }
+            }).addTo(map);
+          })
+          .catch(error => {
+            mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
+          });
+      } else if (layer.type === 'raster') {
+        // For raster data, add as a tile layer
+        L.tileLayer(layer.source, {
+          opacity: layer.opacity,
+          zIndex: layer.zIndex
+        }).addTo(map);
+      }
+    });
   };
   
-  // Add tax code layers
-  const addTaxCodeLayers = () => {
-    if (!map.current) return;
+  /**
+   * Update highlighted features
+   */
+  const updateHighlightedFeatures = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
     
-    // Check if layer already exists
-    if (map.current.getLayer('taxcode-fill')) {
+    try {
+      // Implementation depends on the map provider
+      if (provider === MapProviderType.MAPBOX) {
+        updateMapboxHighlightedFeatures(map);
+      } else if (provider === MapProviderType.LEAFLET) {
+        updateLeafletHighlightedFeatures(map);
+      }
+      
+      mapLogger.debug(`Updated ${highlightedFeatures.length} highlighted features on map`);
+    } catch (error) {
+      mapLogger.error('Failed to update highlighted features', error);
+    }
+  };
+  
+  /**
+   * Update Mapbox highlighted features
+   */
+  const updateMapboxHighlightedFeatures = (map: any) => {
+    // Remove existing highlight layers
+    if (map.getLayer('highlighted-features')) {
+      map.removeLayer('highlighted-features');
+    }
+    
+    if (map.getLayer('highlighted-features-outline')) {
+      map.removeLayer('highlighted-features-outline');
+    }
+    
+    if (map.getSource('highlighted-features-source')) {
+      map.removeSource('highlighted-features-source');
+    }
+    
+    // If no features to highlight, return
+    if (highlightedFeatures.length === 0) {
       return;
     }
     
-    // In a real implementation, this would load actual tax code GeoJSON data
-    // This is just a placeholder
+    // Create GeoJSON source for highlighted features
+    const geojson = {
+      type: 'FeatureCollection',
+      features: highlightedFeatures.map(feature => ({
+        type: 'Feature',
+        id: feature.id,
+        properties: feature.properties,
+        geometry: feature.geometry
+      }))
+    };
     
     // Add source
-    map.current.addSource('taxcode-source', {
+    map.addSource('highlighted-features-source', {
       type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-119.26, 46.27],
-                [-119.22, 46.27],
-                [-119.22, 46.30],
-                [-119.26, 46.30],
-                [-119.26, 46.27]
-              ]]
-            },
-            properties: {
-              taxcodeId: 'TC001',
-              name: 'School District 1',
-              rate: 0.0125,
-              jurisdiction: 'County'
-            }
-          }
-        ]
-      }
+      data: geojson
     });
     
     // Add fill layer
-    map.current.addLayer({
-      id: 'taxcode-fill',
+    map.addLayer({
+      id: 'highlighted-features',
       type: 'fill',
-      source: 'taxcode-source',
+      source: 'highlighted-features-source',
       paint: {
         'fill-color': '#ffff00',
-        'fill-opacity': 0.1
+        'fill-opacity': 0.5
       }
     });
     
     // Add outline layer
-    map.current.addLayer({
-      id: 'taxcode-outline',
+    map.addLayer({
+      id: 'highlighted-features-outline',
       type: 'line',
-      source: 'taxcode-source',
+      source: 'highlighted-features-source',
       paint: {
-        'line-color': '#777700',
-        'line-width': 2,
-        'line-dasharray': [4, 2]
+        'line-color': '#ff0000',
+        'line-width': 2
       }
     });
-    
-    // Add labels
-    map.current.addLayer({
-      id: 'taxcode-labels',
-      type: 'symbol',
-      source: 'taxcode-source',
-      layout: {
-        'text-field': ['get', 'taxcodeId'],
-        'text-font': ['Open Sans Regular'],
-        'text-size': 14,
-        'text-offset': [0, 0],
-        'text-anchor': 'center'
-      },
-      paint: {
-        'text-color': '#555500',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1
-      }
-    });
-    
-    // Update active layers
-    setActiveLayers(prev => [...prev, 'taxcode-fill', 'taxcode-outline', 'taxcode-labels']);
   };
   
-  // Add zoning layers
-  const addZoningLayers = () => {
-    if (!map.current) return;
+  /**
+   * Update Leaflet highlighted features
+   */
+  const updateLeafletHighlightedFeatures = (map: any) => {
+    // Remove existing highlight layers
+    if (map.highlightLayer) {
+      map.removeLayer(map.highlightLayer);
+      map.highlightLayer = null;
+    }
     
-    // Check if layer already exists
-    if (map.current.getLayer('zoning-fill')) {
+    // If no features to highlight, return
+    if (highlightedFeatures.length === 0) {
       return;
     }
     
-    // In a real implementation, this would load actual zoning GeoJSON data
-    // This is just a placeholder
+    const L = require('leaflet');
     
-    // Add source
-    map.current.addSource('zoning-source', {
-      type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-119.25, 46.28],
-                [-119.23, 46.28],
-                [-119.23, 46.29],
-                [-119.25, 46.29],
-                [-119.25, 46.28]
-              ]]
-            },
-            properties: {
-              zoningCode: 'R1',
-              description: 'Residential Single Family',
-              minLotSize: 7500
-            }
+    // Create GeoJSON for highlighted features
+    const geojson = {
+      type: 'FeatureCollection',
+      features: highlightedFeatures.map(feature => ({
+        type: 'Feature',
+        id: feature.id,
+        properties: feature.properties,
+        geometry: feature.geometry
+      }))
+    };
+    
+    // Add highlight layer
+    map.highlightLayer = L.geoJSON(geojson, {
+      style: {
+        color: '#ff0000',
+        weight: 2,
+        opacity: 1,
+        fillColor: '#ffff00',
+        fillOpacity: 0.5
+      }
+    }).addTo(map);
+  };
+  
+  /**
+   * Handle map click
+   */
+  const handleMapClick = (e: any) => {
+    const map = mapInstanceRef.current;
+    if (!map || activeMeasurement || activeDrawingTool) return;
+    
+    try {
+      // Query features at click location
+      let features: any[] = [];
+      
+      if (provider === MapProviderType.MAPBOX) {
+        const point = e.point;
+        features = map.queryRenderedFeatures(point, {
+          layers: layers.map(layer => `custom-layer-${layer.id}`)
+        });
+      } else if (provider === MapProviderType.LEAFLET) {
+        // For Leaflet, we'd need to implement custom feature querying
+        // This is a simplified implementation
+        features = [];
+      }
+      
+      // If no features found, clear selection
+      if (features.length === 0) {
+        setSelectedFeature(null);
+        return;
+      }
+      
+      // Get the top feature
+      const feature = features[0];
+      
+      // Create feature info
+      const featureInfo: FeatureInfo = {
+        id: feature.id || `feature-${Date.now()}`,
+        type: feature.layer.id || 'unknown',
+        properties: feature.properties || {},
+        geometry: feature.geometry
+      };
+      
+      // Set selected feature
+      setSelectedFeature(featureInfo);
+      
+      // Notify parent component
+      if (onFeatureClick) {
+        onFeatureClick(featureInfo);
+      }
+      
+      mapLogger.debug(`Feature clicked: ${featureInfo.id}`, featureInfo);
+    } catch (error) {
+      mapLogger.error('Error handling map click', error);
+    }
+  };
+  
+  /**
+   * Handle map mouse move
+   */
+  const handleMapMouseMove = (e: any) => {
+    const map = mapInstanceRef.current;
+    if (!map || activeMeasurement || activeDrawingTool) return;
+    
+    try {
+      // Query features at mouse location
+      let features: any[] = [];
+      
+      if (provider === MapProviderType.MAPBOX) {
+        const point = e.point;
+        features = map.queryRenderedFeatures(point, {
+          layers: layers.map(layer => `custom-layer-${layer.id}`)
+        });
+      } else if (provider === MapProviderType.LEAFLET) {
+        // For Leaflet, we'd need to implement custom feature querying
+        // This is a simplified implementation
+        features = [];
+      }
+      
+      // If no features found, clear hover state
+      if (features.length === 0) {
+        if (hoveredFeature) {
+          setHoveredFeature(null);
+          
+          // Notify parent component
+          if (onFeatureHover) {
+            onFeatureHover(null);
           }
-        ]
-      }
-    });
-    
-    // Add fill layer
-    map.current.addLayer({
-      id: 'zoning-fill',
-      type: 'fill',
-      source: 'zoning-source',
-      paint: {
-        'fill-color': [
-          'match',
-          ['get', 'zoningCode'],
-          'R1', '#bdffb8',
-          'R2', '#9aeb94',
-          'R3', '#77d870',
-          'C1', '#caaef0',
-          'C2', '#ac8eda',
-          'I1', '#ff9e9e',
-          'I2', '#ff7575',
-          'AG', '#f1dfad',
-          '#cccccc' // default
-        ],
-        'fill-opacity': 0.3
-      }
-    });
-    
-    // Add outline layer
-    map.current.addLayer({
-      id: 'zoning-outline',
-      type: 'line',
-      source: 'zoning-source',
-      paint: {
-        'line-color': '#555555',
-        'line-width': 1,
-        'line-dasharray': [1, 1]
-      }
-    });
-    
-    // Add labels
-    map.current.addLayer({
-      id: 'zoning-labels',
-      type: 'symbol',
-      source: 'zoning-source',
-      layout: {
-        'text-field': ['get', 'zoningCode'],
-        'text-font': ['Open Sans Regular'],
-        'text-size': 12,
-        'text-offset': [0, 0],
-        'text-anchor': 'center'
-      },
-      paint: {
-        'text-color': '#333333',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1
-      }
-    });
-    
-    // Update active layers
-    setActiveLayers(prev => [...prev, 'zoning-fill', 'zoning-outline', 'zoning-labels']);
-  };
-  
-  // Toggle layer visibility
-  const toggleLayer = (layerId: string, visible: boolean) => {
-    if (visible) {
-      setActiveLayers(prev => Array.from(new Set([...prev, layerId])));
-    } else {
-      setActiveLayers(prev => prev.filter(id => id !== layerId));
-    }
-    
-    if (eventHandlers.onLayerToggle) {
-      eventHandlers.onLayerToggle(layerId, visible);
-    }
-  };
-  
-  // Zoom to a specific feature
-  const zoomToFeature = (feature: any) => {
-    if (!map.current || !feature.geometry) return;
-    
-    // Calculate bounds from feature
-    const bounds = new mapboxgl.LngLatBounds();
-    
-    if (feature.geometry.type === 'Point') {
-      bounds.extend(feature.geometry.coordinates);
-    } else if (feature.geometry.type === 'LineString') {
-      feature.geometry.coordinates.forEach((coord: [number, number]) => {
-        bounds.extend(coord);
-      });
-    } else if (feature.geometry.type === 'Polygon') {
-      feature.geometry.coordinates[0].forEach((coord: [number, number]) => {
-        bounds.extend(coord);
-      });
-    }
-    
-    // Zoom to bounds
-    map.current.fitBounds(bounds, {
-      padding: 50,
-      duration: 1000 // 1 second animation
-    });
-  };
-  
-  // Export methods to parent via ref
-  React.useImperativeHandle(
-    (props as any).ref,
-    () => ({
-      getMap: () => map.current,
-      toggleLayer,
-      zoomToFeature,
-      getSelectedFeatures: () => selectedFeatures,
-      getActiveLayers: () => activeLayers,
-      setViewport: (center: [number, number], zoom: number) => {
-        if (map.current) {
-          map.current.setCenter(center);
-          map.current.setZoom(zoom);
         }
+        return;
       }
-    }),
-    [map, selectedFeatures, activeLayers]
-  );
+      
+      // Get the top feature
+      const feature = features[0];
+      
+      // Create feature info
+      const featureInfo: FeatureInfo = {
+        id: feature.id || `feature-${Date.now()}`,
+        type: feature.layer.id || 'unknown',
+        properties: feature.properties || {},
+        geometry: feature.geometry
+      };
+      
+      // Check if this is the same feature as currently hovered
+      if (hoveredFeature && hoveredFeature.id === featureInfo.id) {
+        return;
+      }
+      
+      // Set hovered feature
+      setHoveredFeature(featureInfo);
+      
+      // Notify parent component
+      if (onFeatureHover) {
+        onFeatureHover(featureInfo);
+      }
+    } catch (error) {
+      mapLogger.error('Error handling map mouse move', error);
+    }
+  };
+  
+  /**
+   * Handle measurement start
+   */
+  const handleMeasurementStart = (type: MeasurementType) => {
+    setActiveMeasurement(type);
+    setActiveDrawingTool(null);
+    
+    mapLogger.debug(`Measurement started: ${type}`);
+  };
+  
+  /**
+   * Handle measurement complete
+   */
+  const handleMeasurementComplete = (measurement: MeasurementResult) => {
+    // Notify parent component
+    if (onMeasurementComplete) {
+      onMeasurementComplete(measurement);
+    }
+    
+    // Reset active measurement
+    setActiveMeasurement(null);
+    
+    mapLogger.debug(`Measurement completed: ${measurement.type}`);
+  };
+  
+  /**
+   * Handle measurement cancel
+   */
+  const handleMeasurementCancel = () => {
+    setActiveMeasurement(null);
+    
+    mapLogger.debug('Measurement cancelled');
+  };
+  
+  /**
+   * Handle drawing start
+   */
+  const handleDrawingStart = (tool: DrawingToolType) => {
+    setActiveDrawingTool(tool);
+    setActiveMeasurement(null);
+    
+    mapLogger.debug(`Drawing started: ${tool}`);
+  };
+  
+  /**
+   * Handle drawing complete
+   */
+  const handleDrawingComplete = (feature: any) => {
+    // Notify parent component
+    if (onDrawingComplete) {
+      onDrawingComplete(feature);
+    }
+    
+    // Reset active drawing tool
+    setActiveDrawingTool(null);
+    
+    mapLogger.debug('Drawing completed');
+  };
+  
+  /**
+   * Handle drawing cancel
+   */
+  const handleDrawingCancel = () => {
+    setActiveDrawingTool(null);
+    
+    mapLogger.debug('Drawing cancelled');
+  };
+  
+  /**
+   * Handle zoom in
+   */
+  const handleZoomIn = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    if (provider === MapProviderType.MAPBOX) {
+      map.zoomIn();
+    } else if (provider === MapProviderType.LEAFLET) {
+      map.zoomIn();
+    }
+  };
+  
+  /**
+   * Handle zoom out
+   */
+  const handleZoomOut = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    if (provider === MapProviderType.MAPBOX) {
+      map.zoomOut();
+    } else if (provider === MapProviderType.LEAFLET) {
+      map.zoomOut();
+    }
+  };
+  
+  /**
+   * Handle reset north
+   */
+  const handleResetNorth = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    if (provider === MapProviderType.MAPBOX) {
+      map.setBearing(0);
+    }
+    // Leaflet doesn't support bearing
+  };
+  
+  /**
+   * Handle reset view
+   */
+  const handleResetView = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    updateMapForCounty();
+  };
+  
+  /**
+   * Handle print
+   */
+  const handlePrint = () => {
+    window.print();
+  };
+  
+  /**
+   * Handle export
+   */
+  const handleExport = (format: 'png' | 'jpg' | 'svg' | 'pdf') => {
+    // Implementation depends on the map provider
+    if (provider === MapProviderType.MAPBOX) {
+      exportMapboxMap(format);
+    } else if (provider === MapProviderType.LEAFLET) {
+      exportLeafletMap(format);
+    }
+  };
+  
+  /**
+   * Export Mapbox map
+   */
+  const exportMapboxMap = (format: 'png' | 'jpg' | 'svg' | 'pdf') => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    try {
+      // Get map canvas
+      const canvas = map.getCanvas();
+      
+      // Create a download link
+      const link = document.createElement('a');
+      
+      if (format === 'svg' || format === 'pdf') {
+        mapLogger.warn(`Export to ${format} not implemented for Mapbox`);
+        return;
+      }
+      
+      // Convert canvas to data URL
+      const dataUrl = canvas.toDataURL(`image/${format === 'png' ? 'png' : 'jpeg'}`);
+      
+      // Set link attributes
+      link.href = dataUrl;
+      link.download = `map-${county.name}-${county.state}.${format}`;
+      
+      // Click the link to download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      mapLogger.debug(`Map exported as ${format}`);
+    } catch (error) {
+      mapLogger.error(`Failed to export map as ${format}`, error);
+    }
+  };
+  
+  /**
+   * Export Leaflet map
+   */
+  const exportLeafletMap = (format: 'png' | 'jpg' | 'svg' | 'pdf') => {
+    // Leaflet doesn't have built-in export functionality
+    // This would require additional libraries like leaflet-image
+    
+    mapLogger.warn(`Export to ${format} not implemented for Leaflet`);
+  };
+  
+  /**
+   * Handle share
+   */
+  const handleShare = () => {
+    // Create a shareable URL with current view
+    const url = new URL(window.location.href);
+    
+    // Add map view parameters
+    url.searchParams.set('lat', mapView.center.lat.toString());
+    url.searchParams.set('lng', mapView.center.lng.toString());
+    url.searchParams.set('zoom', mapView.zoom.toString());
+    url.searchParams.set('bearing', mapView.bearing.toString());
+    url.searchParams.set('pitch', mapView.pitch.toString());
+    
+    // Add county info
+    url.searchParams.set('county', county.id);
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(url.toString())
+      .then(() => {
+        alert('Map URL copied to clipboard');
+      })
+      .catch(error => {
+        mapLogger.error('Failed to copy map URL to clipboard', error);
+        alert('Failed to copy map URL to clipboard');
+      });
+  };
+  
+  /**
+   * Get Mapbox style URL based on base layer
+   */
+  const getMapboxStyle = (baseLayer: BaseLayerType): string => {
+    switch (baseLayer) {
+      case BaseLayerType.STREETS:
+        return 'mapbox://styles/mapbox/streets-v11';
+      case BaseLayerType.SATELLITE:
+        return 'mapbox://styles/mapbox/satellite-v9';
+      case BaseLayerType.HYBRID:
+        return 'mapbox://styles/mapbox/satellite-streets-v11';
+      case BaseLayerType.TERRAIN:
+        return 'mapbox://styles/mapbox/outdoors-v11';
+      case BaseLayerType.LIGHT:
+        return 'mapbox://styles/mapbox/light-v10';
+      case BaseLayerType.DARK:
+        return 'mapbox://styles/mapbox/dark-v10';
+      case BaseLayerType.TOPO:
+        return 'mapbox://styles/mapbox/outdoors-v11';
+      case BaseLayerType.NONE:
+        return 'mapbox://styles/mapbox/basic-v9';
+      default:
+        return 'mapbox://styles/mapbox/streets-v11';
+    }
+  };
+  
+  /**
+   * Get Leaflet tile URL based on base layer
+   */
+  const getLeafletTileUrl = (baseLayer: BaseLayerType): string => {
+    switch (baseLayer) {
+      case BaseLayerType.STREETS:
+        return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      case BaseLayerType.SATELLITE:
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+      case BaseLayerType.HYBRID:
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+      case BaseLayerType.TERRAIN:
+        return 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+      case BaseLayerType.TOPO:
+        return 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+      case BaseLayerType.LIGHT:
+        return 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+      case BaseLayerType.DARK:
+        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      case BaseLayerType.NONE:
+        return 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
+      default:
+        return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    }
+  };
   
   return (
     <div 
-      ref={mapContainer} 
       className={`county-map-viewer ${className}`}
-      style={{ 
-        width: '100%', 
-        height: '500px', 
-        borderRadius: '4px',
-        ...style 
+      style={{
+        position: 'relative',
+        width,
+        height,
+        ...style
       }}
-    />
+    >
+      {/* Map container */}
+      <div 
+        ref={mapContainerRef}
+        className="map-container"
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '8px',
+          overflow: 'hidden'
+        }}
+      />
+      
+      {/* Loading overlay */}
+      {!mapLoaded && (
+        <div 
+          className="map-loading-overlay"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            zIndex: 1000
+          }}
+        >
+          {loadingError ? (
+            <div style={{ textAlign: 'center', maxWidth: '80%' }}>
+              <div style={{ 
+                color: '#ef4444', 
+                fontSize: '18px', 
+                fontWeight: 'bold',
+                marginBottom: '16px'
+              }}>
+                Error Loading Map
+              </div>
+              <div style={{ color: '#4b5563' }}>
+                {loadingError}
+              </div>
+              <button
+                onClick={initializeMap}
+                style={{
+                  marginTop: '16px',
+                  padding: '8px 16px',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <div 
+                className="loading-spinner"
+                style={{
+                  border: '4px solid rgba(0, 0, 0, 0.1)',
+                  borderTopColor: '#3b82f6',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '16px'
+                }}
+              />
+              <div style={{ color: '#4b5563' }}>Loading Map...</div>
+            </>
+          )}
+        </div>
+      )}
+      
+      {/* Map controls */}
+      {mapLoaded && showControls && (
+        <MapControls
+          mapInstance={mapInstanceRef.current}
+          layers={layers}
+          view={mapView}
+          position={controlsPosition}
+          orientation={controlsOrientation}
+          onLayerToggle={onLayerToggle}
+          onLayerOpacityChange={onLayerOpacityChange}
+          onMeasurementStart={handleMeasurementStart}
+          onMeasurementComplete={handleMeasurementComplete}
+          onMeasurementCancel={handleMeasurementCancel}
+          onDrawingStart={handleDrawingStart}
+          onDrawingComplete={handleDrawingComplete}
+          onDrawingCancel={handleDrawingCancel}
+          onViewChange={onViewChange}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetNorth={handleResetNorth}
+          onResetView={handleResetView}
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onShare={handleShare}
+        />
+      )}
+      
+      {/* Measurement tools */}
+      {mapLoaded && activeMeasurement && (
+        <MeasurementTools
+          mapInstance={mapInstanceRef.current}
+          activeMeasurement={activeMeasurement}
+          onMeasurementComplete={handleMeasurementComplete}
+          onMeasurementCancel={handleMeasurementCancel}
+        />
+      )}
+      
+      {/* Tooltip */}
+      {mapLoaded && hoveredFeature && !selectedFeature && (
+        <div 
+          className="map-tooltip"
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            left: '20px',
+            backgroundColor: 'white',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+            padding: '12px',
+            borderRadius: '4px',
+            maxWidth: '300px',
+            zIndex: 1001
+          }}
+        >
+          {renderTooltip ? renderTooltip(hoveredFeature) : (
+            <div>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                {hoveredFeature.properties.name || 'Feature'}
+              </div>
+              <div style={{ fontSize: '14px', color: '#4b5563' }}>
+                {Object.entries(hoveredFeature.properties)
+                  .filter(([key]) => key !== 'name')
+                  .slice(0, 3)
+                  .map(([key, value]) => (
+                    <div key={key}>
+                      <strong>{key}:</strong> {String(value)}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Popup */}
+      {mapLoaded && selectedFeature && (
+        <div 
+          className="map-popup"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            backgroundColor: 'white',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+            padding: '16px',
+            borderRadius: '4px',
+            maxWidth: '400px',
+            maxHeight: '80%',
+            overflowY: 'auto',
+            zIndex: 1002
+          }}
+        >
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '12px'
+          }}>
+            <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
+              {selectedFeature.properties.name || 'Feature Details'}
+            </div>
+            <button
+              onClick={() => setSelectedFeature(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '18px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+          
+          {renderPopup ? renderPopup(selectedFeature) : (
+            <div>
+              {Object.entries(selectedFeature.properties).map(([key, value]) => (
+                <div key={key} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                    {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                  </div>
+                  <div style={{ color: '#4b5563' }}>
+                    {String(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* CSS animation for loading spinner */}
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </div>
   );
 };

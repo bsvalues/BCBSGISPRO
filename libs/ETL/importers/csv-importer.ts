@@ -1,343 +1,617 @@
 /**
  * CSV Importer
  * 
- * This module provides functionality for importing and parsing CSV files,
- * with support for data validation, transformation, and error handling.
+ * This module provides functionality for importing CSV data into the TerraFusion platform.
+ * It includes features for validation, transformation, and field mapping.
  */
 
 import { parse } from 'csv-parse/sync';
 import { logger } from '../../DevOps/utils/logger';
 
 // Create module-specific logger
-const importLogger = logger.withTags(['ETL', 'CSVImporter']);
+const csvLogger = logger.withTags(['ETL', 'CSVImporter']);
 
 /**
- * CSV parsing options
+ * CSV import options
  */
-export interface CSVParseOptions {
+export interface CSVImportOptions {
+  // File or data options
   delimiter?: string;
-  columns?: boolean | string[] | ((header: string[]) => string[]);
-  skip_empty_lines?: boolean;
-  trim?: boolean;
-  skip_lines_with_error?: boolean;
-  skip_records_with_error?: boolean;
+  headers?: boolean | string[];
+  skipEmptyLines?: boolean;
+  skipComments?: boolean;
+  commentChar?: string;
+  quoteChar?: string;
+  escapeChar?: string;
   encoding?: string;
-  fromLine?: number;
-  toLine?: number;
-  comment?: string;
-  relax_quotes?: boolean;
+  
+  // Processing options
+  trimFields?: boolean;
+  ltrim?: boolean; 
+  rtrim?: boolean;
+  castValues?: boolean;
+  
+  // Validation options
+  validateFields?: boolean;
+  validationRules?: ValidationRule[];
+  
+  // Transformation options
+  transformFields?: boolean;
+  transformationRules?: TransformationRule[];
+  
+  // Filtering options
+  filterRows?: boolean;
+  filterRules?: FilterRule[];
+  
+  // Batch processing
+  batchSize?: number;
+  
+  // Error handling
+  continueOnError?: boolean;
+  maxErrors?: number;
 }
 
 /**
- * Default parsing options
+ * CSV import result
  */
-export const DEFAULT_PARSE_OPTIONS: CSVParseOptions = {
-  delimiter: ',',
-  columns: true,
-  skip_empty_lines: true,
-  trim: true,
-  skip_records_with_error: false
-};
+export interface CSVImportResult<T = any> {
+  // Total records processed
+  totalRecords: number;
+  
+  // Successfully processed records
+  successRecords: number;
+  
+  // Failed records
+  failedRecords: number;
+  
+  // Skipped records
+  skippedRecords: number;
+  
+  // Imported data
+  data: T[];
+  
+  // Error records with their reasons
+  errors: {
+    record: Record<string, any>;
+    row: number;
+    reason: string;
+  }[];
+  
+  // Import timing information
+  timing: {
+    parseTime: number;
+    validationTime: number;
+    transformationTime: number;
+    filteringTime: number;
+    totalTime: number;
+  };
+  
+  // Field statistics
+  fieldStats: Record<string, {
+    nullCount: number;
+    emptyCount: number;
+    uniqueValues: number;
+    minValue?: any;
+    maxValue?: any;
+    avgLength?: number;
+  }>;
+}
+
+/**
+ * Field validation rule types
+ */
+export enum ValidationRuleType {
+  REQUIRED = 'required',
+  PATTERN = 'pattern',
+  MIN_LENGTH = 'minLength',
+  MAX_LENGTH = 'maxLength',
+  MIN_VALUE = 'minValue',
+  MAX_VALUE = 'maxValue',
+  UNIQUE = 'unique',
+  ENUM = 'enum',
+  CUSTOM = 'custom'
+}
 
 /**
  * Field validation rule
  */
 export interface ValidationRule {
+  // Field to validate
   field: string;
-  rule: 'required' | 'number' | 'integer' | 'positive' | 'date' | 'email' | 'regex' | 'custom';
-  pattern?: string; // For regex validation
-  message?: string; // Custom error message
-  validate?: (value: any) => boolean; // For custom validation
+  
+  // Rule type
+  type: ValidationRuleType;
+  
+  // Rule parameters
+  params?: any;
+  
+  // Error message
+  message?: string;
+  
+  // Custom validation function
+  validate?: (value: any, record: Record<string, any>, index: number) => boolean | string;
+}
+
+/**
+ * Field transformation rule types
+ */
+export enum TransformationRuleType {
+  TRIM = 'trim',
+  UPPERCASE = 'uppercase',
+  LOWERCASE = 'lowercase',
+  REPLACE = 'replace',
+  CAST = 'cast',
+  FORMAT = 'format',
+  CUSTOM = 'custom'
 }
 
 /**
  * Field transformation rule
  */
 export interface TransformationRule {
+  // Field to transform
   field: string;
-  transform: 'trim' | 'lowercase' | 'uppercase' | 'capitalize' | 'number' | 'boolean' | 'date' | 'custom';
-  options?: any; // Additional options for transformation
-  custom?: (value: any) => any; // For custom transformation
+  
+  // Rule type
+  type: TransformationRuleType;
+  
+  // Rule parameters
+  params?: any;
+  
+  // Custom transformation function
+  transform?: (value: any, record: Record<string, any>, index: number) => any;
 }
 
 /**
- * Record filter rule
+ * Filter rule types
+ */
+export enum FilterRuleType {
+  EQUALS = 'equals',
+  NOT_EQUALS = 'notEquals',
+  CONTAINS = 'contains',
+  NOT_CONTAINS = 'notContains',
+  STARTS_WITH = 'startsWith',
+  ENDS_WITH = 'endsWith',
+  GREATER_THAN = 'greaterThan',
+  LESS_THAN = 'lessThan',
+  REGEX = 'regex',
+  CUSTOM = 'custom'
+}
+
+/**
+ * Filter rule
  */
 export interface FilterRule {
+  // Field to filter
   field: string;
-  operator: 'equals' | 'notEquals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'custom';
-  value?: any;
-  custom?: (record: Record<string, any>) => boolean; // For custom filtering
-}
-
-/**
- * CSV import options
- */
-export interface CSVImportOptions {
-  parseOptions?: CSVParseOptions;
-  validationRules?: ValidationRule[];
-  transformationRules?: TransformationRule[];
-  filterRules?: FilterRule[];
-  onProgress?: (progress: { total: number; processed: number; percentage: number }) => void;
-  batchSize?: number;
-}
-
-/**
- * Validation error
- */
-export interface ValidationError {
-  row: number;
-  field: string;
-  value: any;
-  rule: string;
-  message: string;
-}
-
-/**
- * Validation warning
- */
-export interface ValidationWarning {
-  row: number;
-  field: string;
-  value: any;
-  rule: string;
-  message: string;
-}
-
-/**
- * Import result
- */
-export interface ImportResult<T = Record<string, any>> {
-  data: T[];
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
-  processedRows: number;
-  totalRows: number;
-  skippedRows: number;
-  startTime: Date;
-  endTime: Date;
-  duration: number;
-}
-
-/**
- * Validation result
- */
-export interface ValidationResult {
-  isValid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
+  
+  // Rule type
+  type: FilterRuleType;
+  
+  // Rule parameters
+  params?: any;
+  
+  // Custom filter function
+  filter?: (value: any, record: Record<string, any>, index: number) => boolean;
 }
 
 /**
  * CSV Importer class
  */
 export class CSVImporter {
-  private parseOptions: CSVParseOptions;
-  private validationRules: ValidationRule[];
-  private transformationRules: TransformationRule[];
-  private filterRules: FilterRule[];
-  private onProgress?: (progress: { total: number; processed: number; percentage: number }) => void;
-  private batchSize: number;
+  // Default import options
+  private defaultOptions: CSVImportOptions = {
+    delimiter: ',',
+    headers: true,
+    skipEmptyLines: true,
+    skipComments: true,
+    commentChar: '#',
+    quoteChar: '"',
+    escapeChar: '"',
+    trimFields: true,
+    ltrim: false,
+    rtrim: false,
+    castValues: true,
+    validateFields: true,
+    transformFields: true,
+    filterRows: true,
+    continueOnError: true,
+    maxErrors: 100,
+    batchSize: 1000
+  };
+  
+  // Set of processed unique values for validation
+  private uniqueValues: Record<string, Set<any>> = {};
   
   /**
-   * Create a new CSV importer
+   * Import CSV data
    */
-  constructor(options: CSVImportOptions = {}) {
-    this.parseOptions = { ...DEFAULT_PARSE_OPTIONS, ...options.parseOptions };
-    this.validationRules = options.validationRules || [];
-    this.transformationRules = options.transformationRules || [];
-    this.filterRules = options.filterRules || [];
-    this.onProgress = options.onProgress;
-    this.batchSize = options.batchSize || 1000;
-  }
-  
-  /**
-   * Import and parse a CSV file
-   */
-  async importCSV<T = Record<string, any>>(
+  async importCSV<T = any>(
     input: string | Buffer,
-    options: Partial<CSVImportOptions> = {}
-  ): Promise<ImportResult<T>> {
-    const startTime = new Date();
-    importLogger.info('Starting CSV import', {
-      metadata: {
-        parseOptions: this.parseOptions,
-        validationRules: this.validationRules.length,
-        transformationRules: this.transformationRules.length,
-        filterRules: this.filterRules.length
-      }
-    });
+    options: CSVImportOptions = {}
+  ): Promise<CSVImportResult<T>> {
+    // Start timing
+    const startTime = Date.now();
+    
+    // Merge options with defaults
+    const mergedOptions = { ...this.defaultOptions, ...options };
+    
+    // Initialize result object
+    const result: CSVImportResult<T> = {
+      totalRecords: 0,
+      successRecords: 0,
+      failedRecords: 0,
+      skippedRecords: 0,
+      data: [],
+      errors: [],
+      timing: {
+        parseTime: 0,
+        validationTime: 0,
+        transformationTime: 0,
+        filteringTime: 0,
+        totalTime: 0
+      },
+      fieldStats: {}
+    };
     
     try {
-      // Merge options
-      const mergedOptions: CSVImportOptions = {
-        parseOptions: { ...this.parseOptions, ...options.parseOptions },
-        validationRules: options.validationRules || this.validationRules,
-        transformationRules: options.transformationRules || this.transformationRules,
-        filterRules: options.filterRules || this.filterRules,
-        onProgress: options.onProgress || this.onProgress,
-        batchSize: options.batchSize || this.batchSize
+      // Parse the CSV data
+      csvLogger.info('Starting CSV import');
+      const parseStart = Date.now();
+      
+      // Parse options
+      const parseOptions = {
+        delimiter: mergedOptions.delimiter,
+        columns: mergedOptions.headers,
+        skip_empty_lines: mergedOptions.skipEmptyLines,
+        skip_records_with_empty_values: false,
+        comment: mergedOptions.skipComments ? mergedOptions.commentChar : undefined,
+        quote: mergedOptions.quoteChar,
+        escape: mergedOptions.escapeChar,
+        trim: mergedOptions.trimFields,
+        ltrim: mergedOptions.ltrim,
+        rtrim: mergedOptions.rtrim,
+        cast: mergedOptions.castValues
       };
       
-      // Parse CSV
-      const records = parse(input, mergedOptions.parseOptions);
+      const records = parse(input, parseOptions) as Record<string, any>[];
+      const parseEnd = Date.now();
+      result.timing.parseTime = parseEnd - parseStart;
+      result.totalRecords = records.length;
       
-      // Initialize result
-      const result: ImportResult<T> = {
-        data: [],
-        errors: [],
-        warnings: [],
-        processedRows: 0,
-        totalRows: records.length,
-        skippedRows: 0,
-        startTime,
-        endTime: new Date(),
-        duration: 0
-      };
+      csvLogger.info(`Parsed ${records.length} records from CSV`, { parseTime: result.timing.parseTime });
       
-      // Process records in batches
-      let batchCount = 0;
-      const batchSize = mergedOptions.batchSize;
+      // Process records in batches if necessary
+      const batchSize = mergedOptions.batchSize || records.length;
       
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
+      // Prepare for batch processing
+      let batch = [];
+      let processedRecords = 0;
+      
+      // Initialize field statistics
+      if (records.length > 0 && Object.keys(records[0]).length > 0) {
+        Object.keys(records[0]).forEach(field => {
+          result.fieldStats[field] = {
+            nullCount: 0,
+            emptyCount: 0,
+            uniqueValues: 0,
+            minValue: undefined,
+            maxValue: undefined,
+            avgLength: 0
+          };
+          
+          // Initialize unique value sets for validation
+          this.uniqueValues[field] = new Set();
+        });
+      }
+      
+      // Process all records
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        batch.push(record);
         
-        // Process batch
-        for (const record of batch) {
-          result.processedRows++;
+        // Process batch if it reaches the batch size or is the last record
+        if (batch.length >= batchSize || i === records.length - 1) {
+          // Process the current batch
+          const batchResult = await this.processBatch(
+            batch,
+            processedRecords,
+            mergedOptions.validationRules || [],
+            mergedOptions.transformationRules || [],
+            mergedOptions.filterRules || [],
+            mergedOptions.validateFields || false,
+            mergedOptions.transformFields || false,
+            mergedOptions.filterRows || false,
+            mergedOptions.continueOnError || false,
+            mergedOptions.maxErrors || 100
+          );
           
-          // Apply transformations
-          const transformedRecord = this.applyTransformations(record, mergedOptions.transformationRules);
+          // Update result with batch result
+          result.successRecords += batchResult.successRecords;
+          result.failedRecords += batchResult.failedRecords;
+          result.skippedRecords += batchResult.skippedRecords;
+          result.data = [...result.data, ...batchResult.data];
+          result.errors = [...result.errors, ...batchResult.errors];
+          result.timing.validationTime += batchResult.timing.validationTime;
+          result.timing.transformationTime += batchResult.timing.transformationTime;
+          result.timing.filteringTime += batchResult.timing.filteringTime;
           
-          // Apply filters
-          if (!this.applyFilters(transformedRecord, mergedOptions.filterRules)) {
-            result.skippedRows++;
-            continue;
-          }
+          // Update field statistics
+          this.updateFieldStats(batch, result.fieldStats);
           
-          // Validate record
-          const validationResults = this.validateRecord(transformedRecord, result.processedRows, mergedOptions.validationRules);
+          // Reset batch and update processed records count
+          processedRecords += batch.length;
+          batch = [];
           
-          if (validationResults) {
-            if (validationResults.errors.length > 0) {
-              result.errors.push(...validationResults.errors);
-              
-              // Skip records with errors
-              result.skippedRows++;
-              continue;
-            }
-            
-            if (validationResults.warnings.length > 0) {
-              result.warnings.push(...validationResults.warnings);
-            }
-          }
-          
-          // Add record to result
-          result.data.push(transformedRecord as T);
-        }
-        
-        // Report progress
-        batchCount++;
-        if (mergedOptions.onProgress) {
-          mergedOptions.onProgress({
-            total: records.length,
-            processed: result.processedRows,
-            percentage: (result.processedRows / records.length) * 100
-          });
+          csvLogger.debug(`Processed batch of ${batchSize} records (${processedRecords}/${records.length})`);
         }
       }
       
-      // Update result timing
-      result.endTime = new Date();
-      result.duration = result.endTime.getTime() - result.startTime.getTime();
+      // Calculate total time
+      const endTime = Date.now();
+      result.timing.totalTime = endTime - startTime;
       
-      importLogger.info('CSV import completed', {
-        metadata: {
-          totalRows: result.totalRows,
-          processedRows: result.processedRows,
-          skippedRows: result.skippedRows,
-          errors: result.errors.length,
-          warnings: result.warnings.length,
-          duration: `${result.duration}ms`
-        }
+      // Update unique values counts in field stats
+      Object.keys(this.uniqueValues).forEach(field => {
+        result.fieldStats[field].uniqueValues = this.uniqueValues[field].size;
+      });
+      
+      // Log completion
+      csvLogger.info(`CSV import completed: ${result.successRecords} succeeded, ${result.failedRecords} failed, ${result.skippedRecords} skipped`, {
+        totalTime: result.timing.totalTime
       });
       
       return result;
     } catch (error) {
-      importLogger.error('CSV import failed', error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      csvLogger.error(`CSV import failed: ${errorMessage}`, error);
+      
+      // Calculate total time
+      const endTime = Date.now();
+      result.timing.totalTime = endTime - startTime;
+      
+      throw new Error(`CSV import failed: ${errorMessage}`);
+    } finally {
+      // Clear unique values
+      this.uniqueValues = {};
     }
   }
   
   /**
-   * Apply transformations to a record
+   * Process a batch of records
    */
-  private applyTransformations(
-    record: Record<string, any>,
-    rules: TransformationRule[]
-  ): Record<string, any> {
-    const result = { ...record };
-    
-    for (const rule of rules) {
-      const value = result[rule.field];
-      
-      // Skip undefined values
-      if (value === undefined) {
-        continue;
+  private async processBatch<T = any>(
+    batch: Record<string, any>[],
+    startIndex: number,
+    validationRules: ValidationRule[],
+    transformationRules: TransformationRule[],
+    filterRules: FilterRule[],
+    validateFields: boolean,
+    transformFields: boolean,
+    filterRows: boolean,
+    continueOnError: boolean,
+    maxErrors: number
+  ): Promise<{
+    successRecords: number;
+    failedRecords: number;
+    skippedRecords: number;
+    data: T[];
+    errors: { record: Record<string, any>; row: number; reason: string }[];
+    timing: {
+      validationTime: number;
+      transformationTime: number;
+      filteringTime: number;
+    };
+  }> {
+    // Initialize result
+    const result = {
+      successRecords: 0,
+      failedRecords: 0,
+      skippedRecords: 0,
+      data: [] as T[],
+      errors: [] as { record: Record<string, any>; row: number; reason: string }[],
+      timing: {
+        validationTime: 0,
+        transformationTime: 0,
+        filteringTime: 0
       }
+    };
+    
+    // Validate records
+    let validatedRecords = batch;
+    if (validateFields) {
+      const validationStart = Date.now();
+      const validationResult = this.validateRecords(batch, startIndex, validationRules, continueOnError, maxErrors);
+      result.timing.validationTime = Date.now() - validationStart;
       
-      try {
-        switch (rule.transform) {
-          case 'trim':
-            if (typeof value === 'string') {
-              result[rule.field] = value.trim();
+      validatedRecords = validationResult.validRecords;
+      result.errors = [...result.errors, ...validationResult.errors];
+      result.failedRecords += validationResult.errors.length;
+    }
+    
+    // Transform records
+    let transformedRecords = validatedRecords;
+    if (transformFields) {
+      const transformationStart = Date.now();
+      transformedRecords = this.transformRecords(validatedRecords, transformationRules);
+      result.timing.transformationTime = Date.now() - transformationStart;
+    }
+    
+    // Filter records
+    let filteredRecords = transformedRecords;
+    if (filterRows) {
+      const filteringStart = Date.now();
+      const filteringResult = this.filterRecords(transformedRecords, startIndex, filterRules);
+      result.timing.filteringTime = Date.now() - filteringStart;
+      
+      filteredRecords = filteringResult.filteredRecords;
+      result.skippedRecords += filteringResult.skippedCount;
+    }
+    
+    // Update success records count
+    result.successRecords = filteredRecords.length;
+    
+    // Add filtered records to result data
+    result.data = filteredRecords as T[];
+    
+    return result;
+  }
+  
+  /**
+   * Validate records against validation rules
+   */
+  private validateRecords(
+    records: Record<string, any>[],
+    startIndex: number,
+    validationRules: ValidationRule[],
+    continueOnError: boolean,
+    maxErrors: number
+  ): {
+    validRecords: Record<string, any>[];
+    errors: { record: Record<string, any>; row: number; reason: string }[];
+  } {
+    // Initialize result
+    const result = {
+      validRecords: [] as Record<string, any>[],
+      errors: [] as { record: Record<string, any>; row: number; reason: string }[]
+    };
+    
+    // Process each record
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const recordIndex = startIndex + i;
+      let isValid = true;
+      let errorReasons: string[] = [];
+      
+      // Check each validation rule
+      for (const rule of validationRules) {
+        const field = rule.field;
+        const value = record[field];
+        
+        // Skip validation if field is not in record
+        if (!(field in record)) {
+          continue;
+        }
+        
+        // Validate based on rule type
+        switch (rule.type) {
+          case ValidationRuleType.REQUIRED:
+            if (value === null || value === undefined || value === '') {
+              isValid = false;
+              errorReasons.push(rule.message || `Field '${field}' is required`);
             }
             break;
             
-          case 'lowercase':
-            if (typeof value === 'string') {
-              result[rule.field] = value.toLowerCase();
+          case ValidationRuleType.PATTERN:
+            if (value !== null && value !== undefined && value !== '') {
+              const pattern = rule.params as RegExp | string;
+              const regex = pattern instanceof RegExp ? pattern : new RegExp(pattern);
+              
+              if (!regex.test(String(value))) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' does not match pattern ${regex}`);
+              }
             }
             break;
             
-          case 'uppercase':
-            if (typeof value === 'string') {
-              result[rule.field] = value.toUpperCase();
+          case ValidationRuleType.MIN_LENGTH:
+            if (value !== null && value !== undefined && value !== '') {
+              const minLength = rule.params as number;
+              
+              if (String(value).length < minLength) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be at least ${minLength} characters`);
+              }
             }
             break;
             
-          case 'capitalize':
-            if (typeof value === 'string') {
-              result[rule.field] = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+          case ValidationRuleType.MAX_LENGTH:
+            if (value !== null && value !== undefined && value !== '') {
+              const maxLength = rule.params as number;
+              
+              if (String(value).length > maxLength) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be at most ${maxLength} characters`);
+              }
             }
             break;
             
-          case 'number':
-            if (value !== null && value !== '') {
-              result[rule.field] = Number(value);
+          case ValidationRuleType.MIN_VALUE:
+            if (value !== null && value !== undefined && value !== '') {
+              const minValue = rule.params as number;
+              
+              if (Number(value) < minValue) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be at least ${minValue}`);
+              }
             }
             break;
             
-          case 'boolean':
-            if (typeof value === 'string') {
-              result[rule.field] = ['true', 'yes', '1', 'y'].includes(value.toLowerCase());
+          case ValidationRuleType.MAX_VALUE:
+            if (value !== null && value !== undefined && value !== '') {
+              const maxValue = rule.params as number;
+              
+              if (Number(value) > maxValue) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be at most ${maxValue}`);
+              }
             }
             break;
             
-          case 'date':
-            if (value !== null && value !== '') {
-              result[rule.field] = new Date(value);
+          case ValidationRuleType.UNIQUE:
+            if (value !== null && value !== undefined && value !== '') {
+              if (this.uniqueValues[field].has(value)) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be unique`);
+              } else {
+                this.uniqueValues[field].add(value);
+              }
             }
             break;
             
-          case 'custom':
-            if (rule.custom) {
-              result[rule.field] = rule.custom(value);
+          case ValidationRuleType.ENUM:
+            if (value !== null && value !== undefined && value !== '') {
+              const allowedValues = rule.params as any[];
+              
+              if (!allowedValues.includes(value)) {
+                isValid = false;
+                errorReasons.push(rule.message || `Field '${field}' must be one of: ${allowedValues.join(', ')}`);
+              }
+            }
+            break;
+            
+          case ValidationRuleType.CUSTOM:
+            if (rule.validate) {
+              const customResult = rule.validate(value, record, recordIndex);
+              
+              if (customResult !== true) {
+                isValid = false;
+                errorReasons.push(rule.message || (typeof customResult === 'string' ? customResult : `Field '${field}' failed custom validation`));
+              }
             }
             break;
         }
-      } catch (error) {
-        importLogger.warn(`Transformation failed for field ${rule.field}`, error);
+        
+        // Stop checking other rules for this field if validation failed and not continuing on error
+        if (!isValid && !continueOnError) {
+          break;
+        }
+      }
+      
+      // Add record to result
+      if (isValid) {
+        result.validRecords.push(record);
+      } else {
+        result.errors.push({
+          record,
+          row: recordIndex + 1, // +1 for header row
+          reason: errorReasons.join('; ')
+        });
+        
+        // Stop processing if max errors reached
+        if (result.errors.length >= maxErrors) {
+          break;
+        }
       }
     }
     
@@ -345,349 +619,325 @@ export class CSVImporter {
   }
   
   /**
-   * Apply filters to a record
+   * Transform records using transformation rules
    */
-  private applyFilters(
-    record: Record<string, any>,
-    rules: FilterRule[]
-  ): boolean {
-    // If no filter rules, include all records
-    if (rules.length === 0) {
-      return true;
-    }
-    
-    // Check if record matches all filter rules
-    for (const rule of rules) {
-      const value = record[rule.field];
+  private transformRecords(
+    records: Record<string, any>[],
+    transformationRules: TransformationRule[]
+  ): Record<string, any>[] {
+    // Process each record
+    return records.map(record => {
+      const transformedRecord = { ...record };
       
-      // Skip undefined values
-      if (value === undefined) {
-        return false;
-      }
-      
-      try {
-        switch (rule.operator) {
-          case 'equals':
-            if (value !== rule.value) {
-              return false;
+      // Apply each transformation rule
+      for (const rule of transformationRules) {
+        const field = rule.field;
+        
+        // Skip transformation if field is not in record
+        if (!(field in transformedRecord)) {
+          continue;
+        }
+        
+        let value = transformedRecord[field];
+        
+        // Skip null or undefined values
+        if (value === null || value === undefined) {
+          continue;
+        }
+        
+        // Transform based on rule type
+        switch (rule.type) {
+          case TransformationRuleType.TRIM:
+            if (typeof value === 'string') {
+              value = value.trim();
             }
             break;
             
-          case 'notEquals':
-            if (value === rule.value) {
-              return false;
+          case TransformationRuleType.UPPERCASE:
+            if (typeof value === 'string') {
+              value = value.toUpperCase();
             }
             break;
             
-          case 'contains':
-            if (typeof value === 'string' && !value.includes(rule.value)) {
-              return false;
+          case TransformationRuleType.LOWERCASE:
+            if (typeof value === 'string') {
+              value = value.toLowerCase();
             }
             break;
             
-          case 'startsWith':
-            if (typeof value === 'string' && !value.startsWith(rule.value)) {
-              return false;
+          case TransformationRuleType.REPLACE:
+            if (typeof value === 'string') {
+              const { search, replacement } = rule.params as { search: string | RegExp; replacement: string };
+              value = value.replace(search, replacement);
             }
             break;
             
-          case 'endsWith':
-            if (typeof value === 'string' && !value.endsWith(rule.value)) {
-              return false;
+          case TransformationRuleType.CAST:
+            const targetType = rule.params as string;
+            
+            switch (targetType) {
+              case 'string':
+                value = String(value);
+                break;
+              case 'number':
+                value = Number(value);
+                break;
+              case 'boolean':
+                value = Boolean(value);
+                break;
+              case 'date':
+                value = new Date(value);
+                break;
             }
             break;
             
-          case 'greaterThan':
-            if (typeof value === 'number' && value <= rule.value) {
-              return false;
+          case TransformationRuleType.FORMAT:
+            const format = rule.params as string;
+            
+            // Basic formatting, in a real implementation this would use a library
+            if (format === 'date' && value instanceof Date) {
+              value = value.toISOString();
+            } else if (format === 'number' && typeof value === 'number') {
+              value = value.toFixed(2);
             }
             break;
             
-          case 'lessThan':
-            if (typeof value === 'number' && value >= rule.value) {
-              return false;
-            }
-            break;
-            
-          case 'custom':
-            if (rule.custom && !rule.custom(record)) {
-              return false;
+          case TransformationRuleType.CUSTOM:
+            if (rule.transform) {
+              value = rule.transform(value, record, 0); // Index is not used here
             }
             break;
         }
-      } catch (error) {
-        importLogger.warn(`Filter failed for field ${rule.field}`, error);
-        return false;
+        
+        // Update transformed record
+        transformedRecord[field] = value;
       }
-    }
-    
-    return true;
+      
+      return transformedRecord;
+    });
   }
   
   /**
-   * Validate a record
+   * Filter records using filter rules
    */
-  private validateRecord(
-    record: Record<string, any>,
-    rowIndex: number,
-    rules: ValidationRule[]
-  ): ValidationResult {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
-    
-    for (const rule of rules) {
-      const value = record[rule.field];
-      
-      try {
-        switch (rule.rule) {
-          case 'required':
-            if (value === undefined || value === null || value === '') {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'required',
-                message: rule.message || `Field "${rule.field}" is required`
-              });
-            }
-            break;
-            
-          case 'number':
-            if (value !== undefined && value !== null && value !== '' && isNaN(Number(value))) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'number',
-                message: rule.message || `Field "${rule.field}" must be a number`
-              });
-            }
-            break;
-            
-          case 'integer':
-            if (value !== undefined && value !== null && value !== '' && (!Number.isInteger(Number(value)) || isNaN(Number(value)))) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'integer',
-                message: rule.message || `Field "${rule.field}" must be an integer`
-              });
-            }
-            break;
-            
-          case 'positive':
-            if (value !== undefined && value !== null && value !== '' && (Number(value) <= 0 || isNaN(Number(value)))) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'positive',
-                message: rule.message || `Field "${rule.field}" must be a positive number`
-              });
-            }
-            break;
-            
-          case 'date':
-            if (value !== undefined && value !== null && value !== '' && isNaN(Date.parse(value))) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'date',
-                message: rule.message || `Field "${rule.field}" must be a valid date`
-              });
-            }
-            break;
-            
-          case 'email':
-            if (value !== undefined && value !== null && value !== '' && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'email',
-                message: rule.message || `Field "${rule.field}" must be a valid email address`
-              });
-            }
-            break;
-            
-          case 'regex':
-            if (value !== undefined && value !== null && value !== '' && rule.pattern && !new RegExp(rule.pattern).test(value)) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'regex',
-                message: rule.message || `Field "${rule.field}" does not match the required pattern`
-              });
-            }
-            break;
-            
-          case 'custom':
-            if (rule.validate && !rule.validate(value)) {
-              errors.push({
-                row: rowIndex,
-                field: rule.field,
-                value,
-                rule: 'custom',
-                message: rule.message || `Field "${rule.field}" failed custom validation`
-              });
-            }
-            break;
-        }
-      } catch (error) {
-        importLogger.warn(`Validation failed for field ${rule.field}`, error);
-        
-        errors.push({
-          row: rowIndex,
-          field: rule.field,
-          value,
-          rule: rule.rule,
-          message: `Validation error: ${error.message}`
-        });
-      }
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings
+  private filterRecords(
+    records: Record<string, any>[],
+    startIndex: number,
+    filterRules: FilterRule[]
+  ): {
+    filteredRecords: Record<string, any>[];
+    skippedCount: number;
+  } {
+    // Initialize result
+    const result = {
+      filteredRecords: [] as Record<string, any>[],
+      skippedCount: 0
     };
+    
+    // Process each record
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const recordIndex = startIndex + i;
+      let includeRecord = true;
+      
+      // Check each filter rule
+      for (const rule of filterRules) {
+        const field = rule.field;
+        const value = record[field];
+        
+        // Skip filter if field is not in record
+        if (!(field in record)) {
+          continue;
+        }
+        
+        // Filter based on rule type
+        switch (rule.type) {
+          case FilterRuleType.EQUALS:
+            includeRecord = value === rule.params;
+            break;
+            
+          case FilterRuleType.NOT_EQUALS:
+            includeRecord = value !== rule.params;
+            break;
+            
+          case FilterRuleType.CONTAINS:
+            if (typeof value === 'string') {
+              includeRecord = value.includes(rule.params as string);
+            } else {
+              includeRecord = false;
+            }
+            break;
+            
+          case FilterRuleType.NOT_CONTAINS:
+            if (typeof value === 'string') {
+              includeRecord = !value.includes(rule.params as string);
+            } else {
+              includeRecord = true;
+            }
+            break;
+            
+          case FilterRuleType.STARTS_WITH:
+            if (typeof value === 'string') {
+              includeRecord = value.startsWith(rule.params as string);
+            } else {
+              includeRecord = false;
+            }
+            break;
+            
+          case FilterRuleType.ENDS_WITH:
+            if (typeof value === 'string') {
+              includeRecord = value.endsWith(rule.params as string);
+            } else {
+              includeRecord = false;
+            }
+            break;
+            
+          case FilterRuleType.GREATER_THAN:
+            includeRecord = Number(value) > (rule.params as number);
+            break;
+            
+          case FilterRuleType.LESS_THAN:
+            includeRecord = Number(value) < (rule.params as number);
+            break;
+            
+          case FilterRuleType.REGEX:
+            if (typeof value === 'string') {
+              const pattern = rule.params as RegExp | string;
+              const regex = pattern instanceof RegExp ? pattern : new RegExp(pattern);
+              
+              includeRecord = regex.test(value);
+            } else {
+              includeRecord = false;
+            }
+            break;
+            
+          case FilterRuleType.CUSTOM:
+            if (rule.filter) {
+              includeRecord = rule.filter(value, record, recordIndex);
+            }
+            break;
+        }
+        
+        // Stop checking other rules if this one excludes the record
+        if (!includeRecord) {
+          break;
+        }
+      }
+      
+      // Add record to result if it passed all filters
+      if (includeRecord) {
+        result.filteredRecords.push(record);
+      } else {
+        result.skippedCount++;
+      }
+    }
+    
+    return result;
   }
   
   /**
-   * Generate a column mapping template based on sample data
+   * Update field statistics with batch data
    */
-  generateColumnMapping(
-    input: string | Buffer,
-    targetFields: string[],
-    options: CSVParseOptions = {}
-  ): Record<string, string> {
-    try {
-      // Parse the first row to get headers
-      const parseOptions = {
-        ...this.parseOptions,
-        ...options,
-        columns: true,
-        fromLine: 1,
-        toLine: 1
-      };
-      
-      const records = parse(input, parseOptions);
-      
-      if (records.length === 0) {
-        return {};
+  private updateFieldStats(
+    batch: Record<string, any>[],
+    fieldStats: Record<string, {
+      nullCount: number;
+      emptyCount: number;
+      uniqueValues: number;
+      minValue?: any;
+      maxValue?: any;
+      avgLength?: number;
+    }>
+  ): void {
+    if (batch.length === 0) {
+      return;
+    }
+    
+    // Get all fields from the first record
+    const fields = Object.keys(batch[0]);
+    
+    // Calculate statistics for each field
+    fields.forEach(field => {
+      // Initialize stats if not exists
+      if (!fieldStats[field]) {
+        fieldStats[field] = {
+          nullCount: 0,
+          emptyCount: 0,
+          uniqueValues: 0,
+          minValue: undefined,
+          maxValue: undefined,
+          avgLength: 0
+        };
       }
       
-      const sourceFields = Object.keys(records[0]);
-      const mapping: Record<string, string> = {};
+      // Initialize values for this batch
+      let nullCount = 0;
+      let emptyCount = 0;
+      let totalLength = 0;
+      let minValue: any = undefined;
+      let maxValue: any = undefined;
       
-      // Simple mapping based on exact matches or similarities
-      for (const targetField of targetFields) {
-        // Check for exact match
-        if (sourceFields.includes(targetField)) {
-          mapping[targetField] = targetField;
-          continue;
+      // Process each record
+      batch.forEach(record => {
+        const value = record[field];
+        
+        // Count null/undefined values
+        if (value === null || value === undefined) {
+          nullCount++;
+          return;
         }
         
-        // Check for case-insensitive match
-        const lowerCaseTarget = targetField.toLowerCase();
-        const matchingField = sourceFields.find(sourceField => sourceField.toLowerCase() === lowerCaseTarget);
-        
-        if (matchingField) {
-          mapping[targetField] = matchingField;
-          continue;
+        // Count empty string values
+        if (value === '') {
+          emptyCount++;
+          return;
         }
         
-        // Check for field containing the target name
-        const containsTarget = sourceFields.find(sourceField => 
-          sourceField.toLowerCase().includes(lowerCaseTarget) || 
-          lowerCaseTarget.includes(sourceField.toLowerCase())
-        );
+        // Add to unique values set
+        if (!this.uniqueValues[field]) {
+          this.uniqueValues[field] = new Set();
+        }
+        this.uniqueValues[field].add(value);
         
-        if (containsTarget) {
-          mapping[targetField] = containsTarget;
-          continue;
+        // Update min/max values for numbers
+        if (typeof value === 'number') {
+          if (minValue === undefined || value < minValue) {
+            minValue = value;
+          }
+          
+          if (maxValue === undefined || value > maxValue) {
+            maxValue = value;
+          }
         }
         
-        // No match found
-        mapping[targetField] = '';
-      }
-      
-      return mapping;
-    } catch (error) {
-      importLogger.error('Failed to generate column mapping', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Export a CSV file from data
-   */
-  exportCSV(
-    data: Record<string, any>[],
-    options: {
-      columns?: string[];
-      header?: boolean;
-      delimiter?: string;
-    } = {}
-  ): string {
-    if (data.length === 0) {
-      return '';
-    }
-    
-    // Get columns
-    const columns = options.columns || Object.keys(data[0]);
-    const delimiter = options.delimiter || ',';
-    const includeHeader = options.header !== false;
-    
-    // Create header row
-    let csv = '';
-    
-    if (includeHeader) {
-      csv = columns.map(this.escapeCSV).join(delimiter) + '\n';
-    }
-    
-    // Create data rows
-    for (const record of data) {
-      const row = columns.map(column => {
-        const value = record[column];
-        
-        if (value === undefined || value === null) {
-          return '';
-        } else if (typeof value === 'object') {
-          return this.escapeCSV(JSON.stringify(value));
-        } else {
-          return this.escapeCSV(String(value));
+        // Update length for strings
+        if (typeof value === 'string') {
+          totalLength += value.length;
         }
       });
       
-      csv += row.join(delimiter) + '\n';
-    }
-    
-    return csv;
-  }
-  
-  /**
-   * Escape a CSV field
-   */
-  private escapeCSV(field: string): string {
-    if (field === null || field === undefined) {
-      return '';
-    }
-    
-    field = String(field);
-    
-    // If the field contains a comma, quote, or newline, enclose it in quotes
-    if (/[",\r\n]/.test(field)) {
-      // Replace any quotes with double quotes
-      return `"${field.replace(/"/g, '""')}"`;
-    }
-    
-    return field;
+      // Update field statistics
+      fieldStats[field].nullCount += nullCount;
+      fieldStats[field].emptyCount += emptyCount;
+      
+      // Update min/max values if defined
+      if (minValue !== undefined) {
+        if (fieldStats[field].minValue === undefined || minValue < fieldStats[field].minValue) {
+          fieldStats[field].minValue = minValue;
+        }
+      }
+      
+      if (maxValue !== undefined) {
+        if (fieldStats[field].maxValue === undefined || maxValue > fieldStats[field].maxValue) {
+          fieldStats[field].maxValue = maxValue;
+        }
+      }
+      
+      // Update average length
+      const stringValueCount = batch.length - nullCount - emptyCount;
+      if (stringValueCount > 0) {
+        fieldStats[field].avgLength = totalLength / stringValueCount;
+      }
+    });
   }
 }
-
-// Export default instance
-export const csvImporter = new CSVImporter();

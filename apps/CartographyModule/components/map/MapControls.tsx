@@ -1,439 +1,1029 @@
 /**
  * Map Controls Component
  * 
- * This component provides control panels for the CartographyModule map interface,
- * including layer management, basemap selection, and map tools.
+ * This component provides a comprehensive set of controls for interacting with maps,
+ * including layer management, measurement tools, drawing tools, and more.
  */
 
-import React, { useState } from 'react';
-import { BasemapStyle, MapProvider } from './CountyMapViewer';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Layers, 
+  ZoomIn, 
+  ZoomOut, 
+  Ruler, 
+  Home, 
+  Pencil, 
+  Map as MapIcon, 
+  Eye, 
+  EyeOff,
+  Search,
+  Compass,
+  Maximize2,
+  Minimize2,
+  PlusSquare,
+  Trash2,
+  RotateCcw,
+  Save,
+  Download,
+  Printer,
+  Share2,
+  Sliders,
+  FileText
+} from 'lucide-react';
 
-interface Layer {
+import { logger } from '../../../../libs/DevOps/utils/logger';
+
+// Create module-specific logger
+const mapLogger = logger.withTags(['CartographyModule', 'MapControls']);
+
+/**
+ * Layer information
+ */
+export interface LayerInfo {
   id: string;
   name: string;
-  description?: string;
-  category: 'boundaries' | 'parcels' | 'taxCodes' | 'zoning' | 'aerial' | 'other';
+  type: 'vector' | 'raster' | 'terrain' | 'imagery' | 'overlay';
   visible: boolean;
-  icon?: string; // CSS class for icon
+  opacity: number; // 0 to 1
+  zIndex: number;
+  source?: string;
+  attributes?: Record<string, any>; // Additional layer attributes
+  metadata?: Record<string, any>; // Layer metadata
 }
 
-interface Tool {
-  id: string;
-  name: string;
-  description?: string;
-  icon?: string; // CSS class for icon
-  shortcut?: string; // Keyboard shortcut
+/**
+ * Measurement type
+ */
+export enum MeasurementType {
+  DISTANCE = 'distance',
+  AREA = 'area',
+  PERIMETER = 'perimeter',
+  BEARING = 'bearing',
+  ANGLE = 'angle',
+  ELEVATION = 'elevation'
 }
 
-interface MapControlsProps {
-  layers: Layer[];
-  activeTool?: string;
-  activeBasemap: BasemapStyle;
-  isReadOnly?: boolean;
-  showLegend?: boolean;
+/**
+ * Drawing tool type
+ */
+export enum DrawingToolType {
+  POINT = 'point',
+  LINE = 'line',
+  POLYGON = 'polygon',
+  RECTANGLE = 'rectangle',
+  CIRCLE = 'circle',
+  MARKER = 'marker',
+  TEXT = 'text',
+  FREEHAND = 'freehand'
+}
+
+/**
+ * Map view information
+ */
+export interface MapView {
+  center: { lat: number; lng: number };
+  zoom: number;
+  bearing: number;
+  pitch: number;
+}
+
+/**
+ * Map control props
+ */
+export interface MapControlsProps {
+  // Map instance (can be mapbox, leaflet, etc.)
+  mapInstance?: any;
+  
+  // Available layers
+  layers: LayerInfo[];
+  
+  // Current map view
+  view: MapView;
+  
+  // Control visibility options
+  showLayerControl?: boolean;
+  showMeasurementTools?: boolean;
+  showDrawingTools?: boolean;
+  showNavigationControls?: boolean;
+  showMapSettings?: boolean;
+  showPrintExport?: boolean;
+  
+  // Event handlers
   onLayerToggle?: (layerId: string, visible: boolean) => void;
-  onBasemapChange?: (style: BasemapStyle) => void;
-  onToolSelect?: (toolId: string) => void;
+  onLayerOpacityChange?: (layerId: string, opacity: number) => void;
+  onLayerOrderChange?: (layerId: string, newIndex: number) => void;
+  
+  onMeasurementStart?: (type: MeasurementType) => void;
+  onMeasurementComplete?: (measurement: any) => void;
+  onMeasurementCancel?: () => void;
+  
+  onDrawingStart?: (tool: DrawingToolType) => void;
+  onDrawingComplete?: (feature: any) => void;
+  onDrawingCancel?: () => void;
+  onDrawingDelete?: (featureId: string) => void;
+  
+  onViewChange?: (view: MapView) => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onResetNorth?: () => void;
+  onResetView?: () => void;
+  
+  onPrint?: () => void;
+  onExport?: (format: 'png' | 'jpg' | 'svg' | 'pdf') => void;
+  onShare?: () => void;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
+  orientation?: 'horizontal' | 'vertical';
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  expandedByDefault?: boolean;
 }
 
 /**
  * Map Controls Component
  */
 export const MapControls: React.FC<MapControlsProps> = ({
+  mapInstance,
   layers = [],
-  activeTool = '',
-  activeBasemap = BasemapStyle.STREETS,
-  isReadOnly = false,
-  showLegend = true,
+  view,
+  showLayerControl = true,
+  showMeasurementTools = true,
+  showDrawingTools = true,
+  showNavigationControls = true,
+  showMapSettings = true,
+  showPrintExport = true,
   onLayerToggle,
-  onBasemapChange,
-  onToolSelect,
+  onLayerOpacityChange,
+  onLayerOrderChange,
+  onMeasurementStart,
+  onMeasurementComplete,
+  onMeasurementCancel,
+  onDrawingStart,
+  onDrawingComplete,
+  onDrawingCancel,
+  onDrawingDelete,
+  onViewChange,
+  onZoomIn,
+  onZoomOut,
+  onResetNorth,
+  onResetView,
+  onPrint,
+  onExport,
+  onShare,
   className = '',
-  style = {}
+  style = {},
+  orientation = 'vertical',
+  position = 'top-right',
+  expandedByDefault = false
 }) => {
-  // State for panel visibility
-  const [activePanel, setActivePanel] = useState<string>('layers');
+  // State for component visibility
+  const [controlsExpanded, setControlsExpanded] = useState<boolean>(expandedByDefault);
   
-  // Group layers by category
-  const layersByCategory = layers.reduce((acc, layer) => {
-    if (!acc[layer.category]) {
-      acc[layer.category] = [];
-    }
-    acc[layer.category].push(layer);
-    return acc;
-  }, {} as Record<string, Layer[]>);
+  // State for active panels
+  const [activePanel, setActivePanel] = useState<string | null>(null);
   
-  // Handle layer toggle
-  const handleLayerToggle = (layerId: string, visible: boolean) => {
+  // State for measurements
+  const [activeMeasurement, setActiveMeasurement] = useState<MeasurementType | null>(null);
+  
+  // State for drawing
+  const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolType | null>(null);
+  
+  // Initialize on component mount
+  useEffect(() => {
+    mapLogger.info('Map controls initialized', { position, orientation });
+    
+    return () => {
+      // Clean up any active interactions on unmount
+      if (activeMeasurement && onMeasurementCancel) {
+        onMeasurementCancel();
+      }
+      
+      if (activeDrawingTool && onDrawingCancel) {
+        onDrawingCancel();
+      }
+    };
+  }, []);
+  
+  // Handler for layer visibility toggle
+  const handleLayerToggle = useCallback((layerId: string, visible: boolean) => {
+    mapLogger.debug(`Toggle layer visibility: ${layerId} = ${visible}`);
+    
     if (onLayerToggle) {
       onLayerToggle(layerId, visible);
     }
-  };
+  }, [onLayerToggle]);
   
-  // Handle basemap change
-  const handleBasemapChange = (style: BasemapStyle) => {
-    if (onBasemapChange) {
-      onBasemapChange(style);
+  // Handler for layer opacity change
+  const handleLayerOpacityChange = useCallback((layerId: string, opacity: number) => {
+    mapLogger.debug(`Change layer opacity: ${layerId} = ${opacity}`);
+    
+    if (onLayerOpacityChange) {
+      onLayerOpacityChange(layerId, opacity);
     }
-  };
+  }, [onLayerOpacityChange]);
   
-  // Handle tool selection
-  const handleToolSelect = (toolId: string) => {
-    if (onToolSelect) {
-      onToolSelect(toolId);
+  // Handler for layer order change
+  const handleLayerOrderChange = useCallback((layerId: string, newIndex: number) => {
+    mapLogger.debug(`Change layer order: ${layerId} to index ${newIndex}`);
+    
+    if (onLayerOrderChange) {
+      onLayerOrderChange(layerId, newIndex);
     }
-  };
+  }, [onLayerOrderChange]);
   
-  // Category labels
-  const categoryLabels: Record<string, string> = {
-    boundaries: 'Boundaries',
-    parcels: 'Parcels',
-    taxCodes: 'Tax Codes',
-    zoning: 'Zoning',
-    aerial: 'Aerial Imagery',
-    other: 'Other Layers'
-  };
+  // Handler for measurement tool selection
+  const handleMeasurementSelect = useCallback((type: MeasurementType) => {
+    mapLogger.debug(`Select measurement tool: ${type}`);
+    
+    // Cancel any active drawing
+    if (activeDrawingTool && onDrawingCancel) {
+      onDrawingCancel();
+      setActiveDrawingTool(null);
+    }
+    
+    // Toggle measurement tool
+    if (activeMeasurement === type) {
+      // Deactivate if already active
+      if (onMeasurementCancel) {
+        onMeasurementCancel();
+      }
+      setActiveMeasurement(null);
+    } else {
+      // Cancel current measurement if there is one
+      if (activeMeasurement && onMeasurementCancel) {
+        onMeasurementCancel();
+      }
+      
+      // Activate new measurement
+      if (onMeasurementStart) {
+        onMeasurementStart(type);
+      }
+      setActiveMeasurement(type);
+    }
+  }, [activeMeasurement, activeDrawingTool, onMeasurementStart, onMeasurementCancel, onDrawingCancel]);
   
-  // Available basemaps
-  const basemaps = [
-    { id: BasemapStyle.STREETS, name: 'Streets', icon: 'map' },
-    { id: BasemapStyle.SATELLITE, name: 'Satellite', icon: 'satellite' },
-    { id: BasemapStyle.TERRAIN, name: 'Terrain', icon: 'terrain' },
-    { id: BasemapStyle.LIGHT, name: 'Light', icon: 'brightness_5' },
-    { id: BasemapStyle.DARK, name: 'Dark', icon: 'brightness_2' },
-    { id: BasemapStyle.OUTDOORS, name: 'Outdoors', icon: 'forest' },
-    { id: BasemapStyle.TOPO, name: 'Topographic', icon: 'landscape' }
-  ];
+  // Handler for drawing tool selection
+  const handleDrawingSelect = useCallback((tool: DrawingToolType) => {
+    mapLogger.debug(`Select drawing tool: ${tool}`);
+    
+    // Cancel any active measurement
+    if (activeMeasurement && onMeasurementCancel) {
+      onMeasurementCancel();
+      setActiveMeasurement(null);
+    }
+    
+    // Toggle drawing tool
+    if (activeDrawingTool === tool) {
+      // Deactivate if already active
+      if (onDrawingCancel) {
+        onDrawingCancel();
+      }
+      setActiveDrawingTool(null);
+    } else {
+      // Cancel current drawing if there is one
+      if (activeDrawingTool && onDrawingCancel) {
+        onDrawingCancel();
+      }
+      
+      // Activate new drawing tool
+      if (onDrawingStart) {
+        onDrawingStart(tool);
+      }
+      setActiveDrawingTool(tool);
+    }
+  }, [activeDrawingTool, activeMeasurement, onDrawingStart, onDrawingCancel, onMeasurementCancel]);
   
-  // Available tools
-  const tools: Tool[] = [
-    { id: 'pan', name: 'Pan', icon: 'pan_tool', shortcut: 'P' },
-    { id: 'select', name: 'Select', icon: 'select_all', shortcut: 'S' },
-    { id: 'draw', name: 'Draw', icon: 'edit', shortcut: 'D' },
-    { id: 'measure', name: 'Measure', icon: 'straighten', shortcut: 'M' },
-    { id: 'identify', name: 'Identify', icon: 'info', shortcut: 'I' },
-    { id: 'print', name: 'Print', icon: 'print', shortcut: 'Ctrl+P' }
-  ];
+  // Handler for navigation actions
+  const handleNavigationAction = useCallback((action: 'zoomIn' | 'zoomOut' | 'resetNorth' | 'resetView') => {
+    mapLogger.debug(`Navigation action: ${action}`);
+    
+    switch (action) {
+      case 'zoomIn':
+        if (onZoomIn) onZoomIn();
+        break;
+      case 'zoomOut':
+        if (onZoomOut) onZoomOut();
+        break;
+      case 'resetNorth':
+        if (onResetNorth) onResetNorth();
+        break;
+      case 'resetView':
+        if (onResetView) onResetView();
+        break;
+    }
+  }, [onZoomIn, onZoomOut, onResetNorth, onResetView]);
+  
+  // Handler for print/export actions
+  const handlePrintExport = useCallback((action: 'print' | 'export' | 'share', format?: 'png' | 'jpg' | 'svg' | 'pdf') => {
+    mapLogger.debug(`Print/Export action: ${action}${format ? ` (${format})` : ''}`);
+    
+    switch (action) {
+      case 'print':
+        if (onPrint) onPrint();
+        break;
+      case 'export':
+        if (onExport && format) onExport(format);
+        break;
+      case 'share':
+        if (onShare) onShare();
+        break;
+    }
+  }, [onPrint, onExport, onShare]);
+  
+  // Toggle panel visibility
+  const togglePanel = useCallback((panelName: string) => {
+    mapLogger.debug(`Toggle panel: ${panelName}`);
+    setActivePanel(prevPanel => prevPanel === panelName ? null : panelName);
+  }, []);
+  
+  // Toggle controls expansion
+  const toggleControlsExpanded = useCallback(() => {
+    mapLogger.debug(`Toggle controls expanded: ${!controlsExpanded}`);
+    setControlsExpanded(prev => !prev);
+  }, [controlsExpanded]);
+  
+  // Determine container classes based on position and orientation
+  const containerClasses = `map-controls ${position} ${orientation} ${controlsExpanded ? 'expanded' : 'collapsed'} ${className}`;
+  
+  // Get icon size based on orientation
+  const iconSize = 20;
   
   return (
-    <div 
-      className={`map-controls ${className}`}
-      style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        backgroundColor: 'white',
-        borderRadius: '4px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-        zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        maxHeight: 'calc(100% - 20px)',
-        ...style
-      }}
-    >
-      {/* Panel tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #ccc' }}>
-        <button
-          className={`panel-tab ${activePanel === 'layers' ? 'active' : ''}`}
-          onClick={() => setActivePanel('layers')}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            border: 'none',
-            background: activePanel === 'layers' ? '#f0f0f0' : 'white',
-            borderBottom: activePanel === 'layers' ? '2px solid #0080ff' : 'none',
-            cursor: 'pointer'
-          }}
-        >
-          Layers
-        </button>
-        <button
-          className={`panel-tab ${activePanel === 'basemaps' ? 'active' : ''}`}
-          onClick={() => setActivePanel('basemaps')}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            border: 'none',
-            background: activePanel === 'basemaps' ? '#f0f0f0' : 'white',
-            borderBottom: activePanel === 'basemaps' ? '2px solid #0080ff' : 'none',
-            cursor: 'pointer'
-          }}
-        >
-          Basemaps
-        </button>
-        <button
-          className={`panel-tab ${activePanel === 'tools' ? 'active' : ''}`}
-          onClick={() => setActivePanel('tools')}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            border: 'none',
-            background: activePanel === 'tools' ? '#f0f0f0' : 'white',
-            borderBottom: activePanel === 'tools' ? '2px solid #0080ff' : 'none',
-            cursor: 'pointer'
-          }}
-        >
-          Tools
-        </button>
-      </div>
-      
-      {/* Panel content */}
-      <div 
-        style={{ 
-          padding: '10px', 
-          overflowY: 'auto',
-          maxHeight: '400px'
+    <div className={containerClasses} style={{ 
+      position: 'absolute',
+      ...getPositionStyle(position),
+      display: 'flex',
+      flexDirection: orientation === 'vertical' ? 'column' : 'row',
+      backgroundColor: 'white',
+      borderRadius: '4px',
+      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+      zIndex: 1000,
+      padding: '6px',
+      ...style
+    }}>
+      {/* Collapse/Expand button */}
+      <button 
+        className="toggle-button"
+        onClick={toggleControlsExpanded}
+        style={{
+          position: 'absolute',
+          ...getToggleButtonPosition(position, orientation),
+          width: '24px',
+          height: '24px',
+          backgroundColor: 'white',
+          border: 'none',
+          borderRadius: '50%',
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 1001
         }}
       >
-        {/* Layers panel */}
-        {activePanel === 'layers' && (
-          <div className="layers-panel">
-            {Object.entries(layersByCategory).map(([category, categoryLayers]) => (
-              <div key={category} className="layer-category" style={{ marginBottom: '15px' }}>
-                <h3 style={{ fontSize: '14px', margin: '0 0 8px 0' }}>
-                  {categoryLabels[category] || category}
-                </h3>
-                <div className="layer-list">
-                  {categoryLayers.map(layer => (
-                    <div 
-                      key={layer.id} 
-                      className="layer-item"
+        {controlsExpanded ? 
+          (orientation === 'vertical' ? '›' : '‹') : 
+          (orientation === 'vertical' ? '‹' : '›')}
+      </button>
+      
+      {/* Control panels */}
+      {controlsExpanded && (
+        <>
+          {/* Layers control */}
+          {showLayerControl && (
+            <div className="control-section">
+              <button 
+                className={`control-button ${activePanel === 'layers' ? 'active' : ''}`}
+                onClick={() => togglePanel('layers')}
+                title="Layers"
+                style={getControlButtonStyle(activePanel === 'layers')}
+              >
+                <Layers size={iconSize} />
+              </button>
+              
+              {activePanel === 'layers' && (
+                <div className="panel layers-panel" style={getPanelStyle(position, orientation)}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Layers</h3>
+                  
+                  {layers.length === 0 ? (
+                    <p style={{ color: '#666', fontSize: '13px' }}>No layers available</p>
+                  ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {[...layers]
+                        .sort((a, b) => b.zIndex - a.zIndex)
+                        .map(layer => (
+                          <li 
+                            key={layer.id} 
+                            style={{ 
+                              marginBottom: '8px', 
+                              padding: '8px',
+                              backgroundColor: '#f5f5f5',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{layer.name}</span>
+                              
+                              <button
+                                onClick={() => handleLayerToggle(layer.id, !layer.visible)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px'
+                                }}
+                                title={layer.visible ? 'Hide layer' : 'Show layer'}
+                              >
+                                {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                              </button>
+                            </div>
+                            
+                            {layer.visible && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '12px', minWidth: '60px' }}>Opacity:</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.1"
+                                  value={layer.opacity}
+                                  onChange={(e) => handleLayerOpacityChange(layer.id, parseFloat(e.target.value))}
+                                  style={{ flex: 1 }}
+                                />
+                                <span style={{ fontSize: '12px', width: '30px', textAlign: 'right' }}>
+                                  {Math.round(layer.opacity * 100)}%
+                                </span>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Measurement tools */}
+          {showMeasurementTools && (
+            <div className="control-section">
+              <button 
+                className={`control-button ${activePanel === 'measurement' ? 'active' : ''}`}
+                onClick={() => togglePanel('measurement')}
+                title="Measurement"
+                style={getControlButtonStyle(activePanel === 'measurement')}
+              >
+                <Ruler size={iconSize} />
+              </button>
+              
+              {activePanel === 'measurement' && (
+                <div className="panel measurement-panel" style={getPanelStyle(position, orientation)}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Measurement Tools</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button 
+                      onClick={() => handleMeasurementSelect(MeasurementType.DISTANCE)}
+                      style={getToolButtonStyle(activeMeasurement === MeasurementType.DISTANCE)}
+                      title="Measure distance"
+                    >
+                      <Ruler size={16} style={{ marginRight: '8px' }} />
+                      Distance
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleMeasurementSelect(MeasurementType.AREA)}
+                      style={getToolButtonStyle(activeMeasurement === MeasurementType.AREA)}
+                      title="Measure area"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M3 3h18v18H3z"/>
+                      </svg>
+                      Area
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleMeasurementSelect(MeasurementType.PERIMETER)}
+                      style={getToolButtonStyle(activeMeasurement === MeasurementType.PERIMETER)}
+                      title="Measure perimeter"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M3 3h18v18H3z"/>
+                        <path d="M21 3v18M3 21h18M3 3v18"/>
+                      </svg>
+                      Perimeter
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleMeasurementSelect(MeasurementType.BEARING)}
+                      style={getToolButtonStyle(activeMeasurement === MeasurementType.BEARING)}
+                      title="Measure bearing"
+                    >
+                      <Compass size={16} style={{ marginRight: '8px' }} />
+                      Bearing
+                    </button>
+                    
+                    {activeMeasurement && (
+                      <button 
+                        onClick={() => {
+                          if (onMeasurementCancel) onMeasurementCancel();
+                          setActiveMeasurement(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          marginTop: '8px'
+                        }}
+                      >
+                        <Trash2 size={16} style={{ marginRight: '8px' }} />
+                        Cancel Measurement
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Drawing tools */}
+          {showDrawingTools && (
+            <div className="control-section">
+              <button 
+                className={`control-button ${activePanel === 'drawing' ? 'active' : ''}`}
+                onClick={() => togglePanel('drawing')}
+                title="Drawing"
+                style={getControlButtonStyle(activePanel === 'drawing')}
+              >
+                <Pencil size={iconSize} />
+              </button>
+              
+              {activePanel === 'drawing' && (
+                <div className="panel drawing-panel" style={getPanelStyle(position, orientation)}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Drawing Tools</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.POINT)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.POINT)}
+                      title="Draw point"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                      Point
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.LINE)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.LINE)}
+                      title="Draw line"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M5 19l14-14"/>
+                      </svg>
+                      Line
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.POLYGON)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.POLYGON)}
+                      title="Draw polygon"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M12 3L3 12l5 9h8l5-9z"/>
+                      </svg>
+                      Polygon
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.RECTANGLE)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.RECTANGLE)}
+                      title="Draw rectangle"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      </svg>
+                      Rectangle
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.CIRCLE)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.CIRCLE)}
+                      title="Draw circle"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <circle cx="12" cy="12" r="10"/>
+                      </svg>
+                      Circle
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDrawingSelect(DrawingToolType.TEXT)}
+                      style={getToolButtonStyle(activeDrawingTool === DrawingToolType.TEXT)}
+                      title="Add text"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <polyline points="4 7 4 4 20 4 20 7"/>
+                        <line x1="9" y1="20" x2="15" y2="20"/>
+                        <line x1="12" y1="4" x2="12" y2="20"/>
+                      </svg>
+                      Text
+                    </button>
+                    
+                    {activeDrawingTool && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            if (onDrawingCancel) onDrawingCancel();
+                            setActiveDrawingTool(null);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            backgroundColor: '#fee2e2',
+                            color: '#b91c1c',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginTop: '8px'
+                          }}
+                        >
+                          <Trash2 size={16} style={{ marginRight: '8px' }} />
+                          Cancel Drawing
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            if (onDrawingComplete) onDrawingComplete({});
+                            setActiveDrawingTool(null);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            backgroundColor: '#e0f2fe',
+                            color: '#0369a1',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Save size={16} style={{ marginRight: '8px' }} />
+                          Complete Drawing
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Navigation controls */}
+          {showNavigationControls && (
+            <div className="control-section">
+              <button 
+                className="control-button"
+                onClick={() => handleNavigationAction('zoomIn')}
+                title="Zoom in"
+                style={getControlButtonStyle(false)}
+              >
+                <ZoomIn size={iconSize} />
+              </button>
+              
+              <button 
+                className="control-button"
+                onClick={() => handleNavigationAction('zoomOut')}
+                title="Zoom out"
+                style={getControlButtonStyle(false)}
+              >
+                <ZoomOut size={iconSize} />
+              </button>
+              
+              <button 
+                className="control-button"
+                onClick={() => handleNavigationAction('resetNorth')}
+                title="Reset north"
+                style={getControlButtonStyle(false)}
+              >
+                <Compass size={iconSize} />
+              </button>
+              
+              <button 
+                className="control-button"
+                onClick={() => handleNavigationAction('resetView')}
+                title="Reset view"
+                style={getControlButtonStyle(false)}
+              >
+                <Home size={iconSize} />
+              </button>
+            </div>
+          )}
+          
+          {/* Map settings */}
+          {showMapSettings && (
+            <div className="control-section">
+              <button 
+                className={`control-button ${activePanel === 'settings' ? 'active' : ''}`}
+                onClick={() => togglePanel('settings')}
+                title="Map Settings"
+                style={getControlButtonStyle(activePanel === 'settings')}
+              >
+                <Sliders size={iconSize} />
+              </button>
+              
+              {activePanel === 'settings' && (
+                <div className="panel settings-panel" style={getPanelStyle(position, orientation)}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Map Settings</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold', fontSize: '14px' }}>
+                        Zoom Level: {view.zoom.toFixed(1)}
+                      </label>
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="20" 
+                        step="0.1" 
+                        value={view.zoom}
+                        onChange={(e) => {
+                          if (onViewChange) {
+                            onViewChange({
+                              ...view,
+                              zoom: parseFloat(e.target.value)
+                            });
+                          }
+                        }}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold', fontSize: '14px' }}>
+                        Bearing: {view.bearing.toFixed(1)}°
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="360" 
+                        value={view.bearing}
+                        onChange={(e) => {
+                          if (onViewChange) {
+                            onViewChange({
+                              ...view,
+                              bearing: parseFloat(e.target.value)
+                            });
+                          }
+                        }}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold', fontSize: '14px' }}>
+                        Pitch: {view.pitch.toFixed(1)}°
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="60" 
+                        value={view.pitch}
+                        onChange={(e) => {
+                          if (onViewChange) {
+                            onViewChange({
+                              ...view,
+                              pitch: parseFloat(e.target.value)
+                            });
+                          }
+                        }}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      marginTop: '8px'
+                    }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                        Center: {view.center.lat.toFixed(5)}, {view.center.lng.toFixed(5)}
+                      </span>
+                      
+                      <button
+                        onClick={() => {
+                          if (onResetView) onResetView();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '6px 8px',
+                          backgroundColor: '#f1f5f9',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RotateCcw size={14} style={{ marginRight: '4px' }} />
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Print and export */}
+          {showPrintExport && (
+            <div className="control-section">
+              <button 
+                className={`control-button ${activePanel === 'export' ? 'active' : ''}`}
+                onClick={() => togglePanel('export')}
+                title="Print & Export"
+                style={getControlButtonStyle(activePanel === 'export')}
+              >
+                <Printer size={iconSize} />
+              </button>
+              
+              {activePanel === 'export' && (
+                <div className="panel export-panel" style={getPanelStyle(position, orientation)}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Print & Export</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button 
+                      onClick={() => handlePrintExport('print')}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '6px 0',
-                        borderBottom: '1px solid #eee'
+                        padding: '8px 12px',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        id={`layer-${layer.id}`}
-                        checked={layer.visible}
-                        disabled={isReadOnly}
-                        onChange={(e) => handleLayerToggle(layer.id, e.target.checked)}
-                        style={{ margin: '0 8px 0 0' }}
-                      />
-                      <label 
-                        htmlFor={`layer-${layer.id}`}
-                        style={{ 
-                          fontSize: '13px',
-                          cursor: isReadOnly ? 'default' : 'pointer'
-                        }}
-                      >
-                        {layer.name}
-                      </label>
-                      {layer.description && (
-                        <div 
-                          className="layer-info"
-                          title={layer.description}
-                          style={{
-                            marginLeft: 'auto',
-                            fontSize: '12px',
-                            color: '#666',
-                            cursor: 'help'
-                          }}
-                        >
-                          ⓘ
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            
-            {Object.keys(layersByCategory).length === 0 && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '13px' }}>
-                No layers available
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Basemaps panel */}
-        {activePanel === 'basemaps' && (
-          <div className="basemaps-panel">
-            <div 
-              style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '10px' 
-              }}
-            >
-              {basemaps.map(basemap => (
-                <div
-                  key={basemap.id}
-                  className={`basemap-item ${activeBasemap === basemap.id ? 'active' : ''}`}
-                  onClick={() => !isReadOnly && handleBasemapChange(basemap.id as BasemapStyle)}
-                  style={{
-                    padding: '10px',
-                    border: activeBasemap === basemap.id ? '2px solid #0080ff' : '1px solid #ddd',
-                    borderRadius: '4px',
-                    cursor: isReadOnly ? 'default' : 'pointer',
-                    backgroundColor: activeBasemap === basemap.id ? '#f0f7ff' : 'white',
-                    textAlign: 'center'
-                  }}
-                >
-                  <div style={{ marginBottom: '5px' }}>
-                    {basemap.icon && (
-                      <span 
-                        className="material-icons"
-                        style={{ fontSize: '24px' }}
-                      >
-                        {basemap.icon}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '12px' }}>
-                    {basemap.name}
+                      <Printer size={16} style={{ marginRight: '8px' }} />
+                      Print Map
+                    </button>
+                    
+                    <button 
+                      onClick={() => handlePrintExport('export', 'png')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Download size={16} style={{ marginRight: '8px' }} />
+                      Export as PNG
+                    </button>
+                    
+                    <button 
+                      onClick={() => handlePrintExport('export', 'pdf')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <FileText size={16} style={{ marginRight: '8px' }} />
+                      Export as PDF
+                    </button>
+                    
+                    <button 
+                      onClick={() => handlePrintExport('share')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Share2 size={16} style={{ marginRight: '8px' }} />
+                      Share Map
+                    </button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          </div>
-        )}
-        
-        {/* Tools panel */}
-        {activePanel === 'tools' && (
-          <div className="tools-panel">
-            <div 
-              style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '10px' 
-              }}
-            >
-              {tools.map(tool => (
-                <div
-                  key={tool.id}
-                  className={`tool-item ${activeTool === tool.id ? 'active' : ''}`}
-                  onClick={() => !isReadOnly && handleToolSelect(tool.id)}
-                  style={{
-                    padding: '10px',
-                    border: activeTool === tool.id ? '2px solid #0080ff' : '1px solid #ddd',
-                    borderRadius: '4px',
-                    cursor: isReadOnly ? 'default' : 'pointer',
-                    backgroundColor: activeTool === tool.id ? '#f0f7ff' : 'white',
-                    textAlign: 'center'
-                  }}
-                >
-                  <div style={{ marginBottom: '5px' }}>
-                    {tool.icon && (
-                      <span 
-                        className="material-icons"
-                        style={{ fontSize: '20px' }}
-                      >
-                        {tool.icon}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '12px' }}>
-                    {tool.name}
-                  </div>
-                  {tool.shortcut && (
-                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
-                      {tool.shortcut}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {isReadOnly && (
-              <div style={{ 
-                marginTop: '15px', 
-                padding: '8px', 
-                backgroundColor: '#fff8e1',
-                border: '1px solid #ffe082',
-                borderRadius: '4px',
-                fontSize: '12px'
-              }}>
-                Tool selection is disabled in read-only mode
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      
-      {/* Legend */}
-      {showLegend && activePanel === 'layers' && (
-        <div 
-          className="map-legend"
-          style={{
-            padding: '10px',
-            borderTop: '1px solid #ccc',
-            fontSize: '12px'
-          }}
-        >
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px' }}>Legend</h4>
-          
-          {/* Parcel styling */}
-          <div style={{ marginBottom: '10px' }}>
-            <h5 style={{ margin: '0 0 5px 0', fontSize: '12px' }}>Parcels (by value)</h5>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#0e51a2', marginRight: '5px' }}></div>
-                <span>$1M+</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#2167a8', marginRight: '5px' }}></div>
-                <span>$750K-$1M</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#3a7eb9', marginRight: '5px' }}></div>
-                <span>$500K-$750K</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#5fa1ca', marginRight: '5px' }}></div>
-                <span>$400K-$500K</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#8fc2dd', marginRight: '5px' }}></div>
-                <span>$300K-$400K</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#c7dcef', marginRight: '5px' }}></div>
-                <span>$200K-$300K</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#f7fbff', marginRight: '5px' }}></div>
-                <span>&lt;$200K</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Zoning legend */}
-          <div>
-            <h5 style={{ margin: '0 0 5px 0', fontSize: '12px' }}>Zoning</h5>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#bdffb8', marginRight: '5px' }}></div>
-                <span>R1 - Residential Single Family</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#9aeb94', marginRight: '5px' }}></div>
-                <span>R2 - Residential Medium Density</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#caaef0', marginRight: '5px' }}></div>
-                <span>C1 - Commercial</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#ff9e9e', marginRight: '5px' }}></div>
-                <span>I1 - Industrial</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '20px', height: '10px', backgroundColor: '#f1dfad', marginRight: '5px' }}></div>
-                <span>AG - Agricultural</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
 };
+
+// Helper function to get positioning style based on position prop
+function getPositionStyle(position: string): React.CSSProperties {
+  switch (position) {
+    case 'top-left':
+      return { top: '10px', left: '10px' };
+    case 'top-right':
+      return { top: '10px', right: '10px' };
+    case 'bottom-left':
+      return { bottom: '10px', left: '10px' };
+    case 'bottom-right':
+      return { bottom: '10px', right: '10px' };
+    default:
+      return { top: '10px', right: '10px' };
+  }
+}
+
+// Helper function to get toggle button position
+function getToggleButtonPosition(position: string, orientation: string): React.CSSProperties {
+  if (orientation === 'vertical') {
+    return position.includes('left') 
+      ? { left: '100%', top: '0' }
+      : { right: '100%', top: '0' };
+  } else {
+    return position.includes('top')
+      ? { top: '100%', left: '0' }
+      : { bottom: '100%', left: '0' };
+  }
+}
+
+// Helper function to get control button style
+function getControlButtonStyle(isActive: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '40px',
+    height: '40px',
+    margin: '4px',
+    backgroundColor: isActive ? '#e0f2fe' : 'transparent',
+    color: isActive ? '#0369a1' : '#4b5563',
+    border: isActive ? '1px solid #bae6fd' : '1px solid #e5e7eb',
+    borderRadius: '4px',
+    cursor: 'pointer'
+  };
+}
+
+// Helper function to get panel style
+function getPanelStyle(position: string, orientation: string): React.CSSProperties {
+  const baseStyle: React.CSSProperties = {
+    position: 'absolute',
+    backgroundColor: 'white',
+    borderRadius: '4px',
+    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+    padding: '12px',
+    zIndex: 1002,
+    minWidth: '240px',
+    maxWidth: '280px',
+    maxHeight: '400px',
+    overflowY: 'auto'
+  };
+  
+  // Adjust position based on control position and orientation
+  if (orientation === 'vertical') {
+    if (position.includes('right')) {
+      return { ...baseStyle, right: '100%', top: '0', marginRight: '10px' };
+    } else {
+      return { ...baseStyle, left: '100%', top: '0', marginLeft: '10px' };
+    }
+  } else {
+    if (position.includes('top')) {
+      return { ...baseStyle, top: '100%', left: '0', marginTop: '10px' };
+    } else {
+      return { ...baseStyle, bottom: '100%', left: '0', marginBottom: '10px' };
+    }
+  }
+}
+
+// Helper function to get tool button style
+function getToolButtonStyle(isActive: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 12px',
+    backgroundColor: isActive ? '#e0f2fe' : '#f1f5f9',
+    color: isActive ? '#0369a1' : '#4b5563',
+    border: isActive ? '1px solid #bae6fd' : '1px solid #cbd5e1',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: isActive ? 'bold' : 'normal'
+  };
+}

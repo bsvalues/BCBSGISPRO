@@ -1,813 +1,1234 @@
 /**
  * Measurement Tools Component
  * 
- * This component provides tools for measuring distances, areas,
- * and angles on the map for land surveying and assessment purposes.
+ * This component provides tools for measuring distances, areas, and angles on maps.
+ * It supports multiple measurement units and can work with various map providers.
  */
 
-import React, { useEffect, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Ruler, 
+  SquareIcon,
+  Move, 
+  RotateCcw, 
+  Trash2, 
+  Save,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+
 import { logger } from '../../../../libs/DevOps/utils/logger';
+import { MeasurementType } from './MapControls';
 
 // Create module-specific logger
 const measurementLogger = logger.withTags(['CartographyModule', 'MeasurementTools']);
 
 /**
- * Measurement type
+ * Supported length units
  */
-export enum MeasurementType {
-  DISTANCE = 'distance',
-  AREA = 'area',
-  BEARING = 'bearing'
+export type LengthUnit = 'feet' | 'meters' | 'miles' | 'kilometers' | 'yards' | 'nautical-miles';
+
+/**
+ * Supported area units
+ */
+export type AreaUnit = 'square-feet' | 'square-meters' | 'acres' | 'hectares' | 'square-miles' | 'square-kilometers';
+
+/**
+ * Measurement result for distance
+ */
+export interface DistanceMeasurement {
+  type: 'distance';
+  points: Array<[number, number]>; // Array of [lng, lat] coordinates
+  segments: Array<{
+    start: [number, number];
+    end: [number, number];
+    distance: number; // In meters
+  }>;
+  total: {
+    meters: number;
+    [unit: string]: number; // Converted values
+  };
 }
 
 /**
- * Measurement unit
+ * Measurement result for area
  */
-export enum MeasurementUnit {
-  // Distance units
-  FEET = 'feet',
-  METERS = 'meters',
-  MILES = 'miles',
-  KILOMETERS = 'kilometers',
+export interface AreaMeasurement {
+  type: 'area';
+  points: Array<[number, number]>; // Array of [lng, lat] coordinates forming a polygon
+  area: {
+    squareMeters: number;
+    [unit: string]: number; // Converted values
+  };
+  perimeter: {
+    meters: number;
+    [unit: string]: number; // Converted values
+  };
+}
+
+/**
+ * Measurement result for bearing/angle
+ */
+export interface BearingMeasurement {
+  type: 'bearing';
+  points: Array<[number, number]>; // Array of [lng, lat] coordinates
+  bearing: number; // In degrees
+  compassPoint: string; // E.g., "NE", "WSW"
+}
+
+/**
+ * Combined measurement result type
+ */
+export type MeasurementResult = DistanceMeasurement | AreaMeasurement | BearingMeasurement;
+
+/**
+ * Measurement tools props
+ */
+export interface MeasurementToolsProps {
+  // Map instance (can be mapbox, leaflet, etc.)
+  mapInstance?: any;
   
-  // Area units
-  SQUARE_FEET = 'square_feet',
-  SQUARE_METERS = 'square_meters',
-  ACRES = 'acres',
-  HECTARES = 'hectares'
-}
-
-/**
- * Measurement result
- */
-export interface MeasurementResult {
-  type: MeasurementType;
-  value: number;
-  unit: MeasurementUnit;
-  formattedValue: string;
-  points: Array<[number, number]>; // [lng, lat] pairs
-  geometry?: GeoJSON.Geometry;
-}
-
-/**
- * Component props
- */
-interface MeasurementToolsProps {
-  map: mapboxgl.Map | null;
-  active: boolean;
-  measurementType: MeasurementType;
-  distanceUnit?: MeasurementUnit;
-  areaUnit?: MeasurementUnit;
-  clearOnComplete?: boolean;
-  showResults?: boolean;
-  onMeasurementComplete?: (result: MeasurementResult) => void;
-  onMeasurementStart?: () => void;
+  // Active measurement type (null if no measurement is active)
+  activeMeasurement: MeasurementType | null;
+  
+  // Default units
+  defaultLengthUnit?: LengthUnit;
+  defaultAreaUnit?: AreaUnit;
+  
+  // Show help tips
+  showHelp?: boolean;
+  
+  // Event handlers
+  onMeasurementStart?: (type: MeasurementType) => void;
+  onMeasurementUpdate?: (measurement: MeasurementResult) => void;
+  onMeasurementComplete?: (measurement: MeasurementResult) => void;
   onMeasurementCancel?: () => void;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  compact?: boolean;
 }
 
 /**
  * Measurement Tools Component
  */
 export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
-  map,
-  active = false,
-  measurementType = MeasurementType.DISTANCE,
-  distanceUnit = MeasurementUnit.FEET,
-  areaUnit = MeasurementUnit.ACRES,
-  clearOnComplete = true,
-  showResults = true,
-  onMeasurementComplete,
+  mapInstance,
+  activeMeasurement,
+  defaultLengthUnit = 'feet',
+  defaultAreaUnit = 'acres',
+  showHelp = true,
   onMeasurementStart,
+  onMeasurementUpdate,
+  onMeasurementComplete,
   onMeasurementCancel,
   className = '',
-  style = {}
+  style = {},
+  position = 'bottom-left',
+  compact = false
 }) => {
+  // State for selected units
+  const [lengthUnit, setLengthUnit] = useState<LengthUnit>(defaultLengthUnit);
+  const [areaUnit, setAreaUnit] = useState<AreaUnit>(defaultAreaUnit);
+  
+  // State for measurement results
+  const [currentMeasurement, setCurrentMeasurement] = useState<MeasurementResult | null>(null);
+  
   // State for measurement points
   const [points, setPoints] = useState<Array<[number, number]>>([]);
   
-  // State for measurement in progress
-  const [measuring, setMeasuring] = useState<boolean>(false);
+  // State for UI
+  const [expanded, setExpanded] = useState<boolean>(!compact);
+  const [helpExpanded, setHelpExpanded] = useState<boolean>(false);
   
-  // State for current measurement result
-  const [result, setResult] = useState<MeasurementResult | null>(null);
-  
-  // State for temporary point (for hover effect)
-  const [tempPoint, setTempPoint] = useState<[number, number] | null>(null);
-  
-  // Effect to initialize/cleanup measurement tool
+  // Initialize on component mount
   useEffect(() => {
-    if (!map) return;
+    measurementLogger.info('Measurement tools initialized', { 
+      defaultLengthUnit, 
+      defaultAreaUnit 
+    });
     
-    // Setup measurement sources and layers when the map and active state change
-    if (active) {
-      initializeMeasurementLayers();
-      attachMapEventListeners();
-      
-      measurementLogger.info(`Measurement tool activated: ${measurementType}`);
-      
-      if (onMeasurementStart) {
-        onMeasurementStart();
-      }
-    }
-    
-    // Clean up when component unmounts or active state changes
     return () => {
-      if (map && active) {
-        cleanup();
-      }
+      // Clean up any active measurements on unmount
+      cleanupMeasurement();
     };
-  }, [map, active, measurementType]);
+  }, []);
   
-  // Effect to update visualization when points change
+  // Handle changes to active measurement
   useEffect(() => {
-    if (!map || !active || points.length === 0) return;
+    if (activeMeasurement) {
+      startMeasurement(activeMeasurement);
+    } else {
+      cleanupMeasurement();
+    }
+  }, [activeMeasurement]);
+  
+  /**
+   * Start a new measurement
+   */
+  const startMeasurement = useCallback((type: MeasurementType) => {
+    measurementLogger.debug(`Starting ${type} measurement`);
     
-    updateMeasurementVisualization();
+    // Reset state
+    setPoints([]);
+    setCurrentMeasurement(null);
     
-    // Calculate measurement if we have enough points
-    if (
-      (measurementType === MeasurementType.DISTANCE && points.length >= 2) ||
-      (measurementType === MeasurementType.AREA && points.length >= 3) ||
-      (measurementType === MeasurementType.BEARING && points.length === 2)
-    ) {
-      const newResult = calculateMeasurement();
-      setResult(newResult);
+    // Set up map interactions based on measurement type
+    setupMapInteractions(type);
+    
+    // Notify parent
+    if (onMeasurementStart) {
+      onMeasurementStart(type);
+    }
+  }, [onMeasurementStart, mapInstance]);
+  
+  /**
+   * Clean up active measurement
+   */
+  const cleanupMeasurement = useCallback(() => {
+    measurementLogger.debug('Cleaning up measurement');
+    
+    // Reset state
+    setPoints([]);
+    setCurrentMeasurement(null);
+    
+    // Clean up map interactions
+    cleanupMapInteractions();
+  }, [mapInstance]);
+  
+  /**
+   * Set up map interactions for measurement
+   */
+  const setupMapInteractions = useCallback((type: MeasurementType) => {
+    if (!mapInstance) return;
+    
+    // This would be implemented differently for each map provider
+    // Here's a generic implementation that would be customized
+    
+    try {
+      // Change cursor to crosshair
+      mapInstance.getCanvas().style.cursor = 'crosshair';
       
-      if (onMeasurementComplete && 
-          ((measurementType === MeasurementType.DISTANCE && points.length >= 2) ||
-           (measurementType === MeasurementType.AREA && points.length >= 3) ||
-           (measurementType === MeasurementType.BEARING && points.length === 2))) {
-        onMeasurementComplete(newResult);
+      // Add click handler to map
+      mapInstance.on('click', handleMapClick);
+      
+      // Add mousemove handler for live updates
+      mapInstance.on('mousemove', handleMapMouseMove);
+      
+      // Add escape key handler for cancellation
+      document.addEventListener('keydown', handleKeyDown);
+      
+      measurementLogger.debug(`Map interactions set up for ${type} measurement`);
+    } catch (error) {
+      measurementLogger.error('Failed to set up map interactions', error);
+    }
+  }, [mapInstance]);
+  
+  /**
+   * Clean up map interactions
+   */
+  const cleanupMapInteractions = useCallback(() => {
+    if (!mapInstance) return;
+    
+    try {
+      // Reset cursor
+      mapInstance.getCanvas().style.cursor = '';
+      
+      // Remove event handlers
+      mapInstance.off('click', handleMapClick);
+      mapInstance.off('mousemove', handleMapMouseMove);
+      document.removeEventListener('keydown', handleKeyDown);
+      
+      // Remove any temporary layers or markers
+      if (mapInstance.getLayer('measurement-line')) {
+        mapInstance.removeLayer('measurement-line');
+      }
+      
+      if (mapInstance.getLayer('measurement-points')) {
+        mapInstance.removeLayer('measurement-points');
+      }
+      
+      if (mapInstance.getLayer('measurement-polygon')) {
+        mapInstance.removeLayer('measurement-polygon');
+      }
+      
+      if (mapInstance.getSource('measurement-source')) {
+        mapInstance.removeSource('measurement-source');
+      }
+      
+      measurementLogger.debug('Map interactions cleaned up');
+    } catch (error) {
+      measurementLogger.error('Failed to clean up map interactions', error);
+    }
+  }, [mapInstance]);
+  
+  /**
+   * Handle map click
+   */
+  const handleMapClick = useCallback((e: any) => {
+    const clickedPoint: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+    
+    // Add point to list
+    setPoints(prevPoints => {
+      const newPoints = [...prevPoints, clickedPoint];
+      
+      // Calculate measurement based on points
+      calculateMeasurement(newPoints);
+      
+      return newPoints;
+    });
+    
+    measurementLogger.debug(`Added point: [${clickedPoint[0]}, ${clickedPoint[1]}]`);
+  }, [activeMeasurement]);
+  
+  /**
+   * Handle map mouse move
+   */
+  const handleMapMouseMove = useCallback((e: any) => {
+    if (points.length === 0) return;
+    
+    const currentPoint: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+    
+    // Create a temporary set of points with the current mouse position
+    const tempPoints = [...points, currentPoint];
+    
+    // Update the visual representation
+    updateMapVisualization(tempPoints);
+    
+    // Calculate temporary measurement
+    const tempMeasurement = calculateMeasurementFromPoints(tempPoints, activeMeasurement!);
+    
+    // Notify parent of update
+    if (onMeasurementUpdate && tempMeasurement) {
+      onMeasurementUpdate(tempMeasurement);
+    }
+  }, [points, activeMeasurement, onMeasurementUpdate]);
+  
+  /**
+   * Handle key down (for esc key)
+   */
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      // Cancel measurement
+      if (onMeasurementCancel) {
+        onMeasurementCancel();
       }
     }
-  }, [points, tempPoint]);
+  }, [onMeasurementCancel]);
   
-  // Initialize measurement layers
-  const initializeMeasurementLayers = () => {
-    if (!map) return;
+  /**
+   * Update the visual representation on the map
+   */
+  const updateMapVisualization = useCallback((points: Array<[number, number]>) => {
+    if (!mapInstance || points.length === 0) return;
     
-    // Add measurement source if it doesn't exist
-    if (!map.getSource('measurement-source')) {
-      map.addSource('measurement-source', {
+    try {
+      // Create or update GeoJSON source
+      const source = {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
           features: []
         }
-      });
-    }
-    
-    // Add point layer if it doesn't exist
-    if (!map.getLayer('measurement-points')) {
-      map.addLayer({
-        id: 'measurement-points',
-        type: 'circle',
-        source: 'measurement-source',
-        filter: ['==', ['geometry-type'], 'Point'],
-        paint: {
-          'circle-radius': 5,
-          'circle-color': '#0080ff',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
-    }
-    
-    // Add line layer if it doesn't exist
-    if (!map.getLayer('measurement-lines')) {
-      map.addLayer({
-        id: 'measurement-lines',
-        type: 'line',
-        source: 'measurement-source',
-        filter: ['==', ['geometry-type'], 'LineString'],
-        paint: {
-          'line-color': '#0080ff',
-          'line-width': 2,
-          'line-dasharray': [2, 1]
-        }
-      });
-    }
-    
-    // Add polygon layer if it doesn't exist
-    if (!map.getLayer('measurement-polygons')) {
-      map.addLayer({
-        id: 'measurement-polygons',
-        type: 'fill',
-        source: 'measurement-source',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: {
-          'fill-color': '#0080ff',
-          'fill-opacity': 0.2
-        }
-      });
-    }
-    
-    // Add hover layer if it doesn't exist
-    if (!map.getLayer('measurement-hover')) {
-      map.addLayer({
-        id: 'measurement-hover',
-        type: 'line',
-        source: 'measurement-source',
-        filter: ['==', ['get', 'id'], 'temp-line'],
-        paint: {
-          'line-color': '#0080ff',
-          'line-width': 2,
-          'line-dasharray': [2, 2]
-        }
-      });
-    }
-    
-    // Add labels layer if it doesn't exist
-    if (!map.getLayer('measurement-labels')) {
-      map.addLayer({
-        id: 'measurement-labels',
-        type: 'symbol',
-        source: 'measurement-source',
-        filter: ['==', ['get', 'type'], 'label'],
-        layout: {
-          'text-field': '{label}',
-          'text-font': ['Open Sans Regular'],
-          'text-size': 12,
-          'text-offset': [0, -1],
-          'text-anchor': 'center'
-        },
-        paint: {
-          'text-color': '#333333',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2
-        }
-      });
-    }
-  };
-  
-  // Attach map event listeners
-  const attachMapEventListeners = () => {
-    if (!map) return;
-    
-    // Set cursor to crosshair when tool is active
-    map.getCanvas().style.cursor = 'crosshair';
-    
-    // Add click handler to add points
-    map.on('click', handleMapClick);
-    
-    // Add mousemove handler for hover effect
-    map.on('mousemove', handleMapMouseMove);
-    
-    // Add keydown handler to cancel measurement with escape key
-    document.addEventListener('keydown', handleKeyDown);
-  };
-  
-  // Handle map click event
-  const handleMapClick = (e: mapboxgl.MapMouseEvent) => {
-    if (!active) return;
-    
-    // Get click coordinates
-    const clickPoint: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    
-    // Add point to measurement
-    setPoints(prevPoints => [...prevPoints, clickPoint]);
-    
-    // Set measuring state
-    if (!measuring) {
-      setMeasuring(true);
-    }
-    
-    // If we're measuring bearing and have 2 points, or
-    // double click for distance/area, complete the measurement
-    if (
-      (measurementType === MeasurementType.BEARING && points.length === 1) ||
-      (e.originalEvent.detail === 2 && measurementType !== MeasurementType.BEARING)
-    ) {
-      completeMeasurement();
-    }
-  };
-  
-  // Handle map mousemove event
-  const handleMapMouseMove = (e: mapboxgl.MapMouseEvent) => {
-    if (!active || !measuring) return;
-    
-    // Update temp point for hover visualization
-    setTempPoint([e.lngLat.lng, e.lngLat.lat]);
-  };
-  
-  // Handle keydown event
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!active) return;
-    
-    // Escape key cancels measurement
-    if (e.key === 'Escape') {
-      cancelMeasurement();
-    }
-    
-    // Enter key completes measurement
-    if (e.key === 'Enter') {
-      completeMeasurement();
-    }
-  };
-  
-  // Update measurement visualization
-  const updateMeasurementVisualization = () => {
-    if (!map) return;
-    
-    // Create features array
-    const features: any[] = [];
-    
-    // Add point features
-    points.forEach((point, index) => {
-      features.push({
+      };
+      
+      // Add points feature
+      source.data.features.push({
         type: 'Feature',
-        properties: {
-          id: `point-${index}`,
-          index
-        },
         geometry: {
-          type: 'Point',
-          coordinates: point
-        }
+          type: 'MultiPoint',
+          coordinates: points
+        },
+        properties: {}
       });
-    });
-    
-    // Add line or polygon feature based on measurement type
-    if (points.length > 0) {
-      if (measurementType === MeasurementType.AREA && points.length >= 3) {
-        // Create polygon for area measurement
-        const polygonCoordinates = [...points];
-        
-        // Close the polygon
-        if (polygonCoordinates[0][0] !== polygonCoordinates[polygonCoordinates.length - 1][0] ||
-            polygonCoordinates[0][1] !== polygonCoordinates[polygonCoordinates.length - 1][1]) {
-          polygonCoordinates.push(polygonCoordinates[0]);
-        }
-        
-        features.push({
-          type: 'Feature',
-          properties: {
-            id: 'area-polygon'
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [polygonCoordinates]
-          }
-        });
-      } else {
-        // Create line for distance or bearing measurement
-        features.push({
-          type: 'Feature',
-          properties: {
-            id: 'distance-line'
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: points
-          }
-        });
-      }
       
-      // Add temporary hover line if we have a temp point
-      if (tempPoint) {
-        const lastPoint = points[points.length - 1];
-        
-        features.push({
-          type: 'Feature',
-          properties: {
-            id: 'temp-line'
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: [lastPoint, tempPoint]
-          }
-        });
-      }
-    }
-    
-    // Add measurement label if we have a result
-    if (result) {
-      // Calculate label position
-      let labelPosition: [number, number];
-      
-      if (measurementType === MeasurementType.AREA && points.length >= 3) {
-        // For area, put label at centroid
-        const coordinates = points.reduce(
-          (acc, point) => [acc[0] + point[0] / points.length, acc[1] + point[1] / points.length],
-          [0, 0]
-        );
-        labelPosition = coordinates;
-      } else if (measurementType === MeasurementType.DISTANCE && points.length >= 2) {
-        // For distance, put label at midpoint of line
-        const midIndex = Math.floor(points.length / 2);
-        const startPoint = points[midIndex - 1];
-        const endPoint = points[midIndex];
-        labelPosition = [
-          (startPoint[0] + endPoint[0]) / 2,
-          (startPoint[1] + endPoint[1]) / 2
-        ];
-      } else {
-        // For bearing, put label near endpoint
-        labelPosition = points[points.length - 1];
-      }
-      
-      features.push({
+      // Add line feature
+      source.data.features.push({
         type: 'Feature',
-        properties: {
-          id: 'measurement-label',
-          type: 'label',
-          label: result.formattedValue
-        },
         geometry: {
-          type: 'Point',
-          coordinates: labelPosition
-        }
-      });
-    }
-    
-    // Update source data
-    const source = map.getSource('measurement-source') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features
-    });
-  };
-  
-  // Calculate measurement result
-  const calculateMeasurement = (): MeasurementResult => {
-    let value = 0;
-    let unit: MeasurementUnit;
-    let formattedValue = '';
-    let geometry: GeoJSON.Geometry | undefined;
-    
-    switch (measurementType) {
-      case MeasurementType.DISTANCE:
-        // Calculate distance along line
-        value = calculateDistance(points);
-        unit = distanceUnit;
-        formattedValue = formatDistance(value, unit);
-        geometry = {
           type: 'LineString',
           coordinates: points
-        };
-        break;
+        },
+        properties: {}
+      });
+      
+      // Add polygon feature if measuring area and we have at least 3 points
+      if (activeMeasurement === MeasurementType.AREA && points.length >= 3) {
+        const closedPoints = [...points];
         
-      case MeasurementType.AREA:
-        // Calculate area of polygon
-        value = calculateArea(points);
-        unit = areaUnit;
-        formattedValue = formatArea(value, unit);
-        geometry = {
-          type: 'Polygon',
-          coordinates: [
-            [...points, points[0]] // Close the polygon
-          ]
-        };
-        break;
-        
-      case MeasurementType.BEARING:
-        // Calculate bearing between points
-        if (points.length >= 2) {
-          const startPoint = points[0];
-          const endPoint = points[1];
-          value = calculateBearing(startPoint, endPoint);
-          unit = MeasurementUnit.FEET; // Not used for bearing
-          formattedValue = formatBearing(value);
-          geometry = {
-            type: 'LineString',
-            coordinates: [startPoint, endPoint]
-          };
+        // Close the polygon
+        if (closedPoints[0][0] !== closedPoints[closedPoints.length - 1][0] ||
+            closedPoints[0][1] !== closedPoints[closedPoints.length - 1][1]) {
+          closedPoints.push(closedPoints[0]);
         }
-        break;
+        
+        source.data.features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [closedPoints]
+          },
+          properties: {}
+        });
+      }
+      
+      // Update or create the source
+      if (mapInstance.getSource('measurement-source')) {
+        mapInstance.getSource('measurement-source').setData(source.data);
+      } else {
+        mapInstance.addSource('measurement-source', source);
+        
+        // Add layers on first creation
+        mapInstance.addLayer({
+          id: 'measurement-line',
+          type: 'line',
+          source: 'measurement-source',
+          filter: ['==', '$type', 'LineString'],
+          paint: {
+            'line-color': '#0080ff',
+            'line-width': 2,
+            'line-dasharray': [2, 1]
+          }
+        });
+        
+        mapInstance.addLayer({
+          id: 'measurement-points',
+          type: 'circle',
+          source: 'measurement-source',
+          filter: ['==', '$type', 'Point'],
+          paint: {
+            'circle-radius': 5,
+            'circle-color': '#0080ff',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2
+          }
+        });
+        
+        mapInstance.addLayer({
+          id: 'measurement-polygon',
+          type: 'fill',
+          source: 'measurement-source',
+          filter: ['==', '$type', 'Polygon'],
+          paint: {
+            'fill-color': '#0080ff',
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#0080ff'
+          }
+        });
+      }
+    } catch (error) {
+      measurementLogger.error('Failed to update map visualization', error);
+    }
+  }, [mapInstance, activeMeasurement]);
+  
+  /**
+   * Calculate measurement from the current points
+   */
+  const calculateMeasurement = useCallback((newPoints: Array<[number, number]>) => {
+    if (!activeMeasurement || newPoints.length < 2) return;
+    
+    const measurement = calculateMeasurementFromPoints(newPoints, activeMeasurement);
+    
+    if (measurement) {
+      setCurrentMeasurement(measurement);
+      
+      // Notify parent of update
+      if (onMeasurementUpdate) {
+        onMeasurementUpdate(measurement);
+      }
+      
+      // If this is the final point for certain measurements, complete the measurement
+      const isFinalPoint = 
+        (activeMeasurement === MeasurementType.BEARING && newPoints.length === 2) ||
+        (activeMeasurement === MeasurementType.ANGLE && newPoints.length === 3);
+      
+      if (isFinalPoint && onMeasurementComplete) {
+        onMeasurementComplete(measurement);
+      }
+    }
+  }, [activeMeasurement, onMeasurementUpdate, onMeasurementComplete]);
+  
+  /**
+   * Calculate measurement from points
+   */
+  const calculateMeasurementFromPoints = (
+    points: Array<[number, number]>, 
+    type: MeasurementType
+  ): MeasurementResult | null => {
+    if (points.length < 2) return null;
+    
+    switch (type) {
+      case MeasurementType.DISTANCE:
+        return calculateDistance(points);
+      
+      case MeasurementType.AREA:
+        if (points.length < 3) return null;
+        return calculateArea(points);
+      
+      case MeasurementType.BEARING:
+        return calculateBearing(points);
+      
+      case MeasurementType.PERIMETER:
+        if (points.length < 2) return null;
+        return calculatePerimeter(points);
+      
+      default:
+        return null;
+    }
+  };
+  
+  /**
+   * Calculate distance measurement
+   */
+  const calculateDistance = (points: Array<[number, number]>): DistanceMeasurement => {
+    let totalMeters = 0;
+    const segments = [];
+    
+    // Calculate distance for each segment
+    for (let i = 0; i < points.length - 1; i++) {
+      const start = points[i];
+      const end = points[i + 1];
+      
+      const segmentMeters = calculateDistanceBetween(start, end);
+      totalMeters += segmentMeters;
+      
+      segments.push({
+        start,
+        end,
+        distance: segmentMeters
+      });
     }
     
+    // Convert to selected unit
+    const total: Record<string, number> = {
+      meters: totalMeters
+    };
+    
+    // Add converted values
+    total[lengthUnit] = convertLength(totalMeters, 'meters', lengthUnit);
+    
     return {
-      type: measurementType,
-      value,
-      unit,
-      formattedValue,
-      points: [...points],
-      geometry
+      type: 'distance',
+      points,
+      segments,
+      total
     };
   };
   
-  // Complete measurement
-  const completeMeasurement = () => {
-    if (!measuring || points.length === 0) return;
-    
-    // Calculate final measurement
-    const finalResult = calculateMeasurement();
-    setResult(finalResult);
-    
-    // Call completion callback
-    if (onMeasurementComplete) {
-      onMeasurementComplete(finalResult);
+  /**
+   * Calculate area measurement
+   */
+  const calculateArea = (points: Array<[number, number]>): AreaMeasurement => {
+    // Ensure the polygon is closed
+    const closedPoints = [...points];
+    if (closedPoints[0][0] !== closedPoints[closedPoints.length - 1][0] ||
+        closedPoints[0][1] !== closedPoints[closedPoints.length - 1][1]) {
+      closedPoints.push(closedPoints[0]);
     }
     
-    // Clear measurement if configured
-    if (clearOnComplete) {
-      resetMeasurement();
-    } else {
-      setMeasuring(false);
+    // Calculate area using the Shoelace formula
+    const squareMeters = calculatePolygonArea(closedPoints);
+    
+    // Calculate perimeter
+    let perimeterMeters = 0;
+    for (let i = 0; i < closedPoints.length - 1; i++) {
+      perimeterMeters += calculateDistanceBetween(closedPoints[i], closedPoints[i + 1]);
     }
+    
+    // Create area conversions
+    const area: Record<string, number> = {
+      squareMeters
+    };
+    
+    // Add converted values for area
+    area[areaUnit] = convertArea(squareMeters, 'square-meters', areaUnit);
+    
+    // Create perimeter conversions
+    const perimeter: Record<string, number> = {
+      meters: perimeterMeters
+    };
+    
+    // Add converted values for perimeter
+    perimeter[lengthUnit] = convertLength(perimeterMeters, 'meters', lengthUnit);
+    
+    return {
+      type: 'area',
+      points,
+      area,
+      perimeter
+    };
   };
   
-  // Cancel measurement
-  const cancelMeasurement = () => {
-    if (!measuring) return;
+  /**
+   * Calculate perimeter measurement
+   */
+  const calculatePerimeter = (points: Array<[number, number]>): DistanceMeasurement => {
+    // For perimeter, we calculate distance but close the loop
+    const closedPoints = [...points];
     
-    resetMeasurement();
+    // Close the loop if needed
+    if (points.length > 2 && (
+      closedPoints[0][0] !== closedPoints[closedPoints.length - 1][0] ||
+      closedPoints[0][1] !== closedPoints[closedPoints.length - 1][1]
+    )) {
+      closedPoints.push(closedPoints[0]);
+    }
     
-    // Call cancel callback
+    return calculateDistance(closedPoints);
+  };
+  
+  /**
+   * Calculate bearing measurement
+   */
+  const calculateBearing = (points: Array<[number, number]>): BearingMeasurement => {
+    // Need at least two points to calculate bearing
+    if (points.length < 2) {
+      return {
+        type: 'bearing',
+        points,
+        bearing: 0,
+        compassPoint: 'N'
+      };
+    }
+    
+    // Calculate bearing between the first two points
+    const start = points[0];
+    const end = points[1];
+    
+    const bearing = calculateBearingBetween(start, end);
+    const compassPoint = getCompassPoint(bearing);
+    
+    return {
+      type: 'bearing',
+      points,
+      bearing,
+      compassPoint
+    };
+  };
+  
+  /**
+   * Calculate the distance between two points in meters
+   */
+  const calculateDistanceBetween = (
+    point1: [number, number], 
+    point2: [number, number]
+  ): number => {
+    // Implementation of the Haversine formula for distance calculation
+    const [lon1, lat1] = point1;
+    const [lon2, lat2] = point2;
+    
+    const R = 6371000; // Radius of the Earth in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = 
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * 
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    return distance;
+  };
+  
+  /**
+   * Calculate the bearing between two points in degrees
+   */
+  const calculateBearingBetween = (
+    point1: [number, number], 
+    point2: [number, number]
+  ): number => {
+    const [lon1, lat1] = point1;
+    const [lon2, lat2] = point2;
+    
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    
+    let bearing = Math.atan2(y, x) * 180 / Math.PI;
+    bearing = (bearing + 360) % 360; // Normalize to 0-360
+    
+    return bearing;
+  };
+  
+  /**
+   * Calculate the area of a polygon in square meters
+   */
+  const calculatePolygonArea = (points: Array<[number, number]>): number => {
+    // If this were a real implementation, we'd use a library like Turf.js
+    // For simplicity, let's use a basic implementation of the Shoelace formula
+    
+    // Convert to projected coordinates for more accurate area calculation
+    const projectedPoints = points.map(point => {
+      // Simple approximation - in a real app, use proper projection
+      const [lon, lat] = point;
+      // Approximate meters per degree at the equator
+      const metersPerDegree = 111319.9;
+      const x = lon * metersPerDegree * Math.cos(lat * Math.PI / 180);
+      const y = lat * metersPerDegree;
+      return [x, y];
+    });
+    
+    let area = 0;
+    for (let i = 0, j = projectedPoints.length - 1; i < projectedPoints.length; j = i++) {
+      area += projectedPoints[i][0] * projectedPoints[j][1];
+      area -= projectedPoints[j][0] * projectedPoints[i][1];
+    }
+    
+    return Math.abs(area / 2);
+  };
+  
+  /**
+   * Convert a length measurement between units
+   */
+  const convertLength = (value: number, fromUnit: LengthUnit | 'meters', toUnit: LengthUnit): number => {
+    // Conversion factors to meters
+    const toMeters: Record<string, number> = {
+      'meters': 1,
+      'feet': 0.3048,
+      'miles': 1609.34,
+      'kilometers': 1000,
+      'yards': 0.9144,
+      'nautical-miles': 1852
+    };
+    
+    // Convert to meters first
+    const meters = value * (fromUnit === 'meters' ? 1 : 1 / toMeters[fromUnit]);
+    
+    // Then convert to target unit
+    return meters / toMeters[toUnit];
+  };
+  
+  /**
+   * Convert an area measurement between units
+   */
+  const convertArea = (value: number, fromUnit: AreaUnit | 'square-meters', toUnit: AreaUnit): number => {
+    // Conversion factors to square meters
+    const toSquareMeters: Record<string, number> = {
+      'square-meters': 1,
+      'square-feet': 0.092903,
+      'acres': 4046.86,
+      'hectares': 10000,
+      'square-miles': 2589988.11,
+      'square-kilometers': 1000000
+    };
+    
+    // Convert to square meters first
+    const squareMeters = value * (fromUnit === 'square-meters' ? 1 : 1 / toSquareMeters[fromUnit]);
+    
+    // Then convert to target unit
+    return squareMeters / toSquareMeters[toUnit];
+  };
+  
+  /**
+   * Get the compass point from a bearing
+   */
+  const getCompassPoint = (bearing: number): string => {
+    const compassPoints = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW', 'N'];
+    const index = Math.round(bearing / 22.5);
+    return compassPoints[index % 16];
+  };
+  
+  /**
+   * Format a measurement value for display
+   */
+  const formatMeasurement = (value: number, unit: string): string => {
+    let formattedValue = value.toFixed(2);
+    let displayUnit = unit;
+    
+    // Format units for display
+    switch (unit) {
+      case 'square-feet':
+        displayUnit = 'ft²';
+        break;
+      case 'square-meters':
+        displayUnit = 'm²';
+        break;
+      case 'square-kilometers':
+        displayUnit = 'km²';
+        break;
+      case 'square-miles':
+        displayUnit = 'mi²';
+        break;
+      case 'meters':
+        displayUnit = 'm';
+        break;
+      case 'kilometers':
+        displayUnit = 'km';
+        break;
+      case 'feet':
+        displayUnit = 'ft';
+        break;
+      case 'miles':
+        displayUnit = 'mi';
+        break;
+      case 'nautical-miles':
+        displayUnit = 'nm';
+        break;
+      case 'yards':
+        displayUnit = 'yd';
+        break;
+    }
+    
+    return `${formattedValue} ${displayUnit}`;
+  };
+  
+  /**
+   * Get the active tool icon
+   */
+  const getActiveToolIcon = useMemo(() => {
+    if (!activeMeasurement) return null;
+    
+    switch (activeMeasurement) {
+      case MeasurementType.DISTANCE:
+        return <Ruler size={16} />;
+      case MeasurementType.AREA:
+        return <SquareIcon size={16} />;
+      case MeasurementType.BEARING:
+        return <Compass size={16} />;
+      case MeasurementType.PERIMETER:
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <path d="M21 3v18M3 21h18M3 3v18"/>
+          </svg>
+        );
+      default:
+        return null;
+    }
+  }, [activeMeasurement]);
+  
+  /**
+   * Get the measurement display text
+   */
+  const getMeasurementDisplay = useMemo(() => {
+    if (!currentMeasurement) return null;
+    
+    switch (currentMeasurement.type) {
+      case 'distance':
+        return formatMeasurement(currentMeasurement.total[lengthUnit], lengthUnit);
+      
+      case 'area':
+        return (
+          <>
+            {formatMeasurement(currentMeasurement.area[areaUnit], areaUnit)}
+            <br />
+            <small>Perimeter: {formatMeasurement(currentMeasurement.perimeter[lengthUnit], lengthUnit)}</small>
+          </>
+        );
+      
+      case 'bearing':
+        return (
+          <>
+            {currentMeasurement.bearing.toFixed(1)}° ({currentMeasurement.compassPoint})
+          </>
+        );
+      
+      default:
+        return null;
+    }
+  }, [currentMeasurement, lengthUnit, areaUnit]);
+  
+  /**
+   * Get unit options for selector
+   */
+  const getLengthUnitOptions = useMemo(() => {
+    const options: { value: LengthUnit; label: string }[] = [
+      { value: 'feet', label: 'Feet (ft)' },
+      { value: 'meters', label: 'Meters (m)' },
+      { value: 'miles', label: 'Miles (mi)' },
+      { value: 'kilometers', label: 'Kilometers (km)' },
+      { value: 'yards', label: 'Yards (yd)' },
+      { value: 'nautical-miles', label: 'Nautical Miles (nm)' }
+    ];
+    
+    return options;
+  }, []);
+  
+  /**
+   * Get area unit options for selector
+   */
+  const getAreaUnitOptions = useMemo(() => {
+    const options: { value: AreaUnit; label: string }[] = [
+      { value: 'acres', label: 'Acres (ac)' },
+      { value: 'square-feet', label: 'Square Feet (ft²)' },
+      { value: 'square-meters', label: 'Square Meters (m²)' },
+      { value: 'hectares', label: 'Hectares (ha)' },
+      { value: 'square-miles', label: 'Square Miles (mi²)' },
+      { value: 'square-kilometers', label: 'Square Kilometers (km²)' }
+    ];
+    
+    return options;
+  }, []);
+  
+  /**
+   * Handle completion of measurement
+   */
+  const handleCompleteMeasurement = useCallback(() => {
+    if (!currentMeasurement) return;
+    
+    // Notify parent of completion
+    if (onMeasurementComplete) {
+      onMeasurementComplete(currentMeasurement);
+    }
+    
+    // Clean up measurement if it's not auto-completing
+    if (activeMeasurement !== MeasurementType.BEARING && activeMeasurement !== MeasurementType.ANGLE) {
+      // Don't actually reset the measurement state here, let the parent do it
+      // by setting activeMeasurement to null
+    }
+  }, [currentMeasurement, activeMeasurement, onMeasurementComplete]);
+  
+  /**
+   * Handle cancellation of measurement
+   */
+  const handleCancelMeasurement = useCallback(() => {
     if (onMeasurementCancel) {
       onMeasurementCancel();
     }
-  };
+  }, [onMeasurementCancel]);
   
-  // Reset measurement
-  const resetMeasurement = () => {
+  /**
+   * Handle reset of current points
+   */
+  const handleResetPoints = useCallback(() => {
     setPoints([]);
-    setTempPoint(null);
-    setMeasuring(false);
+    setCurrentMeasurement(null);
     
-    // Clear visualization
-    if (map) {
-      const source = map.getSource('measurement-source') as mapboxgl.GeoJSONSource;
-      source.setData({
-        type: 'FeatureCollection',
-        features: []
-      });
-    }
-  };
+    // Update the UI
+    updateMapVisualization([]);
+    
+    measurementLogger.debug('Measurement points reset');
+  }, [updateMapVisualization]);
   
-  // Clean up event listeners and layers
-  const cleanup = () => {
-    if (!map) return;
-    
-    // Remove event listeners
-    map.off('click', handleMapClick);
-    map.off('mousemove', handleMapMouseMove);
-    document.removeEventListener('keydown', handleKeyDown);
-    
-    // Reset cursor
-    map.getCanvas().style.cursor = '';
-    
-    // Reset state
-    resetMeasurement();
-    
-    measurementLogger.info('Measurement tool deactivated');
-  };
+  /**
+   * Toggle expanded state
+   */
+  const toggleExpanded = useCallback(() => {
+    setExpanded(prev => !prev);
+  }, []);
   
-  // Convert between units
-  const convertDistance = (distance: number, fromUnit: MeasurementUnit, toUnit: MeasurementUnit): number => {
-    // Convert to meters first
-    let meters = distance;
+  /**
+   * Toggle help expanded state
+   */
+  const toggleHelpExpanded = useCallback(() => {
+    setHelpExpanded(prev => !prev);
+  }, []);
+  
+  // Get placeholder text based on active measurement
+  const getPlaceholderText = useMemo(() => {
+    if (!activeMeasurement) return '';
     
-    switch (fromUnit) {
-      case MeasurementUnit.FEET:
-        meters = distance * 0.3048;
-        break;
-      case MeasurementUnit.MILES:
-        meters = distance * 1609.34;
-        break;
-      case MeasurementUnit.KILOMETERS:
-        meters = distance * 1000;
-        break;
-    }
-    
-    // Convert meters to target unit
-    switch (toUnit) {
-      case MeasurementUnit.FEET:
-        return meters / 0.3048;
-      case MeasurementUnit.MILES:
-        return meters / 1609.34;
-      case MeasurementUnit.KILOMETERS:
-        return meters / 1000;
+    switch (activeMeasurement) {
+      case MeasurementType.DISTANCE:
+        return 'Click to start measuring distance';
+      case MeasurementType.AREA:
+        return 'Click to start measuring area';
+      case MeasurementType.PERIMETER:
+        return 'Click to start measuring perimeter';
+      case MeasurementType.BEARING:
+        return 'Click to set start and end points';
       default:
-        return meters;
+        return '';
     }
-  };
+  }, [activeMeasurement]);
   
-  // Format distance for display
-  const formatDistance = (distance: number, unit: MeasurementUnit): string => {
-    let displayDistance = distance;
-    let displayUnit = '';
+  // Get help text based on active measurement
+  const getHelpText = useMemo(() => {
+    if (!activeMeasurement) return '';
     
-    switch (unit) {
-      case MeasurementUnit.FEET:
-        displayDistance = Math.round(distance * 10) / 10;
-        displayUnit = 'ft';
-        break;
-      case MeasurementUnit.METERS:
-        displayDistance = Math.round(distance * 10) / 10;
-        displayUnit = 'm';
-        break;
-      case MeasurementUnit.MILES:
-        displayDistance = Math.round(distance * 1000) / 1000;
-        displayUnit = 'mi';
-        break;
-      case MeasurementUnit.KILOMETERS:
-        displayDistance = Math.round(distance * 100) / 100;
-        displayUnit = 'km';
-        break;
-    }
-    
-    return `${displayDistance.toLocaleString()} ${displayUnit}`;
-  };
-  
-  // Format area for display
-  const formatArea = (area: number, unit: MeasurementUnit): string => {
-    let displayArea = area;
-    let displayUnit = '';
-    
-    switch (unit) {
-      case MeasurementUnit.SQUARE_FEET:
-        displayArea = Math.round(area * 10) / 10;
-        displayUnit = 'sq ft';
-        break;
-      case MeasurementUnit.SQUARE_METERS:
-        displayArea = Math.round(area * 10) / 10;
-        displayUnit = 'sq m';
-        break;
-      case MeasurementUnit.ACRES:
-        displayArea = Math.round(area * 1000) / 1000;
-        displayUnit = 'acres';
-        break;
-      case MeasurementUnit.HECTARES:
-        displayArea = Math.round(area * 100) / 100;
-        displayUnit = 'ha';
-        break;
-    }
-    
-    return `${displayArea.toLocaleString()} ${displayUnit}`;
-  };
-  
-  // Format bearing for display
-  const formatBearing = (bearing: number): string => {
-    const degreesFormatted = Math.round(bearing * 10) / 10;
-    return `${degreesFormatted}°`;
-  };
-  
-  // Calculate distance between points
-  const calculateDistance = (points: Array<[number, number]>): number => {
-    if (points.length < 2) return 0;
-    
-    let totalDistance = 0;
-    
-    for (let i = 1; i < points.length; i++) {
-      const from = points[i - 1];
-      const to = points[i];
-      
-      // Calculate distance in meters using Haversine formula
-      const distance = calculateHaversineDistance(from, to);
-      
-      // Convert to requested unit
-      totalDistance += convertDistance(distance, MeasurementUnit.METERS, distanceUnit);
-    }
-    
-    return totalDistance;
-  };
-  
-  // Calculate area of polygon
-  const calculateArea = (points: Array<[number, number]>): number => {
-    if (points.length < 3) return 0;
-    
-    // Close polygon if not already closed
-    const coords = [...points];
-    if (coords[0][0] !== coords[coords.length - 1][0] || 
-        coords[0][1] !== coords[coords.length - 1][1]) {
-      coords.push(coords[0]);
-    }
-    
-    // Calculate area using Shoelace formula
-    // This is an approximation for small areas on the Earth's surface
-    let area = 0;
-    
-    for (let i = 0; i < coords.length - 1; i++) {
-      area += coords[i][0] * coords[i + 1][1] - coords[i + 1][0] * coords[i][1];
-    }
-    
-    area = Math.abs(area) / 2;
-    
-    // Convert to square meters (approximate)
-    // This uses the fact that 1 degree of longitude at the equator is approximately 111,320 meters
-    // Adjust for latitude to improve accuracy
-    const latitude = coords.reduce((sum, coord) => sum + coord[1], 0) / coords.length;
-    const latitudeRadians = (latitude * Math.PI) / 180;
-    const metersPerDegree = 111320 * Math.cos(latitudeRadians);
-    
-    let areaSquareMeters = area * Math.pow(metersPerDegree, 2);
-    
-    // Convert to requested unit
-    switch (areaUnit) {
-      case MeasurementUnit.SQUARE_FEET:
-        return areaSquareMeters * 10.7639;
-      case MeasurementUnit.ACRES:
-        return areaSquareMeters * 0.000247105;
-      case MeasurementUnit.HECTARES:
-        return areaSquareMeters * 0.0001;
+    switch (activeMeasurement) {
+      case MeasurementType.DISTANCE:
+        return 'Click on the map to add points. Double-click to finish.';
+      case MeasurementType.AREA:
+        return 'Click to add vertices of the polygon. Complete the shape by clicking near the starting point.';
+      case MeasurementType.PERIMETER:
+        return 'Click to add vertices of the shape. Complete the shape by clicking near the starting point.';
+      case MeasurementType.BEARING:
+        return 'Click to set the start point, then click again to set the end point and calculate bearing.';
       default:
-        return areaSquareMeters;
+        return '';
     }
-  };
+  }, [activeMeasurement]);
   
-  // Calculate bearing between two points
-  const calculateBearing = (from: [number, number], to: [number, number]): number => {
-    // Convert to radians
-    const fromLat = (from[1] * Math.PI) / 180;
-    const fromLng = (from[0] * Math.PI) / 180;
-    const toLat = (to[1] * Math.PI) / 180;
-    const toLng = (to[0] * Math.PI) / 180;
-    
-    const y = Math.sin(toLng - fromLng) * Math.cos(toLat);
-    const x = Math.cos(fromLat) * Math.sin(toLat) -
-              Math.sin(fromLat) * Math.cos(toLat) * Math.cos(toLng - fromLng);
-    
-    // Calculate bearing in radians
-    const bearing = Math.atan2(y, x);
-    
-    // Convert to degrees
-    return ((bearing * 180) / Math.PI + 360) % 360;
-  };
+  // Determine container classes based on position
+  const containerClasses = `measurement-tools ${position} ${expanded ? 'expanded' : 'collapsed'} ${className}`;
   
-  // Calculate Haversine distance between two points
-  const calculateHaversineDistance = (from: [number, number], to: [number, number]): number => {
-    const R = 6371000; // Earth's radius in meters
-    
-    // Convert to radians
-    const lat1 = (from[1] * Math.PI) / 180;
-    const lat2 = (to[1] * Math.PI) / 180;
-    const deltaLat = ((to[1] - from[1]) * Math.PI) / 180;
-    const deltaLng = ((to[0] - from[0]) * Math.PI) / 180;
-    
-    // Haversine formula
-    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    
-    return R * c; // Distance in meters
-  };
+  // Don't render anything if no active measurement
+  if (activeMeasurement === null) {
+    return null;
+  }
   
-  // Render component
-  return showResults && result ? (
-    <div 
-      className={`measurement-tools ${className}`}
-      style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        padding: '10px',
-        backgroundColor: 'white',
-        borderRadius: '4px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-        zIndex: 1000,
-        minWidth: '200px',
-        ...style
-      }}
-    >
-      <div style={{ marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
-        {measurementType === MeasurementType.DISTANCE ? 'Distance' : 
-         measurementType === MeasurementType.AREA ? 'Area' : 'Bearing'}
-      </div>
-      
-      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-        {result.formattedValue}
-      </div>
-      
-      <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
-        <button
-          onClick={resetMeasurement}
-          style={{
-            padding: '5px 10px',
-            border: '1px solid #ccc',
-            borderRadius: '3px',
-            backgroundColor: '#f0f0f0',
-            cursor: 'pointer'
-          }}
-        >
-          Clear
-        </button>
+  // Determine position styles
+  const positionStyle = getPositionStyle(position);
+  
+  return (
+    <div className={containerClasses} style={{ 
+      position: 'absolute',
+      ...positionStyle,
+      backgroundColor: 'white',
+      borderRadius: '4px',
+      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+      padding: '12px',
+      minWidth: '240px',
+      maxWidth: '320px',
+      zIndex: 1000,
+      ...style
+    }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {getActiveToolIcon}
+          <span style={{ fontWeight: 'bold' }}>
+            {activeMeasurement === MeasurementType.DISTANCE && 'Distance Measurement'}
+            {activeMeasurement === MeasurementType.AREA && 'Area Measurement'}
+            {activeMeasurement === MeasurementType.PERIMETER && 'Perimeter Measurement'}
+            {activeMeasurement === MeasurementType.BEARING && 'Bearing Measurement'}
+          </span>
+        </div>
         
-        {measuring && (
-          <button
-            onClick={completeMeasurement}
+        {compact && (
+          <button 
+            onClick={toggleExpanded}
             style={{
-              padding: '5px 10px',
-              border: '1px solid #0080ff',
-              borderRadius: '3px',
-              backgroundColor: '#0080ff',
-              color: 'white',
-              cursor: 'pointer'
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px'
             }}
           >
-            {measurementType === MeasurementType.DISTANCE ? 'Finish Line' : 
-             measurementType === MeasurementType.AREA ? 'Finish Polygon' : 'Measure'}
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
         )}
       </div>
       
-      <div style={{ marginTop: '5px', fontSize: '11px', color: '#666' }}>
-        {measuring ? 'Click to add points, double-click to finish' : 'Measurement complete'}
-      </div>
+      {/* Expanded content */}
+      {expanded && (
+        <>
+          {/* Help text */}
+          {showHelp && (
+            <div 
+              style={{ 
+                marginBottom: '12px',
+                padding: '8px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                cursor: 'pointer'
+              }} onClick={toggleHelpExpanded}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <HelpCircle size={14} />
+                  <span>Help</span>
+                </div>
+                
+                {helpExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
+              
+              {helpExpanded && (
+                <div style={{ marginTop: '8px', color: '#64748b' }}>
+                  {getHelpText}
+                  
+                  <div style={{ marginTop: '8px' }}>
+                    <strong>Keyboard Shortcuts:</strong>
+                    <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
+                      <li>Press <code>Esc</code> to cancel measurement</li>
+                      <li>Double-click to complete measurement</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Points count */}
+          <div style={{ marginBottom: '12px', fontSize: '14px' }}>
+            Points: <strong>{points.length}</strong>
+            {points.length === 0 && (
+              <span style={{ marginLeft: '8px', color: '#64748b', fontStyle: 'italic' }}>
+                {getPlaceholderText}
+              </span>
+            )}
+          </div>
+          
+          {/* Measurement result */}
+          {currentMeasurement && (
+            <div style={{ 
+              marginBottom: '16px',
+              padding: '12px',
+              backgroundColor: '#eef2ff',
+              borderRadius: '4px',
+              textAlign: 'center',
+              fontSize: '18px',
+              fontWeight: 'bold'
+            }}>
+              {getMeasurementDisplay}
+            </div>
+          )}
+          
+          {/* Unit selectors */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <label 
+                htmlFor="length-unit" 
+                style={{ 
+                  display: 'block', 
+                  marginBottom: '4px', 
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Length Unit
+              </label>
+              <select
+                id="length-unit"
+                value={lengthUnit}
+                onChange={(e) => setLengthUnit(e.target.value as LengthUnit)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1'
+                }}
+              >
+                {getLengthUnitOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            {(activeMeasurement === MeasurementType.AREA) && (
+              <div>
+                <label 
+                  htmlFor="area-unit" 
+                  style={{ 
+                    display: 'block', 
+                    marginBottom: '4px', 
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Area Unit
+                </label>
+                <select
+                  id="area-unit"
+                  value={areaUnit}
+                  onChange={(e) => setAreaUnit(e.target.value as AreaUnit)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1'
+                  }}
+                >
+                  {getAreaUnitOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {points.length > 0 && (
+              <button
+                onClick={handleResetPoints}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: 1,
+                  padding: '8px',
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                <RotateCcw size={14} />
+                Reset
+              </button>
+            )}
+            
+            {points.length >= 2 && activeMeasurement !== MeasurementType.BEARING && (
+              <button
+                onClick={handleCompleteMeasurement}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: 1,
+                  padding: '8px',
+                  backgroundColor: '#e0f2fe',
+                  border: '1px solid #bae6fd',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Save size={14} />
+                Complete
+              </button>
+            )}
+            
+            <button
+              onClick={handleCancelMeasurement}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flex: 1,
+                padding: '8px',
+                backgroundColor: '#fee2e2',
+                border: '1px solid #fecaca',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <Trash2 size={14} />
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
     </div>
-  ) : null;
+  );
 };
+
+// Helper function to get positioning style based on position prop
+function getPositionStyle(position: string): React.CSSProperties {
+  switch (position) {
+    case 'top-left':
+      return { top: '10px', left: '10px' };
+    case 'top-right':
+      return { top: '10px', right: '10px' };
+    case 'bottom-left':
+      return { bottom: '10px', left: '10px' };
+    case 'bottom-right':
+      return { bottom: '10px', right: '10px' };
+    default:
+      return { bottom: '10px', left: '10px' };
+  }
+}
