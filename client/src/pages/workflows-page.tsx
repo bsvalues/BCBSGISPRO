@@ -704,10 +704,148 @@ const WorkflowsPage: React.FC = () => {
             
             {/* The same content will appear for all tabs, filtered by the activeTab state */}
             <TabsContent value="draft" className="mt-6">
-              {/* Same content as "all" tab, filtered by status */}
+              <div>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : sortedWorkflows.filter(w => w.status === 'draft').length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No draft workflows found</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">
+                          <Button 
+                            variant="ghost" 
+                            className="flex items-center p-0 hover:bg-transparent"
+                            onClick={() => toggleSort('title')}
+                          >
+                            Title
+                            <ArrowUpDown className="ml-2 h-4 w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWorkflows
+                        .filter(workflow => workflow.status === 'draft')
+                        .map((workflow) => (
+                          <TableRow key={workflow.id}>
+                            <TableCell className="font-medium">
+                              <Link href={`/workflow/${workflow.id}`} className="hover:underline text-primary">
+                                {workflow.title}
+                              </Link>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {workflow.description.substring(0, 60)}
+                                {workflow.description.length > 60 ? '...' : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>{workflowTypeLabels[workflow.type]}</TableCell>
+                            <TableCell>{statusBadges[workflow.status]}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>{workflow.createdAt.toLocaleDateString()}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Due: {workflow.dueDate.toLocaleDateString()}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <WorkflowProgress progress={workflow.progress} />
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/workflow/${workflow.id}`}>
+                                  View
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </TabsContent>
             <TabsContent value="in_progress" className="mt-6">
-              {/* Same content as "all" tab, filtered by status */}
+              <div>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : sortedWorkflows.filter(w => w.status === 'in_progress').length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No in-progress workflows found</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">
+                          <Button 
+                            variant="ghost" 
+                            className="flex items-center p-0 hover:bg-transparent"
+                            onClick={() => toggleSort('title')}
+                          >
+                            Title
+                            <ArrowUpDown className="ml-2 h-4 w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWorkflows
+                        .filter(workflow => workflow.status === 'in_progress')
+                        .map((workflow) => (
+                          <TableRow key={workflow.id}>
+                            <TableCell className="font-medium">
+                              <Link href={`/workflow/${workflow.id}`} className="hover:underline text-primary">
+                                {workflow.title}
+                              </Link>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {workflow.description.substring(0, 60)}
+                                {workflow.description.length > 60 ? '...' : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>{workflowTypeLabels[workflow.type]}</TableCell>
+                            <TableCell>{statusBadges[workflow.status]}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>{workflow.createdAt.toLocaleDateString()}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Due: {workflow.dueDate.toLocaleDateString()}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <WorkflowProgress progress={workflow.progress} />
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/workflow/${workflow.id}`}>
+                                  View
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </TabsContent>
             <TabsContent value="review" className="mt-6">
               {/* Same content as "all" tab, filtered by status */}
