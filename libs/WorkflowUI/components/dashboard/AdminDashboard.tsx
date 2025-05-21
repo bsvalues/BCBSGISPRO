@@ -1,84 +1,138 @@
 /**
  * Admin Dashboard Component
  * 
- * This component provides the main administration interface for the
- * TerraFusion platform, including county management, user access control,
- * and system monitoring.
+ * This component provides a comprehensive administrative dashboard for the TerraFusion
+ * platform, including system health monitoring, user management, county management,
+ * and configuration settings.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Link } from 'wouter';
-import { SystemHealthPanel } from './SystemHealthPanel';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Users,
+  Map,
+  Settings,
+  BarChart,
+  FileText,
+  Database,
+  Shield,
+  Bell,
+  Calendar,
+  Home,
+  Layers,
+  Package,
+  Server,
+  HelpCircle,
+  LogOut,
+  Menu,
+  ChevronRight,
+  Search,
+  User,
+  Grid,
+  Activity
+} from 'lucide-react';
+
+import { SystemHealthPanel, SystemComponent, SystemAlert, ComponentStatus } from './SystemHealthPanel';
+import { logger } from '../../../DevOps/utils/logger';
+
+// Create module-specific logger
+const adminLogger = logger.withTags(['WorkflowUI', 'AdminDashboard']);
 
 /**
- * County data interface
+ * County information
  */
-interface County {
+export interface County {
   id: string;
   name: string;
   state: string;
-  fips: string;
-  status: 'active' | 'pending' | 'inactive';
-  lastUpdated: string;
+  status: 'active' | 'inactive' | 'pending' | 'archived';
+  createdAt: Date;
+  lastUpdated: Date;
+  properties: {
+    population?: number;
+    area?: number;
+    parcelCount?: number;
+    gisReady?: boolean;
+    valuationSystemIntegrated?: boolean;
+    taxSystemIntegrated?: boolean;
+  };
+  contacts?: Array<{
+    name: string;
+    role: string;
+    email: string;
+    phone?: string;
+  }>;
 }
 
 /**
- * User interface
+ * User information
  */
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;
   role: 'admin' | 'manager' | 'editor' | 'viewer';
-  department: string;
-  lastLogin: string;
+  status: 'active' | 'inactive' | 'pending';
+  lastLogin?: Date;
+  countyIds: string[];
+  permissions: string[];
 }
 
 /**
- * Workflow status interface
+ * Admin event
  */
-interface WorkflowStatus {
+export interface AdminEvent {
   id: string;
-  name: string;
-  type: 'import' | 'valuation' | 'export' | 'maintenance';
-  status: 'running' | 'completed' | 'failed' | 'pending';
-  progress: number;
-  startTime: string;
-  endTime?: string;
-  county?: string;
-  user?: string;
+  type: 'user' | 'system' | 'county' | 'data' | 'security';
+  action: string;
+  timestamp: Date;
+  userId?: string;
+  details: Record<string, any>;
+  severity: 'info' | 'warning' | 'error';
 }
 
 /**
- * Import activity interface
+ * Dashboard summary
  */
-interface ImportActivity {
-  id: string;
-  county: string;
-  type: 'parcels' | 'taxCodes' | 'sales' | 'plats' | 'other';
-  status: 'completed' | 'failed' | 'in-progress';
-  recordCount: number;
-  importedBy: string;
-  timestamp: string;
+export interface DashboardSummary {
+  userCount: number;
+  countyCount: number;
+  activeCountyCount: number;
+  totalParcelCount: number;
+  systemHealthScore: number;
+  pendingTasks: number;
+  recentEvents: AdminEvent[];
 }
 
 /**
- * Valuation summary interface
+ * Admin dashboard props
  */
-interface ValuationSummary {
-  county: string;
-  totalParcels: number;
-  valuedParcels: number;
-  totalValue: number;
-  averageValue: number;
-  changePercent: number;
-  completedDate?: string;
-}
-
-/**
- * Component props
- */
-interface AdminDashboardProps {
+export interface AdminDashboardProps {
+  // Current user
+  currentUser: User;
+  
+  // Counties
+  counties: County[];
+  
+  // Users
+  users: User[];
+  
+  // System components and alerts
+  systemComponents: SystemComponent[];
+  systemAlerts: SystemAlert[];
+  
+  // Recent events
+  recentEvents: AdminEvent[];
+  
+  // Dashboard summary
+  dashboardSummary: DashboardSummary;
+  
+  // Event handlers
+  onCountyStatusChange?: (countyId: string, status: County['status']) => void;
+  onUserStatusChange?: (userId: string, status: User['status']) => void;
+  onSystemAlertAcknowledge?: (alertId: string) => void;
+  onLogout?: () => void;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
 }
@@ -87,995 +141,1734 @@ interface AdminDashboardProps {
  * Admin Dashboard Component
  */
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  currentUser,
+  counties,
+  users,
+  systemComponents,
+  systemAlerts,
+  recentEvents,
+  dashboardSummary,
+  onCountyStatusChange,
+  onUserStatusChange,
+  onSystemAlertAcknowledge,
+  onLogout,
   className = '',
   style = {}
 }) => {
-  // State for selected county
-  const [selectedCounty, setSelectedCounty] = useState<string>('all');
-  
-  // State for counties
-  const [counties, setCounties] = useState<County[]>([]);
-  
-  // State for users
-  const [users, setUsers] = useState<User[]>([]);
-  
-  // State for workflow statuses
-  const [workflows, setWorkflows] = useState<WorkflowStatus[]>([]);
-  
-  // State for import activities
-  const [importActivities, setImportActivities] = useState<ImportActivity[]>([]);
-  
-  // State for valuation summaries
-  const [valuationSummaries, setValuationSummaries] = useState<ValuationSummary[]>([]);
-  
-  // State for loading status
-  const [loading, setLoading] = useState<boolean>(true);
-  
-  // State for error
-  const [error, setError] = useState<string | null>(null);
-  
-  // State for system health
-  const [systemHealthy, setSystemHealthy] = useState<boolean>(true);
-  
   // State for active tab
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'counties' | 'users' | 'system' | 'settings'
+  >('overview');
   
-  // County selector component
-  const CountySelector = () => (
-    <div className="county-selector" style={{ marginBottom: '16px' }}>
-      <label htmlFor="county-select" style={{ marginRight: '8px', fontWeight: 'bold' }}>
-        County:
-      </label>
-      <select
-        id="county-select"
-        value={selectedCounty}
-        onChange={(e) => setSelectedCounty(e.target.value)}
-        style={{
-          padding: '8px 12px',
-          borderRadius: '4px',
-          border: '1px solid #e5e7eb',
-          backgroundColor: 'white'
-        }}
-      >
-        <option value="all">All Counties</option>
-        {counties.map(county => (
-          <option key={county.id} value={county.id}>
-            {county.name}, {county.state}
-          </option>
-        ))}
-      </select>
+  // State for mobile nav visibility
+  const [mobileNavVisible, setMobileNavVisible] = useState<boolean>(false);
+  
+  // State for filtered/searched data
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filteredCounties, setFilteredCounties] = useState<County[]>(counties);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>(users);
+  
+  // State for county/user details view
+  const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  
+  // Effect to filter counties based on search term
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredCounties(counties);
+    } else {
+      const term = searchTerm.toLowerCase();
+      setFilteredCounties(
+        counties.filter(county => 
+          county.name.toLowerCase().includes(term) || 
+          county.state.toLowerCase().includes(term)
+        )
+      );
+    }
+  }, [searchTerm, counties]);
+  
+  // Effect to filter users based on search term
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredUsers(users);
+    } else {
+      const term = searchTerm.toLowerCase();
+      setFilteredUsers(
+        users.filter(user => 
+          user.name.toLowerCase().includes(term) || 
+          user.email.toLowerCase().includes(term) || 
+          user.role.toLowerCase().includes(term)
+        )
+      );
+    }
+  }, [searchTerm, users]);
+  
+  /**
+   * Handle tab change
+   */
+  const handleTabChange = useCallback((tab: typeof activeTab) => {
+    setActiveTab(tab);
+    setSearchTerm('');
+    setSelectedCountyId(null);
+    setSelectedUserId(null);
+    
+    // Close mobile nav when changing tabs
+    setMobileNavVisible(false);
+  }, []);
+  
+  /**
+   * Handle county status change
+   */
+  const handleCountyStatusChange = useCallback((countyId: string, status: County['status']) => {
+    if (onCountyStatusChange) {
+      onCountyStatusChange(countyId, status);
+    }
+    
+    adminLogger.info(`County status changed: ${countyId} to ${status}`);
+  }, [onCountyStatusChange]);
+  
+  /**
+   * Handle user status change
+   */
+  const handleUserStatusChange = useCallback((userId: string, status: User['status']) => {
+    if (onUserStatusChange) {
+      onUserStatusChange(userId, status);
+    }
+    
+    adminLogger.info(`User status changed: ${userId} to ${status}`);
+  }, [onUserStatusChange]);
+  
+  /**
+   * Handle county selection
+   */
+  const handleCountySelect = useCallback((countyId: string) => {
+    setSelectedCountyId(prev => prev === countyId ? null : countyId);
+  }, []);
+  
+  /**
+   * Handle user selection
+   */
+  const handleUserSelect = useCallback((userId: string) => {
+    setSelectedUserId(prev => prev === userId ? null : userId);
+  }, []);
+  
+  /**
+   * Handle logout
+   */
+  const handleLogout = useCallback(() => {
+    if (onLogout) {
+      onLogout();
+    }
+  }, [onLogout]);
+  
+  /**
+   * Format date
+   */
+  const formatDate = (date: Date | undefined): string => {
+    if (!date) return 'Never';
+    
+    return date.toLocaleString();
+  };
+  
+  /**
+   * Get status color
+   */
+  const getStatusColor = (status: 'active' | 'inactive' | 'pending' | 'archived'): string => {
+    switch (status) {
+      case 'active':
+        return '#22c55e'; // Green
+      case 'pending':
+        return '#f59e0b'; // Amber
+      case 'inactive':
+        return '#94a3b8'; // Gray
+      case 'archived':
+        return '#64748b'; // Slate
+      default:
+        return '#64748b'; // Slate
+    }
+  };
+  
+  /**
+   * Render the overview tab
+   */
+  const renderOverviewTab = () => (
+    <div className="dashboard-overview">
+      {/* Summary cards */}
+      <div style={{ 
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+        gap: '16px',
+        marginBottom: '24px'
+      }}>
+        {/* Counties card */}
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <div style={{ 
+              width: '40px',
+              height: '40px',
+              borderRadius: '8px',
+              backgroundColor: '#e0f2fe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '12px'
+            }}>
+              <Map size={20} color="#0ea5e9" />
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Total Counties</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{dashboardSummary.countyCount}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+            <div>
+              <span style={{ color: '#64748b' }}>Active: </span>
+              <span style={{ fontWeight: 'bold', color: '#22c55e' }}>{dashboardSummary.activeCountyCount}</span>
+            </div>
+            <div>
+              <span style={{ color: '#64748b' }}>Parcels: </span>
+              <span style={{ fontWeight: 'bold' }}>{dashboardSummary.totalParcelCount.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Users card */}
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <div style={{ 
+              width: '40px',
+              height: '40px',
+              borderRadius: '8px',
+              backgroundColor: '#fef3c7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '12px'
+            }}>
+              <Users size={20} color="#d97706" />
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Total Users</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{dashboardSummary.userCount}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+            <div>
+              <span style={{ color: '#64748b' }}>Admins: </span>
+              <span style={{ fontWeight: 'bold' }}>{users.filter(u => u.role === 'admin').length}</span>
+            </div>
+            <div>
+              <span style={{ color: '#64748b' }}>Active: </span>
+              <span style={{ fontWeight: 'bold', color: '#22c55e' }}>{users.filter(u => u.status === 'active').length}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* System health card */}
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <div style={{ 
+              width: '40px',
+              height: '40px',
+              borderRadius: '8px',
+              backgroundColor: '#dcfce7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '12px'
+            }}>
+              <Activity size={20} color="#16a34a" />
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>System Health</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{dashboardSummary.systemHealthScore}%</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+            <div>
+              <span style={{ color: '#64748b' }}>Alerts: </span>
+              <span style={{ 
+                fontWeight: 'bold', 
+                color: systemAlerts.length > 0 ? '#ef4444' : '#22c55e' 
+              }}>
+                {systemAlerts.filter(a => !a.acknowledged).length}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: '#64748b' }}>Components: </span>
+              <span style={{ fontWeight: 'bold' }}>{systemComponents.length}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Tasks card */}
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px' 
+          }}>
+            <div style={{ 
+              width: '40px',
+              height: '40px',
+              borderRadius: '8px',
+              backgroundColor: '#dbeafe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: '12px'
+            }}>
+              <Calendar size={20} color="#2563eb" />
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Pending Tasks</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{dashboardSummary.pendingTasks}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+            <div>
+              <span style={{ color: '#64748b' }}>Recent Events: </span>
+              <span style={{ fontWeight: 'bold' }}>{recentEvents.length}</span>
+            </div>
+            <button 
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+              onClick={() => handleTabChange('settings')}
+            >
+              View All
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* System health panel */}
+      <div style={{ marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+          System Health
+        </h2>
+        
+        <SystemHealthPanel
+          components={systemComponents}
+          alerts={systemAlerts}
+          onAlertAcknowledge={onSystemAlertAcknowledge}
+        />
+      </div>
+      
+      {/* Recent events */}
+      <div>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Recent Activity
+        </h2>
+        
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8fafc' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Event
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Type
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  User
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Time
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentEvents.slice(0, 5).map(event => {
+                // Find user
+                const eventUser = event.userId ? users.find(u => u.id === event.userId) : null;
+                
+                // Get type color and icon
+                let typeColor = '#64748b';
+                let TypeIcon = FileText;
+                
+                switch (event.type) {
+                  case 'user':
+                    typeColor = '#0ea5e9';
+                    TypeIcon = User;
+                    break;
+                  case 'system':
+                    typeColor = '#22c55e';
+                    TypeIcon = Server;
+                    break;
+                  case 'county':
+                    typeColor = '#f59e0b';
+                    TypeIcon = Map;
+                    break;
+                  case 'data':
+                    typeColor = '#8b5cf6';
+                    TypeIcon = Database;
+                    break;
+                  case 'security':
+                    typeColor = '#ef4444';
+                    TypeIcon = Shield;
+                    break;
+                }
+                
+                return (
+                  <tr key={event.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      {event.action}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px'
+                      }}>
+                        <div style={{ 
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          backgroundColor: `${typeColor}15`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <TypeIcon size={14} color={typeColor} />
+                        </div>
+                        <span style={{ 
+                          textTransform: 'capitalize'
+                        }}>
+                          {event.type}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {eventUser ? eventUser.name : 'System'}
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '14px' }}>
+                      {formatDate(event.timestamp)}
+                    </td>
+                  </tr>
+                );
+              })}
+              
+              {recentEvents.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                    No recent events
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
   
-  // Statistics panel component
-  const StatisticsPanel = () => {
-    // Filter data by selected county
-    const filteredWorkflows = selectedCounty === 'all'
-      ? workflows
-      : workflows.filter(w => w.county === selectedCounty);
+  /**
+   * Render the counties tab
+   */
+  const renderCountiesTab = () => {
+    // If a county is selected, render its details
+    if (selectedCountyId) {
+      const county = counties.find(c => c.id === selectedCountyId);
+      
+      if (!county) {
+        return (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+            County not found
+          </div>
+        );
+      }
+      
+      return (
+        <div className="county-details">
+          <div style={{ 
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <button 
+              onClick={() => setSelectedCountyId(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+            
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
+              {county.name}, {county.state}
+            </h2>
+            
+            <div style={{ 
+              display: 'inline-block',
+              padding: '4px 8px',
+              borderRadius: '9999px',
+              backgroundColor: `${getStatusColor(county.status)}15`,
+              color: getStatusColor(county.status),
+              fontSize: '12px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase'
+            }}>
+              {county.status}
+            </div>
+          </div>
+          
+          {/* County details section */}
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '24px',
+            marginBottom: '24px'
+          }}>
+            {/* Basic info */}
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              padding: '16px'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+                Basic Information
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: '12px' }}>
+                <div style={{ color: '#64748b' }}>County ID:</div>
+                <div style={{ fontWeight: 'bold' }}>{county.id}</div>
+                
+                <div style={{ color: '#64748b' }}>Created:</div>
+                <div>{formatDate(county.createdAt)}</div>
+                
+                <div style={{ color: '#64748b' }}>Last Updated:</div>
+                <div>{formatDate(county.lastUpdated)}</div>
+                
+                <div style={{ color: '#64748b' }}>Status:</div>
+                <div>
+                  <select
+                    value={county.status}
+                    onChange={(e) => handleCountyStatusChange(county.id, e.target.value as County['status'])}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="pending">Pending</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            {/* Property info */}
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              padding: '16px'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+                Property Information
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: '12px' }}>
+                <div style={{ color: '#64748b' }}>Population:</div>
+                <div>{county.properties.population?.toLocaleString() || 'Unknown'}</div>
+                
+                <div style={{ color: '#64748b' }}>Area:</div>
+                <div>{county.properties.area ? `${county.properties.area.toLocaleString()} sq mi` : 'Unknown'}</div>
+                
+                <div style={{ color: '#64748b' }}>Parcel Count:</div>
+                <div>{county.properties.parcelCount?.toLocaleString() || 'Unknown'}</div>
+                
+                <div style={{ color: '#64748b' }}>GIS Ready:</div>
+                <div>{county.properties.gisReady ? 'Yes' : 'No'}</div>
+                
+                <div style={{ color: '#64748b' }}>Valuation:</div>
+                <div>{county.properties.valuationSystemIntegrated ? 'Integrated' : 'Not Integrated'}</div>
+                
+                <div style={{ color: '#64748b' }}>Tax System:</div>
+                <div>{county.properties.taxSystemIntegrated ? 'Integrated' : 'Not Integrated'}</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Contacts */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Contacts
+            </h3>
+            
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Name
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Role
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Email
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Phone
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {county.contacts?.map((contact, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 16px' }}>{contact.name}</td>
+                      <td style={{ padding: '12px 16px' }}>{contact.role}</td>
+                      <td style={{ padding: '12px 16px' }}>{contact.email}</td>
+                      <td style={{ padding: '12px 16px' }}>{contact.phone || 'N/A'}</td>
+                    </tr>
+                  ))}
+                  
+                  {!county.contacts || county.contacts.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                        No contacts found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          {/* Associated users */}
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Associated Users
+            </h3>
+            
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Name
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Email
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Role
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users
+                    .filter(user => user.countyIds.includes(county.id))
+                    .map(user => (
+                      <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px 16px' }}>{user.name}</td>
+                        <td style={{ padding: '12px 16px' }}>{user.email}</td>
+                        <td style={{ padding: '12px 16px', textTransform: 'capitalize' }}>{user.role}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ 
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: getStatusColor(user.status) + '15',
+                            color: getStatusColor(user.status),
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase'
+                          }}>
+                            {user.status}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  
+                  {users.filter(user => user.countyIds.includes(county.id)).length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                        No users associated with this county
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
     
-    const filteredImports = selectedCounty === 'all'
-      ? importActivities
-      : importActivities.filter(i => i.county === selectedCounty);
-    
-    const filteredValuations = selectedCounty === 'all'
-      ? valuationSummaries
-      : valuationSummaries.filter(v => v.county === selectedCounty);
-    
-    // Calculate statistics
-    const activeWorkflows = filteredWorkflows.filter(w => w.status === 'running').length;
-    const completedImports = filteredImports.filter(i => i.status === 'completed').length;
-    const totalParcels = filteredValuations.reduce((sum, v) => sum + v.totalParcels, 0);
-    const valuedParcels = filteredValuations.reduce((sum, v) => sum + v.valuedParcels, 0);
-    const valuationProgress = totalParcels > 0 ? (valuedParcels / totalParcels) * 100 : 0;
-    
+    // Otherwise, render the county list
     return (
-      <div className="statistics-panel">
-        <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>Statistics</h2>
+      <div className="counties-list">
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px'
+        }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
+            Counties
+          </h2>
+          
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search counties..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: '8px 12px 8px 36px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                fontSize: '14px',
+                width: '240px'
+              }}
+            />
+            <Search style={{ 
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#94a3b8',
+              width: '16px',
+              height: '16px'
+            }} />
+          </div>
+        </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-          {/* Active counties */}
-          <div className="stat-card" style={{ 
-            padding: '16px', 
-            borderRadius: '8px', 
-            backgroundColor: '#f0f9ff', 
-            border: '1px solid #bae6fd' 
-          }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
-              {selectedCounty === 'all' ? counties.filter(c => c.status === 'active').length : 1}
-            </div>
-            <div style={{ color: '#0369a1' }}>Active Counties</div>
-          </div>
-          
-          {/* Active workflows */}
-          <div className="stat-card" style={{ 
-            padding: '16px', 
-            borderRadius: '8px', 
-            backgroundColor: '#f0fdf4', 
-            border: '1px solid #bbf7d0' 
-          }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
-              {activeWorkflows}
-            </div>
-            <div style={{ color: '#16a34a' }}>Active Workflows</div>
-          </div>
-          
-          {/* Recent imports */}
-          <div className="stat-card" style={{ 
-            padding: '16px', 
-            borderRadius: '8px', 
-            backgroundColor: '#fdf4ff', 
-            border: '1px solid #f5d0fe' 
-          }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
-              {completedImports}
-            </div>
-            <div style={{ color: '#a21caf' }}>Completed Imports</div>
-          </div>
-          
-          {/* Valuation progress */}
-          <div className="stat-card" style={{ 
-            padding: '16px', 
-            borderRadius: '8px', 
-            backgroundColor: '#fff7ed', 
-            border: '1px solid #fed7aa' 
-          }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
-              {valuationProgress.toFixed(1)}%
-            </div>
-            <div style={{ color: '#c2410c' }}>Valuation Progress</div>
-          </div>
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8fafc' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  County
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  State
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Status
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Parcels
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Last Updated
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCounties.map(county => (
+                <tr 
+                  key={county.id} 
+                  style={{ 
+                    borderBottom: '1px solid #f1f5f9',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => handleCountySelect(county.id)}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>{county.name}</td>
+                  <td style={{ padding: '12px 16px' }}>{county.state}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ 
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      borderRadius: '9999px',
+                      backgroundColor: getStatusColor(county.status) + '15',
+                      color: getStatusColor(county.status),
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase'
+                    }}>
+                      {county.status}
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {county.properties.parcelCount?.toLocaleString() || 'N/A'}
+                  </td>
+                  <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '14px' }}>
+                    {formatDate(county.lastUpdated)}
+                  </td>
+                </tr>
+              ))}
+              
+              {filteredCounties.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                    {searchTerm ? `No counties matching "${searchTerm}"` : 'No counties found'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     );
   };
   
-  // User management panel component
-  const UserManagementPanel = () => (
-    <div className="user-management-panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 style={{ fontSize: '18px', margin: 0 }}>User Management</h2>
-        
-        <button style={{
-          padding: '8px 12px',
-          borderRadius: '4px',
-          border: 'none',
-          backgroundColor: '#0284c7',
-          color: 'white',
-          cursor: 'pointer'
+  /**
+   * Render the users tab
+   */
+  const renderUsersTab = () => {
+    // If a user is selected, render their details
+    if (selectedUserId) {
+      const user = users.find(u => u.id === selectedUserId);
+      
+      if (!user) {
+        return (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+            User not found
+          </div>
+        );
+      }
+      
+      // Get user's counties
+      const userCounties = counties.filter(county => user.countyIds.includes(county.id));
+      
+      return (
+        <div className="user-details">
+          <div style={{ 
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <button 
+              onClick={() => setSelectedUserId(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+            
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
+              {user.name}
+            </h2>
+            
+            <div style={{ 
+              display: 'inline-block',
+              padding: '4px 8px',
+              borderRadius: '9999px',
+              backgroundColor: `${getStatusColor(user.status)}15`,
+              color: getStatusColor(user.status),
+              fontSize: '12px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase'
+            }}>
+              {user.status}
+            </div>
+          </div>
+          
+          {/* User details section */}
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '24px',
+            marginBottom: '24px'
+          }}>
+            {/* Basic info */}
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              padding: '16px'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+                Basic Information
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: '12px' }}>
+                <div style={{ color: '#64748b' }}>User ID:</div>
+                <div style={{ fontWeight: 'bold' }}>{user.id}</div>
+                
+                <div style={{ color: '#64748b' }}>Email:</div>
+                <div>{user.email}</div>
+                
+                <div style={{ color: '#64748b' }}>Last Login:</div>
+                <div>{formatDate(user.lastLogin)}</div>
+                
+                <div style={{ color: '#64748b' }}>Role:</div>
+                <div style={{ textTransform: 'capitalize' }}>{user.role}</div>
+                
+                <div style={{ color: '#64748b' }}>Status:</div>
+                <div>
+                  <select
+                    value={user.status}
+                    onChange={(e) => handleUserStatusChange(user.id, e.target.value as User['status'])}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            {/* Permissions */}
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              padding: '16px'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+                Permissions
+              </h3>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {user.permissions.length > 0 ? (
+                  user.permissions.map((permission, index) => (
+                    <div 
+                      key={index}
+                      style={{ 
+                        padding: '4px 12px',
+                        backgroundColor: '#f1f5f9',
+                        borderRadius: '9999px',
+                        fontSize: '14px'
+                      }}
+                    >
+                      {permission}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', width: '100%' }}>
+                    No permissions assigned
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Associated counties */}
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Associated Counties
+            </h3>
+            
+            <div style={{ 
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      County
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      State
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Status
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                      Last Updated
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userCounties.map(county => (
+                    <tr key={county.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>{county.name}</td>
+                      <td style={{ padding: '12px 16px' }}>{county.state}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ 
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: '9999px',
+                          backgroundColor: getStatusColor(county.status) + '15',
+                          color: getStatusColor(county.status),
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase'
+                        }}>
+                          {county.status}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '14px' }}>
+                        {formatDate(county.lastUpdated)}
+                      </td>
+                    </tr>
+                  ))}
+                  
+                  {userCounties.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                        No counties associated with this user
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Otherwise, render the user list
+    return (
+      <div className="users-list">
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px'
         }}>
-          Add User
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
+            Users
+          </h2>
+          
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: '8px 12px 8px 36px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                fontSize: '14px',
+                width: '240px'
+              }}
+            />
+            <Search style={{ 
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#94a3b8',
+              width: '16px',
+              height: '16px'
+            }} />
+          </div>
+        </div>
+        
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8fafc' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Name
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Email
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Role
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Status
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Counties
+                </th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 'bold', fontSize: '14px', color: '#64748b' }}>
+                  Last Login
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(user => (
+                <tr 
+                  key={user.id} 
+                  style={{ 
+                    borderBottom: '1px solid #f1f5f9',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => handleUserSelect(user.id)}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>{user.name}</td>
+                  <td style={{ padding: '12px 16px' }}>{user.email}</td>
+                  <td style={{ padding: '12px 16px', textTransform: 'capitalize' }}>{user.role}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ 
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      borderRadius: '9999px',
+                      backgroundColor: getStatusColor(user.status) + '15',
+                      color: getStatusColor(user.status),
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase'
+                    }}>
+                      {user.status}
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {user.countyIds.length}
+                  </td>
+                  <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '14px' }}>
+                    {formatDate(user.lastLogin)}
+                  </td>
+                </tr>
+              ))}
+              
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: '#64748b' }}>
+                    {searchTerm ? `No users matching "${searchTerm}"` : 'No users found'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+  
+  /**
+   * Render the system tab
+   */
+  const renderSystemTab = () => (
+    <div className="system-tab">
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px' }}>
+        System Health & Monitoring
+      </h2>
+      
+      <SystemHealthPanel
+        components={systemComponents}
+        alerts={systemAlerts}
+        onAlertAcknowledge={onSystemAlertAcknowledge}
+      />
+    </div>
+  );
+  
+  /**
+   * Render the settings tab
+   */
+  const renderSettingsTab = () => (
+    <div className="settings-tab">
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px' }}>
+        Settings
+      </h2>
+      
+      <div style={{ 
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Account Settings
+        </h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: '16px', alignItems: 'center' }}>
+          <div style={{ color: '#64748b' }}>Name:</div>
+          <div style={{ fontWeight: 'bold' }}>{currentUser.name}</div>
+          
+          <div style={{ color: '#64748b' }}>Email:</div>
+          <div>{currentUser.email}</div>
+          
+          <div style={{ color: '#64748b' }}>Role:</div>
+          <div style={{ textTransform: 'capitalize' }}>{currentUser.role}</div>
+          
+          <div style={{ color: '#64748b' }}>Status:</div>
+          <div>
+            <div style={{ 
+              display: 'inline-block',
+              padding: '4px 8px',
+              borderRadius: '9999px',
+              backgroundColor: getStatusColor(currentUser.status) + '15',
+              color: getStatusColor(currentUser.status),
+              fontSize: '12px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase'
+            }}>
+              {currentUser.status}
+            </div>
+          </div>
+          
+          <div style={{ color: '#64748b' }}>Last Login:</div>
+          <div>{formatDate(currentUser.lastLogin)}</div>
+        </div>
+        
+        <button
+          onClick={handleLogout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            backgroundColor: '#f1f5f9',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginTop: '24px'
+          }}
+        >
+          <LogOut size={16} />
+          Logout
         </button>
       </div>
       
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Name</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Email</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Role</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Department</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Last Login</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '12px 16px' }}>{user.name}</td>
-                <td style={{ padding: '12px 16px' }}>{user.email}</td>
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: 
-                      user.role === 'admin' ? '#fee2e2' :
-                      user.role === 'manager' ? '#e0f2fe' :
-                      user.role === 'editor' ? '#dcfce7' :
-                      '#f3f4f6',
-                    color: 
-                      user.role === 'admin' ? '#b91c1c' :
-                      user.role === 'manager' ? '#0369a1' :
-                      user.role === 'editor' ? '#16a34a' :
-                      '#4b5563'
-                  }}>
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 16px' }}>{user.department}</td>
-                <td style={{ padding: '12px 16px' }}>{new Date(user.lastLogin).toLocaleString()}</td>
-                <td style={{ padding: '12px 16px' }}>
-                  <button style={{
-                    padding: '4px 8px',
-                    marginRight: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: 'white',
-                    cursor: 'pointer'
-                  }}>
-                    Edit
-                  </button>
-                  <button style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid #fee2e2',
-                    backgroundColor: '#fee2e2',
-                    color: '#b91c1c',
-                    cursor: 'pointer'
-                  }}>
-                    Deactivate
-                  </button>
-                </td>
-              </tr>
-            ))}
-            
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: '#6b7280' }}>
-                  No users found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div style={{ 
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+          System Settings
+        </h3>
+        
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '16px'
+        }}>
+          {/* These would be actual settings in a real implementation */}
+          <div style={{ 
+            padding: '16px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Notifications
+            </h4>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+              Configure email and in-app notification settings
+            </p>
+            <button
+              style={{
+                padding: '4px 12px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Configure
+            </button>
+          </div>
+          
+          <div style={{ 
+            padding: '16px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+              API Access
+            </h4>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+              Manage API keys and access tokens
+            </p>
+            <button
+              style={{
+                padding: '4px 12px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Manage
+            </button>
+          </div>
+          
+          <div style={{ 
+            padding: '16px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Data Backup
+            </h4>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+              Configure automatic backup settings
+            </p>
+            <button
+              style={{
+                padding: '4px 12px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Configure
+            </button>
+          </div>
+          
+          <div style={{ 
+            padding: '16px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+              System Logs
+            </h4>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+              View and download system logs
+            </p>
+            <button
+              style={{
+                padding: '4px 12px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              View Logs
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
-  
-  // Workflow status panel component
-  const WorkflowStatusPanel = () => {
-    // Filter workflows by selected county
-    const filteredWorkflows = selectedCounty === 'all'
-      ? workflows
-      : workflows.filter(w => w.county === selectedCounty);
-    
-    return (
-      <div className="workflow-status-panel">
-        <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>Workflow Status</h2>
-        
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Workflow</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>County</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Status</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Progress</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Started</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredWorkflows.map(workflow => (
-                <tr key={workflow.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px 16px' }}>{workflow.name}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: 
-                        workflow.type === 'import' ? '#fef9c3' :
-                        workflow.type === 'valuation' ? '#dcfce7' :
-                        workflow.type === 'export' ? '#e0f2fe' :
-                        '#f3f4f6',
-                      color: 
-                        workflow.type === 'import' ? '#854d0e' :
-                        workflow.type === 'valuation' ? '#16a34a' :
-                        workflow.type === 'export' ? '#0369a1' :
-                        '#4b5563'
-                    }}>
-                      {workflow.type.charAt(0).toUpperCase() + workflow.type.slice(1)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {counties.find(c => c.id === workflow.county)?.name || workflow.county}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: 
-                        workflow.status === 'running' ? '#dcfce7' :
-                        workflow.status === 'completed' ? '#e0f2fe' :
-                        workflow.status === 'failed' ? '#fee2e2' :
-                        '#f3f4f6',
-                      color: 
-                        workflow.status === 'running' ? '#16a34a' :
-                        workflow.status === 'completed' ? '#0369a1' :
-                        workflow.status === 'failed' ? '#b91c1c' :
-                        '#4b5563'
-                    }}>
-                      {workflow.status.charAt(0).toUpperCase() + workflow.status.slice(1)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ width: '100%', height: '6px', backgroundColor: '#f3f4f6', borderRadius: '3px' }}>
-                      <div 
-                        style={{ 
-                          width: `${workflow.progress}%`, 
-                          height: '100%', 
-                          backgroundColor: workflow.status === 'failed' ? '#ef4444' : '#22c55e',
-                          borderRadius: '3px'
-                        }} 
-                      />
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                      {workflow.progress}%
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {new Date(workflow.startTime).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button style={{
-                      padding: '4px 8px',
-                      marginRight: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #e5e7eb',
-                      backgroundColor: 'white',
-                      cursor: 'pointer'
-                    }}>
-                      View
-                    </button>
-                    {workflow.status === 'running' && (
-                      <button style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid #fee2e2',
-                        backgroundColor: '#fee2e2',
-                        color: '#b91c1c',
-                        cursor: 'pointer'
-                      }}>
-                        Cancel
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              
-              {filteredWorkflows.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: '16px', textAlign: 'center', color: '#6b7280' }}>
-                    No workflows found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-  
-  // Import activity panel component
-  const ImportActivityPanel = () => {
-    // Filter import activities by selected county
-    const filteredImports = selectedCounty === 'all'
-      ? importActivities
-      : importActivities.filter(i => i.county === selectedCounty);
-    
-    return (
-      <div className="import-activity-panel">
-        <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>Recent Imports</h2>
-        
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>County</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Status</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Records</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Imported By</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Timestamp</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredImports.map(activity => (
-                <tr key={activity.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    {counties.find(c => c.id === activity.county)?.name || activity.county}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: 
-                        activity.type === 'parcels' ? '#dcfce7' :
-                        activity.type === 'taxCodes' ? '#e0f2fe' :
-                        activity.type === 'sales' ? '#fef9c3' :
-                        activity.type === 'plats' ? '#fce7f3' :
-                        '#f3f4f6',
-                      color: 
-                        activity.type === 'parcels' ? '#16a34a' :
-                        activity.type === 'taxCodes' ? '#0369a1' :
-                        activity.type === 'sales' ? '#854d0e' :
-                        activity.type === 'plats' ? '#a21caf' :
-                        '#4b5563'
-                    }}>
-                      {activity.type.charAt(0).toUpperCase() + activity.type.slice(1)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: 
-                        activity.status === 'completed' ? '#dcfce7' :
-                        activity.status === 'failed' ? '#fee2e2' :
-                        activity.status === 'in-progress' ? '#fef9c3' :
-                        '#f3f4f6',
-                      color: 
-                        activity.status === 'completed' ? '#16a34a' :
-                        activity.status === 'failed' ? '#b91c1c' :
-                        activity.status === 'in-progress' ? '#854d0e' :
-                        '#4b5563'
-                    }}>
-                      {
-                        activity.status === 'in-progress' 
-                          ? 'In Progress' 
-                          : activity.status.charAt(0).toUpperCase() + activity.status.slice(1)
-                      }
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{activity.recordCount.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {users.find(u => u.id === activity.importedBy)?.name || activity.importedBy}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {new Date(activity.timestamp).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      border: '1px solid #e5e7eb',
-                      backgroundColor: 'white',
-                      cursor: 'pointer'
-                    }}>
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              
-              {filteredImports.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: '16px', textAlign: 'center', color: '#6b7280' }}>
-                    No import activities found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-  
-  // Valuation summary panel component
-  const ValuationSummaryPanel = () => {
-    // Filter valuation summaries by selected county
-    const filteredValuations = selectedCounty === 'all'
-      ? valuationSummaries
-      : valuationSummaries.filter(v => v.county === selectedCounty);
-    
-    return (
-      <div className="valuation-summary-panel">
-        <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>Valuation Summary</h2>
-        
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>County</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Total Parcels</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Valued Parcels</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Progress</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Total Value</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Average Value</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Change %</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredValuations.map((valuation, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    {counties.find(c => c.id === valuation.county)?.name || valuation.county}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{valuation.totalParcels.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>{valuation.valuedParcels.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ width: '100%', height: '6px', backgroundColor: '#f3f4f6', borderRadius: '3px' }}>
-                      <div 
-                        style={{ 
-                          width: `${(valuation.valuedParcels / valuation.totalParcels) * 100}%`, 
-                          height: '100%', 
-                          backgroundColor: '#22c55e',
-                          borderRadius: '3px'
-                        }} 
-                      />
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                      {((valuation.valuedParcels / valuation.totalParcels) * 100).toFixed(1)}%
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>${valuation.totalValue.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>${valuation.averageValue.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      color: valuation.changePercent >= 0 ? '#16a34a' : '#b91c1c'
-                    }}>
-                      {valuation.changePercent >= 0 ? '+' : ''}{valuation.changePercent.toFixed(2)}%
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      border: '1px solid #e5e7eb',
-                      backgroundColor: 'white',
-                      cursor: 'pointer'
-                    }}>
-                      View Report
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              
-              {filteredValuations.length === 0 && (
-                <tr>
-                  <td colSpan={8} style={{ padding: '16px', textAlign: 'center', color: '#6b7280' }}>
-                    No valuation summaries found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-  
-  // Fetch data when component mounts
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // In a real implementation, this would fetch data from the API
-        // For now, we'll use mock data
-        
-        // Mock counties
-        const mockCounties: County[] = [
-          {
-            id: 'benton-wa',
-            name: 'Benton',
-            state: 'Washington',
-            fips: '53005',
-            status: 'active',
-            lastUpdated: '2025-05-15T12:00:00Z'
-          },
-          {
-            id: 'franklin-wa',
-            name: 'Franklin',
-            state: 'Washington',
-            fips: '53021',
-            status: 'active',
-            lastUpdated: '2025-05-14T09:30:00Z'
-          },
-          {
-            id: 'yakima-wa',
-            name: 'Yakima',
-            state: 'Washington',
-            fips: '53077',
-            status: 'pending',
-            lastUpdated: '2025-05-12T14:45:00Z'
-          }
-        ];
-        
-        // Mock users
-        const mockUsers: User[] = [
-          {
-            id: 'user1',
-            name: 'John Smith',
-            email: 'john.smith@example.gov',
-            role: 'admin',
-            department: 'IT',
-            lastLogin: '2025-05-19T08:45:00Z'
-          },
-          {
-            id: 'user2',
-            name: 'Jane Doe',
-            email: 'jane.doe@example.gov',
-            role: 'manager',
-            department: 'Assessor',
-            lastLogin: '2025-05-19T09:15:00Z'
-          },
-          {
-            id: 'user3',
-            name: 'Bob Johnson',
-            email: 'bob.johnson@example.gov',
-            role: 'editor',
-            department: 'Assessor',
-            lastLogin: '2025-05-18T14:30:00Z'
-          },
-          {
-            id: 'user4',
-            name: 'Alice Williams',
-            email: 'alice.williams@example.gov',
-            role: 'viewer',
-            department: 'Treasurer',
-            lastLogin: '2025-05-17T11:20:00Z'
-          }
-        ];
-        
-        // Mock workflows
-        const mockWorkflows: WorkflowStatus[] = [
-          {
-            id: 'wf1',
-            name: 'Parcel Import - Benton County',
-            type: 'import',
-            status: 'running',
-            progress: 65,
-            startTime: '2025-05-20T09:00:00Z',
-            county: 'benton-wa',
-            user: 'user2'
-          },
-          {
-            id: 'wf2',
-            name: 'Valuation Batch - Franklin County',
-            type: 'valuation',
-            status: 'completed',
-            progress: 100,
-            startTime: '2025-05-19T14:00:00Z',
-            endTime: '2025-05-19T15:30:00Z',
-            county: 'franklin-wa',
-            user: 'user3'
-          },
-          {
-            id: 'wf3',
-            name: 'Tax Code Import - Yakima County',
-            type: 'import',
-            status: 'failed',
-            progress: 45,
-            startTime: '2025-05-18T11:00:00Z',
-            endTime: '2025-05-18T11:23:00Z',
-            county: 'yakima-wa',
-            user: 'user2'
-          }
-        ];
-        
-        // Mock import activities
-        const mockImportActivities: ImportActivity[] = [
-          {
-            id: 'imp1',
-            county: 'benton-wa',
-            type: 'parcels',
-            status: 'in-progress',
-            recordCount: 65247,
-            importedBy: 'user2',
-            timestamp: '2025-05-20T09:00:00Z'
-          },
-          {
-            id: 'imp2',
-            county: 'franklin-wa',
-            type: 'parcels',
-            status: 'completed',
-            recordCount: 28965,
-            importedBy: 'user2',
-            timestamp: '2025-05-19T10:15:00Z'
-          },
-          {
-            id: 'imp3',
-            county: 'franklin-wa',
-            type: 'taxCodes',
-            status: 'completed',
-            recordCount: 156,
-            importedBy: 'user3',
-            timestamp: '2025-05-19T14:00:00Z'
-          },
-          {
-            id: 'imp4',
-            county: 'yakima-wa',
-            type: 'taxCodes',
-            status: 'failed',
-            recordCount: 203,
-            importedBy: 'user2',
-            timestamp: '2025-05-18T11:00:00Z'
-          }
-        ];
-        
-        // Mock valuation summaries
-        const mockValuationSummaries: ValuationSummary[] = [
-          {
-            county: 'benton-wa',
-            totalParcels: 65247,
-            valuedParcels: 42510,
-            totalValue: 13890450000,
-            averageValue: 326758,
-            changePercent: 5.2,
-            completedDate: '2025-05-15T00:00:00Z'
-          },
-          {
-            county: 'franklin-wa',
-            totalParcels: 28965,
-            valuedParcels: 28965,
-            totalValue: 5723400000,
-            averageValue: 197597,
-            changePercent: 4.8,
-            completedDate: '2025-05-19T15:30:00Z'
-          },
-          {
-            county: 'yakima-wa',
-            totalParcels: 82134,
-            valuedParcels: 0,
-            totalValue: 0,
-            averageValue: 0,
-            changePercent: 0,
-            completedDate: undefined
-          }
-        ];
-        
-        // Update state with mock data
-        setCounties(mockCounties);
-        setUsers(mockUsers);
-        setWorkflows(mockWorkflows);
-        setImportActivities(mockImportActivities);
-        setValuationSummaries(mockValuationSummaries);
-        
-        setLoading(false);
-      } catch (err: any) {
-        setError(`Failed to fetch data: ${err.message}`);
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
-  
-  // Handle health status change
-  const handleHealthStatusChange = (isHealthy: boolean) => {
-    setSystemHealthy(isHealthy);
-  };
   
   return (
     <div 
       className={`admin-dashboard ${className}`}
       style={{
+        display: 'flex',
+        height: '100%',
         ...style
       }}
     >
-      {/* Header */}
-      <div className="dashboard-header" style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '24px',
-        borderBottom: '1px solid #e5e7eb',
-        paddingBottom: '16px'
+      {/* Sidebar */}
+      <div style={{
+        width: '240px',
+        backgroundColor: 'white',
+        borderRight: '1px solid #e2e8f0',
+        display: mobileNavVisible ? 'block' : 'none',
+        position: 'fixed',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        zIndex: 50,
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        '@media (min-width: 1024px)': {
+          display: 'block',
+          position: 'relative',
+          boxShadow: 'none'
+        }
       }}>
-        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold' }}>
-          Admin Dashboard
-        </h1>
-        
-        <div className="system-status" style={{ display: 'flex', alignItems: 'center' }}>
+        {/* Logo and title */}
+        <div style={{
+          padding: '24px 16px',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
           <div style={{ 
-            width: '12px', 
-            height: '12px', 
-            borderRadius: '50%', 
-            backgroundColor: systemHealthy ? '#22c55e' : '#ef4444',
-            marginRight: '8px'
-          }}></div>
-          <span style={{ color: systemHealthy ? '#16a34a' : '#b91c1c' }}>
-            {systemHealthy ? 'System Healthy' : 'System Issues'}
-          </span>
+            width: '40px',
+            height: '40px',
+            borderRadius: '8px',
+            backgroundColor: '#0ea5e9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '18px',
+            fontWeight: 'bold'
+          }}>
+            TF
+          </div>
+          <div>
+            <div style={{ fontWeight: 'bold', fontSize: '16px' }}>TerraFusion</div>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>Admin Dashboard</div>
+          </div>
+        </div>
+        
+        {/* Nav items */}
+        <nav style={{ padding: '16px 0' }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <li>
+              <button 
+                onClick={() => handleTabChange('overview')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: activeTab === 'overview' ? '#f1f5f9' : 'transparent',
+                  border: 'none',
+                  borderLeft: activeTab === 'overview' ? '3px solid #0ea5e9' : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Home size={20} color={activeTab === 'overview' ? '#0ea5e9' : '#64748b'} />
+                <span style={{ 
+                  color: activeTab === 'overview' ? '#0f172a' : '#64748b',
+                  fontWeight: activeTab === 'overview' ? 'bold' : 'normal'
+                }}>
+                  Overview
+                </span>
+              </button>
+            </li>
+            
+            <li>
+              <button 
+                onClick={() => handleTabChange('counties')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: activeTab === 'counties' ? '#f1f5f9' : 'transparent',
+                  border: 'none',
+                  borderLeft: activeTab === 'counties' ? '3px solid #0ea5e9' : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Map size={20} color={activeTab === 'counties' ? '#0ea5e9' : '#64748b'} />
+                <span style={{ 
+                  color: activeTab === 'counties' ? '#0f172a' : '#64748b',
+                  fontWeight: activeTab === 'counties' ? 'bold' : 'normal'
+                }}>
+                  Counties
+                </span>
+              </button>
+            </li>
+            
+            <li>
+              <button 
+                onClick={() => handleTabChange('users')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: activeTab === 'users' ? '#f1f5f9' : 'transparent',
+                  border: 'none',
+                  borderLeft: activeTab === 'users' ? '3px solid #0ea5e9' : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Users size={20} color={activeTab === 'users' ? '#0ea5e9' : '#64748b'} />
+                <span style={{ 
+                  color: activeTab === 'users' ? '#0f172a' : '#64748b',
+                  fontWeight: activeTab === 'users' ? 'bold' : 'normal'
+                }}>
+                  Users
+                </span>
+              </button>
+            </li>
+            
+            <li>
+              <button 
+                onClick={() => handleTabChange('system')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: activeTab === 'system' ? '#f1f5f9' : 'transparent',
+                  border: 'none',
+                  borderLeft: activeTab === 'system' ? '3px solid #0ea5e9' : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Server size={20} color={activeTab === 'system' ? '#0ea5e9' : '#64748b'} />
+                <span style={{ 
+                  color: activeTab === 'system' ? '#0f172a' : '#64748b',
+                  fontWeight: activeTab === 'system' ? 'bold' : 'normal'
+                }}>
+                  System
+                </span>
+                
+                {/* Alert badge */}
+                {systemAlerts.filter(a => !a.acknowledged).length > 0 && (
+                  <div style={{
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    borderRadius: '9999px',
+                    padding: '2px 6px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    marginLeft: 'auto'
+                  }}>
+                    {systemAlerts.filter(a => !a.acknowledged).length}
+                  </div>
+                )}
+              </button>
+            </li>
+            
+            <li>
+              <button 
+                onClick={() => handleTabChange('settings')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: activeTab === 'settings' ? '#f1f5f9' : 'transparent',
+                  border: 'none',
+                  borderLeft: activeTab === 'settings' ? '3px solid #0ea5e9' : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Settings size={20} color={activeTab === 'settings' ? '#0ea5e9' : '#64748b'} />
+                <span style={{ 
+                  color: activeTab === 'settings' ? '#0f172a' : '#64748b',
+                  fontWeight: activeTab === 'settings' ? 'bold' : 'normal'
+                }}>
+                  Settings
+                </span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+        
+        {/* User info */}
+        <div style={{
+          padding: '16px',
+          borderTop: '1px solid #e2e8f0',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: '100%',
+          backgroundColor: 'white'
+        }}>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div style={{ 
+              width: '40px',
+              height: '40px',
+              borderRadius: '9999px',
+              backgroundColor: '#e0f2fe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#0ea5e9',
+              fontWeight: 'bold'
+            }}>
+              {currentUser.name.charAt(0)}
+            </div>
+            
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <div style={{ 
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {currentUser.name}
+              </div>
+              <div style={{ 
+                fontSize: '12px',
+                color: '#64748b',
+                textTransform: 'capitalize'
+              }}>
+                {currentUser.role}
+              </div>
+            </div>
+            
+            <button
+              onClick={handleLogout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                backgroundColor: '#f1f5f9',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut size={16} color="#64748b" />
+            </button>
+          </div>
         </div>
       </div>
       
-      {/* Loading state */}
-      {loading && (
-        <div className="loading" style={{ textAlign: 'center', padding: '48px' }}>
-          Loading dashboard data...
-        </div>
-      )}
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setMobileNavVisible(!mobileNavVisible)}
+        style={{
+          position: 'fixed',
+          top: '16px',
+          left: '16px',
+          zIndex: 60,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '40px',
+          height: '40px',
+          backgroundColor: 'white',
+          borderRadius: '6px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          cursor: 'pointer',
+          '@media (min-width: 1024px)': {
+            display: 'none'
+          }
+        }}
+      >
+        <Menu size={20} color="#64748b" />
+      </button>
       
-      {/* Error state */}
-      {error && (
+      {/* Main content */}
+      <div style={{
+        flex: 1,
+        padding: '24px',
+        backgroundColor: '#f8fafc',
+        overflowY: 'auto',
+        marginLeft: '0px',
+        '@media (min-width: 1024px)': {
+          marginLeft: '240px'
+        }
+      }}>
+        {/* Render active tab content */}
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'counties' && renderCountiesTab()}
+        {activeTab === 'users' && renderUsersTab()}
+        {activeTab === 'system' && renderSystemTab()}
+        {activeTab === 'settings' && renderSettingsTab()}
+      </div>
+      
+      {/* Mobile nav overlay backdrop */}
+      {mobileNavVisible && (
         <div 
-          className="error"
-          style={{ 
-            padding: '16px',
-            borderRadius: '8px',
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            marginBottom: '24px'
+          onClick={() => setMobileNavVisible(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 40
           }}
-        >
-          {error}
-        </div>
-      )}
-      
-      {/* Dashboard content */}
-      {!loading && !error && (
-        <div className="dashboard-content">
-          {/* Navigation tabs */}
-          <div className="tabs" style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
-              {['dashboard', 'counties', 'users', 'system'].map(tab => (
-                <button
-                  key={tab}
-                  className={`tab ${activeTab === tab ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab)}
-                  style={{
-                    padding: '12px 16px',
-                    backgroundColor: activeTab === tab ? '#f9fafb' : 'transparent',
-                    border: 'none',
-                    borderBottom: activeTab === tab ? '2px solid #0284c7' : 'none',
-                    cursor: 'pointer',
-                    fontWeight: activeTab === tab ? 'bold' : 'normal'
-                  }}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* Dashboard tab */}
-          {activeTab === 'dashboard' && (
-            <div className="dashboard-tab">
-              {/* County selector */}
-              <CountySelector />
-              
-              {/* Statistics */}
-              <div style={{ marginBottom: '24px' }}>
-                <StatisticsPanel />
-              </div>
-              
-              {/* Workflow status */}
-              <div style={{ marginBottom: '24px' }}>
-                <WorkflowStatusPanel />
-              </div>
-              
-              {/* Import activity */}
-              <div style={{ marginBottom: '24px' }}>
-                <ImportActivityPanel />
-              </div>
-              
-              {/* Valuation summary */}
-              <div>
-                <ValuationSummaryPanel />
-              </div>
-            </div>
-          )}
-          
-          {/* Counties tab */}
-          {activeTab === 'counties' && (
-            <div className="counties-tab">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '18px', margin: 0 }}>County Management</h2>
-                
-                <Link href="/counties/onboard">
-                  <a style={{
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    border: 'none',
-                    backgroundColor: '#0284c7',
-                    color: 'white',
-                    textDecoration: 'none',
-                    display: 'inline-block'
-                  }}>
-                    Onboard New County
-                  </a>
-                </Link>
-              </div>
-              
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>County</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>State</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>FIPS</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>Status</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>Last Updated</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {counties.map(county => (
-                      <tr key={county.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '12px 16px' }}>{county.name}</td>
-                        <td style={{ padding: '12px 16px' }}>{county.state}</td>
-                        <td style={{ padding: '12px 16px' }}>{county.fips}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: 
-                              county.status === 'active' ? '#dcfce7' :
-                              county.status === 'pending' ? '#fef9c3' :
-                              '#fee2e2',
-                            color: 
-                              county.status === 'active' ? '#16a34a' :
-                              county.status === 'pending' ? '#854d0e' :
-                              '#b91c1c'
-                          }}>
-                            {county.status.charAt(0).toUpperCase() + county.status.slice(1)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          {new Date(county.lastUpdated).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <Link href={`/counties/${county.id}`}>
-                            <a style={{
-                              padding: '4px 8px',
-                              marginRight: '8px',
-                              borderRadius: '4px',
-                              border: '1px solid #e5e7eb',
-                              backgroundColor: 'white',
-                              textDecoration: 'none',
-                              color: 'inherit',
-                              display: 'inline-block'
-                            }}>
-                              View
-                            </a>
-                          </Link>
-                          <Link href={`/counties/${county.id}/edit`}>
-                            <a style={{
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              border: '1px solid #e5e7eb',
-                              backgroundColor: 'white',
-                              textDecoration: 'none',
-                              color: 'inherit',
-                              display: 'inline-block'
-                            }}>
-                              Edit
-                            </a>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          
-          {/* Users tab */}
-          {activeTab === 'users' && (
-            <div className="users-tab">
-              <UserManagementPanel />
-            </div>
-          )}
-          
-          {/* System tab */}
-          {activeTab === 'system' && (
-            <div className="system-tab">
-              <SystemHealthPanel 
-                title="System Health" 
-                refreshInterval={60000}
-                showDetails={true}
-                showDependencies={true}
-                onHealthStatusChange={handleHealthStatusChange}
-              />
-            </div>
-          )}
-        </div>
+        />
       )}
     </div>
   );

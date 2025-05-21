@@ -1,1876 +1,2736 @@
 /**
  * County Onboarding Workflow Component
  * 
- * This component provides a step-by-step interface for onboarding new counties
- * into the TerraFusion platform. It guides administrators through the process of
- * collecting county information, configuring data sources, mapping fields,
- * and validating the setup.
+ * This component provides a step-by-step wizard for onboarding new counties
+ * into the TerraFusion platform, including data validation, transformation,
+ * and integration with existing systems.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'wouter';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  ChevronRight, 
+  ChevronLeft, 
+  Check,
+  AlertCircle,
+  Upload,
+  Map,
+  Database,
+  User,
+  Settings,
+  ExternalLink,
+  HelpCircle,
+  Download,
+  FileText,
+  Layers,
+  RefreshCw,
+  Clock
+} from 'lucide-react';
+import { Link, useLocation, useRoute } from 'wouter';
 
-// County interface
-interface County {
+import { logger } from '../../../DevOps/utils/logger';
+
+// Create module-specific logger
+const workflowLogger = logger.withTags(['WorkflowUI', 'CountyOnboarding']);
+
+/**
+ * GIS data source
+ */
+export interface GISDataSource {
+  id: string;
+  name: string;
+  type: 'shapefile' | 'geojson' | 'gdb' | 'arcgis_service' | 'wms' | 'wfs' | 'other';
+  url?: string;
+  filePath?: string;
+  description?: string;
+  lastUpdated?: Date;
+  status: 'ready' | 'processing' | 'error' | 'not_started';
+  error?: string;
+}
+
+/**
+ * Valuation system
+ */
+export interface ValuationSystem {
+  id: string;
+  name: string;
+  type: 'cama' | 'custom' | 'integrated' | 'manual' | 'other';
+  url?: string;
+  apiKey?: string;
+  connectionStatus: 'connected' | 'disconnected' | 'pending' | 'not_configured';
+  lastSync?: Date;
+}
+
+/**
+ * Tax system
+ */
+export interface TaxSystem {
+  id: string;
+  name: string;
+  type: 'integrated' | 'custom' | 'manual' | 'other';
+  url?: string;
+  apiKey?: string;
+  connectionStatus: 'connected' | 'disconnected' | 'pending' | 'not_configured';
+  lastSync?: Date;
+}
+
+/**
+ * County data access configuration
+ */
+export interface DataAccess {
+  parcelLayers: string[];
+  zoningSources: string[];
+  dataRefreshSchedule?: 'daily' | 'weekly' | 'monthly' | 'manual';
+  dataSecurityLevel: 'public' | 'private' | 'restricted';
+  apiAccessEnabled: boolean;
+  exportFormats: Array<'shapefile' | 'geojson' | 'csv' | 'pdf'>;
+}
+
+/**
+ * County configuration
+ */
+export interface CountyConfig {
   id: string;
   name: string;
   state: string;
-  fips: string;
-  timezone: string;
-  contactName: string;
-  contactEmail: string;
-  contactPhone: string;
-  assessorAddress: string;
-  assessorWebsite: string;
-  dataAccess: 'public' | 'restricted' | 'private';
-  notes: string;
+  status: 'draft' | 'pending' | 'active' | 'archived';
+  createdAt: Date;
+  lastUpdated: Date;
+  properties: {
+    population?: number;
+    area?: number;
+    parcelCount?: number;
+  };
+  contacts: Array<{
+    name: string;
+    role: string;
+    email: string;
+    phone?: string;
+  }>;
+  gisDataSources: GISDataSource[];
+  valuationSystem?: ValuationSystem;
+  taxSystem?: TaxSystem;
+  dataAccess?: DataAccess;
+  validationIssues: Array<{
+    type: 'error' | 'warning';
+    message: string;
+    component: string;
+    resolved: boolean;
+  }>;
 }
 
-// Data source interface
-interface DataSource {
-  id: string;
-  name: string;
-  type: 'parcels' | 'taxCodes' | 'sales' | 'plats' | 'documents' | 'other';
-  format: 'csv' | 'shp' | 'gdb' | 'api' | 'other';
-  path: string;
-  refreshFrequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'manual';
-  lastUpdated?: string;
-  isConfigured: boolean;
-  mappingComplete: boolean;
-}
-
-// Field mapping interface
-interface FieldMapping {
-  sourceField: string;
-  targetField: string;
-  dataType: 'string' | 'number' | 'date' | 'boolean' | 'geometry';
-  required: boolean;
-  transform?: string;
-  validation?: string;
-}
-
-// Component props
-interface CountyOnboardingWorkflowProps {
-  initialStep?: number;
-  onComplete?: (county: County) => void;
+/**
+ * County onboarding workflow props
+ */
+export interface CountyOnboardingWorkflowProps {
+  // County configuration (may be partially complete)
+  county: CountyConfig;
+  
+  // Available data sources
+  availableDataSources: GISDataSource[];
+  
+  // Available valuation systems
+  availableValuationSystems: ValuationSystem[];
+  
+  // Available tax systems
+  availableTaxSystems: TaxSystem[];
+  
+  // Event handlers
+  onSave: (county: CountyConfig) => Promise<void>;
+  onActivate: (countyId: string) => Promise<void>;
+  onCancel: () => void;
+  onDataSourceTest: (sourceId: string) => Promise<boolean>;
+  onValuationSystemTest: (systemId: string) => Promise<boolean>;
+  onTaxSystemTest: (systemId: string) => Promise<boolean>;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
 }
 
 /**
- * County Onboarding Workflow Component
+ * County onboarding workflow component
  */
 export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> = ({
-  initialStep = 0,
-  onComplete,
+  county,
+  availableDataSources,
+  availableValuationSystems,
+  availableTaxSystems,
+  onSave,
+  onActivate,
+  onCancel,
+  onDataSourceTest,
+  onValuationSystemTest,
+  onTaxSystemTest,
   className = '',
   style = {}
 }) => {
-  // Navigation hook
-  const navigate = useNavigate();
-
-  // State for current step
-  const [currentStep, setCurrentStep] = useState<number>(initialStep);
-  
-  // State for county data
-  const [county, setCounty] = useState<Partial<County>>({
-    dataAccess: 'public'
-  });
-  
-  // State for data sources
-  const [dataSources, setDataSources] = useState<DataSource[]>([]);
-  
-  // State for current data source
-  const [currentDataSourceIndex, setCurrentDataSourceIndex] = useState<number>(-1);
-  
-  // State for field mappings
-  const [fieldMappings, setFieldMappings] = useState<Record<string, FieldMapping[]>>({});
-  
-  // State for loading
-  const [loading, setLoading] = useState<boolean>(false);
-  
-  // State for errors
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Steps for the onboarding process
+  // Define workflow steps
   const steps = [
-    { title: 'County Information', description: 'Basic county details' },
-    { title: 'Data Sources', description: 'Configure data import sources' },
-    { title: 'Field Mapping', description: 'Map source fields to system fields' },
-    { title: 'Validation', description: 'Validate and test the configuration' },
-    { title: 'Review & Complete', description: 'Finalize county onboarding' }
+    { id: 'basic', title: 'Basic Information' },
+    { id: 'contacts', title: 'Contacts' },
+    { id: 'gis', title: 'GIS Data Sources' },
+    { id: 'valuation', title: 'Valuation System' },
+    { id: 'tax', title: 'Tax System' },
+    { id: 'access', title: 'Data Access' },
+    { id: 'validation', title: 'Validation' },
+    { id: 'activate', title: 'Activation' }
   ];
-
-  // Handle county information form change
-  const handleCountyFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    
-    setCounty(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error for this field if exists
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
   
-  // Validate county information
-  const validateCountyInformation = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    
-    // Required fields
-    const requiredFields: Array<keyof County> = ['name', 'state', 'fips', 'contactName', 'contactEmail'];
-    
-    requiredFields.forEach(field => {
-      if (!county[field]) {
-        newErrors[field] = `${field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')} is required`;
-      }
-    });
-    
-    // FIPS validation
-    if (county.fips && !/^\d{5}$/.test(county.fips)) {
-      newErrors.fips = 'FIPS code must be a 5-digit number';
-    }
-    
-    // Email validation
-    if (county.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(county.contactEmail)) {
-      newErrors.contactEmail = 'Please enter a valid email address';
-    }
-    
-    // Phone validation
-    if (county.contactPhone && !/^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(county.contactPhone)) {
-      newErrors.contactPhone = 'Please enter a valid phone number';
-    }
-    
-    // Website validation
-    if (county.assessorWebsite && !/^(http|https):\/\/[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+([\/?#].*)?$/.test(county.assessorWebsite)) {
-      newErrors.assessorWebsite = 'Please enter a valid website URL';
-    }
-    
-    setErrors(newErrors);
-    
-    return Object.keys(newErrors).length === 0;
-  };
+  // State for the current step
+  const [currentStep, setCurrentStep] = useState<number>(0);
   
-  // Handle data source form change
-  const handleDataSourceFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    
-    // Update current data source
-    if (currentDataSourceIndex >= 0) {
-      setDataSources(prev => {
-        const updated = [...prev];
-        updated[currentDataSourceIndex] = {
-          ...updated[currentDataSourceIndex],
-          [name]: value
-        };
-        return updated;
-      });
-      
-      // Clear error for this field if exists
-      if (errors[`dataSource_${name}`]) {
-        setErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[`dataSource_${name}`];
-          return newErrors;
-        });
-      }
-    }
-  };
+  // State for the county configuration
+  const [countyData, setCountyData] = useState<CountyConfig>(county);
   
-  // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    
-    if (files && files.length > 0 && currentDataSourceIndex >= 0) {
-      const file = files[0];
-      
-      // Update data source with file information
-      setDataSources(prev => {
-        const updated = [...prev];
-        updated[currentDataSourceIndex] = {
-          ...updated[currentDataSourceIndex],
-          path: file.name,
-          isConfigured: true
-        };
-        return updated;
-      });
-      
-      // Clear error for path if exists
-      if (errors[`dataSource_path`]) {
-        setErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[`dataSource_path`];
-          return newErrors;
-        });
-      }
-      
-      // Simulate file analysis to determine fields
-      setTimeout(() => {
-        analyzeFile(file);
-      }, 1000);
-    }
-  };
+  // State for form validation
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
-  // Simulate file analysis
-  const analyzeFile = (file: File) => {
-    // In a real implementation, this would analyze the file and determine fields
-    // For now, we'll use mock fields based on data source type
-    
-    if (currentDataSourceIndex >= 0) {
-      const dataSource = dataSources[currentDataSourceIndex];
-      let mockFields: FieldMapping[] = [];
-      
-      switch (dataSource.type) {
-        case 'parcels':
-          mockFields = [
-            { sourceField: 'PARCEL_ID', targetField: 'parcelId', dataType: 'string', required: true },
-            { sourceField: 'OWNER_NAME', targetField: 'ownerName', dataType: 'string', required: true },
-            { sourceField: 'ADDRESS', targetField: 'address', dataType: 'string', required: true },
-            { sourceField: 'CITY', targetField: 'city', dataType: 'string', required: true },
-            { sourceField: 'STATE', targetField: 'state', dataType: 'string', required: true },
-            { sourceField: 'ZIP', targetField: 'zip', dataType: 'string', required: true },
-            { sourceField: 'LEGAL_DESC', targetField: 'legalDescription', dataType: 'string', required: false },
-            { sourceField: 'LAND_VALUE', targetField: 'landValue', dataType: 'number', required: true },
-            { sourceField: 'IMPROVEMENT_VALUE', targetField: 'improvementValue', dataType: 'number', required: true },
-            { sourceField: 'TOTAL_VALUE', targetField: 'totalValue', dataType: 'number', required: true },
-            { sourceField: 'ACRES', targetField: 'acres', dataType: 'number', required: false },
-            { sourceField: 'YEAR_BUILT', targetField: 'yearBuilt', dataType: 'number', required: false },
-            { sourceField: 'GEOMETRY', targetField: 'geometry', dataType: 'geometry', required: true }
-          ];
-          break;
-        
-        case 'taxCodes':
-          mockFields = [
-            { sourceField: 'TAX_CODE', targetField: 'taxCode', dataType: 'string', required: true },
-            { sourceField: 'DESCRIPTION', targetField: 'description', dataType: 'string', required: true },
-            { sourceField: 'RATE', targetField: 'rate', dataType: 'number', required: true },
-            { sourceField: 'JURISDICTION', targetField: 'jurisdiction', dataType: 'string', required: true },
-            { sourceField: 'EFFECTIVE_DATE', targetField: 'effectiveDate', dataType: 'date', required: true },
-            { sourceField: 'EXPIRATION_DATE', targetField: 'expirationDate', dataType: 'date', required: false }
-          ];
-          break;
-        
-        case 'sales':
-          mockFields = [
-            { sourceField: 'PARCEL_ID', targetField: 'parcelId', dataType: 'string', required: true },
-            { sourceField: 'SALE_DATE', targetField: 'saleDate', dataType: 'date', required: true },
-            { sourceField: 'SALE_PRICE', targetField: 'salePrice', dataType: 'number', required: true },
-            { sourceField: 'BUYER_NAME', targetField: 'buyerName', dataType: 'string', required: true },
-            { sourceField: 'SELLER_NAME', targetField: 'sellerName', dataType: 'string', required: true },
-            { sourceField: 'VALID_SALE', targetField: 'validSale', dataType: 'boolean', required: false },
-            { sourceField: 'DOCUMENT_NUMBER', targetField: 'documentNumber', dataType: 'string', required: false }
-          ];
-          break;
-        
-        case 'plats':
-          mockFields = [
-            { sourceField: 'PLAT_ID', targetField: 'platId', dataType: 'string', required: true },
-            { sourceField: 'PLAT_NAME', targetField: 'platName', dataType: 'string', required: true },
-            { sourceField: 'RECORDING_DATE', targetField: 'recordingDate', dataType: 'date', required: true },
-            { sourceField: 'SURVEYOR', targetField: 'surveyor', dataType: 'string', required: false },
-            { sourceField: 'NUMBER_OF_LOTS', targetField: 'numberOfLots', dataType: 'number', required: false },
-            { sourceField: 'GEOMETRY', targetField: 'geometry', dataType: 'geometry', required: true }
-          ];
-          break;
-        
-        case 'documents':
-          mockFields = [
-            { sourceField: 'DOCUMENT_ID', targetField: 'documentId', dataType: 'string', required: true },
-            { sourceField: 'DOCUMENT_TYPE', targetField: 'documentType', dataType: 'string', required: true },
-            { sourceField: 'RECORDING_DATE', targetField: 'recordingDate', dataType: 'date', required: true },
-            { sourceField: 'RELATED_PARCELS', targetField: 'relatedParcels', dataType: 'string', required: false },
-            { sourceField: 'DOCUMENT_URL', targetField: 'documentUrl', dataType: 'string', required: false }
-          ];
-          break;
-        
-        default:
-          mockFields = [
-            { sourceField: 'FIELD1', targetField: '', dataType: 'string', required: false },
-            { sourceField: 'FIELD2', targetField: '', dataType: 'string', required: false },
-            { sourceField: 'FIELD3', targetField: '', dataType: 'string', required: false }
-          ];
-      }
-      
-      // Update field mappings for this data source
-      setFieldMappings(prev => ({
-        ...prev,
-        [dataSource.id]: mockFields
-      }));
-      
-      // Update data source
-      setDataSources(prev => {
-        const updated = [...prev];
-        updated[currentDataSourceIndex] = {
-          ...updated[currentDataSourceIndex],
-          mappingComplete: false
-        };
-        return updated;
-      });
-    }
-  };
+  // State for processing actions
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isActivating, setIsActivating] = useState<boolean>(false);
+  const [testingSource, setTestingSource] = useState<string | null>(null);
   
-  // Add new data source
-  const addDataSource = () => {
-    const newId = `ds_${Date.now()}`;
-    
-    const newDataSource: DataSource = {
-      id: newId,
-      name: `Data Source ${dataSources.length + 1}`,
-      type: 'parcels',
-      format: 'csv',
-      path: '',
-      refreshFrequency: 'monthly',
-      isConfigured: false,
-      mappingComplete: false
-    };
-    
-    setDataSources(prev => [...prev, newDataSource]);
-    setCurrentDataSourceIndex(dataSources.length);
-    
-    // Initialize empty field mappings for this data source
-    setFieldMappings(prev => ({
-      ...prev,
-      [newId]: []
-    }));
-  };
+  // Effect to validate the current step
+  useEffect(() => {
+    validateCurrentStep();
+  }, [currentStep, countyData]);
   
-  // Delete data source
-  const deleteDataSource = (index: number) => {
-    if (index >= 0 && index < dataSources.length) {
-      const dataSourceId = dataSources[index].id;
-      
-      // Remove data source
-      setDataSources(prev => {
-        const updated = [...prev];
-        updated.splice(index, 1);
-        return updated;
-      });
-      
-      // Remove field mappings
-      setFieldMappings(prev => {
-        const updated = { ...prev };
-        delete updated[dataSourceId];
-        return updated;
-      });
-      
-      // Update current data source index
-      if (currentDataSourceIndex === index) {
-        setCurrentDataSourceIndex(-1);
-      } else if (currentDataSourceIndex > index) {
-        setCurrentDataSourceIndex(currentDataSourceIndex - 1);
-      }
-    }
-  };
-  
-  // Validate data sources
-  const validateDataSources = (): boolean => {
-    // Check if there's at least one data source
-    if (dataSources.length === 0) {
-      setErrors({ dataSourcesRequired: 'At least one data source is required' });
-      return false;
-    }
+  /**
+   * Validate the current step
+   */
+  const validateCurrentStep = useCallback(() => {
+    const errors: Record<string, string> = {};
+    const currentStepId = steps[currentStep].id;
     
-    // Check if all data sources are configured
-    const unconfiguredSources = dataSources.filter(ds => !ds.isConfigured);
-    
-    if (unconfiguredSources.length > 0) {
-      setErrors({ 
-        dataSourcesUnconfigured: `${unconfiguredSources.length} data ${unconfiguredSources.length === 1 ? 'source is' : 'sources are'} not configured` 
-      });
-      return false;
-    }
-    
-    return true;
-  };
-  
-  // Handle field mapping change
-  const handleFieldMappingChange = (sourceField: string, property: keyof FieldMapping, value: any) => {
-    if (currentDataSourceIndex >= 0) {
-      const dataSource = dataSources[currentDataSourceIndex];
-      
-      setFieldMappings(prev => {
-        const updatedMappings = [...(prev[dataSource.id] || [])];
-        const index = updatedMappings.findIndex(mapping => mapping.sourceField === sourceField);
-        
-        if (index >= 0) {
-          updatedMappings[index] = {
-            ...updatedMappings[index],
-            [property]: value
-          };
+    switch (currentStepId) {
+      case 'basic':
+        if (!countyData.name) {
+          errors.name = 'County name is required';
         }
         
-        return {
-          ...prev,
-          [dataSource.id]: updatedMappings
-        };
-      });
-    }
-  };
-  
-  // Validate field mappings
-  const validateFieldMappings = (): boolean => {
-    if (currentDataSourceIndex >= 0) {
-      const dataSource = dataSources[currentDataSourceIndex];
-      const mappings = fieldMappings[dataSource.id] || [];
-      
-      // Check for required fields
-      const requiredFields = mappings.filter(mapping => mapping.required);
-      const incompleteFields = requiredFields.filter(mapping => !mapping.targetField);
-      
-      if (incompleteFields.length > 0) {
-        setErrors({ 
-          fieldMappingsIncomplete: `${incompleteFields.length} required ${incompleteFields.length === 1 ? 'field is' : 'fields are'} not mapped` 
-        });
-        return false;
-      }
-      
-      // Check for duplicate target fields
-      const targetFields = mappings.map(mapping => mapping.targetField).filter(Boolean);
-      const uniqueTargetFields = new Set(targetFields);
-      
-      if (targetFields.length !== uniqueTargetFields.size) {
-        setErrors({ fieldMappingsDuplicate: 'Duplicate target fields detected' });
-        return false;
-      }
-      
-      // Update data source as mapping complete
-      setDataSources(prev => {
-        const updated = [...prev];
-        updated[currentDataSourceIndex] = {
-          ...updated[currentDataSourceIndex],
-          mappingComplete: true
-        };
-        return updated;
-      });
-      
-      return true;
-    }
-    
-    return false;
-  };
-  
-  // Select data source for editing
-  const selectDataSource = (index: number) => {
-    setCurrentDataSourceIndex(index);
-  };
-  
-  // Complete onboarding
-  const completeOnboarding = async () => {
-    try {
-      setLoading(true);
-      
-      // In a real implementation, this would save all data to the server
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate county ID from name and state
-      const countyId = `${county.name?.toLowerCase().replace(/\s+/g, '-')}-${county.state?.toLowerCase()}`;
-      
-      // Create complete county object
-      const completeCounty: County = {
-        ...(county as County),
-        id: countyId
-      };
-      
-      // Notify parent component
-      if (onComplete) {
-        onComplete(completeCounty);
-      }
-      
-      // Navigate to county dashboard
-      navigate(`/counties/${countyId}`);
-      
-      setLoading(false);
-    } catch (error) {
-      setLoading(false);
-      setErrors({ submitError: 'Failed to complete onboarding. Please try again.' });
-    }
-  };
-  
-  // Navigate to next step
-  const goToNextStep = () => {
-    let canProceed = false;
-    
-    // Validate current step
-    switch (currentStep) {
-      case 0: // County Information
-        canProceed = validateCountyInformation();
+        if (!countyData.state) {
+          errors.state = 'State is required';
+        }
         break;
-      
-      case 1: // Data Sources
-        canProceed = validateDataSources();
-        break;
-      
-      case 2: // Field Mapping
-        // Check if all data sources have mapping completed
-        canProceed = dataSources.every(ds => ds.mappingComplete);
         
-        if (!canProceed) {
-          setErrors({ 
-            fieldMappingsIncomplete: 'Field mapping is not complete for all data sources' 
+      case 'contacts':
+        if (!countyData.contacts || countyData.contacts.length === 0) {
+          errors.contacts = 'At least one contact is required';
+        } else {
+          countyData.contacts.forEach((contact, index) => {
+            if (!contact.name) {
+              errors[`contacts.${index}.name`] = 'Contact name is required';
+            }
+            
+            if (!contact.email) {
+              errors[`contacts.${index}.email`] = 'Contact email is required';
+            } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(contact.email)) {
+              errors[`contacts.${index}.email`] = 'Invalid email address';
+            }
+            
+            if (!contact.role) {
+              errors[`contacts.${index}.role`] = 'Contact role is required';
+            }
           });
         }
         break;
-      
-      case 3: // Validation
-        // In a real implementation, this would validate the entire setup
-        canProceed = true;
+        
+      case 'gis':
+        if (!countyData.gisDataSources || countyData.gisDataSources.length === 0) {
+          errors.gisDataSources = 'At least one GIS data source is required';
+        } else {
+          countyData.gisDataSources.forEach((source, index) => {
+            if (!source.name) {
+              errors[`gisDataSources.${index}.name`] = 'Data source name is required';
+            }
+            
+            if (source.type === 'arcgis_service' || source.type === 'wms' || source.type === 'wfs') {
+              if (!source.url) {
+                errors[`gisDataSources.${index}.url`] = 'URL is required for this data source type';
+              }
+            }
+          });
+        }
         break;
-      
-      case 4: // Complete
-        completeOnboarding();
-        return;
+        
+      case 'access':
+        if (countyData.dataAccess) {
+          if (!countyData.dataAccess.parcelLayers || countyData.dataAccess.parcelLayers.length === 0) {
+            errors['dataAccess.parcelLayers'] = 'At least one parcel layer is required';
+          }
+        } else {
+          errors.dataAccess = 'Data access configuration is required';
+        }
+        break;
+        
+      case 'validation':
+        const unresolvedErrors = countyData.validationIssues.filter(
+          issue => issue.type === 'error' && !issue.resolved
+        );
+        
+        if (unresolvedErrors.length > 0) {
+          errors.validation = `There are ${unresolvedErrors.length} unresolved errors`;
+        }
+        break;
     }
     
-    if (canProceed) {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [countyData, currentStep, steps]);
   
-  // Navigate to previous step
-  const goToPreviousStep = () => {
+  /**
+   * Handle next button click
+   */
+  const handleNext = useCallback(async () => {
+    const isValid = validateCurrentStep();
+    
+    if (!isValid) {
+      return;
+    }
+    
+    if (currentStep < steps.length - 1) {
+      // Save progress before advancing
+      try {
+        setIsSaving(true);
+        await onSave(countyData);
+        setCurrentStep(currentStep + 1);
+      } catch (error) {
+        console.error('Error saving county data:', error);
+        // Show error to user
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  }, [countyData, currentStep, onSave, steps.length, validateCurrentStep]);
+  
+  /**
+   * Handle previous button click
+   */
+  const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+      setCurrentStep(currentStep - 1);
     }
-  };
+  }, [currentStep]);
   
-  // County information form
-  const renderCountyInformationForm = () => (
-    <div className="county-info-form">
-      <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="name" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+  /**
+   * Handle form field change
+   */
+  const handleChange = useCallback((field: string, value: any) => {
+    setCountyData(prev => {
+      // Handle nested fields using dot notation
+      const fields = field.split('.');
+      
+      if (fields.length === 1) {
+        return { ...prev, [field]: value };
+      }
+      
+      // Handle nested fields
+      const result = { ...prev };
+      let current: any = result;
+      
+      for (let i = 0; i < fields.length - 1; i++) {
+        const key = fields[i];
+        
+        // If the field is an array index
+        if (/^\d+$/.test(fields[i+1])) {
+          const index = parseInt(fields[i+1]);
+          
+          if (!current[key]) {
+            current[key] = [];
+          }
+          
+          if (!current[key][index]) {
+            current[key][index] = {};
+          }
+          
+          current = current[key][index];
+          i++; // Skip the index
+        } else {
+          if (!current[key]) {
+            current[key] = {};
+          }
+          
+          current = current[key];
+        }
+      }
+      
+      current[fields[fields.length - 1]] = value;
+      return result;
+    });
+  }, []);
+  
+  /**
+   * Handle data source selection
+   */
+  const handleDataSourceSelect = useCallback((source: GISDataSource) => {
+    setCountyData(prev => {
+      const existingSources = prev.gisDataSources || [];
+      const sourceExists = existingSources.some(s => s.id === source.id);
+      
+      if (sourceExists) {
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        gisDataSources: [...existingSources, { ...source }]
+      };
+    });
+  }, []);
+  
+  /**
+   * Handle data source removal
+   */
+  const handleDataSourceRemove = useCallback((sourceId: string) => {
+    setCountyData(prev => ({
+      ...prev,
+      gisDataSources: prev.gisDataSources.filter(source => source.id !== sourceId)
+    }));
+  }, []);
+  
+  /**
+   * Handle valuation system selection
+   */
+  const handleValuationSystemSelect = useCallback((system: ValuationSystem) => {
+    setCountyData(prev => ({
+      ...prev,
+      valuationSystem: { ...system }
+    }));
+  }, []);
+  
+  /**
+   * Handle tax system selection
+   */
+  const handleTaxSystemSelect = useCallback((system: TaxSystem) => {
+    setCountyData(prev => ({
+      ...prev,
+      taxSystem: { ...system }
+    }));
+  }, []);
+  
+  /**
+   * Handle data source test
+   */
+  const handleDataSourceTest = useCallback(async (sourceId: string) => {
+    try {
+      setTestingSource(sourceId);
+      const success = await onDataSourceTest(sourceId);
+      
+      if (success) {
+        setCountyData(prev => ({
+          ...prev,
+          gisDataSources: prev.gisDataSources.map(source => 
+            source.id === sourceId
+              ? { ...source, status: 'ready', error: undefined }
+              : source
+          )
+        }));
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error testing data source:', error);
+      
+      setCountyData(prev => ({
+        ...prev,
+        gisDataSources: prev.gisDataSources.map(source => 
+          source.id === sourceId
+            ? { ...source, status: 'error', error: error instanceof Error ? error.message : String(error) }
+            : source
+        )
+      }));
+      
+      return false;
+    } finally {
+      setTestingSource(null);
+    }
+  }, [onDataSourceTest]);
+  
+  /**
+   * Handle valuation system test
+   */
+  const handleValuationSystemTest = useCallback(async () => {
+    if (!countyData.valuationSystem) {
+      return false;
+    }
+    
+    try {
+      setTestingSource('valuation');
+      const success = await onValuationSystemTest(countyData.valuationSystem.id);
+      
+      if (success) {
+        setCountyData(prev => ({
+          ...prev,
+          valuationSystem: prev.valuationSystem
+            ? { ...prev.valuationSystem, connectionStatus: 'connected' }
+            : undefined
+        }));
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error testing valuation system:', error);
+      
+      setCountyData(prev => ({
+        ...prev,
+        valuationSystem: prev.valuationSystem
+          ? { ...prev.valuationSystem, connectionStatus: 'disconnected' }
+          : undefined
+      }));
+      
+      return false;
+    } finally {
+      setTestingSource(null);
+    }
+  }, [countyData.valuationSystem, onValuationSystemTest]);
+  
+  /**
+   * Handle tax system test
+   */
+  const handleTaxSystemTest = useCallback(async () => {
+    if (!countyData.taxSystem) {
+      return false;
+    }
+    
+    try {
+      setTestingSource('tax');
+      const success = await onTaxSystemTest(countyData.taxSystem.id);
+      
+      if (success) {
+        setCountyData(prev => ({
+          ...prev,
+          taxSystem: prev.taxSystem
+            ? { ...prev.taxSystem, connectionStatus: 'connected' }
+            : undefined
+        }));
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error testing tax system:', error);
+      
+      setCountyData(prev => ({
+        ...prev,
+        taxSystem: prev.taxSystem
+          ? { ...prev.taxSystem, connectionStatus: 'disconnected' }
+          : undefined
+      }));
+      
+      return false;
+    } finally {
+      setTestingSource(null);
+    }
+  }, [countyData.taxSystem, onTaxSystemTest]);
+  
+  /**
+   * Handle issue resolution
+   */
+  const handleResolveIssue = useCallback((index: number, resolved: boolean) => {
+    setCountyData(prev => ({
+      ...prev,
+      validationIssues: prev.validationIssues.map((issue, i) => 
+        i === index ? { ...issue, resolved } : issue
+      )
+    }));
+  }, []);
+  
+  /**
+   * Handle county activation
+   */
+  const handleActivate = useCallback(async () => {
+    try {
+      setIsActivating(true);
+      await onActivate(countyData.id);
+      
+      // Update county status to active
+      setCountyData(prev => ({
+        ...prev,
+        status: 'active'
+      }));
+      
+      workflowLogger.info(`County activated: ${countyData.name}, ${countyData.state}`);
+    } catch (error) {
+      console.error('Error activating county:', error);
+      // Show error to user
+    } finally {
+      setIsActivating(false);
+    }
+  }, [countyData.id, countyData.name, countyData.state, onActivate]);
+  
+  /**
+   * Render step indicator
+   */
+  const renderStepIndicator = () => (
+    <div style={{
+      display: 'flex',
+      marginBottom: '24px',
+      overflow: 'auto',
+      paddingBottom: '8px'
+    }}>
+      {steps.map((step, index) => (
+        <div 
+          key={step.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            minWidth: 'max-content'
+          }}
+        >
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: index === currentStep
+                ? '#0ea5e9'
+                : index < currentStep
+                  ? '#22c55e'
+                  : '#f1f5f9',
+              color: index <= currentStep ? 'white' : '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}
+          >
+            {index < currentStep ? (
+              <Check size={16} />
+            ) : (
+              index + 1
+            )}
+          </div>
+          
+          <div style={{
+            fontSize: '14px',
+            fontWeight: index === currentStep ? 'bold' : 'normal',
+            color: index === currentStep ? '#0f172a' : '#64748b',
+            marginLeft: '8px',
+            marginRight: '16px'
+          }}>
+            {step.title}
+          </div>
+          
+          {index < steps.length - 1 && (
+            <div style={{
+              height: '1px',
+              width: '24px',
+              backgroundColor: '#e2e8f0',
+              marginRight: '16px'
+            }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+  
+  /**
+   * Render basic information step
+   */
+  const renderBasicStep = () => (
+    <div className="step-basic">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        Basic County Information
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{
+            display: 'block',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            marginBottom: '8px'
+          }}>
             County Name *
           </label>
           <input
             type="text"
-            id="name"
-            name="name"
-            value={county.name || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. Benton"
+            value={countyData.name}
+            onChange={(e) => handleChange('name', e.target.value)}
             style={{
               width: '100%',
               padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.name ? '1px solid #ef4444' : '1px solid #e5e7eb'
+              border: validationErrors.name ? '1px solid #ef4444' : '1px solid #cbd5e1',
+              borderRadius: '6px',
+              fontSize: '16px'
             }}
+            placeholder="Enter county name"
           />
-          {errors.name && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.name}
+          {validationErrors.name && (
+            <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+              {validationErrors.name}
             </div>
           )}
         </div>
         
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="state" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{
+            display: 'block',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            marginBottom: '8px'
+          }}>
             State *
           </label>
-          <input
-            type="text"
-            id="state"
-            name="state"
-            value={county.state || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. Washington"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.state ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.state && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.state}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="fips" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            FIPS Code *
-          </label>
-          <input
-            type="text"
-            id="fips"
-            name="fips"
-            value={county.fips || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. 53005"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.fips ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.fips && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.fips}
-            </div>
-          )}
-        </div>
-        
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="timezone" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Timezone
-          </label>
           <select
-            id="timezone"
-            name="timezone"
-            value={county.timezone || ''}
-            onChange={handleCountyFormChange}
+            value={countyData.state}
+            onChange={(e) => handleChange('state', e.target.value)}
             style={{
               width: '100%',
               padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.timezone ? '1px solid #ef4444' : '1px solid #e5e7eb'
+              border: validationErrors.state ? '1px solid #ef4444' : '1px solid #cbd5e1',
+              borderRadius: '6px',
+              fontSize: '16px'
             }}
           >
-            <option value="">Select Timezone</option>
-            <option value="America/Los_Angeles">Pacific Time (PT)</option>
-            <option value="America/Denver">Mountain Time (MT)</option>
-            <option value="America/Chicago">Central Time (CT)</option>
-            <option value="America/New_York">Eastern Time (ET)</option>
-            <option value="America/Anchorage">Alaska Time (AKT)</option>
-            <option value="Pacific/Honolulu">Hawaii Time (HT)</option>
+            <option value="">Select a state</option>
+            {[
+              'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+              'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+              'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+              'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+              'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+            ].map(state => (
+              <option key={state} value={state}>{state}</option>
+            ))}
           </select>
-          {errors.timezone && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.timezone}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '16px' }}>
-        Contact Information
-      </h3>
-      
-      <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="contactName" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Contact Name *
-          </label>
-          <input
-            type="text"
-            id="contactName"
-            name="contactName"
-            value={county.contactName || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. John Smith"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.contactName ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.contactName && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.contactName}
+          {validationErrors.state && (
+            <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+              {validationErrors.state}
             </div>
           )}
         </div>
         
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="contactEmail" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Contact Email *
-          </label>
-          <input
-            type="email"
-            id="contactEmail"
-            name="contactEmail"
-            value={county.contactEmail || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. john.smith@example.gov"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.contactEmail ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.contactEmail && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.contactEmail}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="contactPhone" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Contact Phone
-          </label>
-          <input
-            type="text"
-            id="contactPhone"
-            name="contactPhone"
-            value={county.contactPhone || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. (555) 123-4567"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.contactPhone ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.contactPhone && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.contactPhone}
-            </div>
-          )}
-        </div>
-        
-        <div className="form-group" style={{ flex: 1 }}>
-          <label htmlFor="assessorWebsite" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Assessor Website
-          </label>
-          <input
-            type="text"
-            id="assessorWebsite"
-            name="assessorWebsite"
-            value={county.assessorWebsite || ''}
-            onChange={handleCountyFormChange}
-            placeholder="e.g. https://www.bentoncounty.gov/assessor"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: errors.assessorWebsite ? '1px solid #ef4444' : '1px solid #e5e7eb'
-            }}
-          />
-          {errors.assessorWebsite && (
-            <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-              {errors.assessorWebsite}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="form-group" style={{ marginBottom: '16px' }}>
-        <label htmlFor="assessorAddress" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-          Assessor Office Address
-        </label>
-        <textarea
-          id="assessorAddress"
-          name="assessorAddress"
-          value={county.assessorAddress || ''}
-          onChange={handleCountyFormChange}
-          placeholder="e.g. 123 Main St, City, State 12345"
-          rows={3}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            border: errors.assessorAddress ? '1px solid #ef4444' : '1px solid #e5e7eb',
-            resize: 'vertical'
-          }}
-        />
-        {errors.assessorAddress && (
-          <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-            {errors.assessorAddress}
-          </div>
-        )}
-      </div>
-      
-      <div className="form-group" style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-          Data Access Level
-        </label>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          {['public', 'restricted', 'private'].map(level => (
-            <label key={level} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="dataAccess"
-                value={level}
-                checked={county.dataAccess === level}
-                onChange={handleCountyFormChange}
-                style={{ marginRight: '8px' }}
-              />
-              {level.charAt(0).toUpperCase() + level.slice(1)}
+        <div style={{ marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              marginBottom: '8px'
+            }}>
+              Population
             </label>
-          ))}
-        </div>
-        {errors.dataAccess && (
-          <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-            {errors.dataAccess}
+            <input
+              type="number"
+              value={countyData.properties.population || ''}
+              onChange={(e) => handleChange('properties.population', e.target.value ? parseInt(e.target.value) : undefined)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '16px'
+              }}
+              placeholder="Enter population"
+            />
           </div>
-        )}
+          
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              marginBottom: '8px'
+            }}>
+              Area (sq mi)
+            </label>
+            <input
+              type="number"
+              value={countyData.properties.area || ''}
+              onChange={(e) => handleChange('properties.area', e.target.value ? parseFloat(e.target.value) : undefined)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '16px'
+              }}
+              placeholder="Enter area"
+            />
+          </div>
+        </div>
+        
+        <div>
+          <label style={{
+            display: 'block',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            marginBottom: '8px'
+          }}>
+            Estimated Parcel Count
+          </label>
+          <input
+            type="number"
+            value={countyData.properties.parcelCount || ''}
+            onChange={(e) => handleChange('properties.parcelCount', e.target.value ? parseInt(e.target.value) : undefined)}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              fontSize: '16px'
+            }}
+            placeholder="Enter parcel count"
+          />
+        </div>
       </div>
       
-      <div className="form-group">
-        <label htmlFor="notes" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-          Notes
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          value={county.notes || ''}
-          onChange={handleCountyFormChange}
-          placeholder="Additional notes about this county..."
-          rows={4}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            border: '1px solid #e5e7eb',
-            resize: 'vertical'
-          }}
-        />
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Provide the basic information about the county. Fields marked with * are required.
+        </div>
       </div>
     </div>
   );
   
-  // Data sources form
-  const renderDataSourcesForm = () => (
-    <div className="data-sources-form">
-      {/* Error messages */}
-      {errors.dataSourcesRequired && (
-        <div className="error" style={{ 
-          color: '#ef4444', 
-          backgroundColor: '#fee2e2',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          marginBottom: '16px'
-        }}>
-          {errors.dataSourcesRequired}
-        </div>
-      )}
+  /**
+   * Render contacts step
+   */
+  const renderContactsStep = () => (
+    <div className="step-contacts">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        County Contacts
+      </h2>
       
-      {errors.dataSourcesUnconfigured && (
-        <div className="error" style={{ 
-          color: '#ef4444', 
-          backgroundColor: '#fee2e2',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          marginBottom: '16px'
-        }}>
-          {errors.dataSourcesUnconfigured}
-        </div>
-      )}
-      
-      {/* Data sources list */}
-      <div className="data-sources-list" style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '8px',
-        marginBottom: '16px'
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
       }}>
-        {dataSources.map((dataSource, index) => (
-          <div 
-            key={dataSource.id}
-            className={`data-source-item ${currentDataSourceIndex === index ? 'active' : ''}`}
+        {countyData.contacts.map((contact, index) => (
+          <div
+            key={index}
             style={{
-              padding: '12px',
-              borderRadius: '4px',
-              border: '1px solid #e5e7eb',
-              backgroundColor: currentDataSourceIndex === index ? '#f9fafb' : 'white',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'pointer'
+              marginBottom: '24px',
+              paddingBottom: '24px',
+              borderBottom: index < countyData.contacts.length - 1 ? '1px solid #e2e8f0' : 'none'
             }}
-            onClick={() => selectDataSource(index)}
           >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 'bold' }}>{dataSource.name}</div>
-              <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                {dataSource.type.charAt(0).toUpperCase() + dataSource.type.slice(1)} - 
-                {dataSource.format.toUpperCase()}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                Contact #{index + 1}
+              </h3>
+              
+              {countyData.contacts.length > 1 && (
+                <button
+                  onClick={() => {
+                    setCountyData(prev => ({
+                      ...prev,
+                      contacts: prev.contacts.filter((_, i) => i !== index)
+                    }));
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#fef2f2',
+                    color: '#ef4444',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginBottom: '8px'
+                }}>
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={contact.name}
+                  onChange={(e) => handleChange(`contacts.${index}.name`, e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: validationErrors[`contacts.${index}.name`] ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter name"
+                />
+                {validationErrors[`contacts.${index}.name`] && (
+                  <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+                    {validationErrors[`contacts.${index}.name`]}
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginBottom: '8px'
+                }}>
+                  Role *
+                </label>
+                <input
+                  type="text"
+                  value={contact.role}
+                  onChange={(e) => handleChange(`contacts.${index}.role`, e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: validationErrors[`contacts.${index}.role`] ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter role (e.g., GIS Manager)"
+                />
+                {validationErrors[`contacts.${index}.role`] && (
+                  <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+                    {validationErrors[`contacts.${index}.role`]}
+                  </div>
+                )}
               </div>
             </div>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {/* Configuration status */}
-              <div style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: dataSource.isConfigured ? '#dcfce7' : '#fee2e2',
-                color: dataSource.isConfigured ? '#16a34a' : '#b91c1c',
-                fontSize: '14px'
-              }}>
-                {dataSource.isConfigured ? 'Configured' : 'Not Configured'}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginBottom: '8px'
+                }}>
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={contact.email}
+                  onChange={(e) => handleChange(`contacts.${index}.email`, e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: validationErrors[`contacts.${index}.email`] ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter email"
+                />
+                {validationErrors[`contacts.${index}.email`] && (
+                  <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+                    {validationErrors[`contacts.${index}.email`]}
+                  </div>
+                )}
               </div>
               
-              {/* Mapping status */}
-              {dataSource.isConfigured && (
-                <div style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: dataSource.mappingComplete ? '#dcfce7' : '#fef9c3',
-                  color: dataSource.mappingComplete ? '#16a34a' : '#854d0e',
-                  fontSize: '14px'
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginBottom: '8px'
                 }}>
-                  {dataSource.mappingComplete ? 'Mapped' : 'Needs Mapping'}
-                </div>
-              )}
-              
-              {/* Delete button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteDataSource(index);
-                }}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Delete
-              </button>
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={contact.phone || ''}
+                  onChange={(e) => handleChange(`contacts.${index}.phone`, e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter phone number (optional)"
+                />
+              </div>
             </div>
           </div>
         ))}
         
-        {dataSources.length === 0 && (
-          <div style={{ 
-            padding: '24px', 
-            textAlign: 'center', 
-            backgroundColor: '#f9fafb',
-            borderRadius: '4px',
-            border: '1px dashed #e5e7eb',
-            color: '#6b7280'
-          }}>
-            No data sources added yet. Click "Add Data Source" to begin.
-          </div>
-        )}
+        <button
+          onClick={() => {
+            setCountyData(prev => ({
+              ...prev,
+              contacts: [
+                ...prev.contacts,
+                { name: '', role: '', email: '' }
+              ]
+            }));
+          }}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#f1f5f9',
+            border: '1px solid #cbd5e1',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <User size={16} />
+          Add Another Contact
+        </button>
       </div>
       
-      {/* Add data source button */}
-      <button
-        onClick={addDataSource}
-        style={{
-          padding: '8px 12px',
-          borderRadius: '4px',
-          backgroundColor: '#e0f2fe',
-          color: '#0369a1',
-          border: '1px solid #bae6fd',
-          cursor: 'pointer',
-          marginBottom: '24px'
-        }}
-      >
-        + Add Data Source
-      </button>
-      
-      {/* Data source configuration form */}
-      {currentDataSourceIndex >= 0 && (
-        <div className="data-source-form" style={{ 
-          padding: '16px',
-          backgroundColor: '#f9fafb',
+      {validationErrors.contacts && (
+        <div style={{
+          backgroundColor: '#fef2f2',
           borderRadius: '8px',
-          border: '1px solid #e5e7eb'
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '24px'
         }}>
+          <AlertCircle size={20} color="#ef4444" />
+          <div style={{ fontSize: '14px', color: '#7f1d1d' }}>
+            {validationErrors.contacts}
+          </div>
+        </div>
+      )}
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Add contacts who will be responsible for this county's data in the system.
+          At least one contact is required.
+        </div>
+      </div>
+    </div>
+  );
+  
+  /**
+   * Render GIS data sources step
+   */
+  const renderGISStep = () => (
+    <div className="step-gis">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        GIS Data Sources
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Current Data Sources
+        </h3>
+        
+        {countyData.gisDataSources.length > 0 ? (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 120px 100px',
+              padding: '8px 16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px 6px 0 0',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#64748b'
+            }}>
+              <div>Name</div>
+              <div>Type</div>
+              <div>Status</div>
+              <div>Actions</div>
+            </div>
+            
+            {countyData.gisDataSources.map((source) => (
+              <div 
+                key={source.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 120px 120px 100px',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #e2e8f0',
+                  alignItems: 'center'
+                }}
+              >
+                <div style={{ fontWeight: 'bold' }}>
+                  {source.name}
+                  {source.description && (
+                    <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 'normal' }}>
+                      {source.description}
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ textTransform: 'capitalize' }}>
+                  {source.type.replace(/_/g, ' ')}
+                </div>
+                
+                <div>
+                  <div style={{ 
+                    display: 'inline-block',
+                    padding: '4px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    backgroundColor: 
+                      source.status === 'ready' ? '#dcfce7' :
+                      source.status === 'processing' ? '#fef9c3' :
+                      source.status === 'error' ? '#fee2e2' :
+                      '#f1f5f9',
+                    color:
+                      source.status === 'ready' ? '#16a34a' :
+                      source.status === 'processing' ? '#ca8a04' :
+                      source.status === 'error' ? '#dc2626' :
+                      '#64748b'
+                  }}>
+                    {source.status}
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => handleDataSourceTest(source.id)}
+                    disabled={testingSource === source.id}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      cursor: testingSource === source.id ? 'default' : 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      opacity: testingSource === source.id ? 0.7 : 1
+                    }}
+                  >
+                    {testingSource === source.id ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={14} />
+                    )}
+                    Test
+                  </button>
+                  
+                  <button
+                    onClick={() => handleDataSourceRemove(source.id)}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: '#fef2f2',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      color: '#ef4444'
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            padding: '24px',
+            textAlign: 'center',
+            backgroundColor: '#f8fafc',
+            borderRadius: '6px',
+            color: '#64748b',
+            marginBottom: '24px'
+          }}>
+            No data sources added yet
+          </div>
+        )}
+        
+        <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Configure Data Source
+            Add Data Source
           </h3>
           
-          <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label htmlFor="name" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-                Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={dataSources[currentDataSourceIndex].name}
-                onChange={handleDataSourceFormChange}
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: '1fr 120px 100px',
+            gap: '16px'
+          }}>
+            <select
+              id="data-source-select"
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '16px'
+              }}
+            >
+              <option value="">Select a data source</option>
+              {availableDataSources
+                .filter(source => !countyData.gisDataSources.some(s => s.id === source.id))
+                .map(source => (
+                  <option key={source.id} value={source.id}>
+                    {source.name} ({source.type.replace(/_/g, ' ')})
+                  </option>
+                ))
+              }
+            </select>
+            
+            <button
+              onClick={() => {
+                const select = document.getElementById('data-source-select') as HTMLSelectElement;
+                if (select.value) {
+                  const source = availableDataSources.find(s => s.id === select.value);
+                  if (source) {
+                    handleDataSourceSelect(source);
+                    select.value = '';
+                  }
+                }
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Add Source
+            </button>
+          </div>
+        </div>
+        
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Upload New Data
+          </h3>
+          
+          <div style={{
+            border: '2px dashed #cbd5e1',
+            borderRadius: '6px',
+            padding: '24px',
+            textAlign: 'center',
+            cursor: 'pointer'
+          }}>
+            <Upload size={24} style={{ margin: '0 auto 16px' }} />
+            <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              Drag & Drop or Click to Upload
+            </div>
+            <div style={{ fontSize: '14px', color: '#64748b' }}>
+              Supported formats: Shapefiles, GeoJSON, File Geodatabase (.gdb)
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {validationErrors.gisDataSources && (
+        <div style={{
+          backgroundColor: '#fef2f2',
+          borderRadius: '8px',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '24px'
+        }}>
+          <AlertCircle size={20} color="#ef4444" />
+          <div style={{ fontSize: '14px', color: '#7f1d1d' }}>
+            {validationErrors.gisDataSources}
+          </div>
+        </div>
+      )}
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Add GIS data sources for this county. You can select from existing sources or upload new data.
+          At least one GIS data source is required.
+        </div>
+      </div>
+    </div>
+  );
+  
+  /**
+   * Render valuation system step
+   */
+  const renderValuationStep = () => (
+    <div className="step-valuation">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        Valuation System Integration
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Current Valuation System
+        </h3>
+        
+        {countyData.valuationSystem ? (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 150px 150px',
+              padding: '8px 16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px 6px 0 0',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#64748b'
+            }}>
+              <div>Name</div>
+              <div>Type</div>
+              <div>Connection Status</div>
+              <div>Actions</div>
+            </div>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 150px 150px',
+              padding: '12px 16px',
+              borderBottom: '1px solid #e2e8f0',
+              alignItems: 'center'
+            }}>
+              <div style={{ fontWeight: 'bold' }}>
+                {countyData.valuationSystem.name}
+              </div>
+              
+              <div style={{ textTransform: 'capitalize' }}>
+                {countyData.valuationSystem.type}
+              </div>
+              
+              <div>
+                <div style={{ 
+                  display: 'inline-block',
+                  padding: '4px 8px',
+                  borderRadius: '9999px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  backgroundColor: 
+                    countyData.valuationSystem.connectionStatus === 'connected' ? '#dcfce7' :
+                    countyData.valuationSystem.connectionStatus === 'pending' ? '#fef9c3' :
+                    countyData.valuationSystem.connectionStatus === 'disconnected' ? '#fee2e2' :
+                    '#f1f5f9',
+                  color:
+                    countyData.valuationSystem.connectionStatus === 'connected' ? '#16a34a' :
+                    countyData.valuationSystem.connectionStatus === 'pending' ? '#ca8a04' :
+                    countyData.valuationSystem.connectionStatus === 'disconnected' ? '#dc2626' :
+                    '#64748b'
+                }}>
+                  {countyData.valuationSystem.connectionStatus}
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => handleValuationSystemTest()}
+                  disabled={testingSource === 'valuation'}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    cursor: testingSource === 'valuation' ? 'default' : 'pointer',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    opacity: testingSource === 'valuation' ? 0.7 : 1
+                  }}
+                >
+                  {testingSource === 'valuation' ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  Test Connection
+                </button>
+                
+                <button
+                  onClick={() => setCountyData(prev => ({ ...prev, valuationSystem: undefined }))}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#fef2f2',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#ef4444'
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+            
+            {countyData.valuationSystem.url && (
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                fontSize: '14px',
+                color: '#64748b'
+              }}>
+                <strong>URL:</strong> {countyData.valuationSystem.url}
+              </div>
+            )}
+            
+            {countyData.valuationSystem.lastSync && (
+              <div style={{
+                padding: '12px 16px',
+                fontSize: '14px',
+                color: '#64748b'
+              }}>
+                <strong>Last Sync:</strong> {countyData.valuationSystem.lastSync.toLocaleString()}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              padding: '24px',
+              textAlign: 'center',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              color: '#64748b'
+            }}>
+              No valuation system configured
+            </div>
+          </div>
+        )}
+        
+        {!countyData.valuationSystem && (
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Select Valuation System
+            </h3>
+            
+            <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px',
+              gap: '16px'
+            }}>
+              <select
+                id="valuation-system-select"
                 style={{
-                  width: '100%',
                   padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: errors.dataSource_name ? '1px solid #ef4444' : '1px solid #e5e7eb'
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '16px'
                 }}
-              />
-              {errors.dataSource_name && (
-                <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-                  {errors.dataSource_name}
+              >
+                <option value="">Select a valuation system</option>
+                {availableValuationSystems.map(system => (
+                  <option key={system.id} value={system.id}>
+                    {system.name} ({system.type})
+                  </option>
+                ))}
+              </select>
+              
+              <button
+                onClick={() => {
+                  const select = document.getElementById('valuation-system-select') as HTMLSelectElement;
+                  if (select.value) {
+                    const system = availableValuationSystems.find(s => s.id === select.value);
+                    if (system) {
+                      handleValuationSystemSelect(system);
+                      select.value = '';
+                    }
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Add System
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <div style={{
+          padding: '16px',
+          backgroundColor: '#fef9c3',
+          borderRadius: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <AlertCircle size={20} color="#ca8a04" />
+          <div style={{ fontSize: '14px', color: '#854d0e' }}>
+            Note: A valuation system integration is optional, but recommended for full functionality.
+          </div>
+        </div>
+      </div>
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Configure a valuation system integration. This allows TerraFusion to synchronize with your
+          Computer Assisted Mass Appraisal (CAMA) or other valuation system.
+        </div>
+      </div>
+    </div>
+  );
+  
+  /**
+   * Render tax system step
+   */
+  const renderTaxStep = () => (
+    <div className="step-tax">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        Tax System Integration
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Current Tax System
+        </h3>
+        
+        {countyData.taxSystem ? (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 150px 150px',
+              padding: '8px 16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px 6px 0 0',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#64748b'
+            }}>
+              <div>Name</div>
+              <div>Type</div>
+              <div>Connection Status</div>
+              <div>Actions</div>
+            </div>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px 150px 150px',
+              padding: '12px 16px',
+              borderBottom: '1px solid #e2e8f0',
+              alignItems: 'center'
+            }}>
+              <div style={{ fontWeight: 'bold' }}>
+                {countyData.taxSystem.name}
+              </div>
+              
+              <div style={{ textTransform: 'capitalize' }}>
+                {countyData.taxSystem.type}
+              </div>
+              
+              <div>
+                <div style={{ 
+                  display: 'inline-block',
+                  padding: '4px 8px',
+                  borderRadius: '9999px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  backgroundColor: 
+                    countyData.taxSystem.connectionStatus === 'connected' ? '#dcfce7' :
+                    countyData.taxSystem.connectionStatus === 'pending' ? '#fef9c3' :
+                    countyData.taxSystem.connectionStatus === 'disconnected' ? '#fee2e2' :
+                    '#f1f5f9',
+                  color:
+                    countyData.taxSystem.connectionStatus === 'connected' ? '#16a34a' :
+                    countyData.taxSystem.connectionStatus === 'pending' ? '#ca8a04' :
+                    countyData.taxSystem.connectionStatus === 'disconnected' ? '#dc2626' :
+                    '#64748b'
+                }}>
+                  {countyData.taxSystem.connectionStatus}
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => handleTaxSystemTest()}
+                  disabled={testingSource === 'tax'}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    cursor: testingSource === 'tax' ? 'default' : 'pointer',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    opacity: testingSource === 'tax' ? 0.7 : 1
+                  }}
+                >
+                  {testingSource === 'tax' ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  Test Connection
+                </button>
+                
+                <button
+                  onClick={() => setCountyData(prev => ({ ...prev, taxSystem: undefined }))}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#fef2f2',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#ef4444'
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+            
+            {countyData.taxSystem.url && (
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                fontSize: '14px',
+                color: '#64748b'
+              }}>
+                <strong>URL:</strong> {countyData.taxSystem.url}
+              </div>
+            )}
+            
+            {countyData.taxSystem.lastSync && (
+              <div style={{
+                padding: '12px 16px',
+                fontSize: '14px',
+                color: '#64748b'
+              }}>
+                <strong>Last Sync:</strong> {countyData.taxSystem.lastSync.toLocaleString()}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              padding: '24px',
+              textAlign: 'center',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              color: '#64748b'
+            }}>
+              No tax system configured
+            </div>
+          </div>
+        )}
+        
+        {!countyData.taxSystem && (
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Select Tax System
+            </h3>
+            
+            <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: '1fr 120px',
+              gap: '16px'
+            }}>
+              <select
+                id="tax-system-select"
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '16px'
+                }}
+              >
+                <option value="">Select a tax system</option>
+                {availableTaxSystems.map(system => (
+                  <option key={system.id} value={system.id}>
+                    {system.name} ({system.type})
+                  </option>
+                ))}
+              </select>
+              
+              <button
+                onClick={() => {
+                  const select = document.getElementById('tax-system-select') as HTMLSelectElement;
+                  if (select.value) {
+                    const system = availableTaxSystems.find(s => s.id === select.value);
+                    if (system) {
+                      handleTaxSystemSelect(system);
+                      select.value = '';
+                    }
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Add System
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <div style={{
+          padding: '16px',
+          backgroundColor: '#fef9c3',
+          borderRadius: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <AlertCircle size={20} color="#ca8a04" />
+          <div style={{ fontSize: '14px', color: '#854d0e' }}>
+            Note: A tax system integration is optional, but recommended for full functionality.
+          </div>
+        </div>
+      </div>
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Configure a tax system integration. This allows TerraFusion to synchronize with your
+          tax collection or assessment system.
+        </div>
+      </div>
+    </div>
+  );
+  
+  /**
+   * Render data access step
+   */
+  const renderAccessStep = () => {
+    // Initialize dataAccess if not already set
+    if (!countyData.dataAccess) {
+      handleChange('dataAccess', {
+        parcelLayers: [],
+        zoningSources: [],
+        dataRefreshSchedule: 'daily',
+        dataSecurityLevel: 'private',
+        apiAccessEnabled: false,
+        exportFormats: ['shapefile', 'geojson', 'csv']
+      });
+    }
+    
+    const dataAccess = countyData.dataAccess || {
+      parcelLayers: [],
+      zoningSources: [],
+      dataRefreshSchedule: 'daily',
+      dataSecurityLevel: 'private',
+      apiAccessEnabled: false,
+      exportFormats: ['shapefile', 'geojson', 'csv']
+    };
+    
+    return (
+      <div className="step-access">
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+          Data Access Configuration
+        </h2>
+        
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          padding: '24px',
+          marginBottom: '24px'
+        }}>
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Parcel Layers
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Select parcel layers to include in this county:
+              </label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {countyData.gisDataSources
+                  .filter(source => source.status === 'ready')
+                  .map(source => (
+                    <label
+                      key={source.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 12px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dataAccess.parcelLayers.includes(source.id)}
+                        onChange={(e) => {
+                          const parcelLayers = e.target.checked
+                            ? [...dataAccess.parcelLayers, source.id]
+                            : dataAccess.parcelLayers.filter(id => id !== source.id);
+                          
+                          handleChange('dataAccess.parcelLayers', parcelLayers);
+                        }}
+                      />
+                      <span style={{ fontSize: '14px' }}>{source.name}</span>
+                    </label>
+                  ))
+                }
+              </div>
+              
+              {validationErrors['dataAccess.parcelLayers'] && (
+                <div style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
+                  {validationErrors['dataAccess.parcelLayers']}
                 </div>
               )}
             </div>
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Zoning Sources
+            </h3>
             
-            <div className="form-group" style={{ flex: 1 }}>
-              <label htmlFor="type" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-                Data Type
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Select zoning sources to include (optional):
               </label>
-              <select
-                id="type"
-                name="type"
-                value={dataSources[currentDataSourceIndex].type}
-                onChange={handleDataSourceFormChange}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: errors.dataSource_type ? '1px solid #ef4444' : '1px solid #e5e7eb'
-                }}
-              >
-                <option value="parcels">Parcels</option>
-                <option value="taxCodes">Tax Codes</option>
-                <option value="sales">Sales</option>
-                <option value="plats">Plats</option>
-                <option value="documents">Documents</option>
-                <option value="other">Other</option>
-              </select>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {countyData.gisDataSources
+                  .filter(source => source.status === 'ready')
+                  .map(source => (
+                    <label
+                      key={source.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 12px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dataAccess.zoningSources.includes(source.id)}
+                        onChange={(e) => {
+                          const zoningSources = e.target.checked
+                            ? [...dataAccess.zoningSources, source.id]
+                            : dataAccess.zoningSources.filter(id => id !== source.id);
+                          
+                          handleChange('dataAccess.zoningSources', zoningSources);
+                        }}
+                      />
+                      <span style={{ fontSize: '14px' }}>{source.name}</span>
+                    </label>
+                  ))
+                }
+              </div>
             </div>
           </div>
           
-          <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label htmlFor="format" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-                File Format
-              </label>
-              <select
-                id="format"
-                name="format"
-                value={dataSources[currentDataSourceIndex].format}
-                onChange={handleDataSourceFormChange}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: errors.dataSource_format ? '1px solid #ef4444' : '1px solid #e5e7eb'
-                }}
-              >
-                <option value="csv">CSV</option>
-                <option value="shp">Shapefile</option>
-                <option value="gdb">File Geodatabase</option>
-                <option value="api">API Endpoint</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Data Refresh Schedule
+            </h3>
             
-            <div className="form-group" style={{ flex: 1 }}>
-              <label htmlFor="refreshFrequency" style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-                Refresh Frequency
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                How often should data be refreshed?
               </label>
+              
               <select
-                id="refreshFrequency"
-                name="refreshFrequency"
-                value={dataSources[currentDataSourceIndex].refreshFrequency}
-                onChange={handleDataSourceFormChange}
+                value={dataAccess.dataRefreshSchedule}
+                onChange={(e) => handleChange('dataAccess.dataRefreshSchedule', e.target.value)}
                 style={{
-                  width: '100%',
                   padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: errors.dataSource_refreshFrequency ? '1px solid #ef4444' : '1px solid #e5e7eb'
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  width: '100%',
+                  maxWidth: '300px'
                 }}
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-                <option value="manual">Manual</option>
+                <option value="manual">Manual Only</option>
               </select>
             </div>
           </div>
           
-          <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-              Upload Sample File
-            </label>
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Data Security
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Data security level:
+              </label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="securityLevel"
+                    value="public"
+                    checked={dataAccess.dataSecurityLevel === 'public'}
+                    onChange={() => handleChange('dataAccess.dataSecurityLevel', 'public')}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>Public</div>
+                    <div style={{ fontSize: '14px', color: '#64748b' }}>Data is accessible to all users</div>
+                  </div>
+                </label>
+                
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="securityLevel"
+                    value="private"
+                    checked={dataAccess.dataSecurityLevel === 'private'}
+                    onChange={() => handleChange('dataAccess.dataSecurityLevel', 'private')}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>Private</div>
+                    <div style={{ fontSize: '14px', color: '#64748b' }}>Data is accessible to authorized users only</div>
+                  </div>
+                </label>
+                
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="securityLevel"
+                    value="restricted"
+                    checked={dataAccess.dataSecurityLevel === 'restricted'}
+                    onChange={() => handleChange('dataAccess.dataSecurityLevel', 'restricted')}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>Restricted</div>
+                    <div style={{ fontSize: '14px', color: '#64748b' }}>Data is accessible to county administrators only</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              API Access
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                   padding: '8px 12px',
+                  backgroundColor: '#f8fafc',
                   borderRadius: '4px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
                   cursor: 'pointer'
                 }}
               >
-                Choose File
-              </button>
-              <div style={{ color: '#6b7280' }}>
-                {dataSources[currentDataSourceIndex].path 
-                  ? dataSources[currentDataSourceIndex].path 
-                  : 'No file selected'}
+                <input
+                  type="checkbox"
+                  checked={dataAccess.apiAccessEnabled}
+                  onChange={(e) => handleChange('dataAccess.apiAccessEnabled', e.target.checked)}
+                />
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>Enable API Access</div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>Allow access to data via the TerraFusion API</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+              Export Formats
+            </h3>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Select allowed export formats:
+              </label>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {(['shapefile', 'geojson', 'csv', 'pdf'] as const).map(format => (
+                  <label
+                    key={format}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={dataAccess.exportFormats.includes(format)}
+                      onChange={(e) => {
+                        const exportFormats = e.target.checked
+                          ? [...dataAccess.exportFormats, format]
+                          : dataAccess.exportFormats.filter(f => f !== format);
+                        
+                        handleChange('dataAccess.exportFormats', exportFormats);
+                      }}
+                    />
+                    <span style={{ fontSize: '14px', textTransform: 'uppercase' }}>{format}</span>
+                  </label>
+                ))}
               </div>
             </div>
-            {errors.dataSource_path && (
-              <div className="error" style={{ color: '#ef4444', fontSize: '14px', marginTop: '4px' }}>
-                {errors.dataSource_path}
-              </div>
-            )}
           </div>
         </div>
-      )}
-    </div>
-  );
-  
-  // Field mapping form
-  const renderFieldMappingForm = () => {
-    if (currentDataSourceIndex < 0 || !dataSources[currentDataSourceIndex]) {
-      return (
-        <div style={{ 
-          padding: '24px', 
-          textAlign: 'center', 
-          backgroundColor: '#f9fafb',
-          borderRadius: '4px',
-          border: '1px dashed #e5e7eb',
-          color: '#6b7280'
+        
+        {validationErrors.dataAccess && (
+          <div style={{
+            backgroundColor: '#fef2f2',
+            borderRadius: '8px',
+            padding: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '24px'
+          }}>
+            <AlertCircle size={20} color="#ef4444" />
+            <div style={{ fontSize: '14px', color: '#7f1d1d' }}>
+              {validationErrors.dataAccess}
+            </div>
+          </div>
+        )}
+        
+        <div style={{
+          backgroundColor: '#f0f9ff',
+          borderRadius: '8px',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
         }}>
-          Please select a data source to map fields.
+          <HelpCircle size={20} color="#0ea5e9" />
+          <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+            Configure how data can be accessed and exported from the TerraFusion platform.
+            At least one parcel layer is required.
+          </div>
         </div>
-      );
-    }
-    
-    const dataSource = dataSources[currentDataSourceIndex];
-    const mappings = fieldMappings[dataSource.id] || [];
-    
-    return (
-      <div className="field-mapping-form">
-        {/* Error messages */}
-        {errors.fieldMappingsIncomplete && (
-          <div className="error" style={{ 
-            color: '#ef4444', 
-            backgroundColor: '#fee2e2',
-            padding: '8px 12px',
-            borderRadius: '4px',
+      </div>
+    );
+  };
+  
+  /**
+   * Render validation step
+   */
+  const renderValidationStep = () => (
+    <div className="step-validation">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        Data Validation
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             marginBottom: '16px'
           }}>
-            {errors.fieldMappingsIncomplete}
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0 }}>
+              Validation Issues
+            </h3>
+            
+            <button
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <RefreshCw size={16} />
+              Revalidate
+            </button>
           </div>
-        )}
-        
-        {errors.fieldMappingsDuplicate && (
-          <div className="error" style={{ 
-            color: '#ef4444', 
-            backgroundColor: '#fee2e2',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            marginBottom: '16px'
-          }}>
-            {errors.fieldMappingsDuplicate}
-          </div>
-        )}
-        
-        {/* Data source selector */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>
-            Select Data Source to Map
-          </label>
-          <select
-            value={currentDataSourceIndex}
-            onChange={(e) => selectDataSource(parseInt(e.target.value))}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: '1px solid #e5e7eb',
-              width: '100%'
-            }}
-          >
-            {dataSources.map((ds, index) => (
-              <option key={ds.id} value={index}>
-                {ds.name} ({ds.type.charAt(0).toUpperCase() + ds.type.slice(1)})
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        {/* Field mappings */}
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Field Mappings
-          </h3>
           
-          {mappings.length === 0 ? (
-            <div style={{ 
-              padding: '24px', 
-              textAlign: 'center', 
-              backgroundColor: '#f9fafb',
-              borderRadius: '4px',
-              border: '1px dashed #e5e7eb',
-              color: '#6b7280'
-            }}>
-              No fields detected for this data source. Please upload a sample file first.
+          {countyData.validationIssues.length > 0 ? (
+            <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '50px 1fr 120px 120px',
+                padding: '8px 16px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '6px 6px 0 0',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                color: '#64748b'
+              }}>
+                <div>Type</div>
+                <div>Message</div>
+                <div>Component</div>
+                <div>Status</div>
+              </div>
+              
+              {countyData.validationIssues.map((issue, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '50px 1fr 120px 120px',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid #e2e8f0',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    {issue.type === 'error' ? (
+                      <AlertCircle size={18} color="#ef4444" />
+                    ) : (
+                      <AlertCircle size={18} color="#f59e0b" />
+                    )}
+                  </div>
+                  
+                  <div style={{ fontSize: '14px' }}>
+                    {issue.message}
+                  </div>
+                  
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    {issue.component}
+                  </div>
+                  
+                  <div>
+                    {issue.resolved ? (
+                      <div style={{ 
+                        display: 'inline-block',
+                        padding: '4px 8px',
+                        borderRadius: '9999px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        backgroundColor: '#dcfce7',
+                        color: '#16a34a'
+                      }}>
+                        Resolved
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleResolveIssue(index, true)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Resolve
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Source Field</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Target Field</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Data Type</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Required</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Transform</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mappings.map((mapping, index) => (
-                  <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      {mapping.sourceField}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <select
-                        value={mapping.targetField}
-                        onChange={(e) => handleFieldMappingChange(mapping.sourceField, 'targetField', e.target.value)}
-                        style={{
-                          padding: '6px 8px',
-                          borderRadius: '4px',
-                          border: !mapping.targetField && mapping.required ? '1px solid #ef4444' : '1px solid #e5e7eb',
-                          width: '100%'
-                        }}
-                      >
-                        <option value="">-- Select Target Field --</option>
-                        {dataSource.type === 'parcels' && [
-                          <option key="parcelId" value="parcelId">Parcel ID</option>,
-                          <option key="ownerName" value="ownerName">Owner Name</option>,
-                          <option key="address" value="address">Address</option>,
-                          <option key="city" value="city">City</option>,
-                          <option key="state" value="state">State</option>,
-                          <option key="zip" value="zip">ZIP</option>,
-                          <option key="legalDescription" value="legalDescription">Legal Description</option>,
-                          <option key="landValue" value="landValue">Land Value</option>,
-                          <option key="improvementValue" value="improvementValue">Improvement Value</option>,
-                          <option key="totalValue" value="totalValue">Total Value</option>,
-                          <option key="acres" value="acres">Acres</option>,
-                          <option key="yearBuilt" value="yearBuilt">Year Built</option>,
-                          <option key="geometry" value="geometry">Geometry</option>
-                        ]}
-                        
-                        {dataSource.type === 'taxCodes' && [
-                          <option key="taxCode" value="taxCode">Tax Code</option>,
-                          <option key="description" value="description">Description</option>,
-                          <option key="rate" value="rate">Rate</option>,
-                          <option key="jurisdiction" value="jurisdiction">Jurisdiction</option>,
-                          <option key="effectiveDate" value="effectiveDate">Effective Date</option>,
-                          <option key="expirationDate" value="expirationDate">Expiration Date</option>
-                        ]}
-                        
-                        {dataSource.type === 'sales' && [
-                          <option key="parcelId" value="parcelId">Parcel ID</option>,
-                          <option key="saleDate" value="saleDate">Sale Date</option>,
-                          <option key="salePrice" value="salePrice">Sale Price</option>,
-                          <option key="buyerName" value="buyerName">Buyer Name</option>,
-                          <option key="sellerName" value="sellerName">Seller Name</option>,
-                          <option key="validSale" value="validSale">Valid Sale</option>,
-                          <option key="documentNumber" value="documentNumber">Document Number</option>
-                        ]}
-                        
-                        <option value="ignore">-- Ignore This Field --</option>
-                      </select>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <select
-                        value={mapping.dataType}
-                        onChange={(e) => handleFieldMappingChange(mapping.sourceField, 'dataType', e.target.value)}
-                        style={{
-                          padding: '6px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb',
-                          width: '100%'
-                        }}
-                      >
-                        <option value="string">String</option>
-                        <option value="number">Number</option>
-                        <option value="date">Date</option>
-                        <option value="boolean">Boolean</option>
-                        <option value="geometry">Geometry</option>
-                      </select>
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={mapping.required}
-                        onChange={(e) => handleFieldMappingChange(mapping.sourceField, 'required', e.target.checked)}
-                      />
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <input
-                        type="text"
-                        placeholder="e.g. UPPER(), TRIM()"
-                        value={mapping.transform || ''}
-                        onChange={(e) => handleFieldMappingChange(mapping.sourceField, 'transform', e.target.value)}
-                        style={{
-                          padding: '6px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb',
-                          width: '100%'
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{
+              padding: '24px',
+              textAlign: 'center',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              color: '#64748b'
+            }}>
+              No validation issues found
+            </div>
           )}
         </div>
         
-        {/* Save mapping button */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={validateFieldMappings}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '4px',
-              backgroundColor: '#0284c7',
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            Save Mapping
-          </button>
-        </div>
-      </div>
-    );
-  };
-  
-  // Validation form
-  const renderValidationForm = () => {
-    // Count mapped fields
-    const totalFields = Object.values(fieldMappings)
-      .reduce((acc, mappings) => acc + mappings.length, 0);
-    
-    const mappedFields = Object.values(fieldMappings)
-      .reduce((acc, mappings) => acc + mappings.filter(m => m.targetField && m.targetField !== 'ignore').length, 0);
-    
-    // Count required fields
-    const requiredFields = Object.values(fieldMappings)
-      .reduce((acc, mappings) => acc + mappings.filter(m => m.required).length, 0);
-    
-    const mappedRequiredFields = Object.values(fieldMappings)
-      .reduce((acc, mappings) => acc + mappings.filter(m => m.required && m.targetField && m.targetField !== 'ignore').length, 0);
-    
-    return (
-      <div className="validation-form">
-        <div className="validation-summary" style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Validation Summary
+            Data Quality Summary
           </h3>
           
-          <div style={{ 
-            padding: '16px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-              {/* County information */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>GIS Data Sources</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                {countyData.gisDataSources.filter(source => source.status === 'ready').length} / {countyData.gisDataSources.length} Ready
+              </div>
+            </div>
+            
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>Validation Issues</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                {countyData.validationIssues.filter(issue => !issue.resolved).length} Unresolved
+              </div>
+            </div>
+            
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>Contacts</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                {countyData.contacts.length} Configured
+              </div>
+            </div>
+            
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>Integration Status</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                {(countyData.valuationSystem?.connectionStatus === 'connected' ? 1 : 0) +
+                  (countyData.taxSystem?.connectionStatus === 'connected' ? 1 : 0)} / 2
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style={{
+          padding: '16px',
+          backgroundColor: countyData.validationIssues.some(issue => issue.type === 'error' && !issue.resolved)
+            ? '#fef2f2'
+            : '#f0fdf4',
+          borderRadius: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          {countyData.validationIssues.some(issue => issue.type === 'error' && !issue.resolved) ? (
+            <>
+              <AlertCircle size={20} color="#ef4444" />
+              <div style={{ fontSize: '14px', color: '#7f1d1d' }}>
+                There are unresolved errors that must be fixed before county activation.
+              </div>
+            </>
+          ) : (
+            <>
+              <Check size={20} color="#16a34a" />
+              <div style={{ fontSize: '14px', color: '#14532d' }}>
+                All critical issues resolved. You can proceed to activate the county.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      
+      {validationErrors.validation && (
+        <div style={{
+          backgroundColor: '#fef2f2',
+          borderRadius: '8px',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '24px'
+        }}>
+          <AlertCircle size={20} color="#ef4444" />
+          <div style={{ fontSize: '14px', color: '#7f1d1d' }}>
+            {validationErrors.validation}
+          </div>
+        </div>
+      )}
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Review and resolve any validation issues before activating the county.
+          Critical errors must be resolved, while warnings can be acknowledged.
+        </div>
+      </div>
+    </div>
+  );
+  
+  /**
+   * Render activation step
+   */
+  const renderActivateStep = () => (
+    <div className="step-activate">
+      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>
+        County Activation
+      </h2>
+      
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        padding: '24px',
+        marginBottom: '24px'
+      }}>
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Configuration Summary
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: '16px' }}>
+            <div style={{ color: '#64748b' }}>County:</div>
+            <div style={{ fontWeight: 'bold' }}>{countyData.name}, {countyData.state}</div>
+            
+            <div style={{ color: '#64748b' }}>Status:</div>
+            <div>
               <div style={{ 
-                padding: '16px',
-                backgroundColor: validateCountyInformation() ? '#dcfce7' : '#fee2e2',
-                borderRadius: '4px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
+                display: 'inline-block',
+                padding: '4px 8px',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                backgroundColor: 
+                  countyData.status === 'active' ? '#dcfce7' :
+                  countyData.status === 'pending' ? '#fef9c3' :
+                  countyData.status === 'draft' ? '#f1f5f9' :
+                  '#f1f5f9',
+                color:
+                  countyData.status === 'active' ? '#16a34a' :
+                  countyData.status === 'pending' ? '#ca8a04' :
+                  countyData.status === 'draft' ? '#64748b' :
+                  '#64748b'
               }}>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: validateCountyInformation() ? '#16a34a' : '#b91c1c',
-                  marginBottom: '8px'
-                }}>
-                  County Information
-                </div>
-                <div style={{ fontSize: '14px', textAlign: 'center' }}>
-                  {validateCountyInformation() 
-                    ? 'All required information provided' 
-                    : 'Missing required information'}
+                {countyData.status}
+              </div>
+            </div>
+            
+            <div style={{ color: '#64748b' }}>Contacts:</div>
+            <div>{countyData.contacts.length}</div>
+            
+            <div style={{ color: '#64748b' }}>GIS Data Sources:</div>
+            <div>{countyData.gisDataSources.length}</div>
+            
+            <div style={{ color: '#64748b' }}>Valuation System:</div>
+            <div>{countyData.valuationSystem?.name || 'Not configured'}</div>
+            
+            <div style={{ color: '#64748b' }}>Tax System:</div>
+            <div>{countyData.taxSystem?.name || 'Not configured'}</div>
+            
+            <div style={{ color: '#64748b' }}>Data Refresh:</div>
+            <div style={{ textTransform: 'capitalize' }}>{countyData.dataAccess?.dataRefreshSchedule || 'Not configured'}</div>
+            
+            <div style={{ color: '#64748b' }}>Data Security:</div>
+            <div style={{ textTransform: 'capitalize' }}>{countyData.dataAccess?.dataSecurityLevel || 'Not configured'}</div>
+          </div>
+        </div>
+        
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Activation Status
+          </h3>
+          
+          {countyData.status === 'active' ? (
+            <div style={{
+              padding: '24px',
+              backgroundColor: '#f0fdf4',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              color: '#14532d'
+            }}>
+              <Check size={24} color="#16a34a" />
+              <div>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>County Successfully Activated</div>
+                <div style={{ fontSize: '14px' }}>
+                  {countyData.name}, {countyData.state} is now active and ready for use in TerraFusion.
                 </div>
               </div>
-              
-              {/* Data sources */}
-              <div style={{ 
-                padding: '16px',
-                backgroundColor: validateDataSources() ? '#dcfce7' : '#fee2e2',
-                borderRadius: '4px',
+            </div>
+          ) : (
+            countyData.validationIssues.some(issue => issue.type === 'error' && !issue.resolved) ? (
+              <div style={{
+                padding: '24px',
+                backgroundColor: '#fef2f2',
+                borderRadius: '6px',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center'
+                gap: '12px',
+                color: '#7f1d1d',
+                marginBottom: '24px'
               }}>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: validateDataSources() ? '#16a34a' : '#b91c1c',
-                  marginBottom: '8px'
-                }}>
-                  Data Sources
-                </div>
-                <div style={{ fontSize: '14px', textAlign: 'center' }}>
-                  {validateDataSources() 
-                    ? `${dataSources.length} data ${dataSources.length === 1 ? 'source' : 'sources'} configured` 
-                    : 'Data sources missing or not configured'}
+                <AlertCircle size={24} color="#ef4444" />
+                <div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Cannot Activate County</div>
+                  <div style={{ fontSize: '14px' }}>
+                    There are unresolved validation errors that must be fixed before activation.
+                    Please go back to the Validation step and resolve all errors.
+                  </div>
                 </div>
               </div>
-              
-              {/* Field mappings */}
-              <div style={{ 
-                padding: '16px',
-                backgroundColor: mappedRequiredFields === requiredFields ? '#dcfce7' : '#fee2e2',
-                borderRadius: '4px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: mappedRequiredFields === requiredFields ? '#16a34a' : '#b91c1c',
-                  marginBottom: '8px'
-                }}>
-                  Required Fields
-                </div>
-                <div style={{ fontSize: '14px', textAlign: 'center' }}>
-                  {mappedRequiredFields} of {requiredFields} required fields mapped
-                </div>
-              </div>
-              
-              {/* Total mappings */}
-              <div style={{ 
-                padding: '16px',
+            ) : (
+              <div style={{
+                padding: '24px',
                 backgroundColor: '#f0f9ff',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center'
+                gap: '12px',
+                color: '#0c4a6e',
+                marginBottom: '24px'
               }}>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: '#0369a1',
-                  marginBottom: '8px'
-                }}>
-                  Total Fields
-                </div>
-                <div style={{ fontSize: '14px', textAlign: 'center' }}>
-                  {mappedFields} of {totalFields} total fields mapped
+                <Clock size={24} color="#0ea5e9" />
+                <div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Ready for Activation</div>
+                  <div style={{ fontSize: '14px' }}>
+                    All required configuration is complete. You can now activate this county
+                    to make it available in TerraFusion.
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="validation-details" style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Data Source Validation
-          </h3>
+            )
+          )}
           
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Data Source</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Fields</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Required Fields</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataSources.map((dataSource) => {
-                const ds_mappings = fieldMappings[dataSource.id] || [];
-                const total = ds_mappings.length;
-                const mapped = ds_mappings.filter(m => m.targetField && m.targetField !== 'ignore').length;
-                const required = ds_mappings.filter(m => m.required).length;
-                const mappedRequired = ds_mappings.filter(m => m.required && m.targetField && m.targetField !== 'ignore').length;
-                const isValid = mappedRequired === required;
-                
-                return (
-                  <tr key={dataSource.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '12px 16px' }}>{dataSource.name}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {dataSource.type.charAt(0).toUpperCase() + dataSource.type.slice(1)}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>{mapped} of {total}</td>
-                    <td style={{ padding: '12px 16px' }}>{mappedRequired} of {required}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: isValid ? '#dcfce7' : '#fee2e2',
-                        color: isValid ? '#16a34a' : '#b91c1c',
-                        display: 'inline-block'
-                      }}>
-                        {isValid ? 'Valid' : 'Invalid'}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              
-              {dataSources.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '16px', textAlign: 'center', color: '#6b7280' }}>
-                    No data sources configured
-                  </td>
-                </tr>
+          {countyData.status !== 'active' && !countyData.validationIssues.some(issue => issue.type === 'error' && !issue.resolved) && (
+            <button
+              onClick={handleActivate}
+              disabled={isActivating}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#0ea5e9',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: isActivating ? 'default' : 'pointer',
+                opacity: isActivating ? 0.7 : 1
+              }}
+            >
+              {isActivating ? (
+                <>
+                  <RefreshCw size={20} className="animate-spin" />
+                  Activating County...
+                </>
+              ) : (
+                <>
+                  Activate County
+                </>
               )}
-            </tbody>
-          </table>
+            </button>
+          )}
         </div>
         
-        <div style={{ 
+        <div style={{
           padding: '16px',
-          backgroundColor: '#fef9c3',
-          borderRadius: '8px',
-          border: '1px solid #fde047',
-          marginBottom: '24px'
+          backgroundColor: '#f8fafc',
+          borderRadius: '6px'
         }}>
-          <div style={{ fontWeight: 'bold', color: '#854d0e', marginBottom: '8px' }}>
-            Validation Notes
-          </div>
-          <div style={{ fontSize: '14px', color: '#854d0e' }}>
-            In a production environment, this step would perform more detailed validation including:
-            <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
-              <li>Sample data import to verify field mappings</li>
-              <li>Geometry validation for spatial data</li>
-              <li>Data type checking and conversion validation</li>
-              <li>Relationship validation between different data sources</li>
-              <li>Unique identifier verification</li>
-            </ul>
-          </div>
+          <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+            What happens next?
+          </h4>
+          
+          <ul style={{ paddingLeft: '20px', fontSize: '14px', color: '#64748b' }}>
+            <li style={{ marginBottom: '4px' }}>Initial data sync will begin after activation</li>
+            <li style={{ marginBottom: '4px' }}>County will appear in TerraFusion platform dashboards</li>
+            <li style={{ marginBottom: '4px' }}>Contacts will receive email notifications</li>
+            <li style={{ marginBottom: '4px' }}>Regular data updates will occur based on the configured schedule</li>
+            <li>You can modify county settings at any time after activation</li>
+          </ul>
         </div>
       </div>
-    );
-  };
-  
-  // Review form
-  const renderReviewForm = () => {
-    return (
-      <div className="review-form">
-        <div style={{ 
-          padding: '16px',
-          backgroundColor: '#dcfce7',
-          borderRadius: '8px',
-          border: '1px solid #86efac',
-          marginBottom: '24px',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontWeight: 'bold', color: '#16a34a', marginBottom: '8px', fontSize: '18px' }}>
-            County Configuration Complete
-          </div>
-          <div style={{ color: '#16a34a' }}>
-            The county has been configured successfully and is ready to be activated in the system.
-          </div>
+      
+      <div style={{
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="#0ea5e9" />
+        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>
+          Review the county configuration and activate it when ready.
+          You can always make changes to the configuration after activation.
         </div>
-        
-        <div className="review-section" style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            County Information
-          </h3>
-          
-          <div style={{ 
-            padding: '16px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>County Name</div>
-                <div>{county.name}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>State</div>
-                <div>{county.state}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>FIPS Code</div>
-                <div>{county.fips}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Timezone</div>
-                <div>{county.timezone || 'Not specified'}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Contact Name</div>
-                <div>{county.contactName}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Contact Email</div>
-                <div>{county.contactEmail}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Contact Phone</div>
-                <div>{county.contactPhone || 'Not specified'}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Data Access Level</div>
-                <div>{county.dataAccess.charAt(0).toUpperCase() + county.dataAccess.slice(1)}</div>
-              </div>
-            </div>
-            
-            {county.assessorAddress && (
-              <div style={{ marginTop: '16px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Assessor Office Address</div>
-                <div>{county.assessorAddress}</div>
-              </div>
-            )}
-            
-            {county.notes && (
-              <div style={{ marginTop: '16px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Notes</div>
-                <div>{county.notes}</div>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="review-section" style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>
-            Configured Data Sources
-          </h3>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Data Source</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Format</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Refresh</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left' }}>Mapped Fields</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataSources.map((dataSource) => {
-                const ds_mappings = fieldMappings[dataSource.id] || [];
-                const mappedCount = ds_mappings.filter(m => m.targetField && m.targetField !== 'ignore').length;
-                const totalCount = ds_mappings.length;
-                
-                return (
-                  <tr key={dataSource.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '12px 16px' }}>{dataSource.name}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {dataSource.type.charAt(0).toUpperCase() + dataSource.type.slice(1)}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {dataSource.format.toUpperCase()}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {dataSource.refreshFrequency.charAt(0).toUpperCase() + dataSource.refreshFrequency.slice(1)}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {mappedCount} of {totalCount}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        
-        <div style={{ 
-          padding: '16px',
-          backgroundColor: '#f0f9ff',
-          borderRadius: '8px',
-          border: '1px solid #bae6fd',
-          marginBottom: '24px'
-        }}>
-          <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>
-            Next Steps
-          </div>
-          <div style={{ color: '#0369a1' }}>
-            <ol style={{ marginLeft: '20px' }}>
-              <li>Click "Complete" to finalize the county onboarding process</li>
-              <li>The system will create necessary database tables and configurations</li>
-              <li>Initial data import workflows will be scheduled according to the refresh frequencies</li>
-              <li>Users with appropriate permissions will be able to access this county's data</li>
-              <li>You will be redirected to the county dashboard where you can monitor the progress</li>
-            </ol>
-          </div>
-        </div>
-        
-        {/* Submit error */}
-        {errors.submitError && (
-          <div style={{ 
-            padding: '16px',
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            borderRadius: '8px',
-            marginBottom: '24px'
-          }}>
-            {errors.submitError}
-          </div>
-        )}
       </div>
-    );
-  };
+    </div>
+  );
   
-  // Render content based on current step
+  /**
+   * Render the step content based on the current step
+   */
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return renderCountyInformationForm();
-      case 1:
-        return renderDataSourcesForm();
-      case 2:
-        return renderFieldMappingForm();
-      case 3:
-        return renderValidationForm();
-      case 4:
-        return renderReviewForm();
+    const currentStepId = steps[currentStep].id;
+    
+    switch (currentStepId) {
+      case 'basic':
+        return renderBasicStep();
+      case 'contacts':
+        return renderContactsStep();
+      case 'gis':
+        return renderGISStep();
+      case 'valuation':
+        return renderValuationStep();
+      case 'tax':
+        return renderTaxStep();
+      case 'access':
+        return renderAccessStep();
+      case 'validation':
+        return renderValidationStep();
+      case 'activate':
+        return renderActivateStep();
       default:
         return null;
     }
   };
   
+  /**
+   * Render navigation buttons
+   */
+  const renderNavButtons = () => (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginTop: '24px',
+      padding: '16px 0',
+      borderTop: '1px solid #e2e8f0'
+    }}>
+      <button
+        onClick={handlePrevious}
+        disabled={currentStep === 0}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          backgroundColor: currentStep === 0 ? '#f1f5f9' : '#f8fafc',
+          border: '1px solid #cbd5e1',
+          borderRadius: '6px',
+          cursor: currentStep === 0 ? 'default' : 'pointer',
+          opacity: currentStep === 0 ? 0.5 : 1
+        }}
+      >
+        <ChevronLeft size={16} />
+        Previous
+      </button>
+      
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: 'white',
+            border: '1px solid #cbd5e1',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+        
+        {currentStep < steps.length - 1 ? (
+          <button
+            onClick={handleNext}
+            disabled={isSaving || Object.keys(validationErrors).length > 0}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              backgroundColor: Object.keys(validationErrors).length > 0 ? '#f1f5f9' : '#0ea5e9',
+              color: Object.keys(validationErrors).length > 0 ? '#64748b' : 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: Object.keys(validationErrors).length > 0 || isSaving ? 'default' : 'pointer',
+              opacity: Object.keys(validationErrors).length > 0 || isSaving ? 0.7 : 1
+            }}
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Next
+                <ChevronRight size={16} />
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onCancel}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              backgroundColor: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Finish
+          </button>
+        )}
+      </div>
+    </div>
+  );
+  
   return (
     <div 
       className={`county-onboarding-workflow ${className}`}
       style={{
+        padding: '24px',
+        maxWidth: '1200px',
+        margin: '0 auto',
         ...style
       }}
     >
-      {/* Header */}
-      <div className="workflow-header" style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
-          County Onboarding Workflow
-        </h1>
-        <p style={{ color: '#6b7280' }}>
-          This workflow will guide you through the process of onboarding a new county into the TerraFusion platform.
-        </p>
-      </div>
-      
-      {/* Steps indicator */}
-      <div className="steps-indicator" style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {steps.map((step, index) => (
-            <React.Fragment key={index}>
-              {/* Step */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div 
-                  className="step-circle"
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: index < currentStep 
-                      ? '#0284c7'
-                      : index === currentStep
-                        ? '#0ea5e9'
-                        : '#e5e7eb',
-                    color: index <= currentStep ? 'white' : '#6b7280',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 'bold',
-                    marginBottom: '8px'
-                  }}
-                >
-                  {index < currentStep ? '✓' : index + 1}
-                </div>
-                <div style={{ 
-                  fontWeight: index === currentStep ? 'bold' : 'normal',
-                  fontSize: '14px',
-                  color: index <= currentStep ? 'black' : '#6b7280',
-                  width: '120px',
-                  textAlign: 'center'
-                }}>
-                  {step.title}
-                </div>
-                <div style={{ 
-                  fontSize: '12px',
-                  color: '#6b7280',
-                  width: '120px',
-                  textAlign: 'center'
-                }}>
-                  {step.description}
-                </div>
-              </div>
-              
-              {/* Connector line */}
-              {index < steps.length - 1 && (
-                <div style={{ 
-                  height: '2px', 
-                  flex: 1, 
-                  backgroundColor: index < currentStep ? '#0284c7' : '#e5e7eb',
-                  margin: '0 8px'
-                }} />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
+      {/* Step indicator */}
+      {renderStepIndicator()}
       
       {/* Step content */}
-      <div className="step-content" style={{ 
-        marginBottom: '24px',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb',
-        padding: '24px'
-      }}>
-        {renderStepContent()}
-      </div>
+      {renderStepContent()}
       
       {/* Navigation buttons */}
-      <div className="navigation-buttons" style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <button
-          onClick={goToPreviousStep}
-          disabled={currentStep === 0 || loading}
-          style={{
-            padding: '10px 16px',
-            borderRadius: '4px',
-            backgroundColor: 'white',
-            border: '1px solid #e5e7eb',
-            cursor: currentStep === 0 || loading ? 'not-allowed' : 'pointer',
-            opacity: currentStep === 0 || loading ? 0.5 : 1
-          }}
-        >
-          Previous
-        </button>
-        
-        <button
-          onClick={goToNextStep}
-          disabled={loading}
-          style={{
-            padding: '10px 16px',
-            borderRadius: '4px',
-            backgroundColor: '#0284c7',
-            color: 'white',
-            border: 'none',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          {loading 
-            ? 'Processing...' 
-            : currentStep === steps.length - 1 
-              ? 'Complete' 
-              : 'Next'}
-        </button>
-      </div>
+      {renderNavButtons()}
+      
+      {/* CSS for animations */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
+        `}
+      </style>
     </div>
   );
 };
