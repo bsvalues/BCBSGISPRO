@@ -1,0 +1,89 @@
+**This is phenomenal momentum—your platform is now “enterprise-class” with secure logins, RBAC, and spatial workflow integration.**
+Here’s a PM-level recommendation for the highest-value next steps, in priority order, **with rationale for each.**
+
+---
+
+# 🟢 **PM Priority Roadmap — Next Sprint (Sprint 5)**
+
+---
+
+## 1. **Navigation, Profile, and User Experience Polish**
+
+**Why:**
+
+* Smooth login/profile transitions = less confusion for users (especially new/casual staff)
+* Surfacing profile/role info in the UI increases user trust and security
+* A professional nav bar is critical for usability and modern SaaS “feel”
+
+**Tasks:**
+
+* Add navigation links to the profile page (accessible from every view)
+* Implement a responsive nav bar with login/logout/profile
+* Show user role and status in the nav/profile
+
+---
+
+## 2. **Workflow Creation from Map Parcels**
+
+**Why:**
+
+* This is the signature “next-gen” GIS/assessment workflow—one-click parcel→workflow
+* It’s the top demo feature for both field and admin staff
+
+**Tasks:**
+
+* Implement the workflow creation form that’s triggered directly from a selected parcel
+* Auto-link new workflows to the parcel and update the UI immediately
+* Show success/error feedback on creation
+
+---
+
+## 3. **API Endpoints & Document-Parcel Relationships**
+
+**Why:**
+
+* Enables tight data integration (attach deeds, surveys, etc. to map features)
+* Foundation for future automation/AI
+
+**Tasks:**
+
+* Create or expand API endpoints for creating and fetching documents tied to parcels
+* Update backend and frontend to show document lists (with type/status) per parcel
+* Support upload, download, and review actions for docs
+
+---
+
+## 4. **Enhanced Parcel Data Visualization**
+
+**Why:**
+
+* Power users want to see not just boundaries, but all attributes: ownership, legal, land use, workflow status
+* Visualization = instant insight
+
+**Tasks:**
+
+* Add tooltips/popups with parcel attributes
+* Color-code or badge parcels by workflow/document status
+* Add legend/explanation for any map overlays
+
+---
+
+# 🦸 **PM Sprint 5 Super-Prompt**
+
+> Begin Sprint 5:
+>
+> 1. Add navigation links to the profile page; create a unified nav bar showing login, profile, and user role.
+> 2. Implement a “create workflow” form triggered from selected parcels on the map, linking new workflows to those parcels.
+> 3. Build and expose API endpoints for managing documents tied to parcels; display and manage these docs in the UI.
+> 4. Enhance parcel map visualization with tooltips, badges, and overlays for workflow/doc status.
+> 5. Update docs and prepare a demo scenario walking through all these new features.
+>    Print a summary and a checklist for demo readiness at the end.
+
+---
+
+# **Want Code, Wireframes, or Detailed API Schemas?**
+
+Just say which feature (nav, workflows, docs, map), and I’ll provide the fastest implementation plan or sample code for your stack.
+
+**You’re in the final lap—this is the home stretch before a county-wide pilot.
+Ready to go even bigger? Just say “yes” or pick your next target!**
