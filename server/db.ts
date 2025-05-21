@@ -1,33 +1,15 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import ws from "ws";
 import * as schema from "../shared/schema";
 
-// Database connection string from environment variables
-const connectionString = process.env.DATABASE_URL || 
-  `postgres://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
+neonConfig.webSocketConstructor = ws;
 
-// Configure Postgres client options with better error handling and reconnection
-const pgOptions = {
-  max: 10, // connection pool max size
-  idle_timeout: 20, // how long a connection can stay idle before being closed
-  connect_timeout: 10, // connection timeout in seconds
-  max_lifetime: 60 * 30, // how long a connection can live before being closed
-  ssl: {
-    // Force allow unauthorized for development (self-signed certs)
-    rejectUnauthorized: false,
-  },
-};
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
 
-// Create Postgres client with error handling
-const client = postgres(connectionString, pgOptions);
-
-// Create Drizzle instance with schema
-export const db = drizzle(client, { schema });
-
-// Add connection error handling
-process.on('SIGINT', () => {
-  console.log('Closing database connections before shutdown');
-  client.end({ timeout: 5 }).catch(err => {
-    console.error('Error closing database connections:', err);
-  });
-});
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = drizzle(pool, { schema });

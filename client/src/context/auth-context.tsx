@@ -1,47 +1,111 @@
-import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { useCurrentUser } from '../hooks/use-current-user';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User } from '../../../shared/schema';
 
-// Define the Authentication Context interface
 interface AuthContextType {
-  user: any | null;
+  user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<any>;
-  logout: () => Promise<boolean>;
+  login: (provider: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-// Create the context with a default value
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isLoading: true,
-  isAuthenticated: false,
-  login: async () => null,
-  logout: async () => false
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Export the hook to use this context
-export const useAuth = () => useContext(AuthContext);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-// Provider component
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, isLoading, login, logout } = useCurrentUser();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Update authentication state when user data changes
   useEffect(() => {
-    setIsAuthenticated(!!user);
-  }, [user]);
+    // Check if user is already logged in when component mounts
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/user', {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
-  // Context value
-  const value = {
-    user,
-    isLoading,
-    isAuthenticated,
-    login,
-    logout
+  const login = async (provider: string) => {
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ provider }),
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData.user);
+      } else {
+        throw new Error('Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const logout = async () => {
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('/api/auth/logout', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setUser(null);
+      } else {
+        throw new Error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <AuthContext.Provider 
+      value={{ 
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        logout
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export default AuthContext;
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  
+  return context;
+};

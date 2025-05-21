@@ -54,17 +54,18 @@ const ProtectedRoute = ({ component: Component, roles, ...rest }: any) => {
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <RbacAuthProvider>
-        <WebSocketProvider>
-          {/* The AgentSystemProvider provides access to AI agents via context */}
-          <AgentSystemProvider>
-            {/* 
-              AgentWebSocketHandler manages the WebSocket communication for AI agents
-              and processes the Claude API calls
-            */}
-            <AgentWebSocketHandler>
-              <div className="app">
-                <Switch>
+      <AuthProvider>
+        <RbacAuthProvider>
+          <WebSocketProvider>
+            {/* The AgentSystemProvider provides access to AI agents via context */}
+            <AgentSystemProvider>
+              {/* 
+                AgentWebSocketHandler manages the WebSocket communication for AI agents
+                and processes the Claude API calls
+              */}
+              <AgentWebSocketHandler>
+                <div className="app">
+                  <Switch>
                   <Route path="/" component={LandingPage} />
                   <Route path="/login" component={LoginPage} />
                   <Route path="/direct-login" component={DirectLoginPage} />
