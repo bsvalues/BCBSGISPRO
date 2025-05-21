@@ -590,54 +590,69 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
   /**
    * Update Leaflet layers
    */
-  const updateLeafletLayers = (map: any) => {
-    // Remove existing layers first
-    map.eachLayer((layer: any) => {
-      if (layer._url && layer._url.indexOf('tile.openstreetmap.org') === -1) {
-        map.removeLayer(layer);
-      }
-    });
+  const updateLeafletLayers = (map: any): any => {
+    if (!map) {
+      mapLogger.warn('Map instance not available for updating layers');
+      return null;
+    }
     
-    // Add new layers, sorted by z-index
-    const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
-    
-    sortedLayers.forEach(layer => {
-      if (!layer.visible) return;
+    try {
+      // Remove existing layers first
+      map.eachLayer((layer: any) => {
+        if (layer._url && layer._url.indexOf('tile.openstreetmap.org') === -1) {
+          map.removeLayer(layer);
+        }
+      });
       
-      const L = require('leaflet');
+      // Add new layers, sorted by z-index
+      const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
       
-      // Use type narrowing for layer type handling
-      const layerType = layer.type as LayerType;
+      sortedLayers.forEach(layer => {
+        if (!layer.visible) return;
+        
+        const L = require('leaflet');
+        
+        // Use type narrowing for layer type handling
+        const layerType = layer.type as LayerType;
+        
+        // Use separate conditions to avoid type comparison errors
+        if (layerType === 'vector' || layerType === 'point' || layerType === 'line' || layerType === 'polygon') {
+          // For vector data, we'd need to fetch the data and add it as GeoJSON
+          // This is a simplified implementation
+          if (layer.source) {
+            fetch(layer.source)
+              .then(response => response.json())
+              .then(data => {
+                L.geoJSON(data, {
+                  style: {
+                    color: layer.attributes?.outlineColor || '#000000',
+                    weight: layer.attributes?.outlineWidth || 1,
+                    opacity: layer.opacity,
+                    fillColor: layer.attributes?.fillColor || '#000000',
+                    fillOpacity: layer.opacity
+                  }
+                }).addTo(map);
+              })
+              .catch(error => {
+                mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
+              });
+          }
+        } else if ((['raster', 'imagery'] as LayerType[]).includes(layerType)) {
+          // For raster data, add as a tile layer
+          L.tileLayer(layer.source, {
+            opacity: layer.opacity,
+            zIndex: layer.zIndex
+          }).addTo(map);
+        }
+      });
       
-      // Use separate conditions to avoid type comparison errors
-      if (layerType === 'vector' || layerType === 'point' || layerType === 'line' || layerType === 'polygon') {
-        // For vector data, we'd need to fetch the data and add it as GeoJSON
-        // This is a simplified implementation
-        if (layer.source) {
-          fetch(layer.source)
-            .then(response => response.json())
-            .then(data => {
-              L.geoJSON(data, {
-                style: {
-                  color: layer.attributes?.outlineColor || '#000000',
-                  weight: layer.attributes?.outlineWidth || 1,
-                  opacity: layer.opacity,
-                  fillColor: layer.attributes?.fillColor || '#000000',
-                  fillOpacity: layer.opacity
-                }
-            }).addTo(map);
-          })
-          .catch(error => {
-            mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
-          });
-      } else if ((['raster', 'imagery'] as LayerType[]).includes(layerType)) {
-        // For raster data, add as a tile layer
-        L.tileLayer(layer.source, {
-          opacity: layer.opacity,
-          zIndex: layer.zIndex
-        }).addTo(map);
-      }
-    });
+      mapLogger.debug(`Updated ${sortedLayers.length} layers on Leaflet map`);
+      // Return reference to the updated map
+      return map;
+    } catch (error) {
+      mapLogger.error('Error updating Leaflet layers', error);
+      return map;
+    }
   };
   
   /**
