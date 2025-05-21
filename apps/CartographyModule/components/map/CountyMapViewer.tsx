@@ -603,7 +603,10 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
       
       const L = require('leaflet');
       
-      if (layer.type === 'vector') {
+      // Handle layer type with type guards
+      const layerType = layer.type as string;
+      
+      if (layerType === 'vector') {
         // For vector data, we'd need to fetch the data and add it as GeoJSON
         // This is a simplified implementation
         if (layer.source) {
@@ -623,7 +626,7 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
           .catch(error => {
             mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
           });
-      } else if (layer.type === 'raster') {
+      } else if (layerType === 'raster') {
         // For raster data, add as a tile layer
         L.tileLayer(layer.source, {
           opacity: layer.opacity,

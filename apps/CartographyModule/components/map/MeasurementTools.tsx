@@ -375,10 +375,10 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
           type: 'Feature',
           geometry: {
             type: 'Polygon',
-            coordinates: [closedPoints]
+            coordinates: [closedPoints as GeoJSONCoordinate[]]
           },
           properties: {}
-        });
+        } as GeoJSONFeature);
       }
       
       // Update or create the source
@@ -545,15 +545,15 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
     }
     
     // Create area conversions
-    const area: Record<string, number> = {
-      squareMeters
+    const area: { [unit: string]: number; squareMeters: number } = {
+      squareMeters: squareMeters
     };
     
     // Add converted values for area
     area[areaUnit] = convertArea(squareMeters, 'square-meters', areaUnit);
     
     // Create perimeter conversions
-    const perimeter: Record<string, number> = {
+    const perimeter: { [unit: string]: number; meters: number } = {
       meters: perimeterMeters
     };
     
