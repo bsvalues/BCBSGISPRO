@@ -15,11 +15,17 @@ import {
   Save,
   HelpCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Compass
 } from 'lucide-react';
+import { 
+  GeoJSONCoordinate, 
+  GeoJSONFeature, 
+  GeoJSONSource,
+  MeasurementType
+} from '../../../../libs/types';
 
 import { logger } from '../../../../libs/DevOps/utils/logger';
-import { MeasurementType } from './MapControls';
 
 // Create module-specific logger
 const measurementLogger = logger.withTags(['CartographyModule', 'MeasurementTools']);
@@ -503,7 +509,7 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
     }
     
     // Convert to selected unit
-    const total: Record<string, number> = {
+    const total: { [unit: string]: number; meters: number } = {
       meters: totalMeters
     };
     

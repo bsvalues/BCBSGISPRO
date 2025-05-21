@@ -53,43 +53,14 @@ export type MapProviderType = 'mapbox' | 'leaflet' | 'arcgis';
 
 // For backward compatibility
 
-/**
- * Measurement related types
- */
+// Complete measurement type enum for all component needs
 export enum MeasurementType {
   DISTANCE = 'distance',
   AREA = 'area',
+  PERIMETER = 'perimeter',
   ANGLE = 'angle',
+  BEARING = 'bearing',
   ELEVATION = 'elevation'
-}
-
-export type DistanceUnit = 'meters' | 'kilometers' | 'feet' | 'miles' | 'yards' | 'nauticalMiles';
-export type AreaUnit = 'squareMeters' | 'squareKilometers' | 'acres' | 'hectares' | 'squareFeet' | 'squareMiles';
-export type AngleUnit = 'degrees' | 'radians';
-
-export interface Measurement {
-  id: string;
-  type: MeasurementType;
-  points: GeoJSONCoordinate[];
-  distance?: {
-    [unit: string]: number;
-    meters: number;  // Base unit always included
-  };
-  area?: {
-    [unit: string]: number;
-    squareMeters: number;  // Base unit always included
-  };
-  angle?: {
-    [unit: string]: number;
-    degrees: number;  // Base unit always included
-  };
-  elevation?: {
-    min: number;
-    max: number;
-    gain: number;
-    loss: number;
-  };
-  timestamp: number;
 }
 export type MapProvider = MapProviderType;
 
@@ -148,15 +119,11 @@ export interface MapViewState {
 }
 
 /**
- * Measurement types
+ * Units for measurements 
+ * Extended from the enum-based MeasurementType above
  */
-export type MeasurementType = 'distance' | 'area' | 'angle';
-
-/**
- * Units for measurements
- */
-export type DistanceUnit = 'meters' | 'kilometers' | 'feet' | 'miles' | 'yards';
-export type AreaUnit = 'squareMeters' | 'squareKilometers' | 'acres' | 'squareFeet' | 'squareMiles';
+export type DistanceUnit = 'meters' | 'kilometers' | 'feet' | 'miles' | 'yards' | 'nauticalMiles';
+export type AreaUnit = 'squareMeters' | 'squareKilometers' | 'acres' | 'hectares' | 'squareFeet' | 'squareMiles';
 export type AngleUnit = 'degrees' | 'radians';
 
 /**
