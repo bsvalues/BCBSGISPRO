@@ -8,6 +8,10 @@ import {
   bentonCountyMaps,
   achievements,
   userAchievements,
+  counties,
+  parcels,
+  valuations,
+  mapLayers,
   type User,
   type InsertUser,
   type MapElement,
@@ -21,7 +25,15 @@ import {
   type Achievement,
   type InsertAchievement,
   type UserAchievement,
-  type InsertUserAchievement
+  type InsertUserAchievement,
+  type County,
+  type InsertCounty,
+  type Parcel,
+  type InsertParcel,
+  type Valuation,
+  type InsertValuation,
+  type MapLayer,
+  type InsertMapLayer
 } from '../shared/schema';
 
 // Define the interface that all storage implementations must implement
@@ -75,6 +87,41 @@ export interface IStorage {
   updateUserAchievementProgress(id: number, progress: number, metadata?: any): Promise<UserAchievement>;
   deleteUserAchievement(id: number): Promise<boolean>;
   getUserPoints(userId: number): Promise<number>; // Total points from all achievements
+  
+  // County operations
+  getCounties(): Promise<County[]>;
+  getCounty(id: string): Promise<County | undefined>;
+  createCounty(county: InsertCounty & { id: string }): Promise<County>;
+  updateCounty(county: County): Promise<County>;
+  deleteCounty(id: string): Promise<boolean>;
+  
+  // Parcel operations
+  getParcels(options?: { limit?: number, offset?: number }): Promise<Parcel[]>;
+  getParcel(id: string): Promise<Parcel | undefined>;
+  getParcelsByCounty(countyId: string, options?: { limit?: number, offset?: number }): Promise<Parcel[]>;
+  countParcelsByCounty(countyId: string): Promise<number>;
+  createParcel(parcel: InsertParcel & { id: string }): Promise<Parcel>;
+  updateParcel(parcel: Parcel): Promise<Parcel>;
+  deleteParcel(id: string): Promise<boolean>;
+  
+  // Valuation operations
+  getValuations(options?: { limit?: number, offset?: number }): Promise<Valuation[]>;
+  getValuation(id: string): Promise<Valuation | undefined>;
+  getValuationsByParcel(parcelId: string): Promise<Valuation[]>;
+  getValuationsByCounty(countyId: string, options?: { limit?: number, offset?: number }): Promise<Valuation[]>;
+  getRecentValuationsByCounty(countyId: string, limit?: number): Promise<Valuation[]>;
+  createValuation(valuation: InsertValuation & { id: string }): Promise<Valuation>;
+  updateValuation(valuation: Valuation): Promise<Valuation>;
+  deleteValuation(id: string): Promise<boolean>;
+  
+  // Map Layers operations
+  getLayers(options?: { limit?: number, offset?: number }): Promise<MapLayer[]>;
+  getLayer(id: string): Promise<MapLayer | undefined>;
+  getLayersByCounty(countyId: string): Promise<MapLayer[]>;
+  countLayersByCounty(countyId: string): Promise<number>;
+  createLayer(layer: InsertMapLayer & { id: string }): Promise<MapLayer>;
+  updateLayer(layer: MapLayer): Promise<MapLayer>;
+  deleteLayer(id: string): Promise<boolean>;
 }
 
 // Implementation of storage interface using the database
@@ -371,6 +418,252 @@ export class DatabaseStorage implements IStorage {
       const earnedPoints = Math.floor(item.points * (item.progress / 100));
       return total + earnedPoints;
     }, 0);
+  }
+
+  // County operations
+  async getCounties(): Promise<County[]> {
+    return db.select().from(counties).orderBy(asc(counties.name));
+  }
+
+  async getCounty(id: string): Promise<County | undefined> {
+    const [county] = await db.select().from(counties).where(eq(counties.id, id));
+    return county;
+  }
+
+  async createCounty(county: InsertCounty & { id: string }): Promise<County> {
+    const [newCounty] = await db.insert(counties).values(county).returning();
+    return newCounty;
+  }
+
+  async updateCounty(county: County): Promise<County> {
+    const [updatedCounty] = await db.update(counties)
+      .set({
+        ...county,
+        updatedAt: new Date()
+      })
+      .where(eq(counties.id, county.id))
+      .returning();
+      
+    if (!updatedCounty) {
+      throw new Error(`County with ID ${county.id} not found`);
+    }
+    
+    return updatedCounty;
+  }
+
+  async deleteCounty(id: string): Promise<boolean> {
+    await db.delete(counties).where(eq(counties.id, id));
+    return true;
+  }
+
+  // Parcel operations
+  async getParcels(options?: { limit?: number, offset?: number }): Promise<Parcel[]> {
+    let query = db.select().from(parcels).orderBy(asc(parcels.parcelNumber));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getParcel(id: string): Promise<Parcel | undefined> {
+    const [parcel] = await db.select().from(parcels).where(eq(parcels.id, id));
+    return parcel;
+  }
+
+  async getParcelsByCounty(countyId: string, options?: { limit?: number, offset?: number }): Promise<Parcel[]> {
+    let query = db.select()
+      .from(parcels)
+      .where(eq(parcels.countyId, countyId))
+      .orderBy(asc(parcels.parcelNumber));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async countParcelsByCounty(countyId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .where(eq(parcels.countyId, countyId));
+    
+    return result[0]?.count || 0;
+  }
+
+  async createParcel(parcel: InsertParcel & { id: string }): Promise<Parcel> {
+    const [newParcel] = await db.insert(parcels).values(parcel).returning();
+    return newParcel;
+  }
+
+  async updateParcel(parcel: Parcel): Promise<Parcel> {
+    const [updatedParcel] = await db.update(parcels)
+      .set({
+        ...parcel,
+        updatedAt: new Date()
+      })
+      .where(eq(parcels.id, parcel.id))
+      .returning();
+      
+    if (!updatedParcel) {
+      throw new Error(`Parcel with ID ${parcel.id} not found`);
+    }
+    
+    return updatedParcel;
+  }
+
+  async deleteParcel(id: string): Promise<boolean> {
+    await db.delete(parcels).where(eq(parcels.id, id));
+    return true;
+  }
+
+  // Valuation operations
+  async getValuations(options?: { limit?: number, offset?: number }): Promise<Valuation[]> {
+    let query = db.select().from(valuations).orderBy(desc(valuations.valuationDate));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getValuation(id: string): Promise<Valuation | undefined> {
+    const [valuation] = await db.select().from(valuations).where(eq(valuations.id, id));
+    return valuation;
+  }
+
+  async getValuationsByParcel(parcelId: string): Promise<Valuation[]> {
+    return db.select()
+      .from(valuations)
+      .where(eq(valuations.parcelId, parcelId))
+      .orderBy(desc(valuations.valuationDate));
+  }
+
+  async getValuationsByCounty(countyId: string, options?: { limit?: number, offset?: number }): Promise<Valuation[]> {
+    let query = db.select()
+      .from(valuations)
+      .where(eq(valuations.countyId, countyId))
+      .orderBy(desc(valuations.valuationDate));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getRecentValuationsByCounty(countyId: string, limit: number = 5): Promise<Valuation[]> {
+    return db.select()
+      .from(valuations)
+      .where(eq(valuations.countyId, countyId))
+      .orderBy(desc(valuations.valuationDate))
+      .limit(limit);
+  }
+
+  async createValuation(valuation: InsertValuation & { id: string }): Promise<Valuation> {
+    const [newValuation] = await db.insert(valuations).values(valuation).returning();
+    return newValuation;
+  }
+
+  async updateValuation(valuation: Valuation): Promise<Valuation> {
+    const [updatedValuation] = await db.update(valuations)
+      .set({
+        ...valuation,
+        updatedAt: new Date()
+      })
+      .where(eq(valuations.id, valuation.id))
+      .returning();
+      
+    if (!updatedValuation) {
+      throw new Error(`Valuation with ID ${valuation.id} not found`);
+    }
+    
+    return updatedValuation;
+  }
+
+  async deleteValuation(id: string): Promise<boolean> {
+    await db.delete(valuations).where(eq(valuations.id, id));
+    return true;
+  }
+
+  // Map Layers operations
+  async getLayers(options?: { limit?: number, offset?: number }): Promise<MapLayer[]> {
+    let query = db.select().from(mapLayers).orderBy(asc(mapLayers.name));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getLayer(id: string): Promise<MapLayer | undefined> {
+    const [layer] = await db.select().from(mapLayers).where(eq(mapLayers.id, id));
+    return layer;
+  }
+
+  async getLayersByCounty(countyId: string): Promise<MapLayer[]> {
+    return db.select()
+      .from(mapLayers)
+      .where(eq(mapLayers.countyId, countyId))
+      .orderBy(asc(mapLayers.name));
+  }
+
+  async countLayersByCounty(countyId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(mapLayers)
+      .where(eq(mapLayers.countyId, countyId));
+    
+    return result[0]?.count || 0;
+  }
+
+  async createLayer(layer: InsertMapLayer & { id: string }): Promise<MapLayer> {
+    const [newLayer] = await db.insert(mapLayers).values(layer).returning();
+    return newLayer;
+  }
+
+  async updateLayer(layer: MapLayer): Promise<MapLayer> {
+    const [updatedLayer] = await db.update(mapLayers)
+      .set({
+        ...layer,
+        updatedAt: new Date()
+      })
+      .where(eq(mapLayers.id, layer.id))
+      .returning();
+      
+    if (!updatedLayer) {
+      throw new Error(`Map layer with ID ${layer.id} not found`);
+    }
+    
+    return updatedLayer;
+  }
+
+  async deleteLayer(id: string): Promise<boolean> {
+    await db.delete(mapLayers).where(eq(mapLayers.id, id));
+    return true;
   }
 }
 

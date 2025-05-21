@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, integer, boolean, json } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, timestamp, integer, boolean, json, doublePrecision, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
@@ -152,3 +152,94 @@ export interface LegalDescriptionVisualization {
   estimatedArea: number;
   geometry?: any; // GeoJSON geometry
 }
+
+// County Assessment System Tables
+// Counties Table
+export const counties = pgTable('counties', {
+  id: uuid('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  state: varchar('state', { length: 2 }).notNull(),
+  population: integer('population'),
+  area: doublePrecision('area'), // in square miles
+  gisEnabled: boolean('gis_enabled').default(true),
+  boundaries: json('boundaries'), // GeoJSON boundary data
+  contact: json('contact'), // Contact information (address, phone, email)
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Parcels Table
+export const parcels = pgTable('parcels', {
+  id: uuid('id').primaryKey(),
+  parcelNumber: varchar('parcel_number', { length: 50 }).notNull().unique(),
+  countyId: uuid('county_id').notNull(), // Foreign key to counties
+  address: varchar('address', { length: 255 }),
+  owner: varchar('owner', { length: 150 }),
+  legalDescription: text('legal_description'),
+  acres: doublePrecision('acres'),
+  landUseCode: varchar('land_use_code', { length: 20 }),
+  zoning: varchar('zoning', { length: 50 }),
+  geometry: json('geometry'), // GeoJSON for parcel boundaries
+  metadata: json('metadata'), // Additional parcel data
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Valuations Table
+export const valuations = pgTable('valuations', {
+  id: uuid('id').primaryKey(),
+  parcelId: uuid('parcel_id').notNull(), // Foreign key to parcels
+  countyId: uuid('county_id').notNull(), // Foreign key to counties
+  valuationDate: timestamp('valuation_date').notNull(),
+  requestedBy: varchar('requested_by', { length: 100 }),
+  landValue: doublePrecision('land_value').notNull().default(0),
+  improvementsValue: doublePrecision('improvements_value').notNull().default(0),
+  totalValue: doublePrecision('total_value').notNull().default(0),
+  confidence: doublePrecision('confidence').default(1.0), // AI confidence score (0-1)
+  method: varchar('method', { length: 50 }).notNull(), // 'manual', 'automated', 'ai', etc.
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'completed', 'rejected'
+  comparableProperties: json('comparable_properties'),
+  factors: json('factors'), // Valuation factors considered
+  notes: text('notes'),
+  metadata: json('metadata'), // Additional valuation data
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Map Layers Table
+export const mapLayers = pgTable('map_layers', {
+  id: uuid('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  countyId: uuid('county_id').notNull(), // Foreign key to counties
+  description: text('description'),
+  layerType: varchar('layer_type', { length: 50 }).notNull(), // 'vector', 'raster', 'tile', etc.
+  source: varchar('source', { length: 255 }), // URL, file path, etc.
+  sourceType: varchar('source_type', { length: 50 }).notNull(), // 'geojson', 'wms', 'shapefile', etc.
+  styling: json('styling'), // Layer styling information
+  visible: boolean('visible').default(true),
+  minZoom: integer('min_zoom'),
+  maxZoom: integer('max_zoom'),
+  zIndex: integer('z_index').default(0),
+  opacity: integer('opacity').default(100), // 0-100
+  metadata: json('metadata'), // Additional layer metadata
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Create Zod schemas for validation
+export const insertCountySchema = createInsertSchema(counties).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertParcelSchema = createInsertSchema(parcels).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertValuationSchema = createInsertSchema(valuations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMapLayerSchema = createInsertSchema(mapLayers).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Types using Zod inference
+export type InsertCounty = z.infer<typeof insertCountySchema>;
+export type InsertParcel = z.infer<typeof insertParcelSchema>;
+export type InsertValuation = z.infer<typeof insertValuationSchema>;
+export type InsertMapLayer = z.infer<typeof insertMapLayerSchema>;
+
+// Select types using Drizzle inference
+export type County = typeof counties.$inferSelect;
+export type Parcel = typeof parcels.$inferSelect;
+export type Valuation = typeof valuations.$inferSelect;
+export type MapLayer = typeof mapLayers.$inferSelect;
