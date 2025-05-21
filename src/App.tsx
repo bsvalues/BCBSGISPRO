@@ -191,24 +191,43 @@ interface SystemEvent {
   severity: 'info' | 'warning' | 'error';
 }
 
-// County configuration
+// County configuration matching the WorkflowUI CountyOnboardingWorkflow specification
 interface CountyConfig {
   id: string;
   name: string;
   state: string;
-  status: string;
+  status: 'draft' | 'pending' | 'active' | 'archived';
   fips: string;
   createdAt: Date;
   updatedAt: Date;
+  lastUpdated: Date;
   properties: Record<string, any>;
+  contacts: Array<{
+    name: string;
+    role: string;
+    email: string;
+    phone?: string;
+  }>;
+  gisDataSources: string[];
+  validationIssues: Array<{
+    type: string;
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+  }>;
 }
 
-// Data source interface
-interface DataSource {
+// Data source interface matching the WorkflowUI CountyOnboardingWorkflow specification
+interface GISDataSource {
   id: string;
   name: string;
-  type: string;
-  connectionInfo: Record<string, any>;
+  type: 'shapefile' | 'geojson' | 'gdb' | 'arcgis_service' | 'wms' | 'wfs' | 'other';
+  url?: string;
+  filePath?: string;
+  description: string;
+  lastUpdated: Date;
+  status: 'ready' | 'processing' | 'error' | 'not_started';
+  error?: string;
+  connectionInfo?: Record<string, any>;
 }
 
 // Dashboard summary interface
@@ -288,6 +307,7 @@ const mockSystemAlerts: SystemAlert[] = [
   }
 ];
 
+// Use SystemEvent interface, which is already compatible with AdminEvent
 const mockEvents: SystemEvent[] = [
   {
     id: "event1",
@@ -296,19 +316,71 @@ const mockEvents: SystemEvent[] = [
     timestamp: new Date(),
     details: { version: "1.0.0" },
     severity: "info"
+  },
+  {
+    id: "event2",
+    type: "county",
+    action: "County data updated",
+    timestamp: new Date(Date.now() - 3600000), // 1 hour ago
+    userId: "user1",
+    details: { countyId: "benton-wa" },
+    severity: "info"
   }
 ];
 const mockCountyConfig: CountyConfig = {
   id: "benton-wa",
   name: "Benton",
   state: "WA",
-  status: "active",
+  status: 'active',
   fips: "53005",
   createdAt: new Date(),
   updatedAt: new Date(),
-  properties: { parcelCount: 65430 }
+  lastUpdated: new Date(),
+  properties: { 
+    parcelCount: 65430,
+    population: 204390,
+    area: 1760,
+    gisReady: true 
+  },
+  contacts: [
+    {
+      name: 'Sarah Johnson',
+      role: 'Assessor',
+      email: 'sarah.johnson@example.gov',
+      phone: '509-555-1234'
+    }
+  ],
+  gisDataSources: ['gis-source-1', 'gis-source-2'],
+  validationIssues: [
+    {
+      type: 'data-quality',
+      message: 'Some parcels missing assessment data',
+      severity: 'medium'
+    }
+  ]
 };
-const mockDataSources: DataSource[] = [];
+
+const mockDataSources: GISDataSource[] = [
+  {
+    id: 'gis-source-1',
+    name: 'Benton County Parcels',
+    type: 'arcgis_service',
+    url: 'https://services.arcgis.com/benton-county/parcels',
+    description: 'Primary parcel layer for Benton County',
+    lastUpdated: new Date('2025-04-10'),
+    status: 'ready'
+  },
+  {
+    id: 'gis-source-2',
+    name: 'Benton County Zoning',
+    type: 'arcgis_service',
+    url: 'https://services.arcgis.com/benton-county/zoning',
+    description: 'Zoning boundaries for Benton County',
+    lastUpdated: new Date('2025-03-15'),
+    status: 'ready'
+  }
+];
+
 const mockValuationSystems: any[] = [];
 const mockTaxSystems: any[] = [];
 
