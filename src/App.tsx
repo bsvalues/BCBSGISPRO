@@ -804,7 +804,8 @@ const App: React.FC = () => {
                 padding: '16px'
               }}>
                 <LegalDescriptionAnalyzerPanel 
-                  onAnalyze={(description) => console.log('Analyzing:', description)}
+                  onDescriptionAnalysisComplete={(analysisResult) => console.log('Analysis result:', analysisResult)}
+                  modelProvider="openai"
                 />
               </div>
             </div>
