@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../../../shared/schema';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+interface User {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -11,51 +19,83 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Fetch the current user
+  const { data: user, isLoading: isFetchingUser } = useQuery({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+  });
 
-  useEffect(() => {
-    // Check if user is already logged in when component mounts
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/user', {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Email login handler
+  const loginWithEmail = async (email: string): Promise<User> => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, provider: 'email' }),
+    });
     
-    checkAuth();
-  }, []);
-
-  const login = async (provider: string) => {
+    if (!response.ok) {
+      throw new Error('Email login failed');
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Login failed');
+    }
+    
+    return data.user;
+  };
+  
+  // OAuth provider login handlers
+  const loginWithProvider = async (provider: string): Promise<User> => {
+    // For demonstration purposes, prompt for email
+    const email = prompt(`Enter your ${provider} email:`, 'user@example.com');
+    
+    if (!email) {
+      throw new Error('Login canceled');
+    }
+    
+    const response = await fetch(`/api/auth/${provider}?email=${encodeURIComponent(email)}`);
+    
+    if (!response.ok) {
+      throw new Error(`${provider} login failed`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Login failed');
+    }
+    
+    return data.user;
+  };
+  
+  // General login function
+  const login = async (provider: string): Promise<void> => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ provider }),
-        credentials: 'include'
-      });
+      let userData;
       
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData.user);
+      if (provider === 'email') {
+        const email = prompt('Enter your email address:', 'user@example.com');
+        if (!email) {
+          setIsLoading(false);
+          throw new Error('Login canceled');
+        }
+        userData = await loginWithEmail(email);
       } else {
-        throw new Error('Login failed');
+        userData = await loginWithProvider(provider);
       }
+      
+      // Invalidate auth queries to refresh user state
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -63,20 +103,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
-
-  const logout = async () => {
+  
+  // Logout function
+  const logout = async (): Promise<void> => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/auth/logout', {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        setUser(null);
-      } else {
-        throw new Error('Logout failed');
-      }
+      await fetch('/api/auth/logout');
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -84,23 +118,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   };
-
+  
+  const value = {
+    user: user || null,
+    isLoading: isLoading || isFetchingUser,
+    isAuthenticated: !!user,
+    login,
+    logout,
+  };
+  
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        logout
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = (): AuthContextType => {
+export function useAuth() {
   const context = useContext(AuthContext);
   
   if (context === undefined) {
@@ -108,4 +142,4 @@ export const useAuth = (): AuthContextType => {
   }
   
   return context;
-};
+}

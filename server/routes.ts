@@ -2,14 +2,13 @@ import express, { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
-import authRoutes from './routes/auth-routes';
+// Import the auth/index.ts file for our authentication system
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes (Replit OpenID Connect)
   await setupAuth(app);
   
-  // Register authentication routes
-  app.use('/api/auth', authRoutes);
+  // Authentication routes are now directly handled by our auth system
 
   // API Health check route
   app.get('/api/health', (req, res) => {

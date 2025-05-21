@@ -149,6 +149,7 @@ const App: React.FC = () => {
           </AgentSystemProvider>
         </WebSocketProvider>
       </RbacAuthProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

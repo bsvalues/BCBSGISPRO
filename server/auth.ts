@@ -3,7 +3,7 @@ import { Strategy as LocalStrategy } from 'passport-local';
 import { db } from './db';
 import { users } from '../shared/schema';
 import { eq } from 'drizzle-orm';
-import { Express } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { storage } from './storage';
@@ -35,32 +35,106 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Auth endpoints
+  // Auth endpoints for multiple providers
   app.post('/api/auth/login', (req, res, next) => {
-    // For now, create a temporary user in the database and log them in
-    // This will be replaced with proper authentication providers
-    const tempUser = {
-      id: '123456',
-      email: 'user@example.com',
-      firstName: 'Test',
-      lastName: 'User',
-      profileImageUrl: 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y'
+    const { email, provider } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    
+    // Create a user ID based on email
+    const userId = `${provider || 'email'}-${Buffer.from(email).toString('hex')}`;
+    
+    // Create user object
+    const user = {
+      id: userId,
+      email,
+      firstName: email.split('@')[0],
+      lastName: '',
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
     };
 
     // Store user in database
-    storage.upsertUser(tempUser)
-      .then(user => {
+    storage.upsertUser(user)
+      .then(savedUser => {
         // Log the user in
-        req.login(user, (err) => {
+        req.login(savedUser, (err) => {
           if (err) {
             return next(err);
           }
-          return res.json({ success: true, user });
+          return res.json({ success: true, user: savedUser });
         });
       })
       .catch(err => {
         console.error('Error logging in:', err);
         res.status(500).json({ success: false, message: 'Failed to log in' });
+      });
+  });
+  
+  // Google login endpoint
+  app.get('/api/auth/google', (req, res, next) => {
+    const email = req.query.email as string;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    
+    const userId = `google-${Buffer.from(email).toString('hex')}`;
+    
+    const user = {
+      id: userId,
+      email,
+      firstName: email.split('@')[0],
+      lastName: 'User',
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
+    };
+    
+    storage.upsertUser(user)
+      .then(savedUser => {
+        req.login(savedUser, (err) => {
+          if (err) {
+            return next(err);
+          }
+          return res.json({ success: true, user: savedUser });
+        });
+      })
+      .catch(err => {
+        console.error('Error logging in with Google:', err);
+        res.status(500).json({ success: false, message: 'Failed to log in with Google' });
+      });
+  });
+  
+  // GitHub login endpoint
+  app.get('/api/auth/github', (req, res, next) => {
+    const email = req.query.email as string;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    
+    const userId = `github-${Buffer.from(email).toString('hex')}`;
+    
+    const user = {
+      id: userId,
+      email,
+      firstName: email.split('@')[0],
+      lastName: 'User',
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
+    };
+    
+    storage.upsertUser(user)
+      .then(savedUser => {
+        req.login(savedUser, (err) => {
+          if (err) {
+            return next(err);
+          }
+          return res.json({ success: true, user: savedUser });
+        });
+      })
+      .catch(err => {
+        console.error('Error logging in with GitHub:', err);
+        res.status(500).json({ success: false, message: 'Failed to log in with GitHub' });
       });
   });
 
@@ -102,7 +176,7 @@ export function setupAuth(app: Express) {
 }
 
 // Middleware to check if a user is authenticated
-export function isAuthenticated(req: any, res: any, next: any) {
+export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   if (req.isAuthenticated()) {
     return next();
   }

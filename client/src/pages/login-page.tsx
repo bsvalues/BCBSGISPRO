@@ -32,28 +32,37 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col space-y-4">
+            {error && (
+              <div className="p-3 mb-3 text-sm text-red-800 border border-red-300 rounded-lg bg-red-50">
+                {error}
+              </div>
+            )}
+            
             <Button 
               onClick={() => handleLogin('google')}
-              className="flex items-center justify-center gap-2"
+              className="flex items-center justify-center gap-2 w-full"
               variant="outline"
+              disabled={isLoading}
             >
-              <FaGoogle /> Continue with Google
+              <FaGoogle className="h-4 w-4" /> Continue with Google
             </Button>
             
             <Button 
               onClick={() => handleLogin('github')}
-              className="flex items-center justify-center gap-2"
+              className="flex items-center justify-center gap-2 w-full"
               variant="outline"
+              disabled={isLoading}
             >
-              <FaGithub /> Continue with GitHub
+              <FaGithub className="h-4 w-4" /> Continue with GitHub
             </Button>
             
             <Button 
               onClick={() => handleLogin('email')}
-              className="flex items-center justify-center gap-2"
+              className="flex items-center justify-center gap-2 w-full"
               variant="outline"
+              disabled={isLoading}
             >
-              <FaEnvelope /> Continue with Email
+              <FaEnvelope className="h-4 w-4" /> Continue with Email
             </Button>
             
             <div className="relative my-4">
@@ -68,6 +77,8 @@ export default function LoginPage() {
             <Button 
               onClick={() => navigate('/')}
               variant="ghost"
+              className="w-full"
+              disabled={isLoading}
             >
               Continue as Guest
             </Button>
