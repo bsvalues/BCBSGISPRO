@@ -848,10 +848,130 @@ const WorkflowsPage: React.FC = () => {
               </div>
             </TabsContent>
             <TabsContent value="review" className="mt-6">
-              {/* Same content as "all" tab, filtered by status */}
+              <div>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : sortedWorkflows.filter(w => w.status === 'review').length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No workflows in review</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">Title</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWorkflows
+                        .filter(workflow => workflow.status === 'review')
+                        .map((workflow) => (
+                          <TableRow key={workflow.id}>
+                            <TableCell className="font-medium">
+                              <Link href={`/workflow/${workflow.id}`} className="hover:underline text-primary">
+                                {workflow.title}
+                              </Link>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {workflow.description.substring(0, 60)}
+                                {workflow.description.length > 60 ? '...' : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>{workflowTypeLabels[workflow.type]}</TableCell>
+                            <TableCell>{statusBadges[workflow.status]}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>{workflow.createdAt.toLocaleDateString()}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Due: {workflow.dueDate.toLocaleDateString()}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <WorkflowProgress progress={workflow.progress} />
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="outline" size="sm">
+                                <Link href={`/workflow/${workflow.id}`}>
+                                  View
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </TabsContent>
             <TabsContent value="completed" className="mt-6">
-              {/* Same content as "all" tab, filtered by status */}
+              <div>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : sortedWorkflows.filter(w => w.status === 'completed').length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No completed workflows found</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">Title</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWorkflows
+                        .filter(workflow => workflow.status === 'completed')
+                        .map((workflow) => (
+                          <TableRow key={workflow.id}>
+                            <TableCell className="font-medium">
+                              <Link href={`/workflow/${workflow.id}`} className="hover:underline text-primary">
+                                {workflow.title}
+                              </Link>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {workflow.description.substring(0, 60)}
+                                {workflow.description.length > 60 ? '...' : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>{workflowTypeLabels[workflow.type]}</TableCell>
+                            <TableCell>{statusBadges[workflow.status]}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>{workflow.createdAt.toLocaleDateString()}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Completed: {workflow.dueDate.toLocaleDateString()}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <WorkflowProgress progress={workflow.progress} />
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="outline" size="sm">
+                                <Link href={`/workflow/${workflow.id}`}>
+                                  View
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
