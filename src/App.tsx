@@ -1053,7 +1053,7 @@ const App: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockCounties.map(county => (
+                  {mockCounties.map((county: {id: string; name: string; state: string; status: string; properties?: {parcelCount?: number}; lastUpdated?: Date}) => (
                     <tr key={county.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>{county.name}</td>
                       <td style={{ padding: '12px 16px' }}>{county.state}</td>
@@ -1077,9 +1077,9 @@ const App: React.FC = () => {
                           {county.status}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px' }}>{county.properties.parcelCount?.toLocaleString() || 'N/A'}</td>
+                      <td style={{ padding: '12px 16px' }}>{county.properties?.parcelCount?.toLocaleString() || 'N/A'}</td>
                       <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '14px' }}>
-                        {new Date(county.lastUpdated).toLocaleDateString()}
+                        {county.lastUpdated ? new Date(county.lastUpdated).toLocaleDateString() : 'N/A'}
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         <button
@@ -1302,8 +1302,8 @@ const App: React.FC = () => {
                 >
                   <option value="">None (Select on Login)</option>
                   {mockCounties
-                    .filter(county => county.status === 'active')
-                    .map(county => (
+                    .filter((county: {id: string; name: string; state: string; status: string}) => county.status === 'active')
+                    .map((county: {id: string; name: string; state: string}) => (
                       <option key={county.id} value={county.id}>
                         {county.name}, {county.state}
                       </option>

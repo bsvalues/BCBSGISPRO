@@ -76,7 +76,7 @@ export interface CountyMapViewerProps {
   county: CountyDetails;
   
   // Map configuration
-  provider?: MapProviderType;
+  provider?: MapProviderType | string;
   apiKey?: string;
   baseLayer?: BaseLayerType;
   initialView?: Partial<MapView>;
