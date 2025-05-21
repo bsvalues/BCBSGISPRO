@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { 
   Layers, Map as MapIcon, FileSearch, ZoomIn, ZoomOut, Home, 
   PenTool, Download, Share2, RotateCw, Database, Globe,
-  FileType, FileSpreadsheet, Maximize2
+  FileType, FileSpreadsheet, Maximize2, Workflow, FileText
 } from 'lucide-react';
 import { Switch } from '../components/ui/switch';
 import { Label } from '../components/ui/label';
@@ -21,6 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../components/ui/dialog";
+import CreateWorkflowForm from '../components/workflow/create-workflow-form';
+import ParcelDocumentsPanel from '../components/documents/parcel-documents-panel';
 import { useToast } from '../hooks/use-toast';
 
 /**
@@ -283,15 +285,57 @@ export default function BentonCountyMapPage() {
                       </CardContent>
                     </Card>
                     
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 text-xs flex items-center justify-center gap-1">
-                        <FileSpreadsheet className="h-3 w-3" />
-                        Export Data
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1 text-xs flex items-center justify-center gap-1">
-                        <PenTool className="h-3 w-3" />
-                        Draw Parcel
-                      </Button>
+                    {/* Parcel Actions */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-medium text-muted-foreground">Parcel Actions</h4>
+                      <div className="flex flex-col gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" className="w-full text-xs flex items-center justify-center gap-1">
+                              <Workflow className="h-3 w-3" />
+                              Create Workflow
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Create New Workflow</DialogTitle>
+                              <DialogDescription>
+                                Start a new workflow for parcel {selectedParcel.APN || 'Unknown'}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <CreateWorkflowForm parcel={selectedParcel} />
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="w-full text-xs flex items-center justify-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              Manage Documents
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Documents for Parcel</DialogTitle>
+                              <DialogDescription>
+                                View and manage documents associated with parcel {selectedParcel.APN || 'Unknown'}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <ParcelDocumentsPanel parcel={selectedParcel} />
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1 text-xs flex items-center justify-center gap-1">
+                            <FileSpreadsheet className="h-3 w-3" />
+                            Export Data
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1 text-xs flex items-center justify-center gap-1">
+                            <PenTool className="h-3 w-3" />
+                            Draw Parcel
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (
