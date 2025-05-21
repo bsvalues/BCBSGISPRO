@@ -208,11 +208,12 @@ interface CountyConfig {
     email: string;
     phone?: string;
   }>;
-  gisDataSources: string[];
+  gisDataSources: GISDataSource[];
   validationIssues: Array<{
-    type: string;
+    type: 'error' | 'warning';
     message: string;
-    severity: 'low' | 'medium' | 'high';
+    component: string;
+    resolved: boolean;
   }>;
 }
 
@@ -327,6 +328,27 @@ const mockEvents: SystemEvent[] = [
     severity: "info"
   }
 ];
+const mockGISDataSources: GISDataSource[] = [
+  {
+    id: 'gis-source-1',
+    name: 'Benton County Parcels',
+    type: 'arcgis_service',
+    url: 'https://services.arcgis.com/benton-county/parcels',
+    description: 'Primary parcel layer for Benton County',
+    lastUpdated: new Date('2025-04-10'),
+    status: 'ready'
+  },
+  {
+    id: 'gis-source-2',
+    name: 'Benton County Zoning',
+    type: 'arcgis_service',
+    url: 'https://services.arcgis.com/benton-county/zoning',
+    description: 'Zoning boundaries for Benton County',
+    lastUpdated: new Date('2025-03-15'),
+    status: 'ready'
+  }
+];
+
 const mockCountyConfig: CountyConfig = {
   id: "benton-wa",
   name: "Benton",
@@ -350,36 +372,18 @@ const mockCountyConfig: CountyConfig = {
       phone: '509-555-1234'
     }
   ],
-  gisDataSources: ['gis-source-1', 'gis-source-2'],
+  gisDataSources: mockGISDataSources,
   validationIssues: [
     {
-      type: 'data-quality',
+      type: 'warning',
       message: 'Some parcels missing assessment data',
-      severity: 'medium'
+      component: 'parcels',
+      resolved: false
     }
   ]
 };
 
-const mockDataSources: GISDataSource[] = [
-  {
-    id: 'gis-source-1',
-    name: 'Benton County Parcels',
-    type: 'arcgis_service',
-    url: 'https://services.arcgis.com/benton-county/parcels',
-    description: 'Primary parcel layer for Benton County',
-    lastUpdated: new Date('2025-04-10'),
-    status: 'ready'
-  },
-  {
-    id: 'gis-source-2',
-    name: 'Benton County Zoning',
-    type: 'arcgis_service',
-    url: 'https://services.arcgis.com/benton-county/zoning',
-    description: 'Zoning boundaries for Benton County',
-    lastUpdated: new Date('2025-03-15'),
-    status: 'ready'
-  }
-];
+// Remove duplicate data source array
 
 const mockValuationSystems: any[] = [];
 const mockTaxSystems: any[] = [];
@@ -1455,7 +1459,7 @@ const App: React.FC = () => {
           <Route path="/onboarding">
             <CountyOnboardingWorkflow
               county={mockCountyConfig}
-              availableDataSources={mockDataSources}
+              availableDataSources={mockGISDataSources}
               availableValuationSystems={mockValuationSystems}
               availableTaxSystems={mockTaxSystems}
               onSave={handleCountySave}
