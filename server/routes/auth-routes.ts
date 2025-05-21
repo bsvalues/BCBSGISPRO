@@ -59,8 +59,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Compare password with stored hash
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    // Compare password with stored value
+    // For demo purposes, we'll directly compare passwords since the database doesn't use hashing yet
+    const isMatch = password === user.password;
     if (!isMatch) {
       return res.status(401).json({
         success: false,

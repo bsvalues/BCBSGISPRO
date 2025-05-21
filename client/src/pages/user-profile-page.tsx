@@ -38,8 +38,7 @@ export default function UserProfilePage() {
           <CardContent className="p-6">
             <div className="flex items-start gap-6">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || 'User'} />
-                <AvatarFallback className="text-xl">
+                <AvatarFallback className="text-xl bg-primary text-white">
                   {user?.username?.substring(0, 2).toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
