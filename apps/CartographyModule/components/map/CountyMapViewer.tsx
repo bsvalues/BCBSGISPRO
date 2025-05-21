@@ -637,7 +637,7 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
                 mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
               });
           }
-        } else if ((['raster', 'imagery'] as LayerType[]).includes(layerType)) {
+        } else if (layerType === 'raster' || layerType === 'imagery') {
           // For raster data, add as a tile layer
           L.tileLayer(layer.source, {
             opacity: layer.opacity,

@@ -55,7 +55,21 @@ const appLogger = logger.withTags(['App', 'Main']);
 
 // Mock data for demo purposes
 // Temporary inline mock data to avoid import errors
-const mockCounties = [
+// County interface
+interface County {
+  id: string;
+  name: string;
+  state: string;
+  status: string;
+  fips: string;
+  properties: { parcelCount: number };
+  lastUpdated: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Properly typed mock counties
+const mockCounties: County[] = [
   {
     id: 'benton-wa',
     name: 'Benton',
@@ -63,7 +77,9 @@ const mockCounties = [
     status: 'active',
     fips: '53005',
     properties: { parcelCount: 65430 },
-    lastUpdated: new Date('2023-12-10')
+    lastUpdated: new Date('2023-12-10'),
+    createdAt: new Date('2023-01-15'),
+    updatedAt: new Date('2023-12-10')
   },
   {
     id: 'king-wa',
@@ -72,26 +88,117 @@ const mockCounties = [
     status: 'active',
     fips: '53033',
     properties: { parcelCount: 524800 },
-    lastUpdated: new Date('2023-12-15')
+    lastUpdated: new Date('2023-12-15'),
+    createdAt: new Date('2023-02-20'),
+    updatedAt: new Date('2023-12-15')
   }
 ];
 
-const mockUsers = [];
-const mockSystemComponents = [];
-const mockSystemAlerts = [];
-const mockEvents = [];
-const mockCountyConfig = {};
-const mockDataSources = [];
-const mockValuationSystems = [];
-const mockTaxSystems = [];
-const getDashboardSummary = () => ({
-  userCount: 5,
-  countyCount: 2,
-  activeCountyCount: 2,
-  totalParcelCount: 590230,
+// User interface matching WorkflowUI definition
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'manager' | 'editor' | 'viewer';
+  status: 'active' | 'inactive' | 'pending';
+  lastLogin?: Date;
+  countyIds: string[];
+  permissions: string[];
+}
+
+// System Component interface
+interface SystemComponentTyped extends SystemComponent {
+  id: string;
+  name: string;
+  status: ComponentStatus;
+  type: string;
+  lastChecked: Date;
+}
+
+// System Event interface matching AdminEvent in WorkflowUI
+interface SystemEvent {
+  id: string;
+  type: 'user' | 'system' | 'county' | 'data' | 'security';
+  action: string;
+  timestamp: Date;
+  details: Record<string, any>;
+  userId?: string;
+  severity: 'info' | 'warning' | 'error';
+}
+
+// County configuration
+interface CountyConfig {
+  id: string;
+  name: string;
+  state: string;
+  status: string;
+  fips: string;
+  createdAt: Date;
+  updatedAt: Date;
+  properties: Record<string, any>;
+}
+
+// Data source interface
+interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+  connectionInfo: Record<string, any>;
+}
+
+// Dashboard summary interface
+interface DashboardSummary {
+  userCount: number;
+  countyCount: number;
+  activeCountyCount: number;
+  totalParcelCount: number;
+  systemHealthScore: number;
+  pendingTasks: number;
+  recentEvents: SystemEvent[];
+}
+
+// Mock data with proper typing
+const mockUsers: User[] = [
+  {
+    id: "user1",
+    name: "John Assessor",
+    role: "administrator",
+    email: "john@example.com"
+  }
+];
+
+const mockSystemComponents: SystemComponentTyped[] = [];
+const mockSystemAlerts: SystemAlert[] = [];
+const mockEvents: SystemEvent[] = [];
+const mockCountyConfig: CountyConfig = {
+  id: "benton-wa",
+  name: "Benton",
+  state: "WA",
+  status: "active",
+  fips: "53005",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  properties: { parcelCount: 65430 }
+};
+const mockDataSources: DataSource[] = [];
+const mockValuationSystems: any[] = [];
+const mockTaxSystems: any[] = [];
+
+// Fixed getDashboardSummary with proper parameter typing and return type
+const getDashboardSummary = (
+  counties = mockCounties,
+  users = mockUsers,
+  components = mockSystemComponents,
+  alerts = mockSystemAlerts,
+  events = mockEvents
+): DashboardSummary => ({
+  userCount: users.length,
+  countyCount: counties.length,
+  activeCountyCount: counties.filter(c => c.status === 'active').length,
+  totalParcelCount: counties.reduce((sum, c) => sum + (c.properties?.parcelCount || 0), 0),
   systemHealthScore: 98,
   pendingTasks: 3,
-  recentEvents: []
+  recentEvents: events.slice(0, 5)
 });
 
 /**
