@@ -704,9 +704,10 @@ const App: React.FC = () => {
                 <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10 }}>
                   <MeasurementTools 
                     activeMeasurement={null}
-                    onMeasurementComplete={(measurement) => console.log('Measurement:', measurement)}
-                    units={{ system: "imperial" }}
-                    defaultMode="distance"
+                    onMeasurementComplete={(measurement: any) => console.log('Measurement:', measurement)}
+                    defaultLengthUnit="miles"
+                    defaultAreaUnit="acres"
+                    position="top-right"
                   />
                 </div>
               </div>
@@ -807,9 +808,14 @@ const App: React.FC = () => {
                 padding: '16px'
               }}>
                 <LegalDescriptionAnalyzerPanel 
-                  onAnalyze={(description: any) => console.log('Analyzing:', description)}
-                  modelProvider="openai"
-                  confidenceThreshold={0.7}
+                  onAnalysisComplete={(result: any) => console.log('Analysis result:', result)}
+                  apiKey={process.env.OPENAI_API_KEY}
+                  defaultOptions={{
+                    confidenceThreshold: 0.7,
+                    includeGeospatialData: true,
+                    generateSimplifiedDescription: true,
+                    validateBoundaries: true
+                  }}
                 />
               </div>
             </div>
