@@ -9,6 +9,7 @@ import { AgentSystemProvider } from './context/agent-system-context';
 import AgentWebSocketHandler from './components/agent-system/agent-websocket-handler';
 import LandingPage from './pages/landing-page';
 import LoginPage from './pages/login-page';
+import DirectLoginPage from './pages/direct-login';
 import DemoDashboard from './pages/demo-dashboard';
 import MapPage from './pages/MapPage';
 import DemoDocumentClassification from './pages/demo-document-classification';
@@ -66,6 +67,7 @@ const App: React.FC = () => {
                 <Switch>
                   <Route path="/" component={LandingPage} />
                   <Route path="/login" component={LoginPage} />
+                  <Route path="/direct-login" component={DirectLoginPage} />
                   <Route path="/demo-documents" component={DemoDocumentPanel} />
                   
                   {/* Protected Routes with Role-Based Access */}

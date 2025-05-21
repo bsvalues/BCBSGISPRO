@@ -1,6 +1,7 @@
 import { Express } from 'express';
 import { db } from './db';
 import { users } from '../shared/schema';
+import { sql } from 'drizzle-orm';
 
 /**
  * Registers debugging routes to help troubleshoot authentication issues
@@ -10,7 +11,7 @@ export function registerAuthDebugRoutes(app: Express) {
   app.get('/api/debug/db-status', async (req, res) => {
     try {
       // Try a simple query to check if DB is working
-      const result = await db.select({ count: db.fn.count() }).from(users);
+      const result = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
       return res.json({
         status: 'connected',
         usersCount: result[0].count,
@@ -30,19 +31,18 @@ export function registerAuthDebugRoutes(app: Express) {
   app.post('/api/debug/create-test-user', async (req, res) => {
     try {
       // Check if test user already exists
-      const existingUser = await db.select()
+      const existingUsers = await db.select()
         .from(users)
-        .where({ username: 'testuser' })
-        .limit(1);
+        .where(sql`${users.username} = 'testuser'`);
       
-      if (existingUser.length > 0) {
+      if (existingUsers.length > 0) {
         return res.json({
           status: 'exists',
           message: 'Test user already exists',
           user: {
-            id: existingUser[0].id,
-            username: existingUser[0].username,
-            email: existingUser[0].email || 'test@example.com'
+            id: existingUsers[0].id,
+            username: existingUsers[0].username,
+            email: existingUsers[0].email
           }
         });
       }
@@ -51,7 +51,7 @@ export function registerAuthDebugRoutes(app: Express) {
       const [newUser] = await db.insert(users)
         .values({
           username: 'testuser',
-          password: 'password', // For testing only
+          passwordHash: 'password', // For testing only, should be hashed in production
           email: 'test@example.com',
           fullName: 'Test User',
           role: 'admin',
@@ -93,12 +93,11 @@ export function registerAuthDebugRoutes(app: Express) {
       console.log(`Debug login attempt for username: ${username}`);
       
       // Find user
-      const [user] = await db.select()
-        .from(users)
-        .where({ username })
-        .limit(1);
+      const users = await db.execute(sql`
+        SELECT * FROM users WHERE username = ${username} LIMIT 1
+      `);
       
-      if (!user) {
+      if (users.length === 0) {
         console.log(`User not found: ${username}`);
         return res.status(401).json({
           status: 'error',
@@ -106,8 +105,11 @@ export function registerAuthDebugRoutes(app: Express) {
         });
       }
       
+      const user = users[0];
+      
       // Simple password check (no hashing in debug route)
-      if (user.password !== password) {
+      // In a real app, we'd use proper password hashing/comparison
+      if (user.password_hash !== password) {
         console.log(`Password mismatch for user: ${username}`);
         return res.status(401).json({
           status: 'error',
@@ -115,15 +117,23 @@ export function registerAuthDebugRoutes(app: Express) {
         });
       }
       
-      // Success - return user without password
-      const { password: _, ...userWithoutPassword } = user;
+      // Format the user object to match our application's expectations
+      const userObj = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        fullName: user.full_name,
+        lastLogin: user.last_login,
+        isActive: user.is_active
+      };
       
       console.log(`Debug login successful for user: ${username}`);
       
       return res.json({
         status: 'success',
         message: 'Login successful (debug mode)',
-        user: userWithoutPassword
+        user: userObj
       });
     } catch (error) {
       console.error('Debug login error:', error);
