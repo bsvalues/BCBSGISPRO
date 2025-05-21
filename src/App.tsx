@@ -705,8 +705,8 @@ const App: React.FC = () => {
                   <MeasurementTools 
                     activeMeasurement={null}
                     onMeasurementComplete={(measurement) => console.log('Measurement:', measurement)}
-                    units="imperial"
-                    defaultTool="distance"
+                    units={{ system: "imperial" }}
+                    defaultMode="distance"
                   />
                 </div>
               </div>
@@ -790,9 +790,9 @@ const App: React.FC = () => {
                 overflow: 'hidden'
               }}>
                 <CountyMapViewer
-                  provider={userSettings.mapProvider}
-                  apiKey="pk.sample.mapbox.token"
-                  center={[-119.2052, 46.2112]} // Benton County, WA coordinates
+                  provider={settings.mapProvider}
+                  apiKey="pk.sample.mapbox.token" 
+                  center={{ lat: 46.2112, lng: -119.2052 }} // Benton County, WA coordinates
                   zoom={11}
                   style={{ width: '100%', height: '100%' }}
                 />
@@ -807,8 +807,9 @@ const App: React.FC = () => {
                 padding: '16px'
               }}>
                 <LegalDescriptionAnalyzerPanel 
-                  onDescriptionAnalysisComplete={(analysisResult) => console.log('Analysis result:', analysisResult)}
+                  onAnalyze={(description: any) => console.log('Analyzing:', description)}
                   modelProvider="openai"
+                  confidenceThreshold={0.7}
                 />
               </div>
             </div>
