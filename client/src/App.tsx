@@ -66,6 +66,7 @@ const App: React.FC = () => {
                 <Switch>
                   <Route path="/" component={LandingPage} />
                   <Route path="/login" component={LoginPage} />
+                  <Route path="/demo-documents" component={DemoDocumentPanel} />
                   
                   {/* Protected Routes with Role-Based Access */}
                   <Route path="/dashboard">
