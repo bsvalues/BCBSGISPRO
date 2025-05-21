@@ -1,31 +1,29 @@
 import React from 'react';
+import ModernLayout from '../components/layout/modern-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { useRbacAuth } from '../context/rbac-auth-context';
-import { useLocation } from 'wouter';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { User, ShieldCheck, LogOut, Key } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Button } from '../components/ui/button';
+import { 
+  User, Settings, FileText, Workflow, Shield, 
+  CheckCircle2, AlertCircle, Bell
+} from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { useTitle } from '../hooks/use-title';
+import { Separator } from '../components/ui/separator';
 
-const UserProfilePage: React.FC = () => {
-  const { user, logout } = useRbacAuth();
-  const [_, setLocation] = useLocation();
-
-  // Handle logout
-  const handleLogout = () => {
-    logout();
-    setLocation('/login');
-  };
-
-  // If no user is logged in, redirect to login
-  if (!user) {
-    setLocation('/login');
-    return null;
-  }
-
-  // Get role color
-  const getRoleColor = (role: string) => {
-    switch (role) {
+/**
+ * User Profile Page
+ * 
+ * This page displays user information, role permissions, and preferences.
+ */
+export default function UserProfilePage() {
+  const { user } = useRbacAuth();
+  useTitle('User Profile | BentonGeoPro');
+  
+  const getRoleBadgeColor = (role: string) => {
+    switch (role?.toLowerCase()) {
       case 'admin': return 'bg-red-500';
       case 'staff': return 'bg-blue-500';
       case 'field': return 'bg-green-500';
@@ -33,171 +31,200 @@ const UserProfilePage: React.FC = () => {
     }
   };
 
-  // Get role description
-  const getRoleDescription = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'Full access to all system features, including user management and configuration.';
-      case 'staff':
-        return 'County staff with access to most features, including document management, workflows, and maps.';
-      case 'field':
-        return 'Field staff with access to view parcels, documents, and limited workflow management.';
-      case 'public':
-        return 'Limited access to public information and maps.';
-      default:
-        return 'Access level not specified.';
-    }
-  };
-
-  // Get access level examples
-  const getAccessLevelExamples = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return [
-          'Create and manage user accounts',
-          'Configure system settings',
-          'Access all workflows and documents',
-          'Manage map layers and settings',
-          'Access audit logs and system reports'
-        ];
-      case 'staff':
-        return [
-          'Create and manage workflows',
-          'Upload and classify documents',
-          'Edit parcel information',
-          'Generate reports',
-          'Access most maps and layers'
-        ];
-      case 'field':
-        return [
-          'View assigned workflows',
-          'View documents related to assignments',
-          'Update workflow status from the field',
-          'Access field-relevant maps',
-          'Submit field reports'
-        ];
-      case 'public':
-        return [
-          'View public property information',
-          'Access public maps',
-          'View public documents',
-          'Search property records',
-          'Limited data export capabilities'
-        ];
-      default:
-        return ['Limited system access'];
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">User Profile</h1>
-          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
-        </div>
-
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-          {/* User Info Card */}
-          <Card className="md:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Account Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center mb-4">
-                <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                  <User className="h-12 w-12 text-primary" />
-                </div>
-                <h2 className="text-xl font-semibold">{user.fullName || user.username}</h2>
-                <p className="text-sm text-muted-foreground">{user.email}</p>
-                <div className="mt-2">
-                  <Badge className={`${getRoleColor(user.role)} text-white`}>{user.role}</Badge>
-                </div>
-              </div>
+    <ModernLayout>
+      <div className="container py-6 space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start gap-6">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || 'User'} />
+                <AvatarFallback className="text-xl">
+                  {user?.username?.substring(0, 2).toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
               
-              <Separator className="my-4" />
-              
-              <div className="space-y-2">
-                <div>
-                  <span className="text-sm font-medium">Username:</span>
-                  <p className="text-sm">{user.username}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium">User ID:</span>
-                  <p className="text-sm">{user.id}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Role Info Card */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5" />
-                Role & Permissions
-              </CardTitle>
-              <CardDescription>
-                Your access level and capabilities in the system
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-medium flex items-center gap-2">
-                    <Badge className={`${getRoleColor(user.role)} text-white`}>{user.role}</Badge>
-                    Access Level
-                  </h3>
-                  <p className="text-sm mt-1">{getRoleDescription(user.role)}</p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <h3 className="text-lg font-medium flex items-center gap-2">
-                    <Key className="h-4 w-4" />
-                    What You Can Do
-                  </h3>
-                  <ul className="mt-2 space-y-1">
-                    {getAccessLevelExamples(user.role).map((example, index) => (
-                      <li key={index} className="text-sm flex items-start gap-2">
-                        <span className="text-primary">•</span> {example}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <Separator />
-
-                {user.permissions && user.permissions.length > 0 && (
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-medium">Additional Permissions</h3>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {user.permissions.map((permission, index) => (
-                        <Badge key={index} variant="outline">{permission}</Badge>
-                      ))}
+                    <h1 className="text-2xl font-bold">{user?.fullName || user?.username || 'User'}</h1>
+                    <p className="text-muted-foreground">{user?.email || 'No email'}</p>
+                  </div>
+                  <Badge className={getRoleBadgeColor(user?.role || '')}>
+                    {user?.role || 'No Role'}
+                  </Badge>
+                </div>
+                
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Edit Profile
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Manage Permissions
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notification Settings
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview" className="flex items-center gap-1">
+              <User className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="workflows" className="flex items-center gap-1">
+              <Workflow className="h-4 w-4" />
+              Workflows
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="flex items-center gap-1">
+              <FileText className="h-4 w-4" />
+              Documents
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview" className="space-y-4 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>User Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Username</h3>
+                    <p>{user?.username || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Full Name</h3>
+                    <p>{user?.fullName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Email</h3>
+                    <p>{user?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Last Login</h3>
+                    <p>{user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}</p>
+                  </div>
+                </div>
+                
+                <Separator className="my-4" />
+                
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Role & Permissions</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        View Parcels
+                      </Badge>
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        View Documents
+                      </Badge>
+                      {user?.role === 'admin' && (
+                        <>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            Manage Users
+                          </Badge>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            System Settings
+                          </Badge>
+                        </>
+                      )}
+                      {['admin', 'staff'].includes(user?.role || '') && (
+                        <>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            Edit Workflows
+                          </Badge>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                            Upload Documents
+                          </Badge>
+                        </>
+                      )}
+                      {!user?.role && (
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3 text-red-500" />
+                          No Permissions
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="bg-primary/5 p-4 rounded-b-lg">
-              <div className="w-full text-sm text-center">
-                <p>Need additional access or have questions about your permissions?</p>
-                <p className="font-medium">Contact your system administrator</p>
-              </div>
-            </CardFooter>
-          </Card>
-        </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Activity Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="p-4 border rounded-md">
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-sm text-muted-foreground">Workflows Created</p>
+                  </div>
+                  <div className="p-4 border rounded-md">
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-sm text-muted-foreground">Documents Uploaded</p>
+                  </div>
+                  <div className="p-4 border rounded-md">
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-sm text-muted-foreground">Reports Generated</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="workflows" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Workflows</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Workflow className="mx-auto h-12 w-12 text-muted-foreground opacity-30" />
+                  <h3 className="mt-4 text-lg font-medium">No Active Workflows</h3>
+                  <p className="text-muted-foreground mt-1">
+                    You don't have any workflows associated with your account yet.
+                  </p>
+                  <Button className="mt-4">Create a Workflow</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="documents" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <FileText className="mx-auto h-12 w-12 text-muted-foreground opacity-30" />
+                  <h3 className="mt-4 text-lg font-medium">No Documents</h3>
+                  <p className="text-muted-foreground mt-1">
+                    You haven't uploaded any documents yet.
+                  </p>
+                  <Button className="mt-4">Upload a Document</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-    </div>
+    </ModernLayout>
   );
-};
-
-export default UserProfilePage;
+}
