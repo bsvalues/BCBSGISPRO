@@ -14,7 +14,8 @@ import {
   CheckCircle, 
   X, 
   AlertCircle, 
-  Loader2
+  Loader2,
+  Workflow
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { 
