@@ -44,6 +44,9 @@ import { SystemHealthPanel, ComponentStatus, SystemComponent, SystemAlert } from
 // Import ETL components
 import { CSVImporter } from '../libs/ETL/importers/csv-importer';
 
+// Import shared types
+import { MapProviderType } from '../libs/types/MapProviderType';
+
 // Import DevOps utilities
 import { logger } from '../libs/DevOps/utils/logger';
 
@@ -70,7 +73,7 @@ import {
 interface UserSettings {
   darkMode: boolean;
   sidebarCollapsed: boolean;
-  mapProvider: 'mapbox' | 'leaflet' | 'arcgis';
+  mapProvider: MapProviderType;
   defaultCountyId: string | null;
 }
 

@@ -25,7 +25,10 @@ export interface BoundingBox {
 /**
  * Map provider options
  */
-export type MapProvider = 'mapbox' | 'leaflet' | 'arcgis';
+export type MapProviderType = 'mapbox' | 'leaflet' | 'arcgis';
+
+// For backward compatibility
+export type MapProvider = MapProviderType;
 
 /**
  * Map layer types
