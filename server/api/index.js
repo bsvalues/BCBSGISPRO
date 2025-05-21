@@ -4,13 +4,13 @@
  * This file combines all our API route modules into a single Express router.
  */
 
-import express from 'express';
-import countiesRouter from './routes/counties';
-import parcelsRouter from './routes/parcels';
-import valuationsRouter from './routes/valuations';
-import layersRouter from './routes/layers';
-import usersRouter from './routes/users';
-import authRouter from './routes/auth';
+const express = require('express');
+const countiesRouter = require('./routes/counties');
+const parcelsRouter = require('./routes/parcels');
+const valuationsRouter = require('./routes/valuations');
+const layersRouter = require('./routes/layers');
+const usersRouter = require('./routes/users');
+const authRouter = require('./routes/auth');
 
 const router = express.Router();
 
@@ -32,4 +32,4 @@ router.use('/layers', layersRouter);
 router.use('/users', usersRouter);
 router.use('/auth', authRouter);
 
-export default router;
+module.exports = router;

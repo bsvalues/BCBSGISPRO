@@ -1,122 +1,132 @@
 /**
- * Counties API service
+ * Counties Service
  * 
- * This module provides functions for interacting with the Counties API endpoints.
- * It uses the core ApiClient to handle HTTP requests and standardizes the interface
- * for county-related operations.
+ * This service provides methods for interacting with county data via the API.
  */
 
-import { apiClient, ApiRequestOptions } from './api';
-import { CountyConfig } from '../types';
+import { apiClient, ApiResponse } from './api';
 
-export interface CountyFilter {
-  status?: 'draft' | 'pending' | 'active' | 'archived';
-  state?: string;
-  search?: string;
-  limit?: number;
-  offset?: number;
+// County interfaces
+export interface County {
+  id: string;
+  name: string;
+  state: string;
+  population: number;
+  area: number;
+  gisEnabled: boolean;
+  boundaries: {
+    type: string;
+    coordinates: number[][][];
+  };
+  contact: {
+    phone: string;
+    email: string;
+    address: string;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
-/**
- * Get all counties with optional filtering
- */
-export async function getCounties(filters?: CountyFilter) {
-  const response = await apiClient.get<CountyConfig[]>('/counties', {
-    params: filters as Record<string, string | number | boolean | undefined>
-  });
-  return response.data || [];
+export interface CountyStatistics {
+  totalParcels: number;
+  totalLayers: number;
+  recentValuations: any[];
+  lastUpdated: string;
 }
 
-/**
- * Get a specific county by ID
- */
-export async function getCounty(id: string) {
-  const response = await apiClient.get<CountyConfig>(`/counties/${id}`);
-  return response.data;
+// Counties service class
+export class CountiesService {
+  private baseUrl = '/api/terraform/counties';
+
+  /**
+   * Get all counties
+   */
+  async getCounties(): Promise<County[]> {
+    const response = await apiClient.get<County[]>(this.baseUrl);
+    return response.data || [];
+  }
+
+  /**
+   * Get a county by ID
+   */
+  async getCounty(id: string): Promise<County | null> {
+    try {
+      const response = await apiClient.get<County>(`${this.baseUrl}/${id}`);
+      return response.data || null;
+    } catch (error) {
+      if ((error as any).status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new county
+   */
+  async createCounty(countyData: Omit<County, 'id' | 'createdAt' | 'updatedAt'>): Promise<County> {
+    const response = await apiClient.post<County>(this.baseUrl, countyData);
+    return response.data as County;
+  }
+
+  /**
+   * Update a county
+   */
+  async updateCounty(id: string, countyData: Partial<Omit<County, 'id' | 'createdAt' | 'updatedAt'>>): Promise<County> {
+    const response = await apiClient.put<County>(`${this.baseUrl}/${id}`, countyData);
+    return response.data as County;
+  }
+
+  /**
+   * Delete a county
+   */
+  async deleteCounty(id: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Get layers for a county
+   */
+  async getCountyLayers(id: string): Promise<any[]> {
+    const response = await apiClient.get<any[]>(`${this.baseUrl}/${id}/layers`);
+    return response.data || [];
+  }
+
+  /**
+   * Get parcels for a county with pagination
+   */
+  async getCountyParcels(id: string, page: number = 1, limit: number = 100): Promise<{
+    data: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      totalCount: number;
+      totalPages: number;
+    }
+  }> {
+    const response = await apiClient.get<{
+      data: any[];
+      pagination: {
+        page: number;
+        limit: number;
+        totalCount: number;
+        totalPages: number;
+      }
+    }>(`${this.baseUrl}/${id}/parcels`, {
+      params: { page, limit }
+    });
+    
+    return response.data as any;
+  }
+
+  /**
+   * Get statistics for a county
+   */
+  async getCountyStatistics(id: string): Promise<CountyStatistics> {
+    const response = await apiClient.get<CountyStatistics>(`${this.baseUrl}/${id}/statistics`);
+    return response.data as CountyStatistics;
+  }
 }
 
-/**
- * Create a new county
- */
-export async function createCounty(countyData: Omit<CountyConfig, 'id' | 'createdAt' | 'updatedAt' | 'lastUpdated'>) {
-  const response = await apiClient.post<CountyConfig>('/counties', countyData);
-  return response.data;
-}
-
-/**
- * Update an existing county
- */
-export async function updateCounty(id: string, countyData: Partial<Omit<CountyConfig, 'id' | 'createdAt' | 'updatedAt' | 'lastUpdated'>>) {
-  const response = await apiClient.patch<CountyConfig>(`/counties/${id}`, countyData);
-  return response.data;
-}
-
-/**
- * Delete a county
- */
-export async function deleteCounty(id: string) {
-  const response = await apiClient.delete<{ success: boolean }>(`/counties/${id}`);
-  return response.data;
-}
-
-/**
- * Activate a county
- */
-export async function activateCounty(id: string) {
-  const response = await apiClient.post<CountyConfig>(`/counties/${id}/activate`, {});
-  return response.data;
-}
-
-/**
- * Archive a county
- */
-export async function archiveCounty(id: string) {
-  const response = await apiClient.post<CountyConfig>(`/counties/${id}/archive`, {});
-  return response.data;
-}
-
-/**
- * Get county statistics
- */
-export async function getCountyStats(id: string) {
-  const response = await apiClient.get<{
-    parcelCount: number;
-    valuationCount: number;
-    userCount: number;
-    lastUpdated: string;
-  }>(`/counties/${id}/stats`);
-  return response.data;
-}
-
-/**
- * Test a county's data source connection
- */
-export async function testCountyDataSource(countyId: string, dataSourceId: string) {
-  const response = await apiClient.post<{
-    success: boolean;
-    message: string;
-    details?: Record<string, any>;
-  }>(`/counties/${countyId}/datasources/${dataSourceId}/test`, {});
-  return response.data;
-}
-
-/**
- * Get county validation issues
- */
-export async function getCountyValidationIssues(id: string) {
-  const response = await apiClient.get<Array<{
-    type: 'error' | 'warning';
-    message: string;
-    component: string;
-    resolved: boolean;
-  }>>(`/counties/${id}/validation-issues`);
-  return response.data || [];
-}
-
-/**
- * Resolve a county validation issue
- */
-export async function resolveCountyValidationIssue(countyId: string, issueId: string) {
-  const response = await apiClient.post<{ success: boolean }>(`/counties/${countyId}/validation-issues/${issueId}/resolve`, {});
-  return response.data;
-}
+// Export a singleton instance
+export const countiesService = new CountiesService();

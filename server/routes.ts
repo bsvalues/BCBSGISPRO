@@ -17,6 +17,8 @@ import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
 import mapIntelligenceRoutes from "./routes/map-intelligence";
+// Import API router for TerraFusion API
+import apiRouter from "./api";
 // Using WebSocketManager from websocket.ts
 import { 
   mapElements,
@@ -88,6 +90,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Initialize DevOps system
   await initializeDevOps(app);
+  
+  // Register TerraFusion API routes
+  app.use('/api/terraform', apiRouter);
   
   // Import WebSocketServerManager
   const { WebSocketServerManager } = await import('./websocket-manager');
