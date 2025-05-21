@@ -22,6 +22,7 @@ import AchievementsPage from './pages/achievements';
 import AgentCollaborationDemo from './pages/agent-collaboration-demo';
 import MapEditorPage from './pages/map-editor-page';
 import WorkflowsPage from './pages/workflows-page';
+import UserProfilePage from './pages/user-profile-page';
 import { Toaster } from './components/ui/toaster';
 
 // Modern layout ensures consistent navigation across all pages
