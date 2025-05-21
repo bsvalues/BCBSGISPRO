@@ -52,7 +52,8 @@ export function setupAuth(app: Express) {
       email,
       firstName: email.split('@')[0],
       lastName: '',
-      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`,
+      roles: ['viewer'] // Default role for new users
     };
 
     // Store user in database
@@ -87,7 +88,8 @@ export function setupAuth(app: Express) {
       email,
       firstName: email.split('@')[0],
       lastName: 'User',
-      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`,
+      roles: ['viewer'] // Default role for Google users
     };
     
     storage.upsertUser(user)
@@ -120,7 +122,8 @@ export function setupAuth(app: Express) {
       email,
       firstName: email.split('@')[0],
       lastName: 'User',
-      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`
+      profileImageUrl: `https://www.gravatar.com/avatar/${Buffer.from(email).toString('hex')}?d=mp&f=y`,
+      roles: ['viewer'] // Default role for GitHub users
     };
     
     storage.upsertUser(user)

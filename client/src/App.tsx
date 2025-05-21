@@ -1,12 +1,14 @@
 import React from 'react';
-import { Route, Switch, Router, useLocation } from 'wouter';
+import { Route, Switch, useLocation } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './context/auth-context';
-import { RbacAuthProvider, useRbacAuth } from './context/rbac-auth-context';
+import { RbacProvider } from './context/rbac-context';
 import { WebSocketProvider } from './context/websocket-context';
 import { AgentSystemProvider } from './context/agent-system-context';
 import AgentWebSocketHandler from './components/agent-system/agent-websocket-handler';
+
+// Import pages
 import LandingPage from './pages/landing-page';
 import LoginPage from './pages/login-page';
 import DirectLoginPage from './pages/direct-login';
@@ -27,128 +29,86 @@ import UserProfilePage from './pages/user-profile-page';
 import DemoDocumentPanel from './pages/demo-document-panel';
 import { Toaster } from './components/ui/toaster';
 
-// Modern layout ensures consistent navigation across all pages
-
-// Component to protect routes based on roles
-const ProtectedRoute = ({ component: Component, roles, ...rest }: any) => {
-  const { user, isAuthenticated, hasRole } = useRbacAuth();
-  const [, setLocation] = useLocation();
-  
-  if (!isAuthenticated) {
-    // Redirect to login if not authenticated
-    const returnPath = encodeURIComponent(rest.path);
-    setLocation(`/login?returnTo=${returnPath}`);
-    return null;
-  }
-  
-  // If roles are specified and user doesn't have the required role, deny access
-  if (roles && !hasRole(roles)) {
-    setLocation('/unauthorized');
-    return null;
-  }
-  
-  // Render the component if authorized
-  return <Component {...rest} />;
-};
+// Import our authentication components
+import ProtectedRoute from './components/auth/protected-route';
+import RoleProtectedRoute from './components/auth/role-protected-route';
+import UnauthorizedPage from './pages/unauthorized-page';
 
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RbacAuthProvider>
+        <RbacProvider>
           <WebSocketProvider>
-            {/* The AgentSystemProvider provides access to AI agents via context */}
             <AgentSystemProvider>
-              {/* 
-                AgentWebSocketHandler manages the WebSocket communication for AI agents
-                and processes the Claude API calls
-              */}
               <AgentWebSocketHandler>
                 <div className="app">
                   <Switch>
-                  <Route path="/" component={LandingPage} />
-                  <Route path="/login" component={LoginPage} />
-                  <Route path="/direct-login" component={DirectLoginPage} />
-                  <Route path="/demo-documents" component={DemoDocumentPanel} />
-                  
-                  {/* Protected Routes with Role-Based Access */}
-                  <Route path="/dashboard">
-                    <ProtectedRoute path="/dashboard" roles={['admin', 'staff', 'field']} component={DemoDashboard} />
-                  </Route>
-                  
-                  <Route path="/workflows">
-                    <ProtectedRoute path="/workflows" roles={['admin', 'staff', 'field']} component={WorkflowsPage} />
-                  </Route>
-                  
-                  {/* Public map view is available to everyone */}
-                  <Route path="/map" component={MapPage} />
-                  
-                  {/* Map editor requires staff or admin privileges */}
-                  <Route path="/map-editor">
-                    <ProtectedRoute path="/map-editor" roles={['admin', 'staff']} component={MapEditorPage} />
-                  </Route>
-                  
-                  <Route path="/benton-map" component={BentonCountyMapPage} />
-                  
-                  <Route path="/legal-description">
-                    <ProtectedRoute path="/legal-description" roles={['admin', 'staff', 'field']} component={LegalDescriptionPage} />
-                  </Route>
-                  
-                  <Route path="/documents">
-                    <ProtectedRoute path="/documents" roles={['admin', 'staff', 'field']} component={DemoDocumentClassification} />
-                  </Route>
-                  
-                  <Route path="/document-scanner">
-                    <ProtectedRoute path="/document-scanner" roles={['admin', 'staff']} component={DocumentScannerPage} />
-                  </Route>
-                  
-                  <Route path="/map-elements-advisor">
-                    <ProtectedRoute path="/map-elements-advisor" roles={['admin', 'staff']} component={MapElementsAdvisorPage} />
-                  </Route>
-                  
-                  <Route path="/agent-tools">
-                    <ProtectedRoute path="/agent-tools" roles={['admin']} component={AgentToolsPage} />
-                  </Route>
-                  
-                  <Route path="/agent-collaboration">
-                    <ProtectedRoute path="/agent-collaboration" roles={['admin', 'staff']} component={AgentCollaborationDemo} />
-                  </Route>
-                  
-                  <Route path="/sync-dashboard">
-                    <ProtectedRoute path="/sync-dashboard" roles={['admin', 'staff']} component={SyncDashboardPage} />
-                  </Route>
-                  
-                  <Route path="/achievements">
-                    <ProtectedRoute path="/achievements" roles={['admin', 'staff', 'field']} component={AchievementsPage} />
-                  </Route>
-
-                  {/* User profile page */}
-                  <Route path="/profile">
-                    <ProtectedRoute path="/profile" roles={['admin', 'staff', 'field', 'public']} component={UserProfilePage} />
-                  </Route>
-                  
-                  {/* Unauthorized access page */}
-                  <Route path="/unauthorized">
-                    <div className="flex min-h-screen items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-3xl font-bold text-red-600 mb-4">Unauthorized Access</h1>
-                        <p className="mb-6">You don't have permission to access this page.</p>
-                        <button 
-                          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80"
-                          onClick={() => window.location.href = '/'}
-                        >
-                          Return to Home
-                        </button>
-                      </div>
-                    </div>
-                  </Route>
-                </Switch>
-                <Toaster />
-              </div>
-            </AgentWebSocketHandler>
-          </AgentSystemProvider>
-        </WebSocketProvider>
-      </RbacAuthProvider>
+                    {/* Public routes */}
+                    <Route path="/" component={LandingPage} />
+                    <Route path="/login" component={LoginPage} />
+                    <Route path="/unauthorized" component={UnauthorizedPage} />
+                    
+                    {/* Protected routes */}
+                    <Route path="/map">
+                      {(params) => (
+                        <ProtectedRoute component={MapPage} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/documents">
+                      {(params) => (
+                        <ProtectedRoute component={DocumentScannerPage} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/workflows">
+                      {(params) => (
+                        <ProtectedRoute component={WorkflowsPage} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/profile">
+                      {(params) => (
+                        <ProtectedRoute component={UserProfilePage} {...params} />
+                      )}
+                    </Route>
+                    
+                    {/* Role-protected routes (admin only) */}
+                    <Route path="/admin/dashboard">
+                      {(params) => (
+                        <RoleProtectedRoute 
+                          component={SyncDashboardPage}
+                          roles={['admin']}
+                          {...params}
+                        />
+                      )}
+                    </Route>
+                    
+                    {/* Fallback for unknown routes */}
+                    <Route>
+                      {() => (
+                        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+                          <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full text-center">
+                            <h1 className="text-2xl font-bold text-gray-900 mb-4">Page Not Found</h1>
+                            <p className="text-gray-600 mb-6">The page you are looking for doesn't exist or has been moved.</p>
+                            <button 
+                              onClick={() => window.history.back()}
+                              className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+                            >
+                              Return to Home
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </Route>
+                  </Switch>
+                  <Toaster />
+                </div>
+              </AgentWebSocketHandler>
+            </AgentSystemProvider>
+          </WebSocketProvider>
+        </RbacProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
