@@ -340,20 +340,20 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
         type: 'Feature',
         geometry: {
           type: 'MultiPoint',
-          coordinates: points
+          coordinates: points as GeoJSONCoordinate[]
         },
         properties: {}
-      });
+      } as GeoJSONFeature);
       
       // Add line feature
       source.data.features.push({
         type: 'Feature',
         geometry: {
           type: 'LineString',
-          coordinates: points
+          coordinates: points as GeoJSONCoordinate[]
         },
         properties: {}
-      });
+      } as GeoJSONFeature);
       
       // Add polygon feature if measuring area and we have at least 3 points
       if (activeMeasurement === MeasurementType.AREA && points.length >= 3) {

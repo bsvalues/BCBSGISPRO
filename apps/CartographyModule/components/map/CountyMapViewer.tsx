@@ -606,13 +606,14 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
       if (layer.type === 'vector') {
         // For vector data, we'd need to fetch the data and add it as GeoJSON
         // This is a simplified implementation
-        fetch(layer.source)
-          .then(response => response.json())
-          .then(data => {
-            L.geoJSON(data, {
-              style: {
-                color: layer.attributes?.outlineColor || '#000000',
-                weight: layer.attributes?.outlineWidth || 1,
+        if (layer.source) {
+          fetch(layer.source)
+            .then(response => response.json())
+            .then(data => {
+              L.geoJSON(data, {
+                style: {
+                  color: layer.attributes?.outlineColor || '#000000',
+                  weight: layer.attributes?.outlineWidth || 1,
                 opacity: layer.opacity,
                 fillColor: layer.attributes?.fillColor || '#000000',
                 fillOpacity: layer.opacity

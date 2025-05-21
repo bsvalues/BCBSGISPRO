@@ -7,6 +7,30 @@
  */
 
 /**
+ * GeoJSON Types
+ */
+export type GeoJSONCoordinate = [number, number];
+export type GeoJSONLineString = GeoJSONCoordinate[];
+export type GeoJSONPolygon = GeoJSONLineString[];
+
+export interface GeoJSONFeature {
+  type: 'Feature';
+  geometry: {
+    type: string;
+    coordinates: GeoJSONCoordinate[] | GeoJSONLineString | GeoJSONPolygon;
+  };
+  properties: Record<string, any>;
+}
+
+export interface GeoJSONSource {
+  type: 'geojson';
+  data: {
+    type: 'FeatureCollection';
+    features: GeoJSONFeature[];
+  };
+}
+
+/**
  * Basic geographical coordinates
  */
 export interface Coordinates {
@@ -28,6 +52,45 @@ export interface BoundingBox {
 export type MapProviderType = 'mapbox' | 'leaflet' | 'arcgis';
 
 // For backward compatibility
+
+/**
+ * Measurement related types
+ */
+export enum MeasurementType {
+  DISTANCE = 'distance',
+  AREA = 'area',
+  ANGLE = 'angle',
+  ELEVATION = 'elevation'
+}
+
+export type DistanceUnit = 'meters' | 'kilometers' | 'feet' | 'miles' | 'yards' | 'nauticalMiles';
+export type AreaUnit = 'squareMeters' | 'squareKilometers' | 'acres' | 'hectares' | 'squareFeet' | 'squareMiles';
+export type AngleUnit = 'degrees' | 'radians';
+
+export interface Measurement {
+  id: string;
+  type: MeasurementType;
+  points: GeoJSONCoordinate[];
+  distance?: {
+    [unit: string]: number;
+    meters: number;  // Base unit always included
+  };
+  area?: {
+    [unit: string]: number;
+    squareMeters: number;  // Base unit always included
+  };
+  angle?: {
+    [unit: string]: number;
+    degrees: number;  // Base unit always included
+  };
+  elevation?: {
+    min: number;
+    max: number;
+    gain: number;
+    loss: number;
+  };
+  timestamp: number;
+}
 export type MapProvider = MapProviderType;
 
 /**
