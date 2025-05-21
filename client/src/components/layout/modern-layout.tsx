@@ -33,13 +33,14 @@ const navigationItems = [
     items: [
       { href: '/', label: 'Home', icon: <Home className="w-5 h-5 mr-2" /> },
       { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5 mr-2" /> },
+      { href: '/workflows', label: 'Workflows', icon: <Workflow className="w-5 h-5 mr-2" /> },
     ]
   },
   {
-    group: 'Workflows',
+    group: 'Assessment',
     items: [
-      { href: '/workflows', label: 'Workflows', icon: <Workflow className="w-5 h-5 mr-2" /> },
       { href: '/documents', label: 'Documents', icon: <FileText className="w-5 h-5 mr-2" /> },
+      { href: '/legal-description', label: 'Legal Description', icon: <FileCheck className="w-5 h-5 mr-2" /> },
     ]
   },
   {

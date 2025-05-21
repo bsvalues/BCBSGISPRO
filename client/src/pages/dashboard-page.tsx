@@ -384,56 +384,129 @@ const DashboardPage: React.FC = () => {
           <TabsContent value="overview" className="space-y-6 mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Recent Workflows</CardTitle>
-                    <Link href="/workflows">
-                      <Button variant="ghost" size="sm">View All</Button>
-                    </Link>
-                  </div>
-                  <CardDescription>Recently updated workflows</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentWorkflows.map((workflow) => (
-                      <div key={workflow.id} className="flex items-start space-x-4">
-                        <div className="p-2 rounded-md bg-primary/10 text-primary">
-                          <FileCheck className="h-5 w-5" />
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Recent Workflows</CardTitle>
+                      <Link href="/workflows">
+                        <Button variant="ghost" size="sm">View All</Button>
+                      </Link>
+                    </div>
+                    <CardDescription>Recently updated workflows</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {recentWorkflows.map((workflow) => (
+                        <div key={workflow.id} className="flex items-start space-x-4">
+                          <div className="p-2 rounded-md bg-primary/10 text-primary">
+                            <FileCheck className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Link href={`/workflow/${workflow.id}`}>
+                                <p className="font-medium text-sm hover:underline text-primary">
+                                  {workflow.title}
+                                </p>
+                              </Link>
+                              {renderStatusBadge(workflow.status)}
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>{workflow.type}</span>
+                              <span>Updated {workflow.updatedAt}</span>
+                            </div>
+                            <div className="pt-1">
+                              <div className="flex justify-between text-xs mb-1">
+                                <span>{workflow.progress}% Complete</span>
+                              </div>
+                              <Progress value={workflow.progress} className="h-1.5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="border-t pt-4 pb-2">
+                    <Button className="w-full">
+                      <Link href="/workflows" className="flex items-center justify-center w-full">
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Workflow
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+                
+                {/* Recent Activity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Activity Feed</CardTitle>
+                    <CardDescription>Recent changes and updates</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4 relative">
+                      <div className="absolute top-0 bottom-0 left-[11px] w-[1px] bg-border"></div>
+                      
+                      <div className="flex gap-3">
+                        <div className="relative w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center z-10">
+                          <FileCheck className="h-3.5 w-3.5 text-primary" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Link href={`/workflow/${workflow.id}`}>
-                              <p className="font-medium text-sm hover:underline text-primary">
-                                {workflow.title}
-                              </p>
-                            </Link>
-                            {renderStatusBadge(workflow.status)}
-                          </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{workflow.type}</span>
-                            <span>Updated {workflow.updatedAt}</span>
-                          </div>
-                          <div className="pt-1">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span>{workflow.progress}% Complete</span>
-                            </div>
-                            <Progress value={workflow.progress} className="h-1.5" />
-                          </div>
+                          <p className="text-sm leading-tight">
+                            <span className="font-medium">Sarah Thompson</span>
+                            <span className="text-muted-foreground"> marked </span>
+                            <span className="text-primary font-medium">Legal Description</span>
+                            <span className="text-muted-foreground"> as complete for </span>
+                            <Link href="/workflow/1" className="text-primary hover:underline">Johnson Property Division</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">10 minutes ago</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t pt-4 pb-2">
-                  <Button asChild className="w-full">
-                    <Link href="/workflows">
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Workflow
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
+                      
+                      <div className="flex gap-3">
+                        <div className="relative w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center z-10">
+                          <FileText className="h-3.5 w-3.5 text-amber-600" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm leading-tight">
+                            <span className="font-medium">Michael Rodriguez</span>
+                            <span className="text-muted-foreground"> uploaded a new document to </span>
+                            <Link href="/workflow/2" className="text-primary hover:underline">Westside Commercial Merger</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">1 hour ago</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <div className="relative w-6 h-6 rounded-full bg-green-100 flex items-center justify-center z-10">
+                          <MapPin className="h-3.5 w-3.5 text-green-600" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm leading-tight">
+                            <span className="font-medium">David Chen</span>
+                            <span className="text-muted-foreground"> updated map features for </span>
+                            <Link href="/workflow/4" className="text-primary hover:underline">Mountain View Estates</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">3 hours ago</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <div className="relative w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center z-10">
+                          <Workflow className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm leading-tight">
+                            <span className="font-medium">Emily Watson</span>
+                            <span className="text-muted-foreground"> created a new workflow </span>
+                            <Link href="/workflow/3" className="text-primary hover:underline">Riverfront Properties BLA</Link>
+                          </p>
+                          <p className="text-xs text-muted-foreground">1 day ago</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Recent Documents */}
               <Card>

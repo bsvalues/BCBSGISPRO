@@ -435,6 +435,100 @@ const WorkflowsPage: React.FC = () => {
           <CreateWorkflowDialog onCreateWorkflow={handleCreateWorkflow} />
         </div>
         
+        {/* Workflow Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Workflows</p>
+                  <h4 className="text-2xl font-bold mt-1">{workflows.length}</h4>
+                </div>
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Workflow className="h-5 w-5 text-primary" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link href="/dashboard" className="text-sm text-primary hover:underline">
+                  View dashboard
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">In Progress</p>
+                  <h4 className="text-2xl font-bold mt-1">
+                    {workflows.filter(w => w.status === 'in_progress').length}
+                  </h4>
+                </div>
+                <div className="p-2 rounded-md bg-blue-100">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button 
+                  onClick={() => setActiveTab('in_progress')} 
+                  className="text-sm text-primary hover:underline"
+                >
+                  View in progress
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Needs Review</p>
+                  <h4 className="text-2xl font-bold mt-1">
+                    {workflows.filter(w => w.status === 'review').length}
+                  </h4>
+                </div>
+                <div className="p-2 rounded-md bg-amber-100">
+                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button 
+                  onClick={() => setActiveTab('review')} 
+                  className="text-sm text-primary hover:underline"
+                >
+                  View for review
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Completed</p>
+                  <h4 className="text-2xl font-bold mt-1">
+                    {workflows.filter(w => w.status === 'completed').length}
+                  </h4>
+                </div>
+                <div className="p-2 rounded-md bg-green-100">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button 
+                  onClick={() => setActiveTab('completed')} 
+                  className="text-sm text-primary hover:underline"
+                >
+                  View completed
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
         <div className="flex flex-col space-y-4">
           <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
