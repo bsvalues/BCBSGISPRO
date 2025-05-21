@@ -18,6 +18,7 @@ import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
 import mapIntelligenceRoutes from "./routes/map-intelligence";
 import authRoutes from "./routes/auth-routes";
+import { registerAuthDebugRoutes } from "./debug-auth";
 // Import API router for TerraFusion API
 import apiRouter from "./api";
 // Using WebSocketManager from websocket.ts
@@ -85,6 +86,9 @@ import { initializeDevOps } from './devops';
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes (session-based)
   setupAuth(app);
+  
+  // Register authentication debugging routes
+  registerAuthDebugRoutes(app);
   
   // Register JWT-based authentication routes for RBAC
   app.use('/api/auth', authRoutes);
