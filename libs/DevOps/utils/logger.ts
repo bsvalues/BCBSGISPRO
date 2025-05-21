@@ -1,475 +1,265 @@
 /**
- * Advanced Logging System
+ * Logger Utility
  * 
- * This module provides a robust logging system for the TerraFusion platform
- * with support for multiple transports, log levels, and structured data.
+ * This module provides a centralized logging system for the application, with support for 
+ * different log levels, tags, and formatters. It can be configured to output logs to 
+ * various destinations including console, file, and remote services.
  */
 
-// Log levels in order of severity
+// Log level enum
 export enum LogLevel {
-  TRACE = 0,
-  DEBUG = 1,
-  INFO = 2,
-  WARN = 3,
-  ERROR = 4,
-  FATAL = 5
-}
-
-// Transport interface for log destinations
-export interface LogTransport {
-  // Destination name
-  name: string;
-  
-  // Minimum log level to capture
-  minLevel: LogLevel;
-  
-  // Log output function
-  log(entry: LogEntry): void;
+  DEBUG = 'debug',
+  INFO = 'info',
+  WARN = 'warn',
+  ERROR = 'error',
+  FATAL = 'fatal'
 }
 
 // Log entry interface
 export interface LogEntry {
-  // Timestamp of the log entry
-  timestamp: Date;
-  
-  // Log level
   level: LogLevel;
-  
-  // Log message
   message: string;
-  
-  // Error object, if applicable
+  timestamp: Date;
+  tags: string[];
+  data?: any;
   error?: Error;
-  
-  // Tags for categorization
-  tags?: string[];
-  
-  // Additional metadata
-  metadata?: Record<string, any>;
-  
-  // Source information
-  source?: {
-    file?: string;
-    function?: string;
-    line?: number;
-  };
 }
 
-// Console transport for logging to the console
-export class ConsoleTransport implements LogTransport {
-  name: string = 'console';
-  minLevel: LogLevel;
+// Log formatter type
+export type LogFormatter = (entry: LogEntry) => string;
+
+// Log destination interface
+export interface LogDestination {
+  write: (entry: LogEntry) => void;
+  level: LogLevel;
+}
+
+// Console log destination
+export class ConsoleLogDestination implements LogDestination {
+  level: LogLevel;
+  formatter: LogFormatter;
   
-  // ANSI color codes for different log levels
-  private readonly levelColors = {
-    [LogLevel.TRACE]: '\x1b[90m', // Gray
-    [LogLevel.DEBUG]: '\x1b[36m', // Cyan
-    [LogLevel.INFO]: '\x1b[32m',  // Green
-    [LogLevel.WARN]: '\x1b[33m',  // Yellow
-    [LogLevel.ERROR]: '\x1b[31m', // Red
-    [LogLevel.FATAL]: '\x1b[35m'  // Magenta
-  };
-  
-  // Reset ANSI color
-  private readonly resetColor = '\x1b[0m';
-  
-  // Level names for display
-  private readonly levelNames = {
-    [LogLevel.TRACE]: 'TRACE',
-    [LogLevel.DEBUG]: 'DEBUG',
-    [LogLevel.INFO]: 'INFO ',
-    [LogLevel.WARN]: 'WARN ',
-    [LogLevel.ERROR]: 'ERROR',
-    [LogLevel.FATAL]: 'FATAL'
-  };
-  
-  constructor(minLevel: LogLevel = LogLevel.INFO) {
-    this.minLevel = minLevel;
+  constructor(level: LogLevel = LogLevel.INFO, formatter?: LogFormatter) {
+    this.level = level;
+    this.formatter = formatter || this.defaultFormatter;
   }
   
-  log(entry: LogEntry): void {
-    // Skip if below minimum level
-    if (entry.level < this.minLevel) {
-      return;
+  write(entry: LogEntry): void {
+    if (this.shouldLog(entry.level)) {
+      const formattedMessage = this.formatter(entry);
+      
+      switch (entry.level) {
+        case LogLevel.DEBUG:
+          console.debug(formattedMessage);
+          break;
+        case LogLevel.INFO:
+          console.info(formattedMessage);
+          break;
+        case LogLevel.WARN:
+          console.warn(formattedMessage);
+          break;
+        case LogLevel.ERROR:
+        case LogLevel.FATAL:
+          console.error(formattedMessage);
+          break;
+      }
+      
+      // If there's an error object, log it too
+      if (entry.error) {
+        console.error(entry.error);
+      }
     }
+  }
+  
+  private shouldLog(level: LogLevel): boolean {
+    const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, LogLevel.FATAL];
+    const thisLevelIndex = levels.indexOf(this.level);
+    const entryLevelIndex = levels.indexOf(level);
     
-    // Format timestamp
+    return entryLevelIndex >= thisLevelIndex;
+  }
+  
+  private defaultFormatter(entry: LogEntry): string {
     const timestamp = entry.timestamp.toISOString();
+    const level = entry.level.toUpperCase().padEnd(5);
+    const tags = entry.tags.length > 0 ? `[${entry.tags.join(', ')}]` : '';
     
-    // Format tags
-    const tags = entry.tags && entry.tags.length > 0
-      ? `[${entry.tags.join(', ')}] `
-      : '';
+    let message = `[${timestamp}] [${level}] ${tags} ${entry.message}`;
     
-    // Format level with color
-    const levelColor = this.levelColors[entry.level] || '';
-    const levelName = this.levelNames[entry.level] || 'UNKNOWN';
-    const level = `${levelColor}${levelName}${this.resetColor}`;
-    
-    // Format message
-    const message = entry.message;
-    
-    // Build log line
-    const logLine = `${timestamp} ${level} ${tags}${message}`;
-    
-    // Output to console based on level
-    switch (entry.level) {
-      case LogLevel.TRACE:
-      case LogLevel.DEBUG:
-        console.debug(logLine);
-        break;
-      case LogLevel.INFO:
-        console.info(logLine);
-        break;
-      case LogLevel.WARN:
-        console.warn(logLine);
-        break;
-      case LogLevel.ERROR:
-      case LogLevel.FATAL:
-        console.error(logLine);
-        break;
-      default:
-        console.log(logLine);
+    if (entry.data) {
+      try {
+        const dataStr = JSON.stringify(entry.data);
+        message += ` - ${dataStr}`;
+      } catch (e) {
+        message += ' - [Data cannot be stringified]';
+      }
     }
     
-    // Output metadata if present
-    if (entry.metadata && Object.keys(entry.metadata).length > 0) {
-      console.dir(entry.metadata, { depth: 4, colors: true });
-    }
-    
-    // Output error stack trace if present
-    if (entry.error && entry.error.stack) {
-      console.error(entry.error.stack);
-    }
+    return message;
   }
 }
 
-// File transport for logging to files
-export class FileTransport implements LogTransport {
-  name: string = 'file';
-  minLevel: LogLevel;
+// File log destination (would be implemented in a real application)
+export class FileLogDestination implements LogDestination {
+  level: LogLevel;
+  formatter: LogFormatter;
   filePath: string;
   
-  constructor(filePath: string, minLevel: LogLevel = LogLevel.INFO) {
+  constructor(filePath: string, level: LogLevel = LogLevel.INFO, formatter?: LogFormatter) {
     this.filePath = filePath;
-    this.minLevel = minLevel;
+    this.level = level;
+    this.formatter = formatter || this.defaultFormatter;
   }
   
-  log(entry: LogEntry): void {
-    // Skip if below minimum level
-    if (entry.level < this.minLevel) {
-      return;
-    }
-    
+  write(entry: LogEntry): void {
     // In a real implementation, this would write to a file
     // For now, we'll just simulate it
-    console.log(`[FileTransport] Would write to ${this.filePath}:`, JSON.stringify(entry));
-  }
-}
-
-// Memory transport for in-memory logging
-export class MemoryTransport implements LogTransport {
-  name: string = 'memory';
-  minLevel: LogLevel;
-  maxEntries: number;
-  entries: LogEntry[] = [];
-  
-  constructor(maxEntries: number = 1000, minLevel: LogLevel = LogLevel.INFO) {
-    this.maxEntries = maxEntries;
-    this.minLevel = minLevel;
+    console.log(`[FILE] Would write to ${this.filePath}: ${this.formatter(entry)}`);
   }
   
-  log(entry: LogEntry): void {
-    // Skip if below minimum level
-    if (entry.level < this.minLevel) {
-      return;
+  private defaultFormatter(entry: LogEntry): string {
+    const timestamp = entry.timestamp.toISOString();
+    const level = entry.level.toUpperCase().padEnd(5);
+    const tags = entry.tags.length > 0 ? `[${entry.tags.join(', ')}]` : '';
+    
+    let message = `[${timestamp}] [${level}] ${tags} ${entry.message}`;
+    
+    if (entry.data) {
+      try {
+        const dataStr = JSON.stringify(entry.data);
+        message += ` - ${dataStr}`;
+      } catch (e) {
+        message += ' - [Data cannot be stringified]';
+      }
     }
     
-    // Add entry to memory buffer
-    this.entries.push(entry);
-    
-    // Trim buffer if exceeding max entries
-    if (this.entries.length > this.maxEntries) {
-      this.entries = this.entries.slice(-this.maxEntries);
+    if (entry.error) {
+      message += ` - Error: ${entry.error.message}`;
+      if (entry.error.stack) {
+        message += `\n${entry.error.stack}`;
+      }
     }
-  }
-  
-  // Get all entries
-  getEntries(): LogEntry[] {
-    return [...this.entries];
-  }
-  
-  // Clear entries
-  clearEntries(): void {
-    this.entries = [];
-  }
-  
-  // Search entries by criteria
-  searchEntries(criteria: {
-    level?: LogLevel,
-    minLevel?: LogLevel,
-    maxLevel?: LogLevel,
-    tags?: string[],
-    text?: string,
-    from?: Date,
-    to?: Date
-  }): LogEntry[] {
-    return this.entries.filter(entry => {
-      // Filter by exact level
-      if (criteria.level !== undefined && entry.level !== criteria.level) {
-        return false;
-      }
-      
-      // Filter by min level
-      if (criteria.minLevel !== undefined && entry.level < criteria.minLevel) {
-        return false;
-      }
-      
-      // Filter by max level
-      if (criteria.maxLevel !== undefined && entry.level > criteria.maxLevel) {
-        return false;
-      }
-      
-      // Filter by tags (any match)
-      if (criteria.tags && criteria.tags.length > 0 && (!entry.tags || !criteria.tags.some(tag => entry.tags!.includes(tag)))) {
-        return false;
-      }
-      
-      // Filter by text in message
-      if (criteria.text && !entry.message.includes(criteria.text)) {
-        return false;
-      }
-      
-      // Filter by date range
-      if (criteria.from && entry.timestamp < criteria.from) {
-        return false;
-      }
-      
-      if (criteria.to && entry.timestamp > criteria.to) {
-        return false;
-      }
-      
-      return true;
-    });
+    
+    return message;
   }
 }
 
 // Logger class
 export class Logger {
-  private transports: LogTransport[] = [];
+  private static instance: Logger;
+  private destinations: LogDestination[] = [];
   private defaultTags: string[] = [];
-  private defaultMetadata: Record<string, any> = {};
   
-  constructor() {
-    // Add console transport by default
-    this.addTransport(new ConsoleTransport());
+  private constructor() {
+    // Add console destination by default
+    this.addDestination(new ConsoleLogDestination());
   }
   
-  // Add a transport
-  addTransport(transport: LogTransport): void {
-    this.transports.push(transport);
+  /**
+   * Get the singleton logger instance
+   */
+  public static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger();
+    }
+    
+    return Logger.instance;
   }
   
-  // Remove a transport by name
-  removeTransport(name: string): void {
-    this.transports = this.transports.filter(t => t.name !== name);
+  /**
+   * Add a log destination
+   */
+  public addDestination(destination: LogDestination): void {
+    this.destinations.push(destination);
   }
   
-  // Set default tags
-  setDefaultTags(tags: string[]): void {
+  /**
+   * Remove a log destination
+   */
+  public removeDestination(destination: LogDestination): void {
+    const index = this.destinations.indexOf(destination);
+    if (index !== -1) {
+      this.destinations.splice(index, 1);
+    }
+  }
+  
+  /**
+   * Clear all destinations
+   */
+  public clearDestinations(): void {
+    this.destinations = [];
+  }
+  
+  /**
+   * Set default tags for all log messages
+   */
+  public setDefaultTags(tags: string[]): void {
     this.defaultTags = tags;
   }
   
-  // Add default tags
-  addDefaultTags(...tags: string[]): void {
-    this.defaultTags = [...new Set([...this.defaultTags, ...tags])];
+  /**
+   * Create a new logger with additional tags
+   */
+  public withTags(tags: string[]): Logger {
+    const newLogger = new Logger();
+    newLogger.destinations = this.destinations;
+    newLogger.defaultTags = [...this.defaultTags, ...tags];
+    return newLogger;
   }
   
-  // Set default metadata
-  setDefaultMetadata(metadata: Record<string, any>): void {
-    this.defaultMetadata = metadata;
+  /**
+   * Log a debug message
+   */
+  public debug(message: string, data?: any): void {
+    this.log(LogLevel.DEBUG, message, data);
   }
   
-  // Add default metadata
-  addDefaultMetadata(metadata: Record<string, any>): void {
-    this.defaultMetadata = { ...this.defaultMetadata, ...metadata };
+  /**
+   * Log an info message
+   */
+  public info(message: string, data?: any): void {
+    this.log(LogLevel.INFO, message, data);
   }
   
-  // Create a log entry
-  private createLogEntry(
-    level: LogLevel,
-    message: string,
-    error?: Error,
-    tags?: string[],
-    metadata?: Record<string, any>
-  ): LogEntry {
-    // Combine default and provided tags
-    const combinedTags = [...this.defaultTags];
-    if (tags && tags.length > 0) {
-      tags.forEach(tag => {
-        if (!combinedTags.includes(tag)) {
-          combinedTags.push(tag);
-        }
-      });
-    }
-    
-    // Combine default and provided metadata
-    const combinedMetadata = { ...this.defaultMetadata, ...metadata };
-    
-    // Create entry
-    return {
-      timestamp: new Date(),
+  /**
+   * Log a warning message
+   */
+  public warn(message: string, data?: any): void {
+    this.log(LogLevel.WARN, message, data);
+  }
+  
+  /**
+   * Log an error message
+   */
+  public error(message: string, error?: any): void {
+    this.log(LogLevel.ERROR, message, undefined, error instanceof Error ? error : new Error(String(error)));
+  }
+  
+  /**
+   * Log a fatal error message
+   */
+  public fatal(message: string, error?: any): void {
+    this.log(LogLevel.FATAL, message, undefined, error instanceof Error ? error : new Error(String(error)));
+  }
+  
+  /**
+   * Log a message with a specific level
+   */
+  private log(level: LogLevel, message: string, data?: any, error?: Error): void {
+    const entry: LogEntry = {
       level,
       message,
-      error,
-      tags: combinedTags.length > 0 ? combinedTags : undefined,
-      metadata: Object.keys(combinedMetadata).length > 0 ? combinedMetadata : undefined
+      timestamp: new Date(),
+      tags: this.defaultTags,
+      data,
+      error
     };
-  }
-  
-  // Log a message at a specific level
-  log(
-    level: LogLevel,
-    message: string,
-    errorOrMetadata?: Error | Record<string, any>,
-    metadata?: Record<string, any>
-  ): void {
-    let error: Error | undefined;
-    let logMetadata: Record<string, any> | undefined;
     
-    // Handle optional error and metadata arguments
-    if (errorOrMetadata instanceof Error) {
-      error = errorOrMetadata;
-      logMetadata = metadata;
-    } else if (errorOrMetadata && typeof errorOrMetadata === 'object') {
-      logMetadata = errorOrMetadata as Record<string, any>;
+    for (const destination of this.destinations) {
+      destination.write(entry);
     }
-    
-    // Create log entry
-    const entry = this.createLogEntry(level, message, error, undefined, logMetadata);
-    
-    // Send to all transports
-    this.transports.forEach(transport => {
-      try {
-        transport.log(entry);
-      } catch (err) {
-        // If a transport fails, log to console as a fallback
-        console.error(`Logger transport '${transport.name}' failed:`, err);
-      }
-    });
-  }
-  
-  // Create a child logger with additional tags
-  withTags(tags: string[]): Logger {
-    const childLogger = new Logger();
-    
-    // Copy transports
-    this.transports.forEach(transport => {
-      childLogger.addTransport(transport);
-    });
-    
-    // Combine tags
-    childLogger.setDefaultTags([...this.defaultTags, ...tags]);
-    
-    // Copy metadata
-    childLogger.setDefaultMetadata(this.defaultMetadata);
-    
-    return childLogger;
-  }
-  
-  // Create a child logger with additional metadata
-  withMetadata(metadata: Record<string, any>): Logger {
-    const childLogger = new Logger();
-    
-    // Copy transports
-    this.transports.forEach(transport => {
-      childLogger.addTransport(transport);
-    });
-    
-    // Copy tags
-    childLogger.setDefaultTags(this.defaultTags);
-    
-    // Combine metadata
-    childLogger.setDefaultMetadata({ ...this.defaultMetadata, ...metadata });
-    
-    return childLogger;
-  }
-  
-  // Log at TRACE level
-  trace(message: string, metadata?: Record<string, any>): void {
-    this.log(LogLevel.TRACE, message, metadata);
-  }
-  
-  // Log at DEBUG level
-  debug(message: string, metadata?: Record<string, any>): void {
-    this.log(LogLevel.DEBUG, message, metadata);
-  }
-  
-  // Log at INFO level
-  info(message: string, metadata?: Record<string, any>): void {
-    this.log(LogLevel.INFO, message, metadata);
-  }
-  
-  // Log at WARN level
-  warn(message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>): void {
-    this.log(LogLevel.WARN, message, errorOrMetadata, metadata);
-  }
-  
-  // Log at ERROR level
-  error(message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>): void {
-    this.log(LogLevel.ERROR, message, errorOrMetadata, metadata);
-  }
-  
-  // Log at FATAL level
-  fatal(message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>): void {
-    this.log(LogLevel.FATAL, message, errorOrMetadata, metadata);
-  }
-  
-  // Start timing an operation
-  startTimer(operationName: string): () => void {
-    const start = Date.now();
-    
-    // Return function to end timer and log result
-    return () => {
-      const duration = Date.now() - start;
-      this.info(`Operation '${operationName}' completed in ${duration}ms`, { 
-        operation: operationName, 
-        durationMs: duration 
-      });
-    };
-  }
-  
-  // Log with a specific tag temporarily
-  withTag(tag: string): {
-    trace: (message: string, metadata?: Record<string, any>) => void;
-    debug: (message: string, metadata?: Record<string, any>) => void;
-    info: (message: string, metadata?: Record<string, any>) => void;
-    warn: (message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>) => void;
-    error: (message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>) => void;
-    fatal: (message: string, errorOrMetadata?: Error | Record<string, any>, metadata?: Record<string, any>) => void;
-  } {
-    const tempLogger = this.withTags([tag]);
-    
-    return {
-      trace: tempLogger.trace.bind(tempLogger),
-      debug: tempLogger.debug.bind(tempLogger),
-      info: tempLogger.info.bind(tempLogger),
-      warn: tempLogger.warn.bind(tempLogger),
-      error: tempLogger.error.bind(tempLogger),
-      fatal: tempLogger.fatal.bind(tempLogger)
-    };
   }
 }
 
-// Create default logger instance
-export const logger = new Logger();
-
-// Add memory transport for in-memory logs
-export const memoryTransport = new MemoryTransport();
-logger.addTransport(memoryTransport);
-
-// Add metadata about environment
-logger.addDefaultMetadata({
-  environment: process.env.NODE_ENV || 'development',
-  appVersion: process.env.npm_package_version || 'unknown'
-});
+// Export a singleton instance
+export const logger = Logger.getInstance();
