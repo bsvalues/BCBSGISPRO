@@ -1,56 +1,79 @@
-export type WorkflowStep = {
+// Workflow related types
+
+export interface Workflow {
   id: number;
-  name: string;
+  title: string;
+  description: string;
+  type: string;
+  status: string;
+  priority: string;
+  createdBy: number; 
+  assignedTo?: number;
+  parcelId?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  dueDate?: string;
+}
+
+export interface WorkflowEvent {
+  id: number;
+  workflowId: number;
+  eventType: string;
+  description: string;
+  userId: number;
+  metadata?: any;
+  createdAt: string;
+}
+
+export enum WorkflowType {
+  PROPERTY_ASSESSMENT = 'property_assessment',
+  BOUNDARY_ADJUSTMENT = 'boundary_adjustment',
+  LAND_DIVISION = 'land_division',
+  CONSTRUCTION_PERMIT = 'construction_permit',
+  ZONING_CHANGE = 'zoning_change',
+  LEGAL_APPEAL = 'legal_appeal',
+  TAX_APPEAL = 'tax_appeal',
+  OWNERSHIP_CHANGE = 'ownership_change',
+  SPECIAL_ASSESSMENT = 'special_assessment',
+  OTHER = 'other'
+}
+
+export enum WorkflowStatus {
+  DRAFT = 'draft',
+  IN_PROGRESS = 'in_progress',
+  REVIEW = 'review',
+  COMPLETED = 'completed',
+  ARCHIVED = 'archived'
+}
+
+export enum WorkflowPriority {
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low'
+}
+
+export interface WorkflowState {
+  id: number;
+  workflowId: number;
+  currentStep: number;
+  totalSteps: number;
+  data: any;
+  updatedAt: string;
+}
+
+export interface ChecklistItem {
+  id: number;
+  workflowId: number;
+  title: string;
   description?: string;
-};
-
-export type WorkflowType = 'long_plat' | 'bla' | 'merge_split' | 'sm00_report';
-
-export const workflowTypeLabels: Record<WorkflowType, string> = {
-  long_plat: 'Process Long Plat',
-  bla: 'Execute BLA',
-  merge_split: 'Merge/Split Parcels',
-  sm00_report: 'Generate SM00 Report'
-};
-
-export const workflowTypeDescriptions: Record<WorkflowType, string> = {
-  long_plat: 'Create and process a new long plat in Benton County',
-  bla: 'Execute a Boundary Line Adjustment between parcels',
-  merge_split: 'Process parcel merges and splits',
-  sm00_report: 'Generate monthly segregation reports'
-};
-
-export const workflowTypeIcons: Record<WorkflowType, string> = {
-  long_plat: 'map-marked-alt',
-  bla: 'object-group',
-  merge_split: 'exchange-alt',
-  sm00_report: 'file-alt'
-};
-
-export const workflowSteps: Record<WorkflowType, WorkflowStep[]> = {
-  long_plat: [
-    { id: 1, name: 'Basic Info', description: 'Enter general plat information' },
-    { id: 2, name: 'Documents', description: 'Upload and review required documents' },
-    { id: 3, name: 'Parcels', description: 'Define new parcels and generate IDs' },
-    { id: 4, name: 'Map', description: 'Review and update GIS map information' },
-    { id: 5, name: 'Review', description: 'Final review and submission' }
-  ],
-  bla: [
-    { id: 1, name: 'Initial Info', description: 'Enter basic BLA information' },
-    { id: 2, name: 'Documents', description: 'Upload required BLA documents' },
-    { id: 3, name: 'Boundaries', description: 'Define new boundaries' },
-    { id: 4, name: 'Review', description: 'Final review and approval' }
-  ],
-  merge_split: [
-    { id: 1, name: 'Selection', description: 'Select parcels to merge or split' },
-    { id: 2, name: 'Documents', description: 'Upload deed documents' },
-    { id: 3, name: 'New Config', description: 'Define new configuration' },
-    { id: 4, name: 'Map', description: 'Review map changes' },
-    { id: 5, name: 'Submit', description: 'Complete and submit changes' }
-  ],
-  sm00_report: [
-    { id: 1, name: 'Parameters', description: 'Set report parameters' },
-    { id: 2, name: 'Data', description: 'Review data to be included' },
-    { id: 3, name: 'Generate', description: 'Generate and distribute report' }
-  ]
-};
+  completed: boolean;
+  completedBy?: number;
+  completedAt?: string;
+  dueDate?: string;
+  required: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
