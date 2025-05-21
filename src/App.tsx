@@ -55,17 +55,30 @@ const appLogger = logger.withTags(['App', 'Main']);
 
 // Mock data for demo purposes
 // Temporary inline mock data to avoid import errors
-// County interface
+// County interface matching WorkflowUI definition
 interface County {
   id: string;
   name: string;
   state: string;
-  status: string;
+  status: 'active' | 'inactive' | 'pending' | 'archived';
   fips: string;
-  properties: { parcelCount: number };
+  properties: { 
+    parcelCount: number;
+    population?: number;
+    area?: number;
+    gisReady?: boolean;
+    valuationSystemIntegrated?: boolean;
+    taxSystemIntegrated?: boolean;
+  };
   lastUpdated: Date;
   createdAt: Date;
   updatedAt: Date;
+  contacts?: Array<{
+    name: string;
+    role: string;
+    email: string;
+    phone?: string;
+  }>;
 }
 
 // Properly typed mock counties
@@ -76,10 +89,25 @@ const mockCounties: County[] = [
     state: 'WA',
     status: 'active',
     fips: '53005',
-    properties: { parcelCount: 65430 },
+    properties: { 
+      parcelCount: 65430,
+      population: 204390,
+      area: 1760,
+      gisReady: true,
+      valuationSystemIntegrated: true,
+      taxSystemIntegrated: true
+    },
     lastUpdated: new Date('2023-12-10'),
     createdAt: new Date('2023-01-15'),
-    updatedAt: new Date('2023-12-10')
+    updatedAt: new Date('2023-12-10'),
+    contacts: [
+      {
+        name: 'Sarah Johnson',
+        role: 'Assessor',
+        email: 'sarah.johnson@example.gov',
+        phone: '509-555-1234'
+      }
+    ]
   },
   {
     id: 'king-wa',
@@ -87,10 +115,25 @@ const mockCounties: County[] = [
     state: 'WA',
     status: 'active',
     fips: '53033',
-    properties: { parcelCount: 524800 },
+    properties: { 
+      parcelCount: 524800,
+      population: 2252782,
+      area: 2307,
+      gisReady: true,
+      valuationSystemIntegrated: true,
+      taxSystemIntegrated: true
+    },
     lastUpdated: new Date('2023-12-15'),
     createdAt: new Date('2023-02-20'),
-    updatedAt: new Date('2023-12-15')
+    updatedAt: new Date('2023-12-15'),
+    contacts: [
+      {
+        name: 'Michael Chen',
+        role: 'GIS Manager',
+        email: 'michael.chen@example.gov',
+        phone: '206-555-4321'
+      }
+    ]
   }
 ];
 
@@ -106,13 +149,35 @@ interface User {
   permissions: string[];
 }
 
-// System Component interface
+// System Component interface matching WorkflowUI definition
 interface SystemComponentTyped extends SystemComponent {
   id: string;
   name: string;
+  description: string;
   status: ComponentStatus;
   type: string;
   lastChecked: Date;
+  lastUpdated: Date;
+  metrics: SystemMetric[];
+  dependencies: string[];
+  details?: Record<string, any>;
+}
+
+// System metric interface matching WorkflowUI definition
+interface SystemMetric {
+  name: string;
+  value: number | string;
+  unit?: string;
+  timestamp: Date;
+  status?: ComponentStatus;
+  thresholds?: {
+    warning?: number;
+    error?: number;
+  };
+  history?: Array<{
+    value: number | string;
+    timestamp: Date;
+  }>;
 }
 
 // System Event interface matching AdminEvent in WorkflowUI
@@ -157,19 +222,82 @@ interface DashboardSummary {
   recentEvents: SystemEvent[];
 }
 
-// Mock data with proper typing
+// Mock data with proper typing that matches WorkflowUI requirements
 const mockUsers: User[] = [
   {
     id: "user1",
     name: "John Assessor",
-    role: "administrator",
-    email: "john@example.com"
+    role: "admin",
+    email: "john@example.com",
+    status: "active",
+    lastLogin: new Date('2025-05-20'),
+    countyIds: ["benton-wa", "king-wa"],
+    permissions: ["read:all", "write:counties", "admin:dashboard"]
   }
 ];
 
-const mockSystemComponents: SystemComponentTyped[] = [];
-const mockSystemAlerts: SystemAlert[] = [];
-const mockEvents: SystemEvent[] = [];
+const mockSystemComponents: SystemComponentTyped[] = [
+  {
+    id: "api-service",
+    name: "API Service",
+    status: ComponentStatus.HEALTHY,
+    type: "service",
+    lastChecked: new Date(),
+    description: "Core API services",
+    lastUpdated: new Date(),
+    metrics: [
+      {
+        name: "Response Time",
+        value: 125,
+        unit: "ms",
+        timestamp: new Date(),
+        status: ComponentStatus.HEALTHY,
+        thresholds: {
+          warning: 500,
+          error: 1000
+        }
+      },
+      {
+        name: "Uptime",
+        value: 99.97,
+        unit: "%",
+        timestamp: new Date(),
+        status: ComponentStatus.HEALTHY
+      }
+    ],
+    dependencies: ["database-service"],
+    details: {
+      version: "1.0.0",
+      environment: "development"
+    }
+  }
+];
+
+const mockSystemAlerts: SystemAlert[] = [
+  {
+    id: "alert1",
+    componentId: "api-service",
+    level: "info",
+    message: "Scheduled maintenance in 24 hours",
+    timestamp: new Date(),
+    acknowledged: false,
+    details: {
+      maintenanceWindow: "2025-05-22T02:00:00Z",
+      estimatedDuration: "2 hours"
+    }
+  }
+];
+
+const mockEvents: SystemEvent[] = [
+  {
+    id: "event1",
+    type: "system",
+    action: "System startup",
+    timestamp: new Date(),
+    details: { version: "1.0.0" },
+    severity: "info"
+  }
+];
 const mockCountyConfig: CountyConfig = {
   id: "benton-wa",
   name: "Benton",
