@@ -11,27 +11,31 @@ export interface County {
   id: string;
   name: string;
   state: string;
-  population: number;
-  area: number;
-  gisEnabled: boolean;
-  boundaries: {
-    type: string;
-    coordinates: number[][][];
-  };
-  contact: {
-    phone: string;
-    email: string;
-    address: string;
-  };
+  population?: number;
+  area?: number;
+  gisEnabled?: boolean;
+  boundaries?: any; // GeoJSON for county boundaries
+  contact?: any;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CountyStatistics {
-  totalParcels: number;
-  totalLayers: number;
-  recentValuations: any[];
-  lastUpdated: string;
+export interface CountySearchOptions {
+  state?: string;
+  name?: string;
+  gisEnabled?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface CountiesResponse {
+  data: County[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  }
 }
 
 // Counties service class
@@ -39,14 +43,34 @@ export class CountiesService {
   private baseUrl = '/api/terraform/counties';
 
   /**
-   * Get all counties
+   * Get all counties with pagination
    */
-  async getCounties(): Promise<County[]> {
+  async getCounties(options?: CountySearchOptions): Promise<CountiesResponse> {
     try {
-      return await apiService.get<County[]>(this.baseUrl);
+      const queryParams = new URLSearchParams();
+      
+      if (options) {
+        if (options.state) queryParams.append('state', options.state);
+        if (options.name) queryParams.append('name', options.name);
+        if (options.gisEnabled !== undefined) queryParams.append('gisEnabled', options.gisEnabled.toString());
+        if (options.page) queryParams.append('page', options.page.toString());
+        if (options.limit) queryParams.append('limit', options.limit.toString());
+      }
+      
+      const url = `${this.baseUrl}?${queryParams.toString()}`;
+      return await apiService.get<CountiesResponse>(url);
     } catch (error) {
       console.error('Failed to fetch counties:', error);
-      return [];
+      // Return empty result on error
+      return {
+        data: [],
+        pagination: {
+          page: options?.page || 1,
+          limit: options?.limit || 10,
+          totalCount: 0,
+          totalPages: 0
+        }
+      };
     }
   }
 
@@ -57,9 +81,6 @@ export class CountiesService {
     try {
       return await apiService.get<County>(`${this.baseUrl}/${id}`);
     } catch (error) {
-      if ((error as any).status === 404) {
-        return null;
-      }
       console.error(`Failed to fetch county ${id}:`, error);
       return null;
     }
@@ -87,71 +108,47 @@ export class CountiesService {
   }
 
   /**
-   * Get layers for a county
+   * Get a county's statistics
    */
-  async getCountyLayers(id: string): Promise<any[]> {
-    try {
-      return await apiService.get<any[]>(`${this.baseUrl}/${id}/layers`);
-    } catch (error) {
-      console.error(`Failed to fetch layers for county ${id}:`, error);
-      return [];
-    }
-  }
-
-  /**
-   * Get parcels for a county with pagination
-   */
-  async getCountyParcels(id: string, page: number = 1, limit: number = 100): Promise<{
-    data: any[];
-    pagination: {
-      page: number;
-      limit: number;
-      totalCount: number;
-      totalPages: number;
-    }
+  async getCountyStats(id: string): Promise<{
+    parcelCount: number;
+    valuationCount: number;
+    mapLayerCount: number;
+    averageValue: number;
+    updatedAt: string;
   }> {
     try {
-      const url = `${this.baseUrl}/${id}/parcels?page=${page}&limit=${limit}`;
       return await apiService.get<{
-        data: any[];
-        pagination: {
-          page: number;
-          limit: number;
-          totalCount: number;
-          totalPages: number;
-        }
-      }>(url);
+        parcelCount: number;
+        valuationCount: number;
+        mapLayerCount: number;
+        averageValue: number;
+        updatedAt: string;
+      }>(`${this.baseUrl}/${id}/stats`);
     } catch (error) {
-      console.error(`Failed to fetch parcels for county ${id}:`, error);
-      // Return empty result on error
+      console.error(`Failed to fetch stats for county ${id}:`, error);
       return {
-        data: [],
-        pagination: {
-          page: page,
-          limit: limit,
-          totalCount: 0,
-          totalPages: 0
-        }
+        parcelCount: 0,
+        valuationCount: 0,
+        mapLayerCount: 0,
+        averageValue: 0,
+        updatedAt: new Date().toISOString()
       };
     }
   }
 
   /**
-   * Get statistics for a county
+   * Toggle a county's GIS enabled status
    */
-  async getCountyStatistics(id: string): Promise<CountyStatistics> {
-    try {
-      return await apiService.get<CountyStatistics>(`${this.baseUrl}/${id}/statistics`);
-    } catch (error) {
-      console.error(`Failed to fetch statistics for county ${id}:`, error);
-      // Return empty statistics on error
-      return {
-        totalParcels: 0,
-        totalLayers: 0,
-        recentValuations: [],
-        lastUpdated: new Date().toISOString()
-      };
-    }
+  async toggleGisEnabled(id: string, enabled: boolean): Promise<County> {
+    return await apiService.patch<County>(`${this.baseUrl}/${id}/toggle-gis`, { gisEnabled: enabled });
+  }
+
+  /**
+   * Upload county boundaries as GeoJSON
+   */
+  async uploadBoundaries(id: string, boundaries: any): Promise<County> {
+    return await apiService.patch<County>(`${this.baseUrl}/${id}/boundaries`, { boundaries });
   }
 }
 

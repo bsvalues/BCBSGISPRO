@@ -1,165 +1,197 @@
 /**
- * Parcels API service
+ * Parcels Service
  * 
- * This module provides functions for interacting with the Parcels API endpoints.
- * It uses the core ApiClient to handle HTTP requests and standardizes the interface
- * for parcel-related operations.
+ * This service provides methods for interacting with parcel data via the API.
  */
 
-import { apiClient, ApiRequestOptions } from './api';
+import { apiService } from './api';
 
-// Import the parcel type from our standardized types
+// Parcel interfaces
 export interface Parcel {
   id: string;
+  parcelNumber: string;
   countyId: string;
-  apn: string; // Assessor's Parcel Number
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    country: string;
-  };
+  address?: string;
+  owner?: string;
   legalDescription?: string;
-  acreage?: number;
-  geometry?: {
-    type: string;
-    coordinates: any;
-  };
+  acres?: number;
+  landUseCode?: string;
   zoning?: string;
-  landUse?: string;
-  propertyClass?: string;
-  ownerName?: string;
-  ownerAddress?: string;
-  lastAssessmentDate?: Date;
-  assessedValue?: {
-    land: number;
-    improvements: number;
-    total: number;
-  };
-  marketValue?: {
-    land: number;
-    improvements: number;
-    total: number;
-  };
-  lastSaleDate?: Date;
-  lastSalePrice?: number;
-  metadata?: Record<string, any>;
-  createdAt: Date;
-  updatedAt: Date;
-  active: boolean;
+  geometry?: any; // GeoJSON for parcel boundaries
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface ParcelFilter {
+export interface ParcelSearchOptions {
   countyId?: string;
-  apn?: string;
-  ownerName?: string;
-  minAcreage?: number;
-  maxAcreage?: number;
+  owner?: string;
+  address?: string;
+  landUseCode?: string;
   zoning?: string;
-  landUse?: string;
-  propertyClass?: string;
-  minValue?: number;
-  maxValue?: number;
-  active?: boolean;
-  bbox?: [number, number, number, number]; // min_x, min_y, max_x, max_y
+  minAcres?: number;
+  maxAcres?: number;
+  page?: number;
   limit?: number;
-  offset?: number;
 }
 
-/**
- * Get all parcels with optional filtering
- */
-export async function getParcels(filters?: ParcelFilter) {
-  const response = await apiClient.get<Parcel[]>('/parcels', {
-    params: filters as Record<string, string | number | boolean | undefined>
-  });
-  return response.data || [];
+export interface ParcelsResponse {
+  data: Parcel[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  }
 }
 
-/**
- * Get a specific parcel by ID
- */
-export async function getParcel(id: string) {
-  const response = await apiClient.get<Parcel>(`/parcels/${id}`);
-  return response.data;
+// Parcels service class
+export class ParcelsService {
+  private baseUrl = '/api/terraform/parcels';
+
+  /**
+   * Get all parcels with pagination
+   */
+  async getParcels(options?: ParcelSearchOptions): Promise<ParcelsResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (options) {
+        if (options.countyId) queryParams.append('countyId', options.countyId);
+        if (options.owner) queryParams.append('owner', options.owner);
+        if (options.address) queryParams.append('address', options.address);
+        if (options.landUseCode) queryParams.append('landUseCode', options.landUseCode);
+        if (options.zoning) queryParams.append('zoning', options.zoning);
+        if (options.minAcres) queryParams.append('minAcres', options.minAcres.toString());
+        if (options.maxAcres) queryParams.append('maxAcres', options.maxAcres.toString());
+        if (options.page) queryParams.append('page', options.page.toString());
+        if (options.limit) queryParams.append('limit', options.limit.toString());
+      }
+      
+      const url = `${this.baseUrl}?${queryParams.toString()}`;
+      return await apiService.get<ParcelsResponse>(url);
+    } catch (error) {
+      console.error('Failed to fetch parcels:', error);
+      // Return empty result on error
+      return {
+        data: [],
+        pagination: {
+          page: options?.page || 1,
+          limit: options?.limit || 10,
+          totalCount: 0,
+          totalPages: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Get a parcel by ID
+   */
+  async getParcel(id: string): Promise<Parcel | null> {
+    try {
+      return await apiService.get<Parcel>(`${this.baseUrl}/${id}`);
+    } catch (error) {
+      console.error(`Failed to fetch parcel ${id}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get parcels for a specific county with pagination
+   */
+  async getParcelsByCounty(countyId: string, page: number = 1, limit: number = 10): Promise<ParcelsResponse> {
+    return this.getParcels({
+      countyId,
+      page,
+      limit
+    });
+  }
+
+  /**
+   * Create a new parcel
+   */
+  async createParcel(parcelData: Omit<Parcel, 'id' | 'createdAt' | 'updatedAt'>): Promise<Parcel> {
+    return await apiService.post<Parcel>(this.baseUrl, parcelData);
+  }
+
+  /**
+   * Update a parcel
+   */
+  async updateParcel(id: string, parcelData: Partial<Omit<Parcel, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Parcel> {
+    return await apiService.put<Parcel>(`${this.baseUrl}/${id}`, parcelData);
+  }
+
+  /**
+   * Delete a parcel
+   */
+  async deleteParcel(id: string): Promise<void> {
+    await apiService.delete(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Get parcels by legal description search
+   */
+  async searchParcelsByLegalDescription(query: string, countyId?: string, limit: number = 10): Promise<Parcel[]> {
+    try {
+      const queryParams = new URLSearchParams({
+        legalDescription: query,
+        limit: limit.toString()
+      });
+      
+      if (countyId) {
+        queryParams.append('countyId', countyId);
+      }
+      
+      return await apiService.get<Parcel[]>(`${this.baseUrl}/search/legal?${queryParams.toString()}`);
+    } catch (error) {
+      console.error('Failed to search parcels by legal description:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get parcels by owner search
+   */
+  async searchParcelsByOwner(query: string, countyId?: string, limit: number = 10): Promise<Parcel[]> {
+    try {
+      const queryParams = new URLSearchParams({
+        owner: query,
+        limit: limit.toString()
+      });
+      
+      if (countyId) {
+        queryParams.append('countyId', countyId);
+      }
+      
+      return await apiService.get<Parcel[]>(`${this.baseUrl}/search/owner?${queryParams.toString()}`);
+    } catch (error) {
+      console.error('Failed to search parcels by owner:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get parcels by address search
+   */
+  async searchParcelsByAddress(query: string, countyId?: string, limit: number = 10): Promise<Parcel[]> {
+    try {
+      const queryParams = new URLSearchParams({
+        address: query,
+        limit: limit.toString()
+      });
+      
+      if (countyId) {
+        queryParams.append('countyId', countyId);
+      }
+      
+      return await apiService.get<Parcel[]>(`${this.baseUrl}/search/address?${queryParams.toString()}`);
+    } catch (error) {
+      console.error('Failed to search parcels by address:', error);
+      return [];
+    }
+  }
 }
 
-/**
- * Get parcels by county
- */
-export async function getParcelsByCounty(countyId: string, filters?: Omit<ParcelFilter, 'countyId'>) {
-  return getParcels({
-    countyId,
-    ...filters
-  });
-}
-
-/**
- * Create a new parcel
- */
-export async function createParcel(parcelData: Omit<Parcel, 'id' | 'createdAt' | 'updatedAt'>) {
-  const response = await apiClient.post<Parcel>('/parcels', parcelData);
-  return response.data;
-}
-
-/**
- * Update an existing parcel
- */
-export async function updateParcel(id: string, parcelData: Partial<Omit<Parcel, 'id' | 'createdAt' | 'updatedAt'>>) {
-  const response = await apiClient.patch<Parcel>(`/parcels/${id}`, parcelData);
-  return response.data;
-}
-
-/**
- * Delete a parcel
- */
-export async function deleteParcel(id: string) {
-  const response = await apiClient.delete<{ success: boolean }>(`/parcels/${id}`);
-  return response.data;
-}
-
-/**
- * Get parcels within a bounding box
- */
-export async function getParcelsInBoundingBox(
-  countyId: string,
-  bbox: [number, number, number, number], // min_x, min_y, max_x, max_y
-  filters?: Omit<ParcelFilter, 'countyId' | 'bbox'>
-) {
-  return getParcels({
-    countyId,
-    bbox,
-    ...filters
-  });
-}
-
-/**
- * Batch import parcels
- */
-export async function batchImportParcels(countyId: string, parcels: Array<Omit<Parcel, 'id' | 'createdAt' | 'updatedAt'>>) {
-  const response = await apiClient.post<{ 
-    success: boolean;
-    imported: number;
-    errors?: Array<{
-      index: number;
-      error: string;
-    }>;
-  }>(`/counties/${countyId}/parcels/batch`, { parcels });
-  return response.data;
-}
-
-/**
- * Get parcel history
- */
-export async function getParcelHistory(id: string) {
-  const response = await apiClient.get<Array<{
-    id: string;
-    parcelId: string;
-    userId: string;
-    action: 'create' | 'update' | 'delete';
-    timestamp: Date;
-    changes: Record<string, { old: any; new: any }>;
-  }>>(`/parcels/${id}/history`);
-  return response.data || [];
-}
+// Export a singleton instance
+export const parcelsService = new ParcelsService();

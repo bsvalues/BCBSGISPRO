@@ -1,196 +1,181 @@
 /**
- * Layers API service
+ * Map Layers Service
  * 
- * This module provides functions for interacting with the Map Layers API endpoints.
- * It uses the core ApiClient to handle HTTP requests and standardizes the interface
- * for map layer-related operations.
+ * This service provides methods for interacting with map layer data via the API.
  */
 
-import { apiClient, ApiRequestOptions } from './api';
+import { apiService } from './api';
 
-export interface Layer {
+// Map Layer interfaces
+export interface MapLayer {
   id: string;
-  countyId: string;
   name: string;
-  type: 'vector' | 'raster' | 'tile' | 'wms' | 'arcgis' | 'geojson';
-  description?: string;
-  source: {
-    type: string;
-    url?: string;
-    tileSize?: number;
-    attribution?: string;
-    data?: any;
-  };
-  style?: {
-    color?: string;
-    fillColor?: string;
-    fillOpacity?: number;
-    weight?: number;
-    opacity?: number;
-    dashArray?: string;
-  };
-  visibility: {
-    visible: boolean;
-    minZoom?: number;
-    maxZoom?: number;
-  };
-  metadata?: {
-    dateCreated?: string;
-    dateUpdated?: string;
-    source?: string;
-    owner?: string;
-    tags?: string[];
-    [key: string]: any;
-  };
-  order: number;
-  active: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  countyId: string;
+  type: string;
+  url?: string;
+  apiKey?: string;
+  isEnabled: boolean;
+  opacity: number;
+  zIndex: number;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface LayerFilter {
+export interface LayerSearchOptions {
   countyId?: string;
-  type?: Layer['type'];
-  visible?: boolean;
-  search?: string;
-  tags?: string[];
-  active?: boolean;
-  limit?: number;
-  offset?: number;
-}
-
-/**
- * Get all layers with optional filtering
- */
-export async function getLayers(filters?: LayerFilter) {
-  const response = await apiClient.get<Layer[]>('/layers', {
-    params: filters as Record<string, string | number | boolean | undefined>
-  });
-  return response.data || [];
-}
-
-/**
- * Get a specific layer by ID
- */
-export async function getLayer(id: string) {
-  const response = await apiClient.get<Layer>(`/layers/${id}`);
-  return response.data;
-}
-
-/**
- * Get layers for a specific county
- */
-export async function getLayersByCounty(countyId: string, filters?: Omit<LayerFilter, 'countyId'>) {
-  return getLayers({
-    countyId,
-    ...filters
-  });
-}
-
-/**
- * Create a new layer
- */
-export async function createLayer(layerData: Omit<Layer, 'id' | 'createdAt' | 'updatedAt'>) {
-  const response = await apiClient.post<Layer>('/layers', layerData);
-  return response.data;
-}
-
-/**
- * Update an existing layer
- */
-export async function updateLayer(id: string, layerData: Partial<Omit<Layer, 'id' | 'createdAt' | 'updatedAt'>>) {
-  const response = await apiClient.patch<Layer>(`/layers/${id}`, layerData);
-  return response.data;
-}
-
-/**
- * Delete a layer
- */
-export async function deleteLayer(id: string) {
-  const response = await apiClient.delete<{ success: boolean }>(`/layers/${id}`);
-  return response.data;
-}
-
-/**
- * Update layer order
- */
-export async function updateLayerOrder(countyId: string, layerIds: string[]) {
-  const response = await apiClient.post<{ success: boolean }>(`/counties/${countyId}/layers/order`, { layerIds });
-  return response.data;
-}
-
-/**
- * Toggle layer visibility
- */
-export async function toggleLayerVisibility(id: string, visible: boolean) {
-  const response = await apiClient.patch<Layer>(`/layers/${id}/visibility`, { visible });
-  return response.data;
-}
-
-/**
- * Update layer style
- */
-export async function updateLayerStyle(id: string, style: Layer['style']) {
-  const response = await apiClient.patch<Layer>(`/layers/${id}/style`, { style });
-  return response.data;
-}
-
-/**
- * Import a layer from a file (GeoJSON, Shapefile, etc.)
- */
-export async function importLayerFromFile(countyId: string, file: File, options?: {
+  type?: string;
+  isEnabled?: boolean;
   name?: string;
-  description?: string;
-  type?: Layer['type'];
-  style?: Layer['style'];
-}) {
-  // Create FormData for file upload
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  if (options) {
-    Object.entries(options).forEach(([key, value]) => {
-      if (value !== undefined) {
-        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-      }
-    });
-  }
-
-  const response = await fetch(`${apiClient['baseUrl']}/counties/${countyId}/layers/import`, {
-    method: 'POST',
-    body: formData,
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to import layer');
-  }
-
-  return response.json();
-}
-
-/**
- * Get layer feature count
- */
-export async function getLayerFeatureCount(id: string) {
-  const response = await apiClient.get<{ count: number }>(`/layers/${id}/features/count`);
-  return response.data;
-}
-
-/**
- * Get layer features (paginated)
- */
-export async function getLayerFeatures(id: string, options?: {
+  page?: number;
   limit?: number;
-  offset?: number;
-  bbox?: [number, number, number, number]; // min_x, min_y, max_x, max_y
-}) {
-  const response = await apiClient.get<{
-    features: GeoJSON.Feature[];
-    total: number;
-  }>(`/layers/${id}/features`, {
-    params: options as Record<string, string | number | boolean | undefined>
-  });
-  return response.data;
 }
+
+export interface MapLayersResponse {
+  data: MapLayer[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  }
+}
+
+// Map Layers service class
+export class MapLayersService {
+  private baseUrl = '/api/terraform/layers';
+
+  /**
+   * Get all map layers with pagination
+   */
+  async getLayers(options?: LayerSearchOptions): Promise<MapLayersResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (options) {
+        if (options.countyId) queryParams.append('countyId', options.countyId);
+        if (options.type) queryParams.append('type', options.type);
+        if (options.isEnabled !== undefined) queryParams.append('isEnabled', options.isEnabled.toString());
+        if (options.name) queryParams.append('name', options.name);
+        if (options.page) queryParams.append('page', options.page.toString());
+        if (options.limit) queryParams.append('limit', options.limit.toString());
+      }
+      
+      const url = `${this.baseUrl}?${queryParams.toString()}`;
+      return await apiService.get<MapLayersResponse>(url);
+    } catch (error) {
+      console.error('Failed to fetch map layers:', error);
+      // Return empty result on error
+      return {
+        data: [],
+        pagination: {
+          page: options?.page || 1,
+          limit: options?.limit || 10,
+          totalCount: 0,
+          totalPages: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Get a map layer by ID
+   */
+  async getLayer(id: string): Promise<MapLayer | null> {
+    try {
+      return await apiService.get<MapLayer>(`${this.baseUrl}/${id}`);
+    } catch (error) {
+      console.error(`Failed to fetch map layer ${id}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get layers for a specific county
+   */
+  async getLayersByCounty(countyId: string): Promise<MapLayer[]> {
+    try {
+      return await apiService.get<MapLayer[]>(`${this.baseUrl}/county/${countyId}`);
+    } catch (error) {
+      console.error(`Failed to fetch layers for county ${countyId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Create a new map layer
+   */
+  async createLayer(layerData: Omit<MapLayer, 'id' | 'createdAt' | 'updatedAt'>): Promise<MapLayer> {
+    return await apiService.post<MapLayer>(this.baseUrl, layerData);
+  }
+
+  /**
+   * Update a map layer
+   */
+  async updateLayer(id: string, layerData: Partial<Omit<MapLayer, 'id' | 'createdAt' | 'updatedAt'>>): Promise<MapLayer> {
+    return await apiService.put<MapLayer>(`${this.baseUrl}/${id}`, layerData);
+  }
+
+  /**
+   * Delete a map layer
+   */
+  async deleteLayer(id: string): Promise<void> {
+    await apiService.delete(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Toggle a map layer's enabled status
+   */
+  async toggleLayerEnabled(id: string, isEnabled: boolean): Promise<MapLayer> {
+    return await apiService.patch<MapLayer>(`${this.baseUrl}/${id}/toggle`, { isEnabled });
+  }
+
+  /**
+   * Update a map layer's opacity
+   */
+  async updateLayerOpacity(id: string, opacity: number): Promise<MapLayer> {
+    return await apiService.patch<MapLayer>(`${this.baseUrl}/${id}/opacity`, { opacity });
+  }
+
+  /**
+   * Update a map layer's z-index
+   */
+  async updateLayerZIndex(id: string, zIndex: number): Promise<MapLayer> {
+    return await apiService.patch<MapLayer>(`${this.baseUrl}/${id}/z-index`, { zIndex });
+  }
+
+  /**
+   * Import layers from a GIS service (ArcGIS, MapBox, etc.)
+   */
+  async importLayers(countyId: string, serviceUrl: string, serviceType: string, apiKey?: string): Promise<{
+    success: boolean;
+    count: number;
+    layers: MapLayer[];
+    errors?: any[];
+  }> {
+    try {
+      return await apiService.post<{
+        success: boolean;
+        count: number;
+        layers: MapLayer[];
+        errors?: any[];
+      }>(`${this.baseUrl}/import`, {
+        countyId,
+        serviceUrl,
+        serviceType,
+        apiKey
+      });
+    } catch (error) {
+      console.error('Failed to import layers:', error);
+      return {
+        success: false,
+        count: 0,
+        layers: [],
+        errors: [{ message: 'Failed to connect to the server' }]
+      };
+    }
+  }
+}
+
+// Export a singleton instance
+export const mapLayersService = new MapLayersService();

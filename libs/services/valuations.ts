@@ -1,173 +1,186 @@
 /**
- * Valuations API service
+ * Valuations Service
  * 
- * This module provides functions for interacting with the Valuations API endpoints.
- * It uses the core ApiClient to handle HTTP requests and standardizes the interface
- * for property valuation operations.
+ * This service provides methods for interacting with valuation data via the API.
  */
 
-import { apiClient, ApiRequestOptions } from './api';
+import { apiService } from './api';
 
+// Valuation interfaces
 export interface Valuation {
   id: string;
   parcelId: string;
   countyId: string;
-  valuationDate: Date;
-  requestedBy: string;
+  valuationDate: string;
+  requestedBy?: string;
   landValue: number;
   improvementsValue: number;
   totalValue: number;
-  confidence: number; // 0-1 scale representing confidence in the valuation
-  method: 'comparable-sales' | 'income' | 'cost' | 'ai-assisted' | 'manual';
-  status: 'pending' | 'completed' | 'failed' | 'review-required';
+  confidence?: number;
+  method: string;
+  status: string;
   notes?: string;
-  comparableProperties?: string[]; // Array of parcel IDs used for comparison
-  factors?: {
-    location?: number;
-    size?: number;
-    improvements?: number;
-    condition?: number;
-    market?: number;
-    other?: Record<string, number>;
-  };
-  metadata?: Record<string, any>;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface ValuationFilter {
+export interface ValuationSearchOptions {
   countyId?: string;
   parcelId?: string;
-  startDate?: Date | string;
-  endDate?: Date | string;
+  minDate?: string;
+  maxDate?: string;
+  method?: string;
+  status?: string;
   minValue?: number;
   maxValue?: number;
-  method?: Valuation['method'];
-  status?: Valuation['status'];
-  requestedBy?: string;
+  page?: number;
   limit?: number;
-  offset?: number;
 }
 
-export interface ValuationParameters {
-  parcelId: string;
-  countyId: string;
-  method?: Valuation['method'];
-  options?: {
-    useComparableSales?: boolean;
-    useAI?: boolean;
-    includeTaxData?: boolean;
-    includeMarketTrends?: boolean;
-    maxComparableDistance?: number; // in miles
-    minComparableSimilarity?: number; // 0-1 scale
-    adjustForInflation?: boolean;
-    customFactors?: Record<string, number>;
-  };
-  notes?: string;
+export interface ValuationsResponse {
+  data: Valuation[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  }
 }
 
-/**
- * Get all valuations with optional filtering
- */
-export async function getValuations(filters?: ValuationFilter) {
-  const response = await apiClient.get<Valuation[]>('/valuations', {
-    params: filters as Record<string, string | number | boolean | undefined>
-  });
-  return response.data || [];
-}
+// Valuations service class
+export class ValuationsService {
+  private baseUrl = '/api/terraform/valuations';
 
-/**
- * Get a specific valuation by ID
- */
-export async function getValuation(id: string) {
-  const response = await apiClient.get<Valuation>(`/valuations/${id}`);
-  return response.data;
-}
-
-/**
- * Get valuations for a specific parcel
- */
-export async function getValuationsByParcel(parcelId: string, filters?: Omit<ValuationFilter, 'parcelId'>) {
-  return getValuations({
-    parcelId,
-    ...filters
-  });
-}
-
-/**
- * Get valuations for a specific county
- */
-export async function getValuationsByCounty(countyId: string, filters?: Omit<ValuationFilter, 'countyId'>) {
-  return getValuations({
-    countyId,
-    ...filters
-  });
-}
-
-/**
- * Request a new valuation
- */
-export async function requestValuation(parameters: ValuationParameters) {
-  const response = await apiClient.post<Valuation>('/valuations', parameters);
-  return response.data;
-}
-
-/**
- * Update an existing valuation
- */
-export async function updateValuation(id: string, valuationData: Partial<Omit<Valuation, 'id' | 'createdAt' | 'updatedAt'>>) {
-  const response = await apiClient.patch<Valuation>(`/valuations/${id}`, valuationData);
-  return response.data;
-}
-
-/**
- * Delete a valuation
- */
-export async function deleteValuation(id: string) {
-  const response = await apiClient.delete<{ success: boolean }>(`/valuations/${id}`);
-  return response.data;
-}
-
-/**
- * Request a review for a valuation
- */
-export async function requestValuationReview(id: string, notes: string) {
-  const response = await apiClient.post<Valuation>(`/valuations/${id}/review`, { notes });
-  return response.data;
-}
-
-/**
- * Approve a valuation after review
- */
-export async function approveValuation(id: string, notes?: string) {
-  const response = await apiClient.post<Valuation>(`/valuations/${id}/approve`, { notes });
-  return response.data;
-}
-
-/**
- * Get valuation history for a parcel
- */
-export async function getValuationHistory(parcelId: string) {
-  const response = await apiClient.get<{
-    valuations: Valuation[];
-    trend: {
-      dates: string[];
-      values: number[];
-    };
-  }>(`/parcels/${parcelId}/valuation-history`);
-  return response.data;
-}
-
-/**
- * Generate a valuation report
- */
-export async function generateValuationReport(valuationId: string, format: 'pdf' | 'json' | 'csv' = 'pdf') {
-  const response = await apiClient.get<Blob>(`/valuations/${valuationId}/report`, {
-    params: { format },
-    headers: {
-      'Accept': format === 'pdf' ? 'application/pdf' : 
-                format === 'csv' ? 'text/csv' : 'application/json'
+  /**
+   * Get all valuations with pagination
+   */
+  async getValuations(options?: ValuationSearchOptions): Promise<ValuationsResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (options) {
+        if (options.countyId) queryParams.append('countyId', options.countyId);
+        if (options.parcelId) queryParams.append('parcelId', options.parcelId);
+        if (options.minDate) queryParams.append('minDate', options.minDate);
+        if (options.maxDate) queryParams.append('maxDate', options.maxDate);
+        if (options.method) queryParams.append('method', options.method);
+        if (options.status) queryParams.append('status', options.status);
+        if (options.minValue) queryParams.append('minValue', options.minValue.toString());
+        if (options.maxValue) queryParams.append('maxValue', options.maxValue.toString());
+        if (options.page) queryParams.append('page', options.page.toString());
+        if (options.limit) queryParams.append('limit', options.limit.toString());
+      }
+      
+      const url = `${this.baseUrl}?${queryParams.toString()}`;
+      return await apiService.get<ValuationsResponse>(url);
+    } catch (error) {
+      console.error('Failed to fetch valuations:', error);
+      // Return empty result on error
+      return {
+        data: [],
+        pagination: {
+          page: options?.page || 1,
+          limit: options?.limit || 10,
+          totalCount: 0,
+          totalPages: 0
+        }
+      };
     }
-  });
-  return response.data;
+  }
+
+  /**
+   * Get a valuation by ID
+   */
+  async getValuation(id: string): Promise<Valuation | null> {
+    try {
+      return await apiService.get<Valuation>(`${this.baseUrl}/${id}`);
+    } catch (error) {
+      console.error(`Failed to fetch valuation ${id}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get valuations for a specific parcel
+   */
+  async getValuationsByParcel(parcelId: string): Promise<Valuation[]> {
+    try {
+      return await apiService.get<Valuation[]>(`${this.baseUrl}/parcel/${parcelId}`);
+    } catch (error) {
+      console.error(`Failed to fetch valuations for parcel ${parcelId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent valuations for a county
+   */
+  async getRecentValuationsByCounty(countyId: string, limit: number = 5): Promise<Valuation[]> {
+    try {
+      return await apiService.get<Valuation[]>(`${this.baseUrl}/county/${countyId}/recent?limit=${limit}`);
+    } catch (error) {
+      console.error(`Failed to fetch recent valuations for county ${countyId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Create a new valuation
+   */
+  async createValuation(valuationData: Omit<Valuation, 'id' | 'createdAt' | 'updatedAt'>): Promise<Valuation> {
+    return await apiService.post<Valuation>(this.baseUrl, valuationData);
+  }
+
+  /**
+   * Update a valuation
+   */
+  async updateValuation(id: string, valuationData: Partial<Omit<Valuation, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Valuation> {
+    return await apiService.put<Valuation>(`${this.baseUrl}/${id}`, valuationData);
+  }
+
+  /**
+   * Delete a valuation
+   */
+  async deleteValuation(id: string): Promise<void> {
+    await apiService.delete(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Bulk import valuations
+   */
+  async importValuations(valuations: Omit<Valuation, 'id' | 'createdAt' | 'updatedAt'>[], countyId: string): Promise<{
+    success: boolean;
+    count: number;
+    errors?: any[];
+  }> {
+    try {
+      return await apiService.post<{
+        success: boolean;
+        count: number;
+        errors?: any[];
+      }>(`${this.baseUrl}/import/${countyId}`, { valuations });
+    } catch (error) {
+      console.error('Failed to import valuations:', error);
+      return {
+        success: false,
+        count: 0,
+        errors: [{ message: 'Failed to connect to the server' }]
+      };
+    }
+  }
+
+  /**
+   * Request AI valuation for a parcel
+   */
+  async requestAIValuation(parcelId: string, options?: {
+    useHistoricalData?: boolean;
+    useComparables?: boolean;
+    maxComparableDistance?: number;
+    requestedBy?: string;
+  }): Promise<Valuation> {
+    return await apiService.post<Valuation>(`${this.baseUrl}/ai-valuation/${parcelId}`, options || {});
+  }
 }
+
+// Export a singleton instance
+export const valuationsService = new ValuationsService();
