@@ -80,6 +80,8 @@ export interface CountyMapViewerProps {
   apiKey?: string;
   baseLayer?: BaseLayerType;
   initialView?: Partial<MapView>;
+  center?: {lat: number; lng: number};
+  zoom?: number;
   
   // Layers to display
   layers?: LayerInfo[];

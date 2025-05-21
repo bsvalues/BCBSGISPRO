@@ -45,7 +45,7 @@ import { SystemHealthPanel, ComponentStatus, SystemComponent, SystemAlert } from
 import { CSVImporter } from '../libs/ETL/importers/csv-importer';
 
 // Import shared types
-import { MapProviderType } from '../libs/types/MapProviderType';
+import { MapProviderType, MapProviderConfig } from '../libs/types/MapProviderType';
 
 // Import DevOps utilities
 import { logger } from '../libs/DevOps/utils/logger';
@@ -54,18 +54,45 @@ import { logger } from '../libs/DevOps/utils/logger';
 const appLogger = logger.withTags(['App', 'Main']);
 
 // Mock data for demo purposes
-import { 
-  mockCounties,
-  mockUsers,
-  mockSystemComponents,
-  mockSystemAlerts,
-  mockEvents,
-  mockCountyConfig,
-  mockDataSources,
-  mockValuationSystems,
-  mockTaxSystems,
-  getDashboardSummary
-} from './mockData';
+// Temporary inline mock data to avoid import errors
+const mockCounties = [
+  {
+    id: 'benton-wa',
+    name: 'Benton',
+    state: 'WA',
+    status: 'active',
+    fips: '53005',
+    properties: { parcelCount: 65430 },
+    lastUpdated: new Date('2023-12-10')
+  },
+  {
+    id: 'king-wa',
+    name: 'King',
+    state: 'WA',
+    status: 'active',
+    fips: '53033',
+    properties: { parcelCount: 524800 },
+    lastUpdated: new Date('2023-12-15')
+  }
+];
+
+const mockUsers = [];
+const mockSystemComponents = [];
+const mockSystemAlerts = [];
+const mockEvents = [];
+const mockCountyConfig = {};
+const mockDataSources = [];
+const mockValuationSystems = [];
+const mockTaxSystems = [];
+const getDashboardSummary = () => ({
+  userCount: 5,
+  countyCount: 2,
+  activeCountyCount: 2,
+  totalParcelCount: 590230,
+  systemHealthScore: 98,
+  pendingTasks: 3,
+  recentEvents: []
+});
 
 /**
  * User settings
@@ -693,6 +720,13 @@ const App: React.FC = () => {
                 position: 'relative'
               }}>
                 <CountyMapViewer
+                  county={{
+                    id: 'benton-wa',
+                    name: 'Benton',
+                    state: 'WA',
+                    fips: '53005',
+                    center: { lat: 46.2112, lng: -119.2052 }
+                  }}
                   provider={settings.mapProvider || 'mapbox'}
                   apiKey="pk.sample.mapbox.token"
                   center={{ lat: 46.2112, lng: -119.2052 }} // Benton County, WA coordinates
@@ -791,6 +825,13 @@ const App: React.FC = () => {
                 overflow: 'hidden'
               }}>
                 <CountyMapViewer
+                  county={{
+                    id: 'benton-wa',
+                    name: 'Benton',
+                    state: 'WA',
+                    fips: '53005',
+                    center: { lat: 46.2112, lng: -119.2052 }
+                  }}
                   provider={settings.mapProvider || 'mapbox'}
                   apiKey="pk.sample.mapbox.token"
                   center={{ lat: 46.2112, lng: -119.2052 }} // Benton County, WA coordinates
