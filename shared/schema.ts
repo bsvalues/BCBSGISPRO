@@ -46,9 +46,12 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 100 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   fullName: varchar('full_name', { length: 100 }),
+  role: varchar('role', { length: 50 }).notNull().default('public'),  // 'admin', 'staff', 'field', 'public'
+  permissions: json('permissions'),  // JSON array of specific permissions
   lastLogin: timestamp('last_login'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+  isActive: boolean('is_active').default(true),
 });
 
 // Benton County Maps table - for saving real maps created for Benton County
@@ -231,15 +234,62 @@ export const insertCountySchema = createInsertSchema(counties).omit({ id: true, 
 export const insertParcelSchema = createInsertSchema(parcels).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertValuationSchema = createInsertSchema(valuations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMapLayerSchema = createInsertSchema(mapLayers).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types using Zod inference
 export type InsertCounty = z.infer<typeof insertCountySchema>;
 export type InsertParcel = z.infer<typeof insertParcelSchema>;
 export type InsertValuation = z.infer<typeof insertValuationSchema>;
 export type InsertMapLayer = z.infer<typeof insertMapLayerSchema>;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+
+
+
+// Workflows table - for tracking assessment workflows
+export const workflows = pgTable('workflows', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  type: varchar('type', { length: 50 }).notNull(), // 'property_assessment', 'boundary_adjustment', etc.
+  status: varchar('status', { length: 20 }).notNull().default('draft'), // 'draft', 'in_progress', 'review', 'completed', 'archived'
+  priority: varchar('priority', { length: 20 }).notNull().default('medium'), // 'high', 'medium', 'low'
+  createdBy: integer('created_by').notNull(), // Reference to user id
+  assignedTo: integer('assigned_to'), // Reference to user id
+  parcelId: varchar('parcel_id', { length: 100 }), // Reference to parcel number
+  metadata: json('metadata'), // Additional workflow data
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+  dueDate: timestamp('due_date'),
+});
+
+// Documents table - for document management
+export const documents = pgTable('documents', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  fileType: varchar('file_type', { length: 50 }).notNull(), // 'pdf', 'image', 'text', etc.
+  filePath: varchar('file_path', { length: 255 }).notNull(),
+  fileSize: integer('file_size').notNull(),
+  documentType: varchar('document_type', { length: 50 }).notNull(), // 'deed', 'survey', 'tax_form', etc.
+  uploadedBy: integer('uploaded_by').notNull(), // Reference to user id
+  parcelId: varchar('parcel_id', { length: 100 }), // Reference to parcel number
+  workflowId: integer('workflow_id'), // Optional reference to workflow
+  isPublic: boolean('is_public').default(false),
+  metadata: json('metadata'), // Additional document metadata
+  classification: json('classification'), // Document classification results
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
 
 // Select types using Drizzle inference
 export type County = typeof counties.$inferSelect;
 export type Parcel = typeof parcels.$inferSelect;
 export type Valuation = typeof valuations.$inferSelect;
 export type MapLayer = typeof mapLayers.$inferSelect;
+export type UserRole = typeof userRoles.$inferSelect;
+export type Workflow = typeof workflows.$inferSelect;
+export type Document = typeof documents.$inferSelect;
