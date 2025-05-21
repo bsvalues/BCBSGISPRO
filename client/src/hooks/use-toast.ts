@@ -1,47 +1,28 @@
-/**
- * Toast Hook
- * 
- * A hook for displaying toast notifications.
- */
+import { useCallback } from 'react';
 
-import { 
-  Toast,
-  ToastActionElement, 
-  ToastProps 
-} from "../components/ui/toast";
+// Toast variant types
+export type ToastVariant = 'default' | 'destructive' | 'success';
 
-import {
-  useToast as useToastPrimitive
-} from "../components/ui/use-toast";
-
-export type ToastVariant = 'default' | 'destructive' | 'success' | 'warning' | 'info';
-
-type ToastOptions = Partial<
-  Pick<Toast, "id" | "duration" | "className"> & {
-    variant: ToastVariant;
-    action: ToastActionElement;
-    description: React.ReactNode;
-    title: React.ReactNode;
-  }
->;
-
-/**
- * A hook for displaying toast notifications
- * 
- * @returns The toast API
- */
-export function useToast() {
-  const toast = useToastPrimitive();
-
-  return {
-    ...toast,
-    toast: (options: ToastOptions) => {
-      const { variant, ...rest } = options;
-      
-      return toast.toast({
-        ...rest,
-        variant: variant as ToastProps['variant'],
-      });
-    }
-  };
+// Toast props interface
+export interface ToastProps {
+  title?: string;
+  description?: string;
+  variant?: ToastVariant;
+  duration?: number;
 }
+
+// This is a simplified version of a toast hook that will be expanded later
+// with actual toast functionality. Currently it just logs to console.
+export const useToast = () => {
+  const toast = useCallback(
+    ({ title, description, variant = 'default', duration = 3000 }: ToastProps) => {
+      console.log(`Toast: ${variant}`, { title, description, duration });
+      
+      // In a real implementation, this would show a toast notification
+      // This will be expanded with toast UI components later
+    },
+    []
+  );
+
+  return { toast };
+};

@@ -115,6 +115,11 @@ const App: React.FC = () => {
                   <Route path="/achievements">
                     <ProtectedRoute path="/achievements" roles={['admin', 'staff', 'field']} component={AchievementsPage} />
                   </Route>
+
+                  {/* User profile page */}
+                  <Route path="/profile">
+                    <ProtectedRoute path="/profile" roles={['admin', 'staff', 'field', 'public']} component={UserProfilePage} />
+                  </Route>
                   
                   {/* Unauthorized access page */}
                   <Route path="/unauthorized">

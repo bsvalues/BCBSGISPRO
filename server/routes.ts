@@ -17,6 +17,7 @@ import agentToolsRoutes from "./routes/agent-tools";
 import syncRoutes from "./routes/sync-routes";
 import achievementsRoutes from "./routes/achievements";
 import mapIntelligenceRoutes from "./routes/map-intelligence";
+import authRoutes from "./routes/auth-routes";
 // Import API router for TerraFusion API
 import apiRouter from "./api";
 // Using WebSocketManager from websocket.ts
@@ -85,10 +86,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes (session-based)
   setupAuth(app);
   
-  // Setup JWT-based authentication (for role-based access control)
-  const { setupJwtAuth, authMiddleware } = require('./auth-jwt');
-  setupJwtAuth(app);
-  app.use(authMiddleware); // Apply JWT auth middleware to all routes
+  // Register JWT-based authentication routes for RBAC
+  app.use('/api/auth', authRoutes);
   
   // Create HTTP server (this will be returned at the end of the function)
   const httpServer = createServer(app);
