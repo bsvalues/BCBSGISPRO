@@ -1,16 +1,18 @@
 /**
- * Services index
+ * Service exports for TerraFusion platform
  * 
- * This file exports all service modules to make them easier to import elsewhere.
+ * This file exports all service modules to provide easy imports for components
  */
 
-// Export API client
+// Export API client and base utilities
 export * from './api';
 
-// Export individual service modules
-export * from './auth';
+// County assessment services
 export * from './counties';
-export * from './parcels';
-export * from './valuations';
-export * from './layers';
-export * from './users';
+
+// We'll add these as we implement them
+// export * from './parcels';
+// export * from './valuations';
+// export * from './layers';
+// export * from './users';
+// export * from './auth';

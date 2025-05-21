@@ -4,7 +4,7 @@
  * This service provides methods for interacting with county data via the API.
  */
 
-import { apiClient, ApiResponse } from './api';
+import { apiService } from './api';
 
 // County interfaces
 export interface County {
@@ -42,8 +42,12 @@ export class CountiesService {
    * Get all counties
    */
   async getCounties(): Promise<County[]> {
-    const response = await apiClient.get<County[]>(this.baseUrl);
-    return response.data || [];
+    try {
+      return await apiService.get<County[]>(this.baseUrl);
+    } catch (error) {
+      console.error('Failed to fetch counties:', error);
+      return [];
+    }
   }
 
   /**
@@ -51,13 +55,13 @@ export class CountiesService {
    */
   async getCounty(id: string): Promise<County | null> {
     try {
-      const response = await apiClient.get<County>(`${this.baseUrl}/${id}`);
-      return response.data || null;
+      return await apiService.get<County>(`${this.baseUrl}/${id}`);
     } catch (error) {
       if ((error as any).status === 404) {
         return null;
       }
-      throw error;
+      console.error(`Failed to fetch county ${id}:`, error);
+      return null;
     }
   }
 
@@ -65,31 +69,33 @@ export class CountiesService {
    * Create a new county
    */
   async createCounty(countyData: Omit<County, 'id' | 'createdAt' | 'updatedAt'>): Promise<County> {
-    const response = await apiClient.post<County>(this.baseUrl, countyData);
-    return response.data as County;
+    return await apiService.post<County>(this.baseUrl, countyData);
   }
 
   /**
    * Update a county
    */
   async updateCounty(id: string, countyData: Partial<Omit<County, 'id' | 'createdAt' | 'updatedAt'>>): Promise<County> {
-    const response = await apiClient.put<County>(`${this.baseUrl}/${id}`, countyData);
-    return response.data as County;
+    return await apiService.put<County>(`${this.baseUrl}/${id}`, countyData);
   }
 
   /**
    * Delete a county
    */
   async deleteCounty(id: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/${id}`);
+    await apiService.delete(`${this.baseUrl}/${id}`);
   }
 
   /**
    * Get layers for a county
    */
   async getCountyLayers(id: string): Promise<any[]> {
-    const response = await apiClient.get<any[]>(`${this.baseUrl}/${id}/layers`);
-    return response.data || [];
+    try {
+      return await apiService.get<any[]>(`${this.baseUrl}/${id}/layers`);
+    } catch (error) {
+      console.error(`Failed to fetch layers for county ${id}:`, error);
+      return [];
+    }
   }
 
   /**
@@ -104,27 +110,48 @@ export class CountiesService {
       totalPages: number;
     }
   }> {
-    const response = await apiClient.get<{
-      data: any[];
-      pagination: {
-        page: number;
-        limit: number;
-        totalCount: number;
-        totalPages: number;
-      }
-    }>(`${this.baseUrl}/${id}/parcels`, {
-      params: { page, limit }
-    });
-    
-    return response.data as any;
+    try {
+      const url = `${this.baseUrl}/${id}/parcels?page=${page}&limit=${limit}`;
+      return await apiService.get<{
+        data: any[];
+        pagination: {
+          page: number;
+          limit: number;
+          totalCount: number;
+          totalPages: number;
+        }
+      }>(url);
+    } catch (error) {
+      console.error(`Failed to fetch parcels for county ${id}:`, error);
+      // Return empty result on error
+      return {
+        data: [],
+        pagination: {
+          page: page,
+          limit: limit,
+          totalCount: 0,
+          totalPages: 0
+        }
+      };
+    }
   }
 
   /**
    * Get statistics for a county
    */
   async getCountyStatistics(id: string): Promise<CountyStatistics> {
-    const response = await apiClient.get<CountyStatistics>(`${this.baseUrl}/${id}/statistics`);
-    return response.data as CountyStatistics;
+    try {
+      return await apiService.get<CountyStatistics>(`${this.baseUrl}/${id}/statistics`);
+    } catch (error) {
+      console.error(`Failed to fetch statistics for county ${id}:`, error);
+      // Return empty statistics on error
+      return {
+        totalParcels: 0,
+        totalLayers: 0,
+        recentValuations: [],
+        lastUpdated: new Date().toISOString()
+      };
+    }
   }
 }
 
