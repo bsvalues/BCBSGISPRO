@@ -296,7 +296,49 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
       // Save progress before advancing
       try {
         setIsSaving(true);
+        
+        // Convert CountyConfig to API County format
+        const apiCounty: Partial<County> = {
+          id: countyData.id,
+          name: countyData.name,
+          state: countyData.state,
+          population: countyData.properties?.population,
+          area: countyData.properties?.area,
+          gisEnabled: true,
+          contact: countyData.contacts?.length > 0 ? 
+            countyData.contacts.map(c => ({
+              name: c.name,
+              email: c.email,
+              role: c.role,
+              phone: c.phone
+            })) : 
+            undefined
+        };
+        
+        // Save county data using the real API service
+        if (apiCounty.id) {
+          // Update existing county
+          await countiesService.updateCounty(apiCounty.id, apiCounty);
+        } else {
+          // Create new county - generate a unique ID
+          const newCounty = await countiesService.createCounty({
+            ...apiCounty,
+            id: undefined // Remove id to let the API generate one
+          } as any);
+          
+          // Update the county ID in the local state
+          if (newCounty?.id) {
+            setCountyData(prev => ({
+              ...prev,
+              id: newCounty.id
+            }));
+          }
+        }
+        
+        // Call the original onSave handler 
         await onSave(countyData);
+        
+        // Advance to the next step
         setCurrentStep(currentStep + 1);
       } catch (error) {
         console.error('Error saving county data:', error);
@@ -418,15 +460,53 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
   const handleDataSourceTest = useCallback(async (sourceId: string) => {
     try {
       setTestingSource(sourceId);
+      
+      // Find the source in the county data
+      const source = countyData.gisDataSources.find(s => s.id === sourceId);
+      if (!source) {
+        throw new Error('Data source not found');
+      }
+      
+      // First call the original test handler
       const success = await onDataSourceTest(sourceId);
       
-      if (success) {
+      // If successful, try to create a map layer using this source
+      if (success && countyData.id) {
+        // Convert the GIS data source to a map layer
+        const layerData = {
+          name: source.name,
+          countyId: countyData.id,
+          type: source.type,
+          url: source.url,
+          isEnabled: true,
+          opacity: 1.0,
+          zIndex: 0,
+          metadata: {
+            description: source.description,
+            lastUpdated: source.lastUpdated
+          }
+        };
+        
+        // Create map layer using the API
+        await mapLayersService.createLayer(layerData);
+        
+        // Update local state
         setCountyData(prev => ({
           ...prev,
-          gisDataSources: prev.gisDataSources.map(source => 
-            source.id === sourceId
-              ? { ...source, status: 'ready', error: undefined }
-              : source
+          gisDataSources: prev.gisDataSources.map(s => 
+            s.id === sourceId
+              ? { ...s, status: 'ready', error: undefined }
+              : s
+          )
+        }));
+      } else if (!success) {
+        // Update local state to show error
+        setCountyData(prev => ({
+          ...prev,
+          gisDataSources: prev.gisDataSources.map(s => 
+            s.id === sourceId
+              ? { ...s, status: 'error', error: 'Could not connect to data source' }
+              : s
           )
         }));
       }
@@ -435,6 +515,7 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
     } catch (error) {
       console.error('Error testing data source:', error);
       
+      // Update local state to show error
       setCountyData(prev => ({
         ...prev,
         gisDataSources: prev.gisDataSources.map(source => 
@@ -448,25 +529,67 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
     } finally {
       setTestingSource(null);
     }
-  }, [onDataSourceTest]);
+  }, [countyData.gisDataSources, countyData.id, onDataSourceTest]);
   
   /**
    * Handle valuation system test
    */
   const handleValuationSystemTest = useCallback(async () => {
-    if (!countyData.valuationSystem) {
+    if (!countyData.valuationSystem || !countyData.id) {
       return false;
     }
     
     try {
       setTestingSource('valuation');
+      
+      // First call the original test handler
       const success = await onValuationSystemTest(countyData.valuationSystem.id);
       
       if (success) {
+        // If successful, create a test valuation record for a random parcel
+        try {
+          // Get parcels for the county
+          const parcelsResponse = await parcelsService.getParcelsByCounty(countyData.id, 1, 1);
+          
+          if (parcelsResponse.data.length > 0) {
+            const parcel = parcelsResponse.data[0];
+            
+            // Create a test valuation
+            const valuationData = {
+              parcelId: parcel.id,
+              countyId: countyData.id,
+              valuationDate: new Date().toISOString(),
+              requestedBy: 'system_test',
+              landValue: 100000,
+              improvementsValue: 250000,
+              totalValue: 350000,
+              confidence: 0.95,
+              method: countyData.valuationSystem.type || 'manual',
+              status: 'completed',
+              notes: 'Test valuation during system integration'
+            };
+            
+            // Create the valuation via API
+            await valuationsService.createValuation(valuationData);
+          }
+        } catch (apiError) {
+          console.warn('Could not create test valuation, but connection test succeeded:', apiError);
+          // This is not a critical error, so we'll still consider the test successful
+        }
+        
+        // Update local state
         setCountyData(prev => ({
           ...prev,
           valuationSystem: prev.valuationSystem
             ? { ...prev.valuationSystem, connectionStatus: 'connected' }
+            : undefined
+        }));
+      } else {
+        // Update local state to show error
+        setCountyData(prev => ({
+          ...prev,
+          valuationSystem: prev.valuationSystem
+            ? { ...prev.valuationSystem, connectionStatus: 'disconnected' }
             : undefined
         }));
       }
@@ -475,6 +598,7 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
     } catch (error) {
       console.error('Error testing valuation system:', error);
       
+      // Update local state to show error
       setCountyData(prev => ({
         ...prev,
         valuationSystem: prev.valuationSystem
@@ -486,7 +610,7 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
     } finally {
       setTestingSource(null);
     }
-  }, [countyData.valuationSystem, onValuationSystemTest]);
+  }, [countyData.id, countyData.valuationSystem, onValuationSystemTest]);
   
   /**
    * Handle tax system test
@@ -544,6 +668,17 @@ export const CountyOnboardingWorkflow: React.FC<CountyOnboardingWorkflowProps> =
   const handleActivate = useCallback(async () => {
     try {
       setIsActivating(true);
+      
+      // Use the real API service to update county status
+      const apiCounty: Partial<County> = {
+        id: countyData.id,
+        gisEnabled: true
+      };
+      
+      // Update the county via API
+      await countiesService.updateCounty(countyData.id, apiCounty);
+      
+      // Call the original onActivate handler
       await onActivate(countyData.id);
       
       // Update county status to active
