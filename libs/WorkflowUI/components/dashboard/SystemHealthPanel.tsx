@@ -1,403 +1,1105 @@
 /**
- * System Health Panel Component
+ * System Health Panel
  * 
- * This component provides a real-time dashboard for monitoring the health
- * of various platform components and services.
+ * This component provides a comprehensive dashboard for monitoring system health,
+ * displaying metrics, logs, and alerts for TerraFusion platform components.
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  healthCheckRegistry, 
-  HealthStatus,
-  HealthCheckResult
-} from '../../../../libs/DevOps/monitoring/health-check';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Database,
+  HardDrive,
+  Server,
+  Activity,
+  BarChart2,
+  RefreshCw,
+  AlertTriangle,
+  Zap,
+  Layers,
+  Users,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 
-// Health status color mapping
-const statusColors = {
-  [HealthStatus.HEALTHY]: '#10b981', // Green
-  [HealthStatus.DEGRADED]: '#f59e0b', // Yellow
-  [HealthStatus.UNHEALTHY]: '#ef4444', // Red
-  [HealthStatus.UNKNOWN]: '#6b7280'   // Gray
-};
+import { logger } from '../../../DevOps/utils/logger';
 
-// Health status icon mapping
-const statusIcons = {
-  [HealthStatus.HEALTHY]: '✓',
-  [HealthStatus.DEGRADED]: '⚠',
-  [HealthStatus.UNHEALTHY]: '✗',
-  [HealthStatus.UNKNOWN]: '?'
-};
+// Create module-specific logger
+const healthLogger = logger.withTags(['WorkflowUI', 'SystemHealthPanel']);
 
-interface SystemHealthPanelProps {
-  title?: string;
+/**
+ * System component status
+ */
+export enum ComponentStatus {
+  HEALTHY = 'healthy',
+  WARNING = 'warning',
+  ERROR = 'error',
+  OFFLINE = 'offline',
+  UNKNOWN = 'unknown'
+}
+
+/**
+ * System component information
+ */
+export interface SystemComponent {
+  id: string;
+  name: string;
+  description: string;
+  status: ComponentStatus;
+  lastUpdated: Date;
+  metrics: SystemMetric[];
+  dependencies: string[];
+  details?: Record<string, any>;
+}
+
+/**
+ * System metric
+ */
+export interface SystemMetric {
+  name: string;
+  value: number | string;
+  unit?: string;
+  timestamp: Date;
+  status?: ComponentStatus;
+  thresholds?: {
+    warning?: number;
+    error?: number;
+  };
+  history?: Array<{
+    value: number | string;
+    timestamp: Date;
+  }>;
+}
+
+/**
+ * System alert
+ */
+export interface SystemAlert {
+  id: string;
+  componentId: string;
+  level: 'info' | 'warning' | 'error' | 'critical';
+  message: string;
+  timestamp: Date;
+  acknowledged: boolean;
+  details?: Record<string, any>;
+}
+
+/**
+ * System health panel props
+ */
+export interface SystemHealthPanelProps {
+  // Components to monitor
+  components: SystemComponent[];
+  
+  // Alerts
+  alerts: SystemAlert[];
+  
+  // Refresh interval in milliseconds
   refreshInterval?: number;
-  showDetails?: boolean;
-  showDependencies?: boolean;
-  maxHeight?: string;
+  
+  // Event handlers
+  onRefresh?: () => void;
+  onAlertAcknowledge?: (alertId: string) => void;
+  onComponentClick?: (componentId: string) => void;
+  
+  // Component styling
   className?: string;
   style?: React.CSSProperties;
-  onHealthStatusChange?: (isHealthy: boolean) => void;
 }
 
 /**
  * System Health Panel Component
  */
 export const SystemHealthPanel: React.FC<SystemHealthPanelProps> = ({
-  title = 'System Health',
-  refreshInterval = 60000, // Default refresh: 1 minute
-  showDetails = true,
-  showDependencies = false,
-  maxHeight = '400px',
+  components,
+  alerts,
+  refreshInterval = 30000,
+  onRefresh,
+  onAlertAcknowledge,
+  onComponentClick,
   className = '',
-  style = {},
-  onHealthStatusChange
+  style = {}
 }) => {
-  // State for health check results
-  const [healthResults, setHealthResults] = useState<HealthCheckResult | null>(null);
+  // State for panel visibility
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    summary: true,
+    alerts: true,
+    components: true,
+    metrics: false
+  });
   
-  // State for loading status
-  const [loading, setLoading] = useState<boolean>(true);
+  // State for component details
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
   
-  // State for error
-  const [error, setError] = useState<string | null>(null);
+  // State for refresh timer
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
-  // State for overall system health
-  const [systemHealthy, setSystemHealthy] = useState<boolean>(true);
-
-  // State for expanded items
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  // State for metrics visibility
+  const [visibleMetrics, setVisibleMetrics] = useState<Record<string, boolean>>({});
   
-  // Function to fetch health check data
-  const fetchHealthData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Execute all health checks
-      const results = await healthCheckRegistry.runAll();
-      
-      // Update state with results
-      setHealthResults(results);
-      
-      // Determine overall system health
-      const isHealthy = results.status === HealthStatus.HEALTHY;
-      setSystemHealthy(isHealthy);
-      
-      // Notify parent component of health status change
-      if (onHealthStatusChange) {
-        onHealthStatusChange(isHealthy);
-      }
-      
-      setLoading(false);
-    } catch (err: any) {
-      setError(`Failed to fetch health data: ${err.message}`);
-      setLoading(false);
-      
-      // Notify parent component of health status change
-      if (onHealthStatusChange) {
-        onHealthStatusChange(false);
-      }
-    }
-  };
-  
-  // Fetch health data on component mount and at intervals
+  // Effect for auto-refresh
   useEffect(() => {
-    // Initial fetch
-    fetchHealthData();
-    
-    // Set up interval for periodic fetching
-    const intervalId = setInterval(fetchHealthData, refreshInterval);
+    // Set up auto-refresh timer
+    const timer = setInterval(() => {
+      handleRefresh();
+    }, refreshInterval);
     
     // Clean up on unmount
     return () => {
-      clearInterval(intervalId);
+      clearInterval(timer);
     };
-  }, [refreshInterval]);
+  }, [refreshInterval, onRefresh]);
   
-  // Toggle expansion of a health check item
-  const toggleExpand = (name: string) => {
-    setExpandedItems(prev => ({
+  // Initialize visible metrics state
+  useEffect(() => {
+    // Default to showing all metrics
+    const initialVisibility: Record<string, boolean> = {};
+    
+    components.forEach(component => {
+      component.metrics.forEach(metric => {
+        const key = `${component.id}-${metric.name}`;
+        initialVisibility[key] = true;
+      });
+    });
+    
+    setVisibleMetrics(initialVisibility);
+  }, [components]);
+  
+  /**
+   * Handle refresh button click
+   */
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    
+    // Call parent refresh handler if provided
+    if (onRefresh) {
+      onRefresh();
+    }
+    
+    // Update last refreshed time
+    setLastRefreshed(new Date());
+    
+    // Simulate refresh delay
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 1000);
+    
+    healthLogger.info('System health data refreshed');
+  }, [onRefresh]);
+  
+  /**
+   * Toggle section expansion
+   */
+  const toggleSection = useCallback((section: string) => {
+    setExpandedSections(prev => ({
       ...prev,
-      [name]: !prev[name]
+      [section]: !prev[section]
     }));
-  };
+  }, []);
   
-  // Render a health check result
-  const renderHealthCheckItem = (result: HealthCheckResult, level: number = 0) => {
-    const isExpanded = expandedItems[result.name] || false;
-    const hasDependencies = result.dependencies && result.dependencies.length > 0;
-    const showToggle = showDependencies && hasDependencies;
+  /**
+   * Handle component click
+   */
+  const handleComponentClick = useCallback((componentId: string) => {
+    setSelectedComponent(prev => prev === componentId ? null : componentId);
     
-    return (
-      <div 
-        key={result.name}
-        className="health-check-item"
-        style={{
-          marginLeft: `${level * 16}px`,
-          marginBottom: '8px',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          backgroundColor: level === 0 ? '#f9fafb' : 'transparent',
-          border: level === 0 ? '1px solid #e5e7eb' : 'none'
-        }}
-      >
-        <div className="health-check-header" style={{ display: 'flex', alignItems: 'center' }}>
-          {/* Status indicator */}
-          <div 
-            className="status-indicator"
-            style={{
-              width: '16px',
-              height: '16px',
-              borderRadius: '50%',
-              backgroundColor: statusColors[result.status],
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '10px',
-              fontWeight: 'bold',
-              marginRight: '8px'
-            }}
-          >
-            {statusIcons[result.status]}
-          </div>
-          
-          {/* Health check name */}
-          <div className="health-check-name" style={{ fontWeight: 'bold', flex: 1 }}>
-            {result.name}
-          </div>
-          
-          {/* Toggle button for dependencies */}
-          {showToggle && (
-            <button 
-              onClick={() => toggleExpand(result.name)}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                cursor: 'pointer', 
-                fontSize: '18px'
-              }}
-            >
-              {isExpanded ? '▼' : '▶'}
-            </button>
-          )}
-        </div>
-        
-        {/* Health check details */}
-        {showDetails && (
-          <div 
-            className="health-check-details"
-            style={{ 
-              marginTop: '4px',
-              fontSize: '13px',
-              color: '#6b7280',
-              paddingLeft: '24px'
-            }}
-          >
-            <div>Status: <span style={{ color: statusColors[result.status] }}>{result.status}</span></div>
-            {result.message && <div>Message: {result.message}</div>}
-            <div>Checked: {new Date(result.timestamp).toLocaleTimeString()}</div>
-            <div>Duration: {result.duration}ms</div>
-            
-            {/* Additional details */}
-            {showDetails && result.details && Object.keys(result.details).length > 0 && (
-              <div 
-                className="additional-details"
-                style={{ 
-                  marginTop: '4px',
-                  fontSize: '12px'
-                }}
-              >
-                <details>
-                  <summary>Details</summary>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: '11px', maxHeight: '200px', overflow: 'auto' }}>
-                    {JSON.stringify(result.details, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Dependencies */}
-        {showDependencies && isExpanded && result.dependencies && result.dependencies.length > 0 && (
-          <div className="dependencies" style={{ marginTop: '8px', marginLeft: '12px' }}>
-            {result.dependencies.map(dep => renderHealthCheckItem(dep, level + 1))}
-          </div>
-        )}
-      </div>
-    );
+    if (onComponentClick) {
+      onComponentClick(componentId);
+    }
+  }, [onComponentClick]);
+  
+  /**
+   * Handle alert acknowledge
+   */
+  const handleAlertAcknowledge = useCallback((alertId: string) => {
+    if (onAlertAcknowledge) {
+      onAlertAcknowledge(alertId);
+    }
+  }, [onAlertAcknowledge]);
+  
+  /**
+   * Toggle metric visibility
+   */
+  const toggleMetricVisibility = useCallback((componentId: string, metricName: string) => {
+    const key = `${componentId}-${metricName}`;
+    
+    setVisibleMetrics(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }, []);
+  
+  /**
+   * Get status count
+   */
+  const getStatusCount = useCallback((status: ComponentStatus): number => {
+    return components.filter(component => component.status === status).length;
+  }, [components]);
+  
+  /**
+   * Get status color
+   */
+  const getStatusColor = (status: ComponentStatus): string => {
+    switch (status) {
+      case ComponentStatus.HEALTHY:
+        return '#22c55e'; // Green
+      case ComponentStatus.WARNING:
+        return '#f59e0b'; // Amber
+      case ComponentStatus.ERROR:
+        return '#ef4444'; // Red
+      case ComponentStatus.OFFLINE:
+        return '#94a3b8'; // Gray
+      default:
+        return '#64748b'; // Slate
+    }
   };
   
-  // Calculate overall status summary
-  const calculateSummary = (result: HealthCheckResult | null): {
-    healthy: number;
-    degraded: number;
-    unhealthy: number;
-    unknown: number;
-    total: number;
-  } => {
-    if (!result || !result.dependencies) {
-      return { healthy: 0, degraded: 0, unhealthy: 0, unknown: 0, total: 0 };
+  /**
+   * Get status icon
+   */
+  const getStatusIcon = (status: ComponentStatus): React.ReactNode => {
+    const color = getStatusColor(status);
+    
+    switch (status) {
+      case ComponentStatus.HEALTHY:
+        return <CheckCircle size={16} color={color} />;
+      case ComponentStatus.WARNING:
+        return <AlertTriangle size={16} color={color} />;
+      case ComponentStatus.ERROR:
+        return <AlertCircle size={16} color={color} />;
+      case ComponentStatus.OFFLINE:
+        return <Server size={16} color={color} />;
+      default:
+        return <HardDrive size={16} color={color} />;
+    }
+  };
+  
+  /**
+   * Get component icon
+   */
+  const getComponentIcon = (component: SystemComponent): React.ReactNode => {
+    // Determine icon based on component id or name
+    if (component.id.includes('database') || component.name.toLowerCase().includes('database')) {
+      return <Database size={20} />;
+    } else if (component.id.includes('server') || component.name.toLowerCase().includes('server')) {
+      return <Server size={20} />;
+    } else if (component.id.includes('api') || component.name.toLowerCase().includes('api')) {
+      return <Zap size={20} />;
+    } else if (component.id.includes('storage') || component.name.toLowerCase().includes('storage')) {
+      return <HardDrive size={20} />;
+    } else if (component.id.includes('map') || component.name.toLowerCase().includes('map')) {
+      return <Layers size={20} />;
+    } else if (component.id.includes('user') || component.name.toLowerCase().includes('user')) {
+      return <Users size={20} />;
     }
     
-    // Start with the main check
-    let summary = {
-      healthy: result.status === HealthStatus.HEALTHY ? 1 : 0,
-      degraded: result.status === HealthStatus.DEGRADED ? 1 : 0,
-      unhealthy: result.status === HealthStatus.UNHEALTHY ? 1 : 0,
-      unknown: result.status === HealthStatus.UNKNOWN ? 1 : 0,
-      total: 1
-    };
-    
-    // Add dependencies
-    for (const dep of result.dependencies) {
-      const depSummary = calculateSummary(dep);
-      summary.healthy += depSummary.healthy;
-      summary.degraded += depSummary.degraded;
-      summary.unhealthy += depSummary.unhealthy;
-      summary.unknown += depSummary.unknown;
-      summary.total += depSummary.total;
-    }
-    
-    return summary;
+    // Default icon
+    return <Activity size={20} />;
   };
   
-  // Render the overall health status
-  const renderOverallStatus = () => {
-    if (!healthResults) return null;
-    
-    const summary = calculateSummary(healthResults);
-    
-    // Calculate percentages
-    const healthyPercent = (summary.healthy / summary.total) * 100;
-    const degradedPercent = (summary.degraded / summary.total) * 100;
-    const unhealthyPercent = (summary.unhealthy / summary.total) * 100;
-    const unknownPercent = (summary.unknown / summary.total) * 100;
-    
-    return (
-      <div className="overall-status">
-        <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Overall Status: 
-          <span style={{ color: statusColors[healthResults.status], marginLeft: '4px' }}>
-            {healthResults.status.toUpperCase()}
-          </span>
-        </div>
-        
-        {/* Status bars */}
-        <div className="status-bars" style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', width: '100%', marginBottom: '4px' }}>
-            {healthyPercent > 0 && (
-              <div style={{ width: `${healthyPercent}%`, backgroundColor: statusColors[HealthStatus.HEALTHY] }}></div>
-            )}
-            {degradedPercent > 0 && (
-              <div style={{ width: `${degradedPercent}%`, backgroundColor: statusColors[HealthStatus.DEGRADED] }}></div>
-            )}
-            {unhealthyPercent > 0 && (
-              <div style={{ width: `${unhealthyPercent}%`, backgroundColor: statusColors[HealthStatus.UNHEALTHY] }}></div>
-            )}
-            {unknownPercent > 0 && (
-              <div style={{ width: `${unknownPercent}%`, backgroundColor: statusColors[HealthStatus.UNKNOWN] }}></div>
-            )}
-          </div>
-          
-          <div className="status-legend" style={{ display: 'flex', fontSize: '12px', color: '#6b7280' }}>
-            <div style={{ marginRight: '16px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: statusColors[HealthStatus.HEALTHY], marginRight: '4px' }}></span>
-              Healthy: {summary.healthy}
-            </div>
-            <div style={{ marginRight: '16px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: statusColors[HealthStatus.DEGRADED], marginRight: '4px' }}></span>
-              Degraded: {summary.degraded}
-            </div>
-            <div style={{ marginRight: '16px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: statusColors[HealthStatus.UNHEALTHY], marginRight: '4px' }}></span>
-              Unhealthy: {summary.unhealthy}
-            </div>
-            <div>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: statusColors[HealthStatus.UNKNOWN], marginRight: '4px' }}></span>
-              Unknown: {summary.unknown}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  /**
+   * Format date for display
+   */
+  const formatDate = (date: Date): string => {
+    return date.toLocaleString();
   };
+  
+  /**
+   * Format metric value
+   */
+  const formatMetricValue = (metric: SystemMetric): string => {
+    if (typeof metric.value === 'number') {
+      return `${metric.value}${metric.unit ? ` ${metric.unit}` : ''}`;
+    }
+    
+    return String(metric.value);
+  };
+  
+  /**
+   * Calculate overall system status
+   */
+  const calculateOverallStatus = (): ComponentStatus => {
+    if (components.some(c => c.status === ComponentStatus.ERROR)) {
+      return ComponentStatus.ERROR;
+    }
+    
+    if (components.some(c => c.status === ComponentStatus.WARNING)) {
+      return ComponentStatus.WARNING;
+    }
+    
+    if (components.some(c => c.status === ComponentStatus.OFFLINE)) {
+      return ComponentStatus.WARNING;
+    }
+    
+    if (components.every(c => c.status === ComponentStatus.HEALTHY)) {
+      return ComponentStatus.HEALTHY;
+    }
+    
+    return ComponentStatus.UNKNOWN;
+  };
+  
+  // Calculate overall status
+  const overallStatus = calculateOverallStatus();
+  
+  // Calculate critical alerts count
+  const criticalAlertsCount = alerts.filter(a => a.level === 'critical' && !a.acknowledged).length;
   
   return (
     <div 
       className={`system-health-panel ${className}`}
       style={{
-        padding: '16px',
+        border: '1px solid #e2e8f0',
         borderRadius: '8px',
-        border: '1px solid #e5e7eb',
         backgroundColor: 'white',
+        overflow: 'hidden',
         ...style
       }}
     >
-      {/* Panel header */}
-      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>{title}</h2>
+      {/* Header */}
+      <div style={{
+        padding: '16px',
+        borderBottom: '1px solid #e2e8f0',
+        backgroundColor: '#f8fafc',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Activity size={20} />
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+            System Health Monitor
+          </h2>
+        </div>
         
-        <div className="actions">
-          <button 
-            onClick={fetchHealthData}
-            disabled={loading}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ fontSize: '14px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Clock size={16} />
+            Last updated: {formatDate(lastRefreshed)}
+          </div>
+          
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
             style={{
-              padding: '4px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
               borderRadius: '4px',
-              border: '1px solid #e5e7eb',
-              backgroundColor: 'white',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1
+              backgroundColor: '#f1f5f9',
+              border: 'none',
+              cursor: isRefreshing ? 'default' : 'pointer'
             }}
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            <RefreshCw 
+              size={18} 
+              className={isRefreshing ? 'animate-spin' : ''} 
+            />
           </button>
         </div>
       </div>
       
-      {/* Loading state */}
-      {loading && !healthResults && (
-        <div className="loading" style={{ textAlign: 'center', padding: '16px' }}>
-          Loading health data...
-        </div>
-      )}
-      
-      {/* Error state */}
-      {error && (
+      {/* Summary section */}
+      <div style={{ borderBottom: '1px solid #e2e8f0' }}>
         <div 
-          className="error"
           style={{ 
-            padding: '12px',
-            borderRadius: '4px',
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            marginBottom: '16px'
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            backgroundColor: '#f1f5f9'
           }}
+          onClick={() => toggleSection('summary')}
         >
-          {error}
-        </div>
-      )}
-      
-      {/* Health results */}
-      {healthResults && (
-        <div className="health-results" style={{ maxHeight, overflowY: 'auto' }}>
-          {/* Overall status */}
-          {renderOverallStatus()}
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BarChart2 size={18} />
+            System Status Summary
+          </h3>
           
-          {/* Individual health checks */}
-          <div className="health-checks">
-            {renderHealthCheckItem(healthResults)}
+          {expandedSections.summary ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </div>
+        
+        {expandedSections.summary && (
+          <div style={{ padding: '16px' }}>
+            <div style={{ 
+              display: 'flex',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              <div style={{ 
+                flex: 1,
+                padding: '16px',
+                backgroundColor: getStatusColor(overallStatus),
+                color: 'white',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '14px', marginBottom: '4px' }}>Overall Status</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  {overallStatus}
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: 1,
+                padding: '16px',
+                backgroundColor: criticalAlertsCount > 0 ? '#ef4444' : '#22c55e',
+                color: 'white',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '14px', marginBottom: '4px' }}>Critical Alerts</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {criticalAlertsCount}
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: 1,
+                padding: '16px',
+                backgroundColor: '#0ea5e9',
+                color: 'white',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '14px', marginBottom: '4px' }}>Components</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {components.length}
+                </div>
+              </div>
+            </div>
+            
+            {/* Status counts */}
+            <div style={{ 
+              display: 'flex',
+              gap: '8px'
+            }}>
+              <div style={{ 
+                flex: 1,
+                padding: '12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '4px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{ 
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: getStatusColor(ComponentStatus.HEALTHY),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white'
+                }}>
+                  <CheckCircle size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                    {getStatusCount(ComponentStatus.HEALTHY)}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    Healthy
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: 1,
+                padding: '12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '4px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{ 
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: getStatusColor(ComponentStatus.WARNING),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white'
+                }}>
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                    {getStatusCount(ComponentStatus.WARNING)}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    Warning
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: 1,
+                padding: '12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '4px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{ 
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: getStatusColor(ComponentStatus.ERROR),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white'
+                }}>
+                  <AlertCircle size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                    {getStatusCount(ComponentStatus.ERROR)}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    Error
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: 1,
+                padding: '12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '4px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{ 
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: getStatusColor(ComponentStatus.OFFLINE),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white'
+                }}>
+                  <Server size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                    {getStatusCount(ComponentStatus.OFFLINE)}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    Offline
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       
-      {/* Last refreshed timestamp */}
-      {healthResults && (
-        <div className="last-refreshed" style={{ fontSize: '12px', color: '#6b7280', marginTop: '16px', textAlign: 'right' }}>
-          Last refreshed: {new Date().toLocaleString()}
+      {/* Alerts section */}
+      <div style={{ borderBottom: '1px solid #e2e8f0' }}>
+        <div 
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            backgroundColor: '#f1f5f9',
+            position: 'relative'
+          }}
+          onClick={() => toggleSection('alerts')}
+        >
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} />
+            Active Alerts
+          </h3>
+          
+          {criticalAlertsCount > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '12px',
+              left: '140px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              borderRadius: '9999px',
+              padding: '2px 8px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {criticalAlertsCount}
+            </div>
+          )}
+          
+          {expandedSections.alerts ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </div>
-      )}
+        
+        {expandedSections.alerts && (
+          <div style={{ 
+            padding: alerts.length > 0 ? '0' : '16px', 
+            maxHeight: '300px', 
+            overflowY: 'auto'
+          }}>
+            {alerts.length > 0 ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f1f5f9' }}>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' }}>
+                      Level
+                    </th>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' }}>
+                      Component
+                    </th>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' }}>
+                      Message
+                    </th>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' }}>
+                      Time
+                    </th>
+                    <th style={{ padding: '8px 16px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alerts
+                    .filter(alert => !alert.acknowledged)
+                    .sort((a, b) => {
+                      // Sort by level (critical first) then by timestamp (newest first)
+                      const levelOrder = { critical: 0, error: 1, warning: 2, info: 3 };
+                      const levelDiff = levelOrder[a.level] - levelOrder[b.level];
+                      if (levelDiff !== 0) return levelDiff;
+                      return b.timestamp.getTime() - a.timestamp.getTime();
+                    })
+                    .map(alert => {
+                      // Find component by ID
+                      const component = components.find(c => c.id === alert.componentId);
+                      
+                      // Determine level color
+                      let levelColor = '#64748b';
+                      switch (alert.level) {
+                        case 'critical':
+                          levelColor = '#ef4444';
+                          break;
+                        case 'error':
+                          levelColor = '#f97316';
+                          break;
+                        case 'warning':
+                          levelColor = '#f59e0b';
+                          break;
+                        case 'info':
+                          levelColor = '#0ea5e9';
+                          break;
+                      }
+                      
+                      return (
+                        <tr key={alert.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ 
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: levelColor,
+                              color: 'white',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              textTransform: 'uppercase'
+                            }}>
+                              {alert.level}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            {component?.name || alert.componentId}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            {alert.message}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b' }}>
+                            {formatDate(alert.timestamp)}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => handleAlertAcknowledge(alert.id)}
+                              style={{
+                                padding: '4px 12px',
+                                backgroundColor: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Acknowledge
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#64748b', padding: '16px' }}>
+                No active alerts
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {/* Components section */}
+      <div style={{ borderBottom: expandedSections.components ? '1px solid #e2e8f0' : 'none' }}>
+        <div 
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            backgroundColor: '#f1f5f9'
+          }}
+          onClick={() => toggleSection('components')}
+        >
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Server size={18} />
+            System Components
+          </h3>
+          
+          {expandedSections.components ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </div>
+        
+        {expandedSections.components && (
+          <div style={{ 
+            maxHeight: '400px', 
+            overflowY: 'auto'
+          }}>
+            {components.map(component => (
+              <div 
+                key={component.id}
+                style={{ 
+                  borderBottom: '1px solid #e2e8f0',
+                  backgroundColor: selectedComponent === component.id ? '#f1f5f9' : 'transparent'
+                }}
+              >
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => handleComponentClick(component.id)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                    <div style={{ 
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '8px',
+                      backgroundColor: '#f1f5f9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#0f172a'
+                    }}>
+                      {getComponentIcon(component)}
+                    </div>
+                    
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {component.name}
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#64748b' }}>
+                        {component.description}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '16px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {getStatusIcon(component.status)}
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 'bold', 
+                        color: getStatusColor(component.status),
+                        textTransform: 'capitalize'
+                      }}>
+                        {component.status}
+                      </span>
+                    </div>
+                    
+                    <div style={{ fontSize: '14px', color: '#64748b' }}>
+                      {formatDate(component.lastUpdated)}
+                    </div>
+                    
+                    {selectedComponent === component.id ? 
+                      <ChevronUp size={16} /> : 
+                      <ChevronDown size={16} />
+                    }
+                  </div>
+                </div>
+                
+                {/* Component details */}
+                {selectedComponent === component.id && (
+                  <div style={{ padding: '0 16px 16px 68px' }}>
+                    {/* Metrics */}
+                    {component.metrics.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 8px 0' }}>
+                          Metrics
+                        </h4>
+                        
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                          gap: '8px'
+                        }}>
+                          {component.metrics.map(metric => {
+                            const metricKey = `${component.id}-${metric.name}`;
+                            const isVisible = visibleMetrics[metricKey] !== false;
+                            
+                            return (
+                              <div 
+                                key={metric.name}
+                                style={{ 
+                                  padding: '8px 12px',
+                                  backgroundColor: '#f8fafc',
+                                  borderRadius: '4px',
+                                  border: '1px solid #e2e8f0'
+                                }}
+                              >
+                                <div style={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center',
+                                  marginBottom: '4px'
+                                }}>
+                                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                                    {metric.name}
+                                  </div>
+                                  
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleMetricVisibility(component.id, metric.name);
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: '4px'
+                                    }}
+                                  >
+                                    {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                                  </button>
+                                </div>
+                                
+                                <div style={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center' 
+                                }}>
+                                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                                    {formatMetricValue(metric)}
+                                  </div>
+                                  
+                                  {metric.status && (
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                      {getStatusIcon(metric.status)}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Metric history chart would go here */}
+                                {isVisible && metric.history && metric.history.length > 0 && (
+                                  <div style={{ 
+                                    height: '40px',
+                                    marginTop: '8px',
+                                    backgroundColor: '#f1f5f9',
+                                    borderRadius: '4px',
+                                    position: 'relative',
+                                    overflow: 'hidden'
+                                  }}>
+                                    {/* Simple mock chart visualization */}
+                                    <div style={{ 
+                                      position: 'absolute',
+                                      bottom: '0',
+                                      left: '0',
+                                      width: '100%',
+                                      height: '100%',
+                                      display: 'flex',
+                                      alignItems: 'flex-end'
+                                    }}>
+                                      {metric.history.map((point, index) => {
+                                        // Convert value to number for visualization
+                                        let value = typeof point.value === 'number' ? 
+                                          point.value : 
+                                          parseFloat(String(point.value)) || 0;
+                                        
+                                        // Normalize to 0-1 range
+                                        const maxValue = Math.max(...metric.history!
+                                          .map(p => typeof p.value === 'number' ? 
+                                            p.value : 
+                                            parseFloat(String(p.value)) || 0
+                                          )
+                                        );
+                                        
+                                        const normalizedValue = maxValue === 0 ? 0 : value / maxValue;
+                                        
+                                        return (
+                                          <div 
+                                            key={index}
+                                            style={{
+                                              flex: 1,
+                                              height: `${normalizedValue * 100}%`,
+                                              backgroundColor: '#0ea5e9',
+                                              margin: '0 1px'
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Dependencies */}
+                    {component.dependencies.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 8px 0' }}>
+                          Dependencies
+                        </h4>
+                        
+                        <div style={{ 
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '8px'
+                        }}>
+                          {component.dependencies.map(dependencyId => {
+                            const dependency = components.find(c => c.id === dependencyId);
+                            
+                            return (
+                              <div 
+                                key={dependencyId}
+                                style={{ 
+                                  padding: '4px 12px',
+                                  backgroundColor: '#f8fafc',
+                                  borderRadius: '9999px',
+                                  border: '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  fontSize: '14px'
+                                }}
+                              >
+                                {dependency && getStatusIcon(dependency.status)}
+                                <span>{dependency?.name || dependencyId}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Additional details */}
+                    {component.details && Object.keys(component.details).length > 0 && (
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 8px 0' }}>
+                          Additional Details
+                        </h4>
+                        
+                        <div style={{ 
+                          backgroundColor: '#f8fafc',
+                          borderRadius: '4px',
+                          border: '1px solid #e2e8f0',
+                          padding: '12px',
+                          fontSize: '14px'
+                        }}>
+                          {Object.entries(component.details).map(([key, value]) => (
+                            <div 
+                              key={key}
+                              style={{ 
+                                display: 'flex', 
+                                marginBottom: '4px',
+                                borderBottom: '1px solid #f1f5f9',
+                                paddingBottom: '4px'
+                              }}
+                            >
+                              <div style={{ 
+                                width: '160px',
+                                fontWeight: 'bold',
+                                color: '#64748b'
+                              }}>
+                                {key}
+                              </div>
+                              <div>
+                                {typeof value === 'object' ? 
+                                  JSON.stringify(value) : 
+                                  String(value)
+                                }
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* CSS for animations */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
+        `}
+      </style>
     </div>
   );
 };
