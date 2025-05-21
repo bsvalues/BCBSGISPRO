@@ -18,6 +18,8 @@ import {
   Save,
   X,
   Upload,
+  ChevronUp,
+  ChevronDown,
   Database,
   Map as MapIcon,
   Image as ImageIcon,
