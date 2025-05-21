@@ -85,11 +85,13 @@ const CreateWorkflowForm: React.FC<CreateWorkflowFormProps> = ({ parcel }) => {
   const createWorkflowMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       return apiRequest('POST', '/api/workflows', {
-        ...values,
-        parcelId: parcel?.APN,
-        parcelAddress: parcel?.SITUS_ADDRESS,
-        parcelOwner: parcel?.OWNER_NAME,
-        createdBy: user?.id,
+        body: {
+          ...values,
+          parcelId: parcel?.APN,
+          parcelAddress: parcel?.SITUS_ADDRESS,
+          parcelOwner: parcel?.OWNER_NAME,
+          createdBy: user?.id,
+        }
       });
     },
     onSuccess: (data) => {

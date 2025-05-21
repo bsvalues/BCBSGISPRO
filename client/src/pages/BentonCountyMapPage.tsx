@@ -178,7 +178,7 @@ export default function BentonCountyMapPage() {
                     <Switch
                       id="short-plats-toggle"
                       checked={showShortPlats}
-                      onCheckedChange={setShowShortPlats}
+                      onChange={(e) => setShowShortPlats(e.target.checked)}
                     />
                   </div>
                   
@@ -190,7 +190,7 @@ export default function BentonCountyMapPage() {
                     <Switch
                       id="long-plats-toggle"
                       checked={showLongPlats}
-                      onCheckedChange={setShowLongPlats}
+                      onChange={(e) => setShowLongPlats(e.target.checked)}
                     />
                   </div>
                   

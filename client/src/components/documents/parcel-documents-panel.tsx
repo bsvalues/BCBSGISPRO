@@ -4,14 +4,14 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '../../lib/queryClient';
 import { useRbacAuth } from '../../context/rbac-auth-context';
 import { useToast } from '../../hooks/use-toast';
-import { Card, CardContent } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { ScrollArea } from '../../components/ui/scroll-area';
-import { Separator } from '../../components/ui/separator';
-import { Badge } from '../../components/ui/badge';
+import { Card, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { ScrollArea } from '../ui/scroll-area';
+import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '../../components/ui/alert-dialog';
+} from '../ui/alert-dialog';
 import {
   FileText,
   Upload,
@@ -96,7 +96,7 @@ const ParcelDocumentsPanel: React.FC<ParcelDocumentsPanelProps> = ({ parcel }) =
   // Upload document mutation
   const uploadDocumentMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      return apiRequest('POST', '/api/documents', formData, true);
+      return apiRequest('POST', '/api/documents', { body: formData });
     },
     onSuccess: () => {
       toast({
@@ -121,7 +121,7 @@ const ParcelDocumentsPanel: React.FC<ParcelDocumentsPanelProps> = ({ parcel }) =
   // Delete document mutation
   const deleteDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
-      return apiRequest('DELETE', `/api/documents/${documentId}`);
+      return apiRequest('DELETE', `/api/documents/${documentId}`, {});
     },
     onSuccess: () => {
       toast({
