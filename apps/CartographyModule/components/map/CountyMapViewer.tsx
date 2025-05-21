@@ -258,7 +258,7 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
       const mapboxgl = await import('mapbox-gl');
       
       // Set access token
-      mapboxgl.accessToken = apiKey;
+      (mapboxgl as any).accessToken = apiKey;
       
       // Create map instance
       const map = new mapboxgl.Map({
