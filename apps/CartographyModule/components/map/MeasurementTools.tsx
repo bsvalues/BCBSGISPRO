@@ -333,7 +333,7 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
     
     try {
       // Create or update GeoJSON source
-      const source = {
+      const source: GeoJSONSource = {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
@@ -341,25 +341,28 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
         }
       };
       
+      // Properly typed coordinates
+      const typedCoordinates: GeoJSONCoordinate[] = points.map(p => [p[0], p[1]]);
+      
       // Add points feature
       source.data.features.push({
         type: 'Feature',
         geometry: {
           type: 'MultiPoint',
-          coordinates: points as GeoJSONCoordinate[]
+          coordinates: typedCoordinates
         },
         properties: {}
-      } as GeoJSONFeature);
+      });
       
       // Add line feature
       source.data.features.push({
         type: 'Feature',
         geometry: {
           type: 'LineString',
-          coordinates: points as GeoJSONCoordinate[]
+          coordinates: typedCoordinates
         },
         properties: {}
-      } as GeoJSONFeature);
+      });
       
       // Add polygon feature if measuring area and we have at least 3 points
       if (activeMeasurement === MeasurementType.AREA && points.length >= 3) {
@@ -371,14 +374,17 @@ export const MeasurementTools: React.FC<MeasurementToolsProps> = ({
           closedPoints.push(closedPoints[0]);
         }
         
+        // Convert to properly typed GeoJSON coordinates
+        const typedPolygonCoords: GeoJSONCoordinate[] = closedPoints.map(p => [p[0], p[1]]);
+        
         source.data.features.push({
           type: 'Feature',
           geometry: {
             type: 'Polygon',
-            coordinates: [closedPoints as GeoJSONCoordinate[]]
+            coordinates: [typedPolygonCoords]
           },
           properties: {}
-        } as GeoJSONFeature);
+        });
       }
       
       // Update or create the source
