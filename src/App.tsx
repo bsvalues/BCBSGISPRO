@@ -693,9 +693,9 @@ const App: React.FC = () => {
                 position: 'relative'
               }}>
                 <CountyMapViewer
-                  provider="mapbox"
+                  provider={settings.mapProvider}
                   apiKey="pk.sample.mapbox.token"
-                  center={[-119.2052, 46.2112]} // Benton County, WA coordinates
+                  center={{ lat: 46.2112, lng: -119.2052 }} // Benton County, WA coordinates
                   zoom={10}
                   style={{ width: '100%', height: '100%' }}
                 />
@@ -790,7 +790,7 @@ const App: React.FC = () => {
                 overflow: 'hidden'
               }}>
                 <CountyMapViewer
-                  provider="mapbox"
+                  provider={userSettings.mapProvider}
                   apiKey="pk.sample.mapbox.token"
                   center={[-119.2052, 46.2112]} // Benton County, WA coordinates
                   zoom={11}
