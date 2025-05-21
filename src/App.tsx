@@ -690,7 +690,7 @@ const App: React.FC = () => {
                 position: 'relative'
               }}>
                 <CountyMapViewer
-                  mapProvider={settings.mapProvider}
+                  provider={settings.mapProvider}
                   apiKey="pk.sample.mapbox.token"
                   center={[-119.2052, 46.2112]} // Benton County, WA coordinates
                   zoom={10}
@@ -700,7 +700,7 @@ const App: React.FC = () => {
                 {/* Map measurement tools */}
                 <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10 }}>
                   <MeasurementTools 
-                    onMeasure={(measurement) => console.log('Measurement:', measurement)}
+                    onMeasurementComplete={(measurement) => console.log('Measurement:', measurement)}
                   />
                 </div>
               </div>
@@ -725,12 +725,13 @@ const App: React.FC = () => {
                     Layers
                   </h2>
                   <LayerManager
-                    availableLayers={[
-                      { id: 'parcels', name: 'Parcels', type: 'vector' },
-                      { id: 'zoning', name: 'Zoning', type: 'vector' },
-                      { id: 'imagery', name: 'Satellite Imagery', type: 'raster' },
-                      { id: 'schools', name: 'Schools', type: 'point' },
-                      { id: 'roads', name: 'Roads', type: 'line' }
+                    availableLayerTypes={['vector', 'raster', 'point', 'line', 'polygon']}
+                    layers={[
+                      { id: 'parcels', name: 'Parcels', type: 'vector', source: 'https://example.com/parcels' },
+                      { id: 'zoning', name: 'Zoning', type: 'vector', source: 'https://example.com/zoning' },
+                      { id: 'imagery', name: 'Satellite Imagery', type: 'raster', url: 'https://example.com/imagery' },
+                      { id: 'schools', name: 'Schools', type: 'point', source: 'https://example.com/schools' },
+                      { id: 'roads', name: 'Roads', type: 'line', source: 'https://example.com/roads' }
                     ]}
                     onLayerToggle={(layerId, visible) => console.log('Layer toggle:', layerId, visible)}
                     onLayerOpacityChange={(layerId, opacity) => console.log('Layer opacity:', layerId, opacity)}
@@ -747,8 +748,14 @@ const App: React.FC = () => {
                     Export
                   </h2>
                   <PrintExportPanel
-                    onExport={(format) => console.log('Export map as:', format)}
-                    onPrint={() => console.log('Print map')}
+                    onExport={(options) => {
+                      console.log('Export map with options:', options);
+                      return Promise.resolve('export-file-path.png');
+                    }}
+                    onPrint={(options) => {
+                      console.log('Print map with options:', options);
+                      return Promise.resolve();
+                    }}
                   />
                 </div>
               </div>
