@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MapControls, MapView, LayerInfo, MeasurementType, DrawingToolType } from './MapControls';
 import { MeasurementTools, MeasurementResult } from './MeasurementTools';
 import { logger } from '../../../../libs/DevOps/utils/logger';
+import { LayerType } from '../../../../libs/types/index';
 
 // Create module-specific logger
 const mapLogger = logger.withTags(['CartographyModule', 'CountyMapViewer']);
@@ -605,10 +606,11 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
       
       const L = require('leaflet');
       
-      // Handle layer type with type guards
-      const layerType = layer.type as string;
+      // Use type narrowing for layer type handling
+      const layerType = layer.type as LayerType;
       
-      if (layerType === 'vector') {
+      // Use separate conditions to avoid type comparison errors
+      if (layerType === 'vector' || layerType === 'point' || layerType === 'line' || layerType === 'polygon') {
         // For vector data, we'd need to fetch the data and add it as GeoJSON
         // This is a simplified implementation
         if (layer.source) {
@@ -628,7 +630,7 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
           .catch(error => {
             mapLogger.error(`Failed to load vector data for layer ${layer.id}`, error);
           });
-      } else if (layerType === 'raster' || layerType === 'imagery') {
+      } else if ((['raster', 'imagery'] as LayerType[]).includes(layerType)) {
         // For raster data, add as a tile layer
         L.tileLayer(layer.source, {
           opacity: layer.opacity,
