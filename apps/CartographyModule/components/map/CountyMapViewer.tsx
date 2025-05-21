@@ -619,10 +619,10 @@ export const CountyMapViewer: React.FC<CountyMapViewerProps> = ({
                 style: {
                   color: layer.attributes?.outlineColor || '#000000',
                   weight: layer.attributes?.outlineWidth || 1,
-                opacity: layer.opacity,
-                fillColor: layer.attributes?.fillColor || '#000000',
-                fillOpacity: layer.opacity
-              }
+                  opacity: layer.opacity,
+                  fillColor: layer.attributes?.fillColor || '#000000',
+                  fillOpacity: layer.opacity
+                }
             }).addTo(map);
           })
           .catch(error => {
