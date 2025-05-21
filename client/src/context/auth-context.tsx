@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   
   // Fetch the current user
-  const { data: user, isLoading: isFetchingUser } = useQuery({
+  const { data: user, isLoading: isFetchingUser } = useQuery<User>({
     queryKey: ['/api/auth/user'],
     retry: false,
   });
@@ -119,8 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  const value = {
-    user: user || null,
+  const value: AuthContextType = {
+    user: (user as User) || null,
     isLoading: isLoading || isFetchingUser,
     isAuthenticated: !!user,
     login,

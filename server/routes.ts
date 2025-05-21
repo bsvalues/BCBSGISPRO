@@ -17,10 +17,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Protected route example
   app.get("/api/protected", isAuthenticated, async (req: any, res) => {
-    const userId = req.user?.claims?.sub;
     res.json({ 
       message: "This is protected data", 
-      userId,
+      userId: req.user.id,
       timestamp: new Date().toISOString()
     });
   });

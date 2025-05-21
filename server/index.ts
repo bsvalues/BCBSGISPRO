@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { json } from "express";
 import { registerRoutes } from "./routes";
+import './db'; // Initialize database connection
 
 async function main() {
   const app = express();
