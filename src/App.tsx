@@ -690,7 +690,7 @@ const App: React.FC = () => {
                 position: 'relative'
               }}>
                 <CountyMapViewer
-                  provider={settings.mapProvider}
+                  provider="mapbox"
                   apiKey="pk.sample.mapbox.token"
                   center={[-119.2052, 46.2112]} // Benton County, WA coordinates
                   zoom={10}
@@ -700,7 +700,10 @@ const App: React.FC = () => {
                 {/* Map measurement tools */}
                 <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10 }}>
                   <MeasurementTools 
+                    activeMeasurement={null}
                     onMeasurementComplete={(measurement) => console.log('Measurement:', measurement)}
+                    units="imperial"
+                    defaultTool="distance"
                   />
                 </div>
               </div>
@@ -725,13 +728,19 @@ const App: React.FC = () => {
                     Layers
                   </h2>
                   <LayerManager
-                    availableLayerTypes={['vector', 'raster', 'point', 'line', 'polygon']}
+                    availableLayerTypes={[
+                      { id: 'vector', name: 'Vector', description: 'Vector layer type', icon: 'layers' },
+                      { id: 'raster', name: 'Raster', description: 'Raster layer type', icon: 'image' },
+                      { id: 'imagery', name: 'Imagery', description: 'Satellite imagery layer type', icon: 'satellite' },
+                      { id: 'terrain', name: 'Terrain', description: 'Terrain layer type', icon: 'mountain' },
+                      { id: 'overlay', name: 'Overlay', description: 'Overlay layer type', icon: 'layout' }
+                    ]}
                     layers={[
-                      { id: 'parcels', name: 'Parcels', type: 'vector', source: 'https://example.com/parcels' },
-                      { id: 'zoning', name: 'Zoning', type: 'vector', source: 'https://example.com/zoning' },
-                      { id: 'imagery', name: 'Satellite Imagery', type: 'raster', url: 'https://example.com/imagery' },
-                      { id: 'schools', name: 'Schools', type: 'point', source: 'https://example.com/schools' },
-                      { id: 'roads', name: 'Roads', type: 'line', source: 'https://example.com/roads' }
+                      { id: 'parcels', name: 'Parcels', type: 'vector', source: 'https://example.com/parcels', visible: true, opacity: 0.8, zIndex: 5 },
+                      { id: 'zoning', name: 'Zoning', type: 'vector', source: 'https://example.com/zoning', visible: true, opacity: 0.7, zIndex: 4 },
+                      { id: 'imagery', name: 'Satellite Imagery', type: 'raster', source: 'https://example.com/imagery', visible: true, opacity: 1.0, zIndex: 1 },
+                      { id: 'terrain', name: 'Terrain', type: 'terrain', source: 'https://example.com/terrain', visible: false, opacity: 0.6, zIndex: 2 },
+                      { id: 'overlays', name: 'Overlays', type: 'overlay', source: 'https://example.com/overlays', visible: true, opacity: 0.5, zIndex: 10 }
                     ]}
                     onLayerToggle={(layerId, visible) => console.log('Layer toggle:', layerId, visible)}
                     onLayerOpacityChange={(layerId, opacity) => console.log('Layer opacity:', layerId, opacity)}
@@ -778,7 +787,7 @@ const App: React.FC = () => {
                 overflow: 'hidden'
               }}>
                 <CountyMapViewer
-                  mapProvider={settings.mapProvider}
+                  provider="mapbox"
                   apiKey="pk.sample.mapbox.token"
                   center={[-119.2052, 46.2112]} // Benton County, WA coordinates
                   zoom={11}
