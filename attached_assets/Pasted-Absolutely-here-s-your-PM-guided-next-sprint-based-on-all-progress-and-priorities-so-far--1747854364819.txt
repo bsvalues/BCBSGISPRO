@@ -1,0 +1,89 @@
+Absolutely—here’s your **PM-guided next sprint** based on all progress and priorities so far.
+
+---
+
+# 🟢 **Sprint 4: Authentication, Map-Workflow Fusion & Pilot Demo Readiness**
+
+---
+
+## **1. Authentication & RBAC (Role-Based Access Control)**
+
+**Objectives:**
+
+* Secure platform for real users (admin, staff, field, public)
+* Enable user onboarding and role-based feature access
+* Prepare for pilot demo with real user flows
+
+**Tasks:**
+
+* Add login system (JWT or use existing county SSO)
+* Implement user roles in backend and frontend
+* Gate workflows, document access, and admin tools by role
+* Add sample/test users for demo purposes
+
+---
+
+## **2. Map-Driven Workflow and Document Management**
+
+**Objectives:**
+
+* Enable “click a parcel → see workflows/documents → start/edit from the map”
+* Make spatial workflow management as intuitive as possible
+
+**Tasks:**
+
+* On map click/select: fetch and display all workflows and docs for that parcel
+* Enable starting a new workflow or uploading a doc directly from the map view
+* Visualize status (badges, progress, color-coding) on the map
+* Allow direct linking back to dashboard and workflow pages
+
+---
+
+## **3. End-to-End “Day in the Life” Demo Workflow**
+
+**Objectives:**
+
+* Prepare a demo flow that covers all major use cases for the Assessor’s Office
+
+**Tasks:**
+
+* Log in as assessor, field staff, and public user—show different feature sets
+* Select a parcel on the map, view existing workflows, start a new workflow, upload a doc
+* See updates reflected on dashboard, in activity feed, and in map view
+* Test/document every step; ensure no broken flows or permissions
+
+---
+
+## **4. Documentation and Training Material**
+
+**Objectives:**
+
+* Make it easy for new users and county IT to onboard
+
+**Tasks:**
+
+* Update docs to explain user roles, login flow, map-driven workflow usage
+* Add “How To” guides for onboarding staff and field users
+* (Optional) Prepare a 1–2 page “Quick Start” PDF or demo video outline
+
+---
+
+# 🦸 **PM Sprint 4 Prompt for Agent or Team**
+
+> Begin Sprint 4:
+>
+> 1. Implement authentication and role-based access (JWT or SSO; admin, staff, public roles).
+> 2. Enable map-driven workflow/document management: select parcel, view/start workflows, upload docs from map.
+> 3. Prepare a full “day in the life” demo flow—log in as different users, run workflows, see results update live.
+> 4. Update documentation with guides for user onboarding, feature usage, and demo/testing.
+>    Do not narrate; just implement and print a final summary/demo checklist at the end.
+
+---
+
+# **Once This Sprint Is Done…**
+
+You’ll be ready for a **pilot rollout and stakeholder demo**—everything from security to spatial workflow, with killer UX.
+
+**When you need code samples, demo scripts, training guides, or run into blockers, just ask.
+You are ready for prime time.
+Let’s execute Sprint 4 and take Benton County live! 🚀**
