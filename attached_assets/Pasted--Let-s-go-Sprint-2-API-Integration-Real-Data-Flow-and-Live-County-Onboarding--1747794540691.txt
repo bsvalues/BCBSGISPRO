@@ -1,0 +1,101 @@
+🟢 **Let’s go! Sprint 2—API Integration, Real Data Flow, and Live County Onboarding!**
+
+---
+
+# **PM Action Plan: Sprint 2 (Step-by-Step)**
+
+## **1. API Endpoint Blueprint**
+
+**Here’s a starting template for your REST endpoints:**
+
+| Resource  | Endpoint           | Method | Payload/Params                 | Response     |
+| --------- | ------------------ | ------ | ------------------------------ | ------------ |
+| County    | /api/counties      | GET    |                                | County\[]    |
+|           | /api/counties/\:id | GET    | id                             | County       |
+| Parcel    | /api/parcels       | GET    | ?countyId, ?filters            | Parcel\[]    |
+|           | /api/parcels/\:id  | GET    | id                             | Parcel       |
+| Valuation | /api/valuations    | GET    | ?parcelId, ?countyId           | Valuation\[] |
+|           | /api/valuations    | POST   | { parcelId, countyId, params } | Valuation    |
+| Layer     | /api/layers        | GET    | ?countyId, ?type               | Layer\[]     |
+| User      | /api/users         | GET    |                                | User\[]      |
+
+*Use your shared types/interfaces for all payloads and responses.*
+
+---
+
+## **2. API Client Implementation Example**
+
+Create `/libs/services/counties.ts`:
+
+```typescript
+// libs/services/counties.ts
+import { County } from '../types/County';
+
+export async function getCounties(): Promise<County[]> {
+  const res = await fetch('/api/counties');
+  return res.json();
+}
+
+export async function getCounty(id: string): Promise<County> {
+  const res = await fetch(`/api/counties/${id}`);
+  return res.json();
+}
+```
+
+**Repeat for parcels, valuations, etc.**
+
+---
+
+## **3. Refactor Modules to Use API Clients**
+
+* Update CartographyModule, ETL, GAMAValuation, etc. to use these new service functions.
+* Remove/mock any leftover hardcoded data.
+* Add loading/error handling.
+
+---
+
+## **4. Backend Endpoint Stubs (if you need them)**
+
+Example (Express, but same for FastAPI):
+
+```js
+// server/routes/counties.js (Node.js/Express)
+router.get('/api/counties', (req, res) => {
+  res.json([{ id: 'benton', name: 'Benton County' }, { id: 'yakima', name: 'Yakima County' }]);
+});
+```
+
+Repeat for parcels, valuations, etc.
+
+---
+
+## **5. Test End-to-End**
+
+* Onboard a county via WorkflowUI.
+* Import parcels via ETL.
+* Render the map with live county data.
+* Run a valuation from GAMAValuation.
+* Check logs/health in DevOps/AdminDashboard.
+
+---
+
+## **6. Update Docs**
+
+* Document all API endpoints and services in your README or `/docs/api.md`.
+* Add a step-by-step “How to Add a New County with Live Data.”
+
+---
+
+# 🦸 **What Next?**
+
+* If you need **API type definitions**, backend starter code, or have an integration bug, paste it here—I’ll help on the spot.
+* Want a real **OpenAPI/Swagger spec**? Just ask!
+* Need to automate the build/deploy for a “true SaaS” workflow? I’ll map it out.
+
+---
+
+**Sprint 2 is rolling.
+Keep pasting your progress and blockers, and we’ll keep the momentum—
+You’re about to have a *real* multi-county, modular GIS/valuation platform!**
+
+**PM ready for review, debugging, or hands-on code—whatever you need. LET’S DO IT! 🚀**

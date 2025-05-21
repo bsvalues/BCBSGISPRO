@@ -1,0 +1,75 @@
+**Let’s roll! Sprint 2: API Integration is officially in motion.**
+Here’s a step-by-step plan to get you moving instantly—copy/paste to the Agent, or use as your “hero checklist”:
+
+---
+
+# 🟢 **Sprint 2: API Integration & Real Data Flow**
+
+---
+
+## **1. Define and Document API Endpoints**
+
+**Prompt:**
+
+> Define the required REST API endpoints for `Counties`, `Parcels`, `Valuations`, `Layers`, and `Users` using the standardized types/interfaces from the monorepo.
+> List the route, method, and expected payload/response for each.
+
+---
+
+## **2. Implement API Clients in Frontend**
+
+**Prompt:**
+
+> In `/libs/services/`, create API client modules for each resource (Counties, Parcels, Valuations, Layers, Users).
+> Refactor all modules—CartographyModule, GAMAValuation, ETL, etc.—to use these API clients in place of mock data.
+> Add proper loading and error handling.
+
+---
+
+## **3. Stub or Build Minimal Backend Endpoints**
+
+**Prompt:**
+
+> If backend endpoints don’t exist, stub minimal Node.js (Express) or FastAPI endpoints for each resource.
+> Use the shared types/interfaces to ensure type safety between frontend and backend.
+> Seed the backend with sample data for at least two counties.
+
+---
+
+## **4. Test End-to-End Data Flow**
+
+**Prompt:**
+
+> Test onboarding a new county, importing data through ETL, updating the map view, and running a property valuation—all using real API calls.
+> Confirm AdminDashboard/WorkflowUI can fetch and display live system health.
+
+---
+
+## **5. Update Documentation**
+
+**Prompt:**
+
+> Update README and docs to describe the new API endpoints, data flow, and integration process.
+> Include step-by-step onboarding for new counties and instructions for developers on adding new endpoints or resources.
+
+---
+
+# 🦸 **Sprint 2: Go! (Super-Prompt for Agent or Self-Run)**
+
+> Begin Sprint 2:
+>
+> 1. Define REST API endpoints for Counties, Parcels, Valuations, Layers, and Users.
+> 2. Build API clients in `/libs/services/` and refactor all modules to use them.
+> 3. Stub backend endpoints as needed, using shared types/interfaces.
+> 4. Test onboarding/import/map/valuation flows with real data.
+> 5. Update all documentation.
+>    Do not narrate—just work and print a summary and integration status at the end.
+
+---
+
+**As soon as you have API specs, stub code, or hit any blocker—paste here for real-time review and next steps.**
+
+**Sprint 2 is where your app becomes a *living*, *breathing* SaaS platform.
+Let’s get it connected! 🚀**
+
+**Ready for API design templates, backend code, or real integration help? Just say the word!**
