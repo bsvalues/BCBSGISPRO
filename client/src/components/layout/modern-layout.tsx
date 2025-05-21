@@ -15,12 +15,24 @@ import {
   Workflow,
   FileCheck,
   Layers,
-  PanelLeftClose
+  PanelLeftClose,
+  LogOut,
+  User,
+  ShieldCheck
 } from 'lucide-react';
-import { useAuth } from '../../context/auth-context';
+import { useRbacAuth } from '../../context/rbac-auth-context';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 interface ModernLayoutProps {
   children: React.ReactNode;
@@ -54,7 +66,6 @@ const navigationItems = [
   {
     group: 'Tools',
     items: [
-      { href: '/legal-description', label: 'Legal Description', icon: <FileCheck className="w-5 h-5 mr-2" /> },
       { href: '/document-scanner', label: 'Document Scanner', icon: <FileText className="w-5 h-5 mr-2" /> },
       { href: '/sync-dashboard', label: 'Sync Dashboard', icon: <Database className="w-5 h-5 mr-2" /> },
       { href: '/agent-tools', label: 'AI Assistant', icon: <Users className="w-5 h-5 mr-2" /> },
@@ -64,12 +75,29 @@ const navigationItems = [
 
 const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
   const [location] = useLocation();
+  const [, setLocation] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { user } = useAuth();
+  const { user, isAuthenticated, logout, hasRole } = useRbacAuth();
 
   const isActive = (path: string) => {
     return location === path;
+  };
+  
+  // Get role color
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'admin': return 'bg-red-500';
+      case 'staff': return 'bg-blue-500';
+      case 'field': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
+  
+  // Handle logout
+  const handleLogout = () => {
+    logout();
+    setLocation('/login');
   };
 
   return (
@@ -96,23 +124,70 @@ const ModernLayout: React.FC<ModernLayoutProps> = ({ children }) => {
             
             {/* User profile and actions */}
             <div className="flex items-center gap-4">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link href="/settings">
-                      <Settings className="h-5 w-5 text-gray-500 hover:text-gray-700 cursor-pointer" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Settings</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatarUrl} alt={user?.fullName || user?.username || 'User'} />
-                <AvatarFallback>{user?.fullName?.[0] || user?.username?.[0] || 'U'}</AvatarFallback>
-              </Avatar>
+              {isAuthenticated ? (
+                <>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link href="/settings">
+                          <Settings className="h-5 w-5 text-gray-500 hover:text-gray-700 cursor-pointer" />
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Settings</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user?.avatarUrl} alt={user?.fullName || user?.username || 'User'} />
+                          <AvatarFallback>{user?.fullName?.[0] || user?.username?.[0] || 'U'}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56" align="end" forceMount>
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">{user?.fullName || user?.username}</p>
+                          <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                          {user?.role && (
+                            <Badge className={`${getRoleColor(user.role)} text-white mt-1 w-fit`}>
+                              {user.role}
+                            </Badge>
+                          )}
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/profile" className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>Profile</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      {hasRole(['admin']) && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/settings" className="cursor-pointer">
+                            <Settings className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <Button variant="default" onClick={() => setLocation('/login')} size="sm">
+                  Log in
+                </Button>
+              )}
             </div>
           </div>
         </div>
