@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { users, userRoles } from '@shared/schema';
+import { users, userRoles } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';

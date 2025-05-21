@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authService } from '../services/auth-service';
 import { z } from 'zod';
 import asyncHandler from 'express-async-handler';
-import { insertUserSchema } from '@shared/schema';
+import { insertUserSchema } from '../../shared/schema';
 
 const router = Router();
 

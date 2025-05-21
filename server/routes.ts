@@ -82,8 +82,13 @@ const operationTitles: Record<GeospatialOperationType, string> = {
 import { initializeDevOps } from './devops';
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication routes
+  // Setup authentication routes (session-based)
   setupAuth(app);
+  
+  // Setup JWT-based authentication (for role-based access control)
+  const { setupJwtAuth, authMiddleware } = require('./auth-jwt');
+  setupJwtAuth(app);
+  app.use(authMiddleware); // Apply JWT auth middleware to all routes
   
   // Create HTTP server (this will be returned at the end of the function)
   const httpServer = createServer(app);
