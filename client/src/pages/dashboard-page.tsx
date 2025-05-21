@@ -508,56 +508,122 @@ const DashboardPage: React.FC = () => {
                 </Card>
               </div>
 
-              {/* Recent Documents */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Recent Documents</CardTitle>
-                    <Link href="/documents">
-                      <Button variant="ghost" size="sm">View All</Button>
-                    </Link>
-                  </div>
-                  <CardDescription>Recently uploaded documents</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentDocuments.map((document) => (
-                      <div key={document.id} className="flex items-start space-x-4">
-                        <div className="p-2 rounded-md bg-primary/10 text-primary">
-                          <FileText className="h-5 w-5" />
+              {/* Document Management Section */}
+              <div className="space-y-6">
+                {/* Recent Documents */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Recent Documents</CardTitle>
+                      <Link href="/documents">
+                        <Button variant="ghost" size="sm">View All</Button>
+                      </Link>
+                    </div>
+                    <CardDescription>Recently uploaded documents</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {recentDocuments.map((document) => (
+                        <div key={document.id} className="flex items-start space-x-4">
+                          <div className="p-2 rounded-md bg-primary/10 text-primary">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Link href={`/document/${document.id}`}>
+                                <p className="font-medium text-sm hover:underline text-primary">
+                                  {document.title}
+                                </p>
+                              </Link>
+                              <Badge variant="outline">{document.type}</Badge>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <Link href={`/workflow/${document.workflowId}`}>
+                                <span className="hover:underline">Workflow #{document.workflowId}</span>
+                              </Link>
+                              <span>Uploaded {document.uploadedAt}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                              <span>{document.size}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Link href={`/document/${document.id}`}>
-                              <p className="font-medium text-sm hover:underline text-primary">
-                                {document.title}
-                              </p>
-                            </Link>
-                            <Badge variant="outline">{document.type}</Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Document Category Quick Access */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Document Categories</CardTitle>
+                    <CardDescription>Quick access to document types</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" className="justify-start h-auto py-3">
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-md bg-amber-100 mr-3">
+                            <FileText className="h-4 w-4 text-amber-600" />
                           </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <Link href={`/workflow/${document.workflowId}`}>
-                              <span className="hover:underline">Workflow #{document.workflowId}</span>
-                            </Link>
-                            <span>Uploaded {document.uploadedAt}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                            <span>{document.size}</span>
+                          <div className="text-left">
+                            <p className="font-medium text-sm">Deeds</p>
+                            <p className="text-xs text-muted-foreground">Boundary Line Adjustments</p>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t pt-4 pb-2">
-                  <Button asChild className="w-full">
-                    <Link href="/documents">
-                      <FilePlus className="h-4 w-4 mr-2" />
-                      Upload Document
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
+                      </Button>
+                      
+                      <Button variant="outline" className="justify-start h-auto py-3">
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-md bg-green-100 mr-3">
+                            <MapPin className="h-4 w-4 text-green-600" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-sm">Plats</p>
+                            <p className="text-xs text-muted-foreground">Long Plat & Short Plat</p>
+                          </div>
+                        </div>
+                      </Button>
+                      
+                      <Button variant="outline" className="justify-start h-auto py-3">
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-md bg-blue-100 mr-3">
+                            <CheckCircle className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-sm">Surveys</p>
+                            <p className="text-xs text-muted-foreground">Land Surveys & ALTA</p>
+                          </div>
+                        </div>
+                      </Button>
+                      
+                      <Button variant="outline" className="justify-start h-auto py-3">
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-md bg-purple-100 mr-3">
+                            <FileText className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-sm">Legal Descriptions</p>
+                            <p className="text-xs text-muted-foreground">Tax Parcels</p>
+                          </div>
+                        </div>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Upload Document Button */}
+                <Card>
+                  <CardContent className="p-4">
+                    <Button className="w-full">
+                      <Link href="/documents" className="flex items-center justify-center w-full">
+                        <FilePlus className="h-4 w-4 mr-2" />
+                        Upload Document
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Charts */}
