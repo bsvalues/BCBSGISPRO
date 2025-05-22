@@ -29,7 +29,7 @@ import UserProfilePage from './pages/user-profile-page';
 import DemoDocumentPanel from './pages/demo-document-panel';
 import Dashboard from './pages/dashboard';
 import EnhancedLoginPage from './pages/enhanced-login';
-import MuskDemoDashboard from './pages/musk-demo-dashboard';
+import MuskDemoDashboard from './pages/musk-demo-dashboard-simplified';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';

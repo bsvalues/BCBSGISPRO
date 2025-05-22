@@ -22,33 +22,101 @@ import {
   Sun,
   Moon,
   Brain,
-  Globe,
-  ChevronDown
+  Globe
 } from "lucide-react";
 
 // Demo data
 const PARCELS = [
   { id: "10003", owner: "John Doe", status: "In Review", coordinates: { lat: 46.23, lng: -119.52 } },
-  { id: "10004", owner: "Jane Smith", status: "Approved", coordinates: { lat: 46.24, lng: -119.53 } },
-  { id: "10005", owner: "Robert Johnson", status: "Pending", coordinates: { lat: 46.22, lng: -119.54 } },
+  { id: "10452", owner: "Jane Smith", status: "Approved", coordinates: { lat: 46.24, lng: -119.53 } },
+  { id: "10778", owner: "Robert Johnson", status: "Pending", coordinates: { lat: 46.22, lng: -119.51 } },
+  { id: "11239", owner: "Sarah Williams", status: "In Review", coordinates: { lat: 46.25, lng: -119.54 } },
+  { id: "11501", owner: "Michael Brown", status: "Approved", coordinates: { lat: 46.21, lng: -119.50 } },
+  { id: "12067", owner: "David Miller", status: "Pending", coordinates: { lat: 46.26, lng: -119.55 } }
 ];
 
 const TIMELINE_EVENTS = [
-  { id: 1, parcelId: "10003", action: "workflow_start", user: "staff@bentoncounty.gov", time: "10:05", status: "success", details: { type: "assessment" } },
-  { id: 2, parcelId: "10003", action: "doc_upload", user: "staff@bentoncounty.gov", time: "10:10", status: "info", details: { type: "deed" } },
-  { id: 3, parcelId: "10003", action: "access_denied", user: "readonly@bentoncounty.gov", time: "10:12", status: "error", details: { reason: "insufficient permissions" } },
-  { id: 4, parcelId: "10003", action: "aerial_image_flag", user: "system", time: "10:15", status: "warning", details: { reason: "potential discrepancy detected" } },
+  { 
+    id: 1, 
+    parcelId: "10003", 
+    action: "workflow_start", 
+    status: "success", 
+    user: "admin@bentoncounty.gov", 
+    time: "10:05",
+    details: {}
+  },
+  { 
+    id: 2, 
+    parcelId: "10003", 
+    action: "doc_upload", 
+    status: "info", 
+    user: "john.doe@example.com", 
+    time: "10:15",
+    details: {
+      documentType: "Deed",
+      fileName: "deed_10003_2023.pdf"
+    }
+  },
+  { 
+    id: 3, 
+    parcelId: "10452", 
+    action: "workflow_start", 
+    status: "success", 
+    user: "admin@bentoncounty.gov", 
+    time: "11:30",
+    details: {}
+  },
+  { 
+    id: 4, 
+    parcelId: "10003", 
+    action: "access_denied", 
+    status: "error", 
+    user: "external_user@example.com", 
+    time: "13:45",
+    details: {
+      reason: "Unauthorized access attempt - User lacks required permissions"
+    }
+  },
+  { 
+    id: 5, 
+    parcelId: "10778", 
+    action: "doc_upload", 
+    status: "info", 
+    user: "robert.johnson@example.com", 
+    time: "14:20",
+    details: {
+      documentType: "Boundary Survey",
+      fileName: "survey_10778_2023.pdf"
+    }
+  },
+  { 
+    id: 6, 
+    parcelId: "10003", 
+    action: "aerial_image_flag", 
+    status: "warning", 
+    user: "system", 
+    time: "15:10",
+    details: {
+      reason: "Possible structure detected that does not match records - manual review required"
+    }
+  },
 ];
 
-// AI summary for parcel timeline
+// Function to simulate AI summaries
 const getAiSummary = (parcelId: string) => {
   if (parcelId === "10003") {
-    return "All recent edits and documents on this parcel are consistent with expected field activity. No anomalies detected. Last action: Workflow started by Staff User, recommended review by Appraiser due to flagged aerial image.";
+    return "This parcel has an active boundary review workflow. AI detected a potential unauthorized structure in recent aerial imagery that doesn't match property records. Manual verification recommended.";
+  }
+  if (parcelId === "10452") {
+    return "All property transactions for this parcel have been properly recorded and follow expected patterns. No anomalies detected in ownership chain or valuation history.";
+  }
+  if (parcelId === "10778") {
+    return "Recent property transfer may contain a restricted covenant that needs review. The AI flagged specific language on page 3 of the recent deed that may be unenforceable.";
   }
   return "All activities on this parcel appear normal. No anomalies detected in recent transactions.";
 };
 
-const MuskDemoDashboard: React.FC = () => {
+const MuskDemoDashboardSimplified: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [darkMode, setDarkMode] = useState(true);
@@ -157,84 +225,38 @@ const MuskDemoDashboard: React.FC = () => {
   const handleStartWorkflow = () => {
     if (!selectedParcel) return;
     
-    // Add new event to timeline
-    const newEventTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
     toast({
       title: "Workflow Started",
-      description: `New workflow initiated for parcel #${selectedParcel} at ${newEventTime}`,
+      description: `A new workflow has been started for Parcel #${selectedParcel}.`,
       variant: "default",
     });
-    
-    // Increment stats
-    setStatData(prev => ({
-      ...prev,
-      activeWorkflows: prev.activeWorkflows + 1,
-      eventsToday: prev.eventsToday + 1
-    }));
   };
-
+  
   // Handle document upload
   const handleDocumentUpload = () => {
     if (!selectedParcel) return;
     
-    // Simulate document upload success
-    setTimeout(() => {
-      const newEventTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      toast({
-        title: "Document Uploaded",
-        description: `New document uploaded for parcel #${selectedParcel} at ${newEventTime}`,
-        variant: "default",
-      });
-      
-      // Increment stats
-      setStatData(prev => ({
-        ...prev,
-        eventsToday: prev.eventsToday + 1
-      }));
-    }, 1000);
-  };
-
-  // Handle export audit log
-  const handleExportAuditLog = () => {
     toast({
-      title: "Audit Log Exported",
-      description: "Audit log has been exported to CSV successfully.",
+      title: "Document Upload",
+      description: `Please select a document to upload for Parcel #${selectedParcel}.`,
       variant: "default",
     });
   };
-
-  // Status indicator color
+  
+  // Handle export audit log
+  const handleExportAuditLog = () => {
+    toast({
+      title: "Audit Log Export",
+      description: "Audit log has been exported to CSV format.",
+      variant: "default",
+    });
+  };
+  
+  // Function to get status color
   const getStatusColor = (status: string) => {
     if (status === "operational") return "bg-green-500";
     if (status === "degraded") return "bg-yellow-500";
     return "bg-red-500";
-  };
-
-  // Animation variants for sidebar items
-  const sidebarItemVariants = {
-    initial: { opacity: 0, x: -10 },
-    animate: (i: number) => ({ 
-      opacity: 1, 
-      x: 0,
-      transition: { 
-        delay: i * 0.05,
-        duration: 0.5,
-        ease: [0.6, 0.05, -0.01, 0.9]
-      }
-    }),
-    hover: { 
-      scale: 1.1,
-      transition: { duration: 0.2 }
-    }
-  };
-
-  // Animation variants for mode switch
-  const modeSwitchVariants = {
-    light: { rotate: 0, scale: 1 },
-    dark: { rotate: 180, scale: 1 },
-    transition: { duration: 0.5 }
   };
 
   return (
@@ -318,18 +340,25 @@ const MuskDemoDashboard: React.FC = () => {
         <header className={`py-2 px-4 ${darkMode ? 'bg-gray-900' : 'bg-white border-b'} flex items-center justify-between`}>
           <div className="flex items-center">
             <h1 className="text-xl font-bold">
-              Mission Control
-              <span className={`ml-2 inline-flex h-2 w-2 rounded-full ${getStatusColor("operational")}`}></span>
+              Benton County GIS
             </h1>
+            <Badge variant="outline" className="ml-3">
+              Musk Demo
+            </Badge>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <div className="text-sm flex items-center gap-2">
-              <span className={`inline-flex h-2 w-2 rounded-full ${getStatusColor(systemStatus.general)}`}></span>
-              <span>System Status: All Green</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center text-sm">
+              <div className={`h-2 w-2 rounded-full ${getStatusColor(systemStatus.general)} mr-2`}></div>
+              <span>All Systems Operational</span>
             </div>
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              {user?.firstName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'A'}
+            
+            <div className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
+                  {user?.email ? user.email.substring(0, 2).toUpperCase() : 'AD'}
+                </AvatarFallback>
+              </Avatar>
             </div>
           </div>
         </header>
@@ -338,88 +367,54 @@ const MuskDemoDashboard: React.FC = () => {
         <div className="flex-1 overflow-hidden p-4 flex">
           {/* Left panel (Dashboard or Map) */}
           {!selectedParcel ? (
-            <motion.div 
-              className="flex-1 flex flex-col space-y-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <motion.div 
-                className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow`}
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
+            <div className="flex-1 flex flex-col space-y-4">
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow`}>
                 <h2 className="text-2xl font-bold mb-1">Welcome, Admin</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   This is mission control for every property in Benton County.
                 </p>
-              </motion.div>
+              </div>
               
               <div className="grid grid-cols-4 gap-4">
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.5 }}
-                >
-                  <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Active Workflows</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{statData.activeWorkflows}</div>
-                      <p className="text-xs text-green-500 mt-1">+2 today</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Active Workflows</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{statData.activeWorkflows}</div>
+                    <p className="text-xs text-green-500 mt-1">+2 today</p>
+                  </CardContent>
+                </Card>
                 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.6 }}
-                >
-                  <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Audited Events Today</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{statData.eventsToday}</div>
-                      <p className="text-xs text-green-500 mt-1">100% logged</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Audited Events Today</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{statData.eventsToday}</div>
+                    <p className="text-xs text-green-500 mt-1">100% logged</p>
+                  </CardContent>
+                </Card>
                 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.7 }}
-                >
-                  <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Hours Saved</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{statData.hoursSaved}</div>
-                      <p className="text-xs text-green-500 mt-1">YTD automation</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Hours Saved</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{statData.hoursSaved}</div>
+                    <p className="text-xs text-green-500 mt-1">YTD automation</p>
+                  </CardContent>
+                </Card>
                 
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.8 }}
-                >
-                  <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{statData.uptime}%</div>
-                      <p className="text-xs text-green-500 mt-1">30 days</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                <Card className={darkMode ? 'bg-gray-900 border-gray-800' : ''}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{statData.uptime}%</div>
+                    <p className="text-xs text-green-500 mt-1">30 days</p>
+                  </CardContent>
+                </Card>
               </div>
               
               <Card className={`flex-1 ${darkMode ? 'bg-gray-900 border-gray-800' : ''}`}>
@@ -513,11 +508,8 @@ const MuskDemoDashboard: React.FC = () => {
           
           {/* Right panel (Detail view) - Only show when a parcel is selected */}
           {selectedParcel && showParcelPanel && (
-            <motion.div 
+            <div 
               className={`w-96 ml-4 rounded-lg ${darkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white shadow'} flex flex-col overflow-hidden`}
-              initial={{ x: 50, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 0.4, type: "spring" }}
             >
               <div className="p-4 border-b">
                 <div className="flex justify-between items-start">
@@ -536,11 +528,8 @@ const MuskDemoDashboard: React.FC = () => {
                 </div>
               </div>
               
-              <motion.div 
+              <div 
                 className="p-4 border-b bg-primary/10 mb-2"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
               >
                 <div className="flex items-start gap-2">
                   <Brain className="text-primary shrink-0 mt-1" size={18} />
@@ -551,14 +540,11 @@ const MuskDemoDashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
               
               {/* Time Travel Slider */}
-              <motion.div 
+              <div 
                 className="px-4 py-2 border-b"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-medium">Time Travel</h3>
@@ -578,13 +564,10 @@ const MuskDemoDashboard: React.FC = () => {
                     <span>Now</span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
               
-              <motion.div 
+              <div 
                 className="px-4 py-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4, duration: 0.4 }}
               >
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-medium">Timeline</h3>
@@ -594,13 +577,9 @@ const MuskDemoDashboard: React.FC = () => {
                     {filteredEvents
                       .filter(event => event.parcelId === selectedParcel)
                       .map(event => (
-                        <motion.div 
+                        <div 
                           key={event.id} 
                           className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'} transition-colors cursor-pointer`}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                          whileHover={{ scale: 1.02 }}
                         >
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5">
@@ -634,16 +613,13 @@ const MuskDemoDashboard: React.FC = () => {
                               )}
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       ))}
                 </div>
-              </motion.div>
+              </div>
               
-              <motion.div 
+              <div 
                 className="mt-auto p-4 border-t flex gap-2"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.4 }}
               >
                 <Button onClick={handleStartWorkflow} className="flex-1">
                   Start Workflow
@@ -652,18 +628,14 @@ const MuskDemoDashboard: React.FC = () => {
                   <Upload className="mr-2 h-4 w-4" />
                   Upload
                 </Button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
           
           {/* Webhook Response Panel */}
           {webhookResponse && showWebhookPanel && (
-            <motion.div 
+            <div 
               className={`w-80 ml-4 rounded-lg ${darkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white shadow'} flex flex-col overflow-hidden`}
-              initial={{ x: 50, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 50, opacity: 0 }}
-              transition={{ duration: 0.3 }}
             >
               <div className="p-3 border-b flex justify-between items-center bg-primary/5">
                 <div className="flex items-center">
@@ -702,26 +674,22 @@ const MuskDemoDashboard: React.FC = () => {
                   </Button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
         
         {/* Webhook & API Demo Panel (hidden by default, would be shown with a button click) */}
         <div className={`${darkMode ? 'bg-gray-900 border-t border-gray-800' : 'bg-white border-t'} p-2 text-xs flex justify-between items-center`}>
-          <div className="flex gap-2 items-center">
-            <span>Public API & Webhooks:</span>
-            <span className={`inline-flex h-2 w-2 rounded-full ${getStatusColor("operational")}`}></span>
-            <span>Operational</span>
+          <div className="flex items-center">
+            <span className="text-gray-500 mr-2">API Status:</span>
+            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-xs h-5">
+              Operational
+            </Badge>
           </div>
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span>Dark Mode</span>
-              <Switch 
-                checked={darkMode} 
-                onChange={(e) => setDarkMode(e.target.checked)} 
-              />
-            </div>
-            <span>© {new Date().getFullYear()} Benton County • 100% Audited</span>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">©2023 Benton County</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-primary">API Documentation</span>
           </div>
         </div>
       </div>
@@ -729,4 +697,4 @@ const MuskDemoDashboard: React.FC = () => {
   );
 };
 
-export default MuskDemoDashboard;
+export default MuskDemoDashboardSimplified;
