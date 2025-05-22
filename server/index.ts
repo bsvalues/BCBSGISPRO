@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { json } from "express";
 import { registerRoutes } from "./routes";
+import { setupVite } from "./vite";
 import './db'; // Initialize database connection
 
 async function main() {
@@ -13,6 +14,9 @@ async function main() {
   
   // Register all application routes
   const server = await registerRoutes(app);
+  
+  // Setup Vite for serving the frontend
+  await setupVite(app, server);
 
   // Start the server
   const PORT = process.env.PORT || 3000;
