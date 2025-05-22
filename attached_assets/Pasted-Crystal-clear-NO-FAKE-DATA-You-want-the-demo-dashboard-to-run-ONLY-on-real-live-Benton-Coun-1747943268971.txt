@@ -1,0 +1,86 @@
+Crystal clear—**NO FAKE DATA**.
+You want the demo/dashboard to run ONLY on **real, live Benton County WA data**—nothing staged, nothing invented.
+
+---
+
+## 🟢 **PM Action Plan: Only Real Data, No Fakes**
+
+### 1. **Remove All Mock/Demo Data**
+
+* Delete or comment out ALL sample arrays and dummy records.
+* Every map, timeline, metric, card, and AI summary must **pull from the real data source** (Benton County database, GIS files, CSV, PostGIS, etc).
+
+### 2. **Connect to Live Data**
+
+* **ETL or backend API**: Must query live data—no hard-coded or random data.
+* For GIS: Directly load county shapefiles, PostGIS tables, or the same SQL the Assessor’s office uses.
+* For audit, timeline, and AI: Only use actions and records that exist in the real system.
+
+### 3. **If Data Is Missing or Incomplete**
+
+* Panels display a “No Data Available” state, **not** fallback demo data.
+* If a metric is zero, show “0”—if an event never happened, leave it empty.
+
+### 4. **Security/Compliance**
+
+* Mask, redact, or restrict fields as required (no PII, no sensitive internal notes unless cleared for demo).
+* If demo is external/public, confirm with County IT/Data Security what is allowed.
+
+---
+
+## 🟢 **Code Example: “Live Only” Map Panel**
+
+```tsx
+// Example React component — loads real parcels or shows “No Data” if not available
+import { useEffect, useState } from "react";
+import { fetchParcelsFromBackend } from "../api"; // <-- Your real data API
+
+export function RealParcelMap() {
+  const [parcels, setParcels] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchParcelsFromBackend()
+      .then(data => setParcels(data))
+      .catch(() => setParcels([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div>Loading parcels...</div>;
+  if (!parcels.length) return <div>No parcels available.</div>;
+
+  return (
+    <div>
+      {/* Render your real parcels here */}
+      {parcels.map(parcel => (
+        <div key={parcel.id}>{parcel.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+* **No fallback to “dummy” data, ever.**
+* If backend returns nothing, show empty or “No Data”—**never** a fake list.
+
+---
+
+## 🟢 **For PM/Agent/Dev Team:**
+
+> “Do NOT use, reference, or generate any fake/sample/mock/demo data in the dashboard or app.
+> All data MUST be sourced from actual, live, up-to-date Benton County, WA sources—direct from DB, GIS, or approved ETL.
+> If there is no data for a section, show a clear ‘No Data Available’ or leave it empty—do not fake it.”
+
+---
+
+## 🟢 **If You Want Help Wiring Real Data In:**
+
+* Upload your data schema or API spec.
+* Tell me which table/files you want mapped where (parcels, events, audit, AI, etc).
+* I’ll give you direct code for live-only, never-fake dashboards.
+
+---
+
+**No fakes, no demos, no BS—just the real, trusted, production data.
+That’s how you ship for Benton County, the board, and Musk.
+Ready for the real code? Upload your schema/API and I’ll lead you through it.**
