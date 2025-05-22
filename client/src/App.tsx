@@ -27,6 +27,10 @@ import MapEditorPage from './pages/map-editor-page';
 import WorkflowsPage from './pages/workflows-page';
 import UserProfilePage from './pages/user-profile-page';
 import DemoDocumentPanel from './pages/demo-document-panel';
+import Dashboard from './pages/dashboard';
+// Admin pages
+import UserManagementPage from './pages/admin/user-management';
+import AuditLogsPage from './pages/admin/audit-logs';
 import { Toaster } from './components/ui/toaster';
 
 // Import our authentication components
@@ -48,6 +52,13 @@ const App: React.FC = () => {
                     <Route path="/" component={LandingPage} />
                     <Route path="/login" component={LoginPage} />
                     <Route path="/unauthorized" component={UnauthorizedPage} />
+                    
+                    {/* Dashboard */}
+                    <Route path="/dashboard">
+                      {(params) => (
+                        <ProtectedRoute component={Dashboard} {...params} />
+                      )}
+                    </Route>
                     
                     {/* Protected routes */}
                     <Route path="/map">
@@ -74,7 +85,27 @@ const App: React.FC = () => {
                       )}
                     </Route>
                     
-                    {/* Role-protected routes (admin only) */}
+                    {/* Admin routes */}
+                    <Route path="/admin/user-management">
+                      {(params) => (
+                        <RoleProtectedRoute 
+                          component={UserManagementPage}
+                          roles={['admin']}
+                          {...params}
+                        />
+                      )}
+                    </Route>
+                    
+                    <Route path="/admin/audit-logs">
+                      {(params) => (
+                        <RoleProtectedRoute 
+                          component={AuditLogsPage}
+                          roles={['admin']}
+                          {...params}
+                        />
+                      )}
+                    </Route>
+                    
                     <Route path="/admin/dashboard">
                       {(params) => (
                         <RoleProtectedRoute 

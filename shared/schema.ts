@@ -7,7 +7,8 @@ import {
   json, 
   text, 
   index,
-  foreignKey
+  foreignKey,
+  integer
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -52,8 +53,8 @@ export const mapLayers = pgTable("map_layers", {
   url: text("url").notNull(),
   type: varchar("type", { length: 50 }).notNull(), // "tile", "vector", "feature"
   isActive: boolean("is_active").default(true),
-  zIndex: serial("z_index"),
-  opacity: serial("opacity").default(100), // 0-100
+  zIndex: integer("z_index").notNull().default(0),
+  opacity: integer("opacity").notNull().default(100), // 0-100
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   isVisible: boolean("is_visible").default(true),
@@ -202,3 +203,18 @@ export const counties = pgTable("counties", {
 export type County = typeof counties.$inferSelect;
 export type InsertCounty = typeof counties.$inferInsert;
 export const insertCountySchema = createInsertSchema(counties);
+
+// Audit logs for security and compliance tracking
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id),
+  action: varchar("action", { length: 64 }).notNull(), // "login_success", "login_failure", "password_reset", "role_change", etc.
+  details: json("details"), // Additional details about the action
+  ipAddress: varchar("ip_address", { length: 64 }),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+export const insertAuditLogSchema = createInsertSchema(auditLogs);

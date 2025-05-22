@@ -2,6 +2,7 @@ import express, { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
+import auditLogRoutes from "./routes/audit-logs";
 // Import the auth/index.ts file for our authentication system
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -9,6 +10,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
   
   // Authentication routes are now directly handled by our auth system
+
+  // Register audit log routes
+  app.use('/api/audit-logs', auditLogRoutes);
 
   // API Health check route
   app.get('/api/health', (req, res) => {
