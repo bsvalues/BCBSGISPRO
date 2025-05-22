@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
 /// Represents a document in the system
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
     /// Unique identifier for the document
-    pub id: Uuid,
+    pub id: String,
     /// Document filename
     pub filename: String,
     /// Document content type (MIME type)
@@ -15,7 +15,7 @@ pub struct Document {
     pub file_size: usize,
     /// Path to document in storage
     pub file_path: String,
-    /// Document classification (deed, survey, etc.)
+    /// Document classification information
     pub classification: Option<DocumentClassification>,
     /// Document metadata
     pub metadata: DocumentMetadata,
@@ -51,18 +51,16 @@ pub struct DocumentMetadata {
     pub recording_date: Option<DateTime<Utc>>,
     /// Recording number if applicable
     pub recording_number: Option<String>,
-    /// Extracted text content
-    pub extracted_text: Option<String>,
     /// Additional metadata stored as JSON
     #[serde(flatten)]
-    pub additional_properties: std::collections::HashMap<String, serde_json::Value>,
+    pub additional_properties: HashMap<String, serde_json::Value>,
 }
 
 /// Classification request from client
 #[derive(Debug, Deserialize)]
 pub struct DocumentClassificationRequest {
-    /// Document ID to classify
-    pub document_id: Option<Uuid>,
+    /// Document ID to classify (optional)
+    pub document_id: Option<String>,
     /// File content as base64 string (if no document_id)
     pub file_content: Option<String>,
     /// Filename with extension
@@ -78,4 +76,66 @@ pub struct DocumentClassificationResponse {
     pub classification: Option<DocumentClassification>,
     /// Any error message if applicable
     pub error: Option<String>,
+}
+
+/// Document upload request
+#[derive(Debug, Deserialize)]
+pub struct DocumentUploadRequest {
+    /// File content as base64 string
+    pub file_content: String,
+    /// Filename with extension
+    pub filename: String,
+    /// Document content type
+    pub content_type: String,
+    /// Optional metadata to associate with the document
+    pub metadata: Option<DocumentMetadata>,
+}
+
+/// Document upload response
+#[derive(Debug, Serialize)]
+pub struct DocumentUploadResponse {
+    /// Whether upload was successful
+    pub success: bool,
+    /// Uploaded document ID
+    pub document_id: Option<String>,
+    /// Any error message if applicable
+    pub error: Option<String>,
+}
+
+impl Document {
+    /// Create a new document
+    pub fn new(
+        filename: &str, 
+        content_type: &str, 
+        file_size: usize, 
+        file_path: &str,
+        metadata: DocumentMetadata
+    ) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            filename: filename.to_string(),
+            content_type: content_type.to_string(),
+            file_size,
+            file_path: file_path.to_string(),
+            classification: None,
+            metadata,
+            uploaded_at: Utc::now(),
+            uploaded_by: None,
+        }
+    }
+    
+    /// Add or update classification
+    pub fn set_classification(&mut self, document_type: &str, confidence: f32, is_verified: bool) {
+        self.classification = Some(DocumentClassification {
+            document_type: document_type.to_string(),
+            confidence,
+            is_verified,
+            classified_at: Utc::now(),
+        });
+    }
+    
+    /// Get document type if classified
+    pub fn document_type(&self) -> Option<&str> {
+        self.classification.as_ref().map(|c| c.document_type.as_str())
+    }
 }

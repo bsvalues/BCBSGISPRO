@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Benton County GIS{% endblock %}
+
+{% block content %}
+<div class="content">
+    <div class="hero-section" style="padding: 3rem 1rem; background-color: #e6f2ff; text-align: center; border-radius: 8px; margin-bottom: 2rem;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 1rem; color: var(--primary-color);">Benton County GIS Workflow Solution</h1>
+        <p style="font-size: 1.25rem; max-width: 800px; margin: 0 auto 1.5rem;">A cutting-edge Geographic Information System (GIS) workflow solution for the Benton County Assessor's Office, delivering advanced geospatial data processing with intelligent document management.</p>
+        <div style="display: flex; justify-content: center; gap: 1rem;">
+            <a href="/map" style="text-decoration: none;">
+                <button>Open Map View</button>
+            </a>
+            <a href="/documents" style="text-decoration: none;">
+                <button class="secondary">Browse Documents</button>
+            </a>
+        </div>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        <div class="card">
+            <div class="card-title">GIS Features</div>
+            <p>Access and manage all geographic features within Benton County. View property boundaries, zoning information, and more.</p>
+            <ul style="margin: 1rem 0 1rem 1.5rem;">
+                <li>Interactive maps with multiple layers</li>
+                <li>Property search functionality</li>
+                <li>Data export capabilities</li>
+                <li>Distance and area measurements</li>
+            </ul>
+            <a href="/map" style="display: inline-block; margin-top: 0.5rem; color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                Explore the Map →
+            </a>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">Document Management</div>
+            <p>Organize and classify all documents related to property assessments with our intelligent document system.</p>
+            <ul style="margin: 1rem 0 1rem 1.5rem;">
+                <li>Automatic document classification</li>
+                <li>Link documents to parcels</li>
+                <li>Search documents by type or property</li>
+                <li>Secure document storage</li>
+            </ul>
+            <a href="/documents" style="display: inline-block; margin-top: 0.5rem; color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                Manage Documents →
+            </a>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">Data Analysis</div>
+            <p>Analyze property data and generate reports to support assessment decisions and planning activities.</p>
+            <ul style="margin: 1rem 0 1rem 1.5rem;">
+                <li>Property valuation trends</li>
+                <li>Land use statistics</li>
+                <li>Custom report generation</li>
+                <li>Data visualization tools</li>
+            </ul>
+            <a href="/analysis" style="display: inline-block; margin-top: 0.5rem; color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                View Analytics →
+            </a>
+        </div>
+    </div>
+    
+    <div style="margin-top: 2rem;">
+        <h2 style="color: var(--primary-color); margin-bottom: 1rem;">Recent Updates</h2>
+        <div class="card">
+            <ul style="list-style: none;">
+                {% for update in recent_updates %}
+                <li style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">
+                    <div style="font-weight: 500;">{{ update.title }}</div>
+                    <div style="font-size: 0.875rem; color: #666;">{{ update.description }}</div>
+                    <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">{{ update.date }}</div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Benton County GIS Home Page Loaded');
+        // Any additional home page initialization can go here
+    });
+</script>
+{% endblock %}
