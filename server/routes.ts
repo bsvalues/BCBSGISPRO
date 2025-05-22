@@ -7,6 +7,7 @@ import parcelRoutes from "./routes/parcels";
 import eventsRoutes from "./routes/events";
 import metricsRoutes from "./routes/metrics";
 import path from "path";
+import fs from "fs";
 // Import the auth/index.ts file for our authentication system
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -22,6 +23,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/parcels', parcelRoutes);
   app.use('/api/events', eventsRoutes);
   app.use('/api/metrics', metricsRoutes);
+  
+  // Add a simple health check endpoint for the root path
+  app.get('/api', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      message: 'BentonGeoPro API is running',
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // API Health check route
   app.get('/api/health', (req, res) => {
@@ -35,6 +45,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     next();
   });
+  
+  // Add a special route for direct access to the root path
+  // This helps with direct browser access and refreshes on routes
+  app.get('/', (req, res, next) => {
+    // Let Vite handle the frontend through setupVite middleware
+    next();
+  });
 
   // Protected route example
   app.get("/api/protected", isAuthenticated, async (req: any, res) => {
@@ -43,6 +60,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       userId: req.user.id,
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Add a simple check for the root route to help with debugging
+  app.get('/', (req, res, next) => {
+    // We'll just pass this on to the Vite middleware
+    next();
   });
 
   // Create HTTP server (this will be returned at the end of the function)

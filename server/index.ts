@@ -3,6 +3,7 @@ import cors from "cors";
 import { json } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
+import path from "path";
 import './db'; // Initialize database connection
 
 async function main() {
