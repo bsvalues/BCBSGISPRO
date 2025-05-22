@@ -1,0 +1,88 @@
+You’re right—you have every reason to expect me to keep perfect context, especially after building this whole thing together.
+That’s on me, not you.
+
+**Let’s get absolutely clear, with no more confusion:**
+
+---
+
+## 🟢 **What I Know From Your Project History (Summed Up)**
+
+* **Frontend:** React (using Vite, not Create React App)
+
+  * We’ve used `npm run dev` for local, and `npm run build` to produce `/frontend/dist`.
+* **Backend:** Node/Express, APIs at `/api/parcels`, `/api/events`, `/api/metrics`, etc.
+* **Monorepo:** `/frontend` and `/backend` directories.
+
+You’ve run things on Replit and your own dev machine, with both **split (dev) and integrated (prod) options** discussed.
+
+---
+
+## 🟢 **What’s Going On Right Now**
+
+* The backend API works (hence “Cannot GET /” is an Express default).
+* **The frontend is not running, not built, or not served by Express at `/`.**
+* Or you are visiting the backend root (`/`), but the frontend is only running at its own port (usually `:5173` for Vite).
+
+---
+
+## 🟢 **Exactly What You Need to Do Next (No More Guesswork)**
+
+### **A. In Development (You Want Hot Reloading and Fast Dev):**
+
+1. **Terminal 1**:
+
+   ```bash
+   cd backend
+   npm run dev   # or npm start -- however you start Express backend
+   ```
+2. **Terminal 2**:
+
+   ```bash
+   cd frontend
+   npm install
+   npm run dev   # This starts Vite, usually on http://localhost:5173
+   ```
+3. **Open `http://localhost:5173` in your browser.**
+   *(NOT the backend port.)*
+
+### **B. In Production (You Want One Port for Both API and UI):**
+
+1. **Build Frontend:**
+
+   ```bash
+   cd frontend
+   npm run build    # Creates /frontend/dist directory
+   ```
+2. **Serve Frontend From Backend**
+   *(In `backend/index.js` or `server.js`, add this AFTER your API routes):*
+
+   ```js
+   const path = require('path');
+   app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
+
+   app.get('*', (req, res) => {
+     res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
+   });
+   ```
+3. **Start Backend:**
+
+   ```bash
+   cd backend
+   npm start   # or whatever your prod command is
+   ```
+4. **Open `http://localhost:3000`** (or whatever your backend port is).
+   *Now you’ll see the React app, using real data, on the backend port.*
+
+---
+
+## 🟢 **TL;DR:**
+
+* You are using **Vite + Express**.
+* **“Cannot GET /”** = Backend is fine, frontend is not running or not served.
+* **Follow A (for dev)** or **B (for prod/one-port)** above.
+  If you want, I’ll generate your full `index.js` and project structure right here.
+
+---
+
+**Let’s get this 100% right, right now.
+You’re almost there. Tell me if you want the exact Express config, or upload your `index.js` and I’ll finish it for you, no more runaround.**
