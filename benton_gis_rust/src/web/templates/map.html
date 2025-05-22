@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Map - Benton County GIS{% endblock %}
+
+{% block styles %}
+<style>
+    main {
+        padding: 0;
+    }
+    
+    .map-sidebar {
+        width: var(--sidebar-width);
+        background-color: white;
+        box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+        padding: 1rem;
+        overflow-y: auto;
+        height: calc(100vh - var(--header-height) - var(--footer-height));
+        z-index: 10;
+    }
+    
+    .layer-control {
+        margin-bottom: 1rem;
+    }
+    
+    .layer-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .layer-item label {
+        margin-bottom: 0;
+        margin-left: 0.5rem;
+    }
+    
+    .opacity-slider {
+        width: 100%;
+        margin-top: 0.25rem;
+        margin-left: 1.5rem;
+    }
+    
+    .search-box {
+        margin-bottom: 1rem;
+    }
+    
+    .search-results {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .search-result-item {
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+    }
+    
+    .search-result-item:hover {
+        background-color: var(--background-color);
+    }
+    
+    .map-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .map-control-btn {
+        width: 40px;
+        height: 40px;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .map-control-btn:hover {
+        background-color: var(--background-color);
+    }
+    
+    .drawing-tools {
+        position: absolute;
+        top: 10px;
+        left: calc(var(--sidebar-width) + 10px);
+        z-index: 10;
+        background-color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 5px;
+        display: flex;
+        gap: 5px;
+    }
+    
+    .drawing-tool-btn {
+        width: 30px;
+        height: 30px;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    
+    .drawing-tool-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .feature-info-panel {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+        background-color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        padding: 1rem;
+        z-index: 10;
+        display: none;
+    }
+    
+    .feature-info-panel.active {
+        display: block;
+    }
+    
+    .feature-info-title {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--primary-color);
+    }
+    
+    .feature-info-close {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+    }
+    
+    .feature-property {
+        margin-bottom: 0.25rem;
+    }
+    
+    .feature-property-name {
+        font-weight: 500;
+    }
+    
+    .measure-tooltip {
+        position: absolute;
+        background-color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        pointer-events: none;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="map-sidebar">
+    <div class="card">
+        <div class="card-title">Layers</div>
+        <div class="layer-control">
+            <div class="layer-item">
+                <input type="checkbox" id="parcels-layer" checked>
+                <label for="parcels-layer">Parcels</label>
+                <input type="range" min="0" max="100" value="100" class="opacity-slider" id="parcels-opacity">
+            </div>
+            <div class="layer-item">
+                <input type="checkbox" id="zoning-layer" checked>
+                <label for="zoning-layer">Zoning</label>
+                <input type="range" min="0" max="100" value="50" class="opacity-slider" id="zoning-opacity">
+            </div>
+            <div class="layer-item">
+                <input type="checkbox" id="roads-layer" checked>
+                <label for="roads-layer">Roads</label>
+                <input type="range" min="0" max="100" value="100" class="opacity-slider" id="roads-opacity">
+            </div>
+            <div class="layer-item">
+                <input type="checkbox" id="aerial-layer">
+                <label for="aerial-layer">Aerial Imagery</label>
+                <input type="range" min="0" max="100" value="100" class="opacity-slider" id="aerial-opacity">
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">Search</div>
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Search by address, parcel ID, owner...">
+            <button id="search-button" style="margin-top: 0.5rem; width: 100%;">Search</button>
+        </div>
+        <div class="search-results" id="search-results">
+            <!-- Search results will appear here -->
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">Tools</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button id="measure-btn">Measure</button>
+            <button id="export-btn">Export</button>
+            <button id="identify-btn">Identify</button>
+            <button id="print-btn">Print</button>
+        </div>
+    </div>
+</div>
+
+<div class="map-container">
+    <div id="map"></div>
+    
+    <div class="drawing-tools">
+        <button class="drawing-tool-btn" id="draw-point" title="Draw Point"><span>●</span></button>
+        <button class="drawing-tool-btn" id="draw-line" title="Draw Line"><span>／</span></button>
+        <button class="drawing-tool-btn" id="draw-polygon" title="Draw Polygon"><span>△</span></button>
+        <button class="drawing-tool-btn" id="draw-rectangle" title="Draw Rectangle"><span>□</span></button>
+        <button class="drawing-tool-btn" id="draw-erase" title="Erase"><span>✕</span></button>
+    </div>
+    
+    <div class="map-controls">
+        <button class="map-control-btn" id="zoom-in" title="Zoom In"><span>+</span></button>
+        <button class="map-control-btn" id="zoom-out" title="Zoom Out"><span>-</span></button>
+        <button class="map-control-btn" id="home-extent" title="Home Extent"><span>⌂</span></button>
+    </div>
+    
+    <div class="feature-info-panel" id="feature-info">
+        <div class="feature-info-close">×</div>
+        <div class="feature-info-title">Feature Information</div>
+        <div class="feature-info-content">
+            <!-- Feature information will appear here -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize map
+        mapboxgl.accessToken = '{{ mapbox_token }}';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [-119.2674, 46.2065], // Benton County approximate center
+            zoom: 10
+        });
+        
+        map.on('load', function() {
+            console.log('Map loaded successfully');
+            
+            // Add your GIS layers here
+            // This is just a placeholder for future implementation
+            
+            // Example of adding a GeoJSON layer
+            /*
+            map.addSource('parcels', {
+                type: 'geojson',
+                data: '/api/features?type=parcel'
+            });
+            
+            map.addLayer({
+                id: 'parcels-fill',
+                type: 'fill',
+                source: 'parcels',
+                paint: {
+                    'fill-color': '#0080ff',
+                    'fill-opacity': 0.5,
+                    'fill-outline-color': '#000'
+                }
+            });
+            */
+        });
+        
+        // Layer control functionality
+        document.querySelectorAll('.layer-item input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const layerId = this.id.replace('-layer', '');
+                // Toggle layer visibility
+                console.log(`Toggle ${layerId} layer: ${this.checked}`);
+            });
+        });
+        
+        document.querySelectorAll('.opacity-slider').forEach(slider => {
+            slider.addEventListener('input', function() {
+                const layerId = this.id.replace('-opacity', '');
+                const opacity = parseInt(this.value) / 100;
+                // Set layer opacity
+                console.log(`Set ${layerId} opacity: ${opacity}`);
+            });
+        });
+        
+        // Search functionality
+        document.getElementById('search-button').addEventListener('click', function() {
+            const searchQuery = document.getElementById('search-input').value;
+            if (searchQuery.trim() === '') return;
+            
+            console.log(`Searching for: ${searchQuery}`);
+            
+            // Mock search results for demonstration
+            const searchResults = [
+                { id: '1', name: '123 Main St', type: 'Address' },
+                { id: '2', name: 'Parcel #12345', type: 'Parcel' },
+                { id: '3', name: 'Smith, John', type: 'Owner' }
+            ];
+            
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = '';
+            
+            searchResults.forEach(result => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-result-item';
+                resultItem.innerHTML = `
+                    <div><strong>${result.name}</strong></div>
+                    <div style="font-size: 0.8rem; color: #666;">${result.type}</div>
+                `;
+                
+                resultItem.addEventListener('click', function() {
+                    console.log(`Selected result: ${result.id}`);
+                    // Here you would center the map on the selected result
+                });
+                
+                resultsContainer.appendChild(resultItem);
+            });
+        });
+        
+        // Map control buttons
+        document.getElementById('zoom-in').addEventListener('click', function() {
+            map.zoomIn();
+        });
+        
+        document.getElementById('zoom-out').addEventListener('click', function() {
+            map.zoomOut();
+        });
+        
+        document.getElementById('home-extent').addEventListener('click', function() {
+            map.flyTo({
+                center: [-119.2674, 46.2065],
+                zoom: 10
+            });
+        });
+        
+        // Feature info panel
+        document.querySelector('.feature-info-close').addEventListener('click', function() {
+            document.getElementById('feature-info').classList.remove('active');
+        });
+        
+        // Tool buttons
+        document.getElementById('measure-btn').addEventListener('click', function() {
+            console.log('Measure tool activated');
+            // Implement measuring functionality
+        });
+        
+        document.getElementById('export-btn').addEventListener('click', function() {
+            console.log('Export functionality activated');
+            // Implement export functionality
+        });
+        
+        document.getElementById('identify-btn').addEventListener('click', function() {
+            console.log('Identify tool activated');
+            // Implement identify functionality
+        });
+        
+        document.getElementById('print-btn').addEventListener('click', function() {
+            console.log('Print functionality activated');
+            // Implement print functionality
+        });
+        
+        // Drawing tools
+        const drawingTools = document.querySelectorAll('.drawing-tool-btn');
+        drawingTools.forEach(tool => {
+            tool.addEventListener('click', function() {
+                drawingTools.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                console.log(`Drawing tool selected: ${this.id}`);
+                // Implement drawing functionality
+            });
+        });
+    });
+</script>
+{% endblock %}

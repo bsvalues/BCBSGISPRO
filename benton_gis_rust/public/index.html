@@ -3,110 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benton County GIS Application</title>
+    <title>Benton County GIS System - Rust Edition</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
-            color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            color: #1a202c;
         }
+        
         header {
-            background-color: #254B71;
+            background-color: #2b6cb0;
             color: white;
             padding: 1rem;
-            border-radius: 5px;
+            text-align: center;
         }
-        .container {
-            margin-top: 2rem;
+        
+        h1 {
+            margin: 0;
         }
+        
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
         .card {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            background-color: white;
+            border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
         }
-        h1, h2, h3 {
-            color: #254B71;
+        
+        .card h2 {
+            color: #2b6cb0;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.5rem;
         }
-        .btn {
+        
+        .button {
             display: inline-block;
-            background-color: #254B71;
+            background-color: #2b6cb0;
             color: white;
             padding: 0.5rem 1rem;
             border-radius: 4px;
             text-decoration: none;
-            margin-top: 1rem;
-        }
-        .endpoint {
-            background-color: #f4f4f4;
-            padding: 0.5rem;
-            border-radius: 4px;
-            font-family: monospace;
-            margin: 0.5rem 0;
-        }
-        .method {
-            font-weight: bold;
             margin-right: 0.5rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
-        .get { color: green; }
-        .post { color: blue; }
-        .put { color: orange; }
-        .delete { color: red; }
+        
+        .button:hover {
+            background-color: #4299e1;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .feature-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+        }
+        
+        .feature-card h3 {
+            color: #2b6cb0;
+            margin-top: 0;
+        }
+        
+        footer {
+            background-color: #2b6cb0;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>Benton County Assessor's Office</h1>
-        <h2>Advanced GIS Workflow Solution</h2>
+        <h1>Benton County GIS System</h1>
+        <p>Rust-Powered Geographic Information System</p>
     </header>
-
-    <div class="container">
+    
+    <main>
         <div class="card">
-            <h2>Rust Backend Server</h2>
-            <p>This is the Rust-powered backend for the Benton County GIS application. This server provides RESTful API endpoints for working with GIS data and document management.</p>
-            <p>The application is currently being transitioned from TypeScript/JavaScript to Rust for improved performance and security.</p>
-            <a href="/api/health" class="btn">Check API Health</a>
+            <h2>Welcome to the Benton County GIS Platform</h2>
+            <p>
+                This cutting-edge Geographic Information System (GIS) workflow solution for the Benton County Assessor's Office
+                delivers advanced geospatial data processing with intelligent document management and robust collaborative features.
+            </p>
+            <p>
+                The entire system has been rewritten in Rust for superior performance, reliability, and security.
+            </p>
+            <div>
+                <a href="/map" class="button">Explore Maps</a>
+                <a href="/documents" class="button">Manage Documents</a>
+                <a href="/api/health" class="button">API Status</a>
+            </div>
         </div>
-
-        <div class="card">
-            <h2>Available API Endpoints</h2>
+        
+        <h2>Key Features</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Interactive Mapping</h3>
+                <p>
+                    Explore property boundaries, zoning information, and other geospatial data
+                    with intuitive mapping tools built with Rust's high-performance capabilities.
+                </p>
+            </div>
             
-            <h3>GIS Features</h3>
-            <div class="endpoint"><span class="method get">GET</span> /api/features</div>
-            <div class="endpoint"><span class="method post">POST</span> /api/features</div>
-            <div class="endpoint"><span class="method get">GET</span> /api/features/{id}</div>
-            <div class="endpoint"><span class="method put">PUT</span> /api/features/{id}</div>
-            <div class="endpoint"><span class="method delete">DELETE</span> /api/features/{id}</div>
+            <div class="feature-card">
+                <h3>Document Management</h3>
+                <p>
+                    Organize and classify documents related to property assessments with our
+                    intelligent document system powered by Rust's reliable processing engine.
+                </p>
+            </div>
             
-            <h3>Document Management</h3>
-            <div class="endpoint"><span class="method post">POST</span> /api/documents/classify</div>
-            <div class="endpoint"><span class="method post">POST</span> /api/documents/upload</div>
-            <div class="endpoint"><span class="method get">GET</span> /api/documents/{id}</div>
+            <div class="feature-card">
+                <h3>Data Analysis</h3>
+                <p>
+                    Analyze property data and generate reports to support assessment decisions
+                    with blazing-fast data processing capabilities provided by Rust.
+                </p>
+            </div>
             
-            <h3>System</h3>
-            <div class="endpoint"><span class="method get">GET</span> /api/health</div>
+            <div class="feature-card">
+                <h3>API Integration</h3>
+                <p>
+                    Connect to other systems and services through our comprehensive API
+                    built with Rust's secure and efficient networking stack.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <h3>Collaboration Tools</h3>
+                <p>
+                    Work together with colleagues on mapping projects and document reviews
+                    with real-time communication powered by Rust's reliable concurrency model.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <h3>Security Focus</h3>
+                <p>
+                    Rest easy knowing that your data is protected by Rust's memory-safe
+                    design and robust security features built from the ground up.
+                </p>
+            </div>
         </div>
-    </div>
-
-    <script>
-        // We'll add JavaScript functionality here later
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Benton County GIS Application loaded');
-            
-            // Fetch API health check
-            fetch('/api/health')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('API Health:', data);
-                })
-                .catch(error => {
-                    console.error('Error checking API health:', error);
-                });
-        });
-    </script>
+    </main>
+    
+    <footer>
+        <p>&copy; 2023 Benton County Assessor's Office. All rights reserved.</p>
+    </footer>
 </body>
 </html>

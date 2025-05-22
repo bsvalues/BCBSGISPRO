@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - Benton County GIS{% endblock %}
+
+{% block styles %}
+<style>
+    .document-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .document-card {
+        background-color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .document-card-header {
+        padding: 0.75rem;
+        background-color: #f9fafb;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .document-card-title {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .document-card-body {
+        padding: 0.75rem;
+    }
+    
+    .document-card-footer {
+        padding: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border-color);
+        background-color: #f9fafb;
+    }
+    
+    .document-type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 9999px;
+        margin-right: 0.5rem;
+    }
+    
+    .document-type-deed {
+        background-color: #e0f2fe;
+        color: #0369a1;
+    }
+    
+    .document-type-survey {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+    
+    .document-type-plat {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+    
+    .document-type-unknown {
+        background-color: #f3f4f6;
+        color: #6b7280;
+    }
+    
+    .document-filter {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .document-search {
+        flex-grow: 1;
+        min-width: 200px;
+    }
+    
+    .document-filter-dropdown {
+        min-width: 150px;
+    }
+    
+    .upload-form {
+        margin-top: 1rem;
+    }
+    
+    .upload-drop-area {
+        border: 2px dashed var(--border-color);
+        border-radius: 4px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .upload-drop-area:hover {
+        background-color: #f9fafb;
+    }
+    
+    .upload-drop-area.active {
+        background-color: #e0f2fe;
+        border-color: var(--primary-color);
+    }
+    
+    .document-pagination {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .pagination-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        background-color: white;
+        font-weight: 500;
+    }
+    
+    .pagination-btn:hover {
+        background-color: #f9fafb;
+    }
+    
+    .pagination-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    
+    .pagination-btn.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+    <h1>Document Management</h1>
+    
+    <div class="card">
+        <h2>Upload New Document</h2>
+        <p>Upload and classify documents related to property assessments.</p>
+        
+        <form class="upload-form" id="document-upload-form">
+            <div class="upload-drop-area" id="upload-drop-area">
+                <p>Drag and drop files here, or click to select files</p>
+                <p style="font-size: 0.875rem; color: #6b7280;">Supported formats: PDF, TIFF, PNG, JPG</p>
+                <input type="file" id="file-input" style="display: none;" multiple>
+            </div>
+            
+            <div id="file-list" style="margin-top: 1rem;"></div>
+            
+            <button type="submit" style="margin-top: 1rem; width: 100%;">Upload Documents</button>
+        </form>
+    </div>
+    
+    <div class="card" style="margin-top: 1rem;">
+        <h2>Document Library</h2>
+        
+        <div class="document-filter">
+            <input type="text" placeholder="Search documents..." class="document-search" id="document-search">
+            
+            <select class="document-filter-dropdown" id="document-type-filter">
+                <option value="">All Document Types</option>
+                <option value="deed">Deeds</option>
+                <option value="survey">Surveys</option>
+                <option value="plat">Plats</option>
+                <option value="other">Other</option>
+            </select>
+            
+            <select class="document-filter-dropdown" id="document-date-filter">
+                <option value="">All Dates</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+            </select>
+        </div>
+        
+        <div class="document-grid" id="document-grid">
+            {% for doc in documents %}
+            <div class="document-card">
+                <div class="document-card-header">
+                    <div class="document-card-title">{{ doc.filename }}</div>
+                </div>
+                <div class="document-card-body">
+                    <div>
+                        <span class="document-type-badge document-type-{{ doc.document_type }}">
+                            {{ doc.document_type }}
+                        </span>
+                        <span style="font-size: 0.875rem; color: #6b7280;">{{ doc.file_size | file_size }}</span>
+                    </div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                        {% if doc.metadata.title %}
+                            <div><strong>Title:</strong> {{ doc.metadata.title }}</div>
+                        {% endif %}
+                        {% if doc.metadata.recording_number %}
+                            <div><strong>Recording #:</strong> {{ doc.metadata.recording_number }}</div>
+                        {% endif %}
+                        {% if doc.metadata.recording_date %}
+                            <div><strong>Recorded:</strong> {{ doc.metadata.recording_date }}</div>
+                        {% endif %}
+                    </div>
+                    {% if doc.metadata.parcel_ids %}
+                        <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                            <strong>Related Parcels:</strong>
+                            {% for parcel in doc.metadata.parcel_ids %}
+                                <span class="document-type-badge document-type-unknown">{{ parcel }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="document-card-footer">
+                    <div style="font-size: 0.75rem; color: #6b7280;">
+                        Uploaded {{ doc.uploaded_at | format_date }}
+                    </div>
+                    <div>
+                        <button class="secondary" onclick="viewDocument('{{ doc.id }}')">View</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="document-pagination" id="document-pagination">
+            <button class="pagination-btn" id="prev-page">←</button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <button class="pagination-btn">...</button>
+            <button class="pagination-btn">10</button>
+            <button class="pagination-btn" id="next-page">→</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Document Management Page Loaded');
+        
+        // File upload handling
+        const dropArea = document.getElementById('upload-drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const uploadForm = document.getElementById('document-upload-form');
+        
+        // Open file browser when clicking the drop area
+        dropArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Handle drag and drop events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, function() {
+                dropArea.classList.add('active');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, function() {
+                dropArea.classList.remove('active');
+            }, false);
+        });
+        
+        // Handle dropped files
+        dropArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        });
+        
+        // Handle selected files from file browser
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+        });
+        
+        function handleFiles(files) {
+            fileList.innerHTML = '';
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.style.padding = '0.5rem';
+                fileItem.style.borderBottom = '1px solid var(--border-color)';
+                
+                fileItem.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 500;">${file.name}</div>
+                            <div style="font-size: 0.75rem; color: #6b7280;">${formatFileSize(file.size)}</div>
+                        </div>
+                        <button type="button" class="secondary remove-file" data-index="${i}">Remove</button>
+                    </div>
+                `;
+                
+                fileList.appendChild(fileItem);
+            }
+            
+            // Add event listeners to remove buttons
+            document.querySelectorAll('.remove-file').forEach(button => {
+                button.addEventListener('click', function() {
+                    this.closest('.file-item').remove();
+                });
+            });
+        }
+        
+        // Handle form submission
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const files = fileInput.files;
+            if (files.length === 0) {
+                alert('Please select at least one file to upload.');
+                return;
+            }
+            
+            // In a real implementation, you would upload the files using AJAX
+            console.log('Uploading files:', files);
+            
+            // Mock successful upload
+            alert(`Successfully uploaded ${files.length} files.`);
+            
+            // Reset form
+            fileInput.value = '';
+            fileList.innerHTML = '';
+        });
+        
+        // Document search and filtering
+        const searchInput = document.getElementById('document-search');
+        const typeFilter = document.getElementById('document-type-filter');
+        const dateFilter = document.getElementById('document-date-filter');
+        
+        searchInput.addEventListener('input', filterDocuments);
+        typeFilter.addEventListener('change', filterDocuments);
+        dateFilter.addEventListener('change', filterDocuments);
+        
+        function filterDocuments() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const typeValue = typeFilter.value;
+            const dateValue = dateFilter.value;
+            
+            console.log(`Filtering documents: search="${searchTerm}", type=${typeValue}, date=${dateValue}`);
+            
+            // In a real implementation, you would fetch filtered results from the server
+            // For now, we'll just log the filter parameters
+        }
+        
+        // Pagination
+        const prevBtn = document.getElementById('prev-page');
+        const nextBtn = document.getElementById('next-page');
+        
+        prevBtn.addEventListener('click', function() {
+            console.log('Go to previous page');
+        });
+        
+        nextBtn.addEventListener('click', function() {
+            console.log('Go to next page');
+        });
+        
+        // Helper functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        window.viewDocument = function(docId) {
+            console.log(`Viewing document with ID: ${docId}`);
+            // In a real implementation, you would open the document viewer
+        };
+    });
+</script>
+{% endblock %}
