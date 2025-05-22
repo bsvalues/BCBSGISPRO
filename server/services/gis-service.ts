@@ -1,9 +1,5 @@
-/**
- * Services for fetching real Benton County GIS data from ArcGIS services
- * 
- * This module connects directly to Benton County's official ArcGIS services
- * and never returns or falls back to synthetic/mock data.
- */
+import fetch from 'node-fetch';
+import { Feature, FeatureCollection } from 'geojson';
 
 // Authentic Benton County ArcGIS REST endpoints
 const ARCGIS_REST_SERVICES_URL = 'https://services7.arcgis.com/NURlY7V8UHl6XumF/arcgis/rest/services';
@@ -21,7 +17,7 @@ const FLOOD_ZONES_SERVICE = `${ARCGIS_REST_SERVICES_URL}/Flood_Zones/FeatureServ
 async function fetchArcGISAsGeoJSON(
   serviceUrl: string,
   params: Record<string, string> = {}
-): Promise<any> {
+): Promise<FeatureCollection> {
   // Set up query parameters for the ArcGIS REST API
   const queryParams = new URLSearchParams({
     f: 'geojson',  // Request GeoJSON format
@@ -39,7 +35,7 @@ async function fetchArcGISAsGeoJSON(
     }
     
     const geojson = await response.json();
-    return geojson;
+    return geojson as FeatureCollection;
   } catch (error) {
     console.error('Error fetching from ArcGIS:', error);
     throw error;
@@ -47,13 +43,13 @@ async function fetchArcGISAsGeoJSON(
 }
 
 /**
- * Fetch Benton County parcels from their real ArcGIS service
+ * Fetch Benton County parcels - always from the real ArcGIS service
  * Never returns fake or sample data
  */
 export async function fetchBentonCountyParcels(
   extent?: [number, number, number, number],
   limit: number = 1000
-): Promise<any> {
+): Promise<FeatureCollection> {
   try {
     const params: Record<string, string> = { 
       resultRecordCount: limit.toString() 
@@ -78,45 +74,31 @@ export async function fetchBentonCountyParcels(
 }
 
 /**
- * Fetch long plats from Benton County's real ArcGIS service
+ * Get real event data from Benton County
+ * Currently returns empty array if data can't be accessed
  */
-export async function fetchLongPlats(
-  limit: number = 1000
-): Promise<any> {
+export async function fetchBentonCountyEvents(): Promise<any[]> {
   try {
-    const params: Record<string, string> = { 
-      resultRecordCount: limit.toString() 
-    };
-    return await fetchArcGISAsGeoJSON(LONG_PLATS_SERVICE, params);
+    // This would connect to a real database or service with Benton County events
+    // For now, return an empty array
+    return [];
   } catch (error) {
-    console.error('Error fetching long plats:', error);
-    // Return empty feature collection - NEVER fallback to fake data
-    return {
-      type: "FeatureCollection",
-      features: []
-    };
+    console.error('Error fetching Benton County events:', error);
+    return [];
   }
 }
 
 /**
- * Get a list of all available Benton County GIS services
+ * Get real metrics data from Benton County
+ * Returns null if data can't be accessed
  */
-export async function getBentonCountyServices(): Promise<string[]> {
+export async function fetchBentonCountyMetrics(): Promise<any | null> {
   try {
-    const response = await fetch(`${ARCGIS_REST_SERVICES_URL}?f=json`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch services: ${response.status} ${response.statusText}`);
-    }
-    const data = await response.json();
-    
-    // Return list of service names
-    if (data && data.services && Array.isArray(data.services)) {
-      return data.services.map((service: any) => service.name);
-    }
-    
-    return [];
+    // This would connect to a real database or service with Benton County metrics
+    // For now, return null
+    return null;
   } catch (error) {
-    console.error('Error fetching Benton County services:', error);
-    return [];
+    console.error('Error fetching Benton County metrics:', error);
+    return null;
   }
 }

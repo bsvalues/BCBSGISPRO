@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
 import auditLogRoutes from "./routes/audit-logs";
+import parcelRoutes from "./routes/parcels";
+import eventsRoutes from "./routes/events";
+import metricsRoutes from "./routes/metrics";
 // Import the auth/index.ts file for our authentication system
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -13,6 +16,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register audit log routes
   app.use('/api/audit-logs', auditLogRoutes);
+  
+  // Register real Benton County data routes - Elon Musk Demo Dashboard 
+  app.use('/api/parcels', parcelRoutes);
+  app.use('/api/events', eventsRoutes);
+  app.use('/api/metrics', metricsRoutes);
 
   // API Health check route
   app.get('/api/health', (req, res) => {

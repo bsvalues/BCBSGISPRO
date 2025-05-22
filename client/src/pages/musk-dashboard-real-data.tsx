@@ -366,7 +366,7 @@ const SystemStatusFooter: React.FC<{
  * Main Dashboard Component - Integrates all real data panels
  */
 const MuskDashboardRealData: React.FC = () => {
-  const toast = useToast();
+  const { toast } = useToast();
   
   // Real data states
   const [loading, setLoading] = useState<boolean>(true);
@@ -441,10 +441,10 @@ const MuskDashboardRealData: React.FC = () => {
         setWorkflows(null);
         setSystemStatus(null);
         
-        addToast({
+        toast({
           title: "Data Load Error",
           description: "Could not load Benton County data. Please check your connection.",
-          type: "error"
+          variant: "destructive"
         });
       } finally {
         setLoading(false);
@@ -452,14 +452,14 @@ const MuskDashboardRealData: React.FC = () => {
     };
     
     loadRealData();
-  }, [addToast]);
+  }, [toast]);
   
   const handleHealthScan = async () => {
     setLoading(true);
-    addToast({
+    toast({
       title: "Health Check Initiated",
       description: "Scanning Benton County property records for data integrity...",
-      type: "success"
+      variant: "default"
     });
     
     try {
@@ -477,24 +477,24 @@ const MuskDashboardRealData: React.FC = () => {
           errorCount: errorFeatures.length
         });
         
-        addToast({
+        toast({
           title: "Health Check Complete",
           description: `Scanned ${parcels.features.length.toLocaleString()} parcels. Found ${errorFeatures.length} with issues.`,
-          type: "success"
+          variant: "default"
         });
       } else {
-        addToast({
+        toast({
           title: "Health Check Failed",
           description: "No data available from Benton County services.",
-          type: "error"
+          variant: "destructive"
         });
       }
     } catch (error) {
       console.error("Health check failed:", error);
-      addToast({
+      toast({
         title: "Health Check Failed",
         description: "Could not connect to Benton County services.",
-        type: "error"
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
