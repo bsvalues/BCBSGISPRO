@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { auditLogs, type InsertAuditLog } from '../../shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 
 /**
  * Audit Logger Service
@@ -412,7 +412,7 @@ class AuditLoggerService {
         
         if (filters.length > 0) {
           const sqlFilter = filters.join(' OR ');
-          query = query.where(sql\`\${sqlFilter}\`);
+          query = query.where(sql`${sqlFilter}`);
         }
       }
       
