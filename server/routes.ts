@@ -62,10 +62,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Add a simple check for the root route to help with debugging
-  app.get('/', (req, res, next) => {
-    // We'll just pass this on to the Vite middleware
-    next();
+  // Serve static files from the public directory
+  app.use(express.static(path.join(process.cwd(), 'server/public')));
+  
+  // Add a specific handler for the root route in case static serving doesn't work
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'server/public/index.html'));
   });
 
   // Create HTTP server (this will be returned at the end of the function)
