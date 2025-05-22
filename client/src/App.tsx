@@ -31,6 +31,7 @@ import Dashboard from './pages/dashboard';
 import EnhancedLoginPage from './pages/enhanced-login';
 import MuskDemoDashboard from './pages/musk-demo-dashboard-simplified';
 import MuskDemoNew from './pages/musk-demo-new';
+import MuskDemoDashboardSimple from './pages/musk-demo-dashboard-simple';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';
@@ -73,6 +74,12 @@ const App: React.FC = () => {
                     <Route path="/musk-demo-new">
                       {(params) => (
                         <ProtectedRoute component={MuskDemoNew} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/musk-demo-simple">
+                      {(params) => (
+                        <ProtectedRoute component={MuskDemoDashboardSimple} {...params} />
                       )}
                     </Route>
                     
