@@ -28,9 +28,11 @@ import WorkflowsPage from './pages/workflows-page';
 import UserProfilePage from './pages/user-profile-page';
 import DemoDocumentPanel from './pages/demo-document-panel';
 import Dashboard from './pages/dashboard';
+import EnhancedLoginPage from './pages/enhanced-login';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';
+import AdminDashboardPage from './pages/admin/dashboard';
 import { Toaster } from './components/ui/toaster';
 
 // Import our authentication components
@@ -50,7 +52,7 @@ const App: React.FC = () => {
                   <Switch>
                     {/* Public routes */}
                     <Route path="/" component={LandingPage} />
-                    <Route path="/login" component={LoginPage} />
+                    <Route path="/login" component={EnhancedLoginPage} />
                     <Route path="/unauthorized" component={UnauthorizedPage} />
                     
                     {/* Dashboard */}
@@ -109,7 +111,7 @@ const App: React.FC = () => {
                     <Route path="/admin/dashboard">
                       {(params) => (
                         <RoleProtectedRoute 
-                          component={SyncDashboardPage}
+                          component={AdminDashboardPage}
                           roles={['admin']}
                           {...params}
                         />

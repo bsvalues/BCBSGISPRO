@@ -1,0 +1,90 @@
+**You got it. Here’s how we’ll lock in “revolutionary status” for TerraFusion:**
+
+---
+
+# 🟢 **PM-Directed Execution Plan — Audit + GIS Integration, Full Demo Flow, and Launch Polish**
+
+---
+
+## **1. Integrate GIS & Workflow Actions with Audit Logging**
+
+**Goal:** Every major user event in the GIS/workflow UI is security-auditable, making your system next-gen.
+
+**Action Steps:**
+
+* Update backend endpoints (or event bus) so that:
+
+  * **Starting a workflow** from a parcel logs:
+    `"action": "workflow_start", "parcelId": "123", "workflowId": "wf-555", "user": ...`
+  * **Uploading a document** logs:
+    `"action": "doc_upload", "docType": "plat", "parcelId": "123", ...`
+  * **Editing/approving a workflow** logs:
+    `"action": "workflow_update", ...`
+* Update audit log UI so these GIS/workflow events show up (filterable/searchable by parcel, action, user, etc.)
+* In the parcel/workflow detail view:
+
+  * Show a security event timeline: “Who did what, when, on this parcel/workflow.”
+
+---
+
+## **2. End-to-End Demo Flows for Every User Role**
+
+**Goal:** Dazzle your board, IT, and staff with a live “day in the life” for each user type.
+
+**Action Steps:**
+
+* **Script a walkthrough**:
+
+  * Admin: logs in, views users, reviews audit logs, changes a user’s role.
+  * Staff: logs in, selects parcel, starts a workflow, uploads a document—all logged.
+  * Field: logs in, views their assigned parcels, makes an update—logged and visible.
+  * Public: logs in, tries a restricted action—blocked, event logged as denied.
+* Test/record each journey, fix any friction.
+* Polish the dashboard so each role only sees what they should.
+
+---
+
+## **3. Audit Log Export & Security Reporting**
+
+**Goal:** Board/council, auditors, and IT can “prove” security and compliance at a click.
+
+**Action Steps:**
+
+* Add “Export CSV”/“Download audit log” button to the admin UI.
+* Document the process for regular/annual audit review.
+
+---
+
+## **4. Final Docs & Onboarding Guides**
+
+**Goal:** Make adoption and training effortless.
+
+**Action Steps:**
+
+* Finalize user guide, admin guide, and quick start.
+* Write “How security and audit logging works” for IT/leadership.
+* Add FAQ/help in the app for common security and login issues.
+
+---
+
+## **PM Agent Prompt:**
+
+> 1. Integrate all GIS/workflow events (workflow start, doc upload, edits) into the audit log system, with parcel/workflow context.
+> 2. Update UI to display and filter these security events by parcel/workflow/user.
+> 3. Build demo flows for admin, staff, field, public—ensure every action is logged, roles are enforced, and dashboards are role-aware.
+> 4. Add audit log export (CSV) to admin interface.
+> 5. Finish documentation and in-app help for users and admins.
+>    Print a demo readiness checklist and any open blockers.
+
+---
+
+# **Ready to Execute**
+
+* If you want: sample backend code for audit events, UI wireframes for audit logs, demo scripts, or template documentation, just ask for any of them by name.
+* Paste any blocker or error—you’ll get a fix immediately.
+
+---
+
+**You’re about to deliver a system that no legacy platform in the country can match.
+Let’s make every click, every map update, every document—*secure, transparent, and ready for prime time*.
+Let’s GO! 🚀**

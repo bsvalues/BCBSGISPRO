@@ -164,6 +164,146 @@ class AuditLoggerService {
       ipAddress: ipAddress || '',
     });
   }
+  
+  /**
+   * Log workflow start event
+   * 
+   * @param userId - The ID of the user who started the workflow
+   * @param workflowId - The ID of the workflow
+   * @param parcelId - The ID of the associated parcel
+   * @param workflowType - The type of workflow (assessment, appeal, split, etc.)
+   * @param ipAddress - The IP address of the request
+   */
+  async logWorkflowStart(
+    userId: string,
+    workflowId: string,
+    parcelId: string,
+    workflowType: string,
+    ipAddress?: string
+  ): Promise<any> {
+    return this.logEvent({
+      userId,
+      action: 'workflow_start',
+      details: {
+        workflowId,
+        parcelId,
+        workflowType
+      },
+      ipAddress: ipAddress || '',
+    });
+  }
+
+  /**
+   * Log workflow update event
+   * 
+   * @param userId - The ID of the user who updated the workflow
+   * @param workflowId - The ID of the workflow
+   * @param updateType - The type of update (status change, assignment, etc.)
+   * @param details - Additional details about the update
+   * @param ipAddress - The IP address of the request
+   */
+  async logWorkflowUpdate(
+    userId: string,
+    workflowId: string,
+    updateType: string,
+    details: any,
+    ipAddress?: string
+  ): Promise<any> {
+    return this.logEvent({
+      userId,
+      action: 'workflow_update',
+      details: {
+        workflowId,
+        updateType,
+        ...details
+      },
+      ipAddress: ipAddress || '',
+    });
+  }
+
+  /**
+   * Log document upload event
+   * 
+   * @param userId - The ID of the user who uploaded the document
+   * @param documentId - The ID of the document
+   * @param documentType - The type of document (deed, plat, survey, etc.)
+   * @param parcelId - The ID of the associated parcel (if any)
+   * @param workflowId - The ID of the associated workflow (if any)
+   * @param ipAddress - The IP address of the request
+   */
+  async logDocumentUpload(
+    userId: string,
+    documentId: string,
+    documentType: string,
+    parcelId?: string,
+    workflowId?: string,
+    ipAddress?: string
+  ): Promise<any> {
+    return this.logEvent({
+      userId,
+      action: 'document_upload',
+      details: {
+        documentId,
+        documentType,
+        parcelId,
+        workflowId
+      },
+      ipAddress: ipAddress || '',
+    });
+  }
+
+  /**
+   * Log map interaction event
+   * 
+   * @param userId - The ID of the user who interacted with the map
+   * @param interactionType - The type of interaction (pan, zoom, feature select, etc.)
+   * @param details - Additional details about the interaction
+   * @param ipAddress - The IP address of the request
+   */
+  async logMapInteraction(
+    userId: string,
+    interactionType: string,
+    details: any,
+    ipAddress?: string
+  ): Promise<any> {
+    return this.logEvent({
+      userId,
+      action: 'map_interaction',
+      details: {
+        interactionType,
+        ...details
+      },
+      ipAddress: ipAddress || '',
+    });
+  }
+
+  /**
+   * Log permission denial event
+   * 
+   * @param userId - The ID of the user who was denied
+   * @param resourceType - The type of resource (page, api, action)
+   * @param resourceId - The ID of the specific resource
+   * @param requiredPermission - The permission that was required
+   * @param ipAddress - The IP address of the request
+   */
+  async logPermissionDenial(
+    userId: string,
+    resourceType: string,
+    resourceId: string,
+    requiredPermission: string,
+    ipAddress?: string
+  ): Promise<any> {
+    return this.logEvent({
+      userId,
+      action: 'permission_denied',
+      details: {
+        resourceType,
+        resourceId,
+        requiredPermission
+      },
+      ipAddress: ipAddress || '',
+    });
+  }
 
   /**
    * Get recent audit logs for a specific user
@@ -207,6 +347,125 @@ class AuditLoggerService {
       console.error('Failed to retrieve recent audit logs:', error);
       return [];
     }
+  }
+
+  /**
+   * Get logs filtered by various criteria
+   * 
+   * @param options - Filter options
+   * @returns Array of filtered audit log entries
+   */
+  async getFilteredLogs(options: {
+    userId?: string,
+    action?: string | string[],
+    parcelId?: string,
+    workflowId?: string,
+    documentId?: string, 
+    fromDate?: Date,
+    toDate?: Date,
+    limit?: number
+  }): Promise<any[]> {
+    try {
+      const { 
+        userId, 
+        action, 
+        parcelId, 
+        workflowId, 
+        documentId,
+        fromDate,
+        toDate,
+        limit = 100 
+      } = options;
+      
+      let query = db.select().from(auditLogs);
+      
+      // Apply filters
+      if (userId) {
+        query = query.where(eq(auditLogs.userId, userId));
+      }
+      
+      if (action) {
+        if (Array.isArray(action)) {
+          // If multiple actions are provided, use "in" operator
+          query = query.where(auditLogs.action.in(action));
+        } else {
+          query = query.where(eq(auditLogs.action, action));
+        }
+      }
+      
+      // For filtering by parcel, workflow, or document, we need to check the JSON details
+      // This is a basic approach and might need optimization depending on DB setup
+      if (parcelId || workflowId || documentId) {
+        const filters = [];
+        
+        if (parcelId) {
+          filters.push(`details->>'parcelId' = '${parcelId}'`);
+        }
+        
+        if (workflowId) {
+          filters.push(`details->>'workflowId' = '${workflowId}'`);
+        }
+        
+        if (documentId) {
+          filters.push(`details->>'documentId' = '${documentId}'`);
+        }
+        
+        if (filters.length > 0) {
+          const sqlFilter = filters.join(' OR ');
+          query = query.where(sql\`\${sqlFilter}\`);
+        }
+      }
+      
+      // Date range filters
+      if (fromDate) {
+        query = query.where(auditLogs.createdAt, '>=', fromDate);
+      }
+      
+      if (toDate) {
+        query = query.where(auditLogs.createdAt, '<=', toDate);
+      }
+      
+      // Apply ordering and limit
+      query = query.orderBy(desc(auditLogs.createdAt)).limit(limit);
+      
+      const logs = await query;
+      return logs;
+    } catch (error) {
+      console.error('Failed to retrieve filtered audit logs:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Export audit logs to CSV format
+   * 
+   * @param logs - Array of audit log entries to export
+   * @returns CSV string
+   */
+  exportLogsToCSV(logs: any[]): string {
+    if (!logs || logs.length === 0) {
+      return 'id,user_id,action,details,ip_address,user_agent,created_at\n';
+    }
+    
+    // Create CSV header
+    const headers = Object.keys(logs[0]).join(',');
+    
+    // Create CSV rows
+    const rows = logs.map(log => {
+      return Object.values(log).map(value => {
+        // Handle JSON details
+        if (typeof value === 'object' && value !== null) {
+          return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+        }
+        // Handle string values
+        if (typeof value === 'string') {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(',');
+    });
+    
+    return [headers, ...rows].join('\n');
   }
 }
 

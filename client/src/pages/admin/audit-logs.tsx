@@ -77,6 +77,9 @@ const AuditLogsPage: React.FC = () => {
   const [filteredLogs, setFilteredLogs] = useState(logs);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
+  const [parcelFilter, setParcelFilter] = useState('');
+  const [workflowFilter, setWorkflowFilter] = useState('');
+  const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({});
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
   
@@ -152,33 +155,110 @@ const AuditLogsPage: React.FC = () => {
       <h1 className="text-3xl font-bold mb-6">Security Audit Logs</h1>
       
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1">
-          <Input
-            placeholder="Search by user, action, or IP"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Search by user, action, or IP"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <Select
+              value={actionFilter}
+              onValueChange={setActionFilter}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by action" />
+              </SelectTrigger>
+              <SelectContent>
+                {actionTypes.map(action => (
+                  <SelectItem key={action} value={action}>
+                    {action === 'all' ? 'All Actions' : formatAction(action)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Button variant="outline" onClick={() => {
+              // Generate CSV data
+              const csvContent = "data:text/csv;charset=utf-8," 
+                + "id,user,action,details,timestamp,ipAddress\n"
+                + filteredLogs.map(log => {
+                  return `${log.id},"${getUserName(log.userId)}","${log.action}","${
+                    typeof log.details === 'object' ? JSON.stringify(log.details).replace(/"/g, '""') : ''
+                  }","${log.timestamp}","${log.ipAddress}"`;
+                }).join("\n");
+              
+              // Create download link
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+              document.body.appendChild(link);
+              
+              // Trigger download and clean up
+              link.click();
+              document.body.removeChild(link);
+            }}>
+              Export Logs (CSV)
+            </Button>
+          </div>
         </div>
-        <div className="w-full md:w-48">
-          <Select
-            value={actionFilter}
-            onValueChange={setActionFilter}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by action" />
-            </SelectTrigger>
-            <SelectContent>
-              {actionTypes.map(action => (
-                <SelectItem key={action} value={action}>
-                  {action === 'all' ? 'All Actions' : formatAction(action)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Button variant="outline">Export Logs</Button>
+        
+        {/* Advanced Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="parcel-filter" className="text-sm font-medium mb-1 block">
+              Parcel ID
+            </label>
+            <Input
+              id="parcel-filter"
+              placeholder="Filter by parcel ID"
+              value={parcelFilter}
+              onChange={(e) => setParcelFilter(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="workflow-filter" className="text-sm font-medium mb-1 block">
+              Workflow ID
+            </label>
+            <Input
+              id="workflow-filter"
+              placeholder="Filter by workflow ID"
+              value={workflowFilter}
+              onChange={(e) => setWorkflowFilter(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="date-filter" className="text-sm font-medium mb-1 block">
+              Date Range
+            </label>
+            <div className="flex gap-2">
+              <Input
+                id="date-from"
+                type="date"
+                placeholder="From"
+                value={dateRange.from?.toISOString().split('T')[0]}
+                onChange={(e) => setDateRange(prev => ({ 
+                  ...prev, 
+                  from: e.target.value ? new Date(e.target.value) : undefined 
+                }))}
+              />
+              <Input
+                id="date-to"
+                type="date"
+                placeholder="To"
+                value={dateRange.to?.toISOString().split('T')[0]}
+                onChange={(e) => setDateRange(prev => ({ 
+                  ...prev, 
+                  to: e.target.value ? new Date(e.target.value) : undefined 
+                }))}
+              />
+            </div>
+          </div>
         </div>
       </div>
       
