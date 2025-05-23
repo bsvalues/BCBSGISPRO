@@ -1,5 +1,5 @@
-use actix_web::{web, App, HttpServer, middleware, http};
-use actix_files as fs;
+use aci_dev::{web, App, HttpServer, middleware, http};
+use aci_dev::files as fs;
 use std::env;
 use std::path::Path;
 
@@ -7,10 +7,11 @@ mod web {
     pub mod routes {
         pub mod api;
         pub mod pages;
+        pub mod websocket; // Add WebSocket support
     }
 }
 
-#[actix_web::main]
+#[aci_dev::main]
 async fn main() -> std::io::Result<()> {
     // Load environment variables from .env file
     dotenv::dotenv().ok();
@@ -22,14 +23,15 @@ async fn main() -> std::io::Result<()> {
     let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
     
     // Print startup information
-    println!("🚀 Starting TerraFusion Platform (Rust)");
-    println!("=======================================");
+    println!("🚀 Starting TerraFusion Platform (Rust with ACI.dev)");
+    println!("===================================================");
     println!("📝 Server listening on: http://{}", bind_address);
     println!("🌐 Map Portal: http://localhost:8080/map");
     println!("📊 Dashboard: http://localhost:8080/dashboard");
     println!("📄 Documents: http://localhost:8080/documents");
     println!("⚙️ Workflows: http://localhost:8080/workflows");
-    println!("=======================================");
+    println!("📡 WebSocket API: ws://localhost:8080/ws");
+    println!("===================================================");
     
     // Create data directory if it doesn't exist
     let data_dir = env::var("DATA_DIR").unwrap_or_else(|_| "./data".to_string());
@@ -39,7 +41,7 @@ async fn main() -> std::io::Result<()> {
         std::fs::create_dir_all(&documents_dir)?;
     }
     
-    // Start HTTP server
+    // Start HTTP server with ACI.dev
     HttpServer::new(|| {
         App::new()
             // Middleware
@@ -49,6 +51,12 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/api")
                     .configure(web::routes::api::configure)
+            )
+            
+            // WebSocket support
+            .service(
+                web::scope("")
+                    .configure(web::routes::websocket::configure)
             )
             
             // Static files
@@ -66,7 +74,7 @@ async fn main() -> std::io::Result<()> {
             .default_service(
                 web::route()
                     .to(|| async {
-                        actix_web::HttpResponse::NotFound()
+                        aci_dev::HttpResponse::NotFound()
                             .content_type("text/html")
                             .body("<h1>404 - Page Not Found</h1><p>The requested resource was not found on the server.</p><p><a href=\"/\">Return to Home</a></p>")
                     })
