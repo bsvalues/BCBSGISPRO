@@ -11,7 +11,7 @@ mod web {
     }
 }
 
-#[aci_dev::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load environment variables from .env file
     dotenv::dotenv().ok();

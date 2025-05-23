@@ -1,7 +1,7 @@
-use aci_dev::{web, Error, HttpRequest, HttpResponse};
-use aci_dev::websocket as ws;
+use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web_actors::ws;
 use std::time::{Duration, Instant};
-use aci_dev::actor::{Actor, ActorContext, AsyncContext, StreamHandler};
+use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
