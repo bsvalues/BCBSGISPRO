@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { Card } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Slider } from '../../components/ui/slider';
+import { Switch } from '../../components/ui/switch';
+import { Label } from '../../components/ui/label';
 import { 
   Map, 
   Database, 
@@ -21,8 +21,8 @@ import {
   LineChart,
   BarChart4 
 } from 'lucide-react';
-import useBentonArcGIS from '@/hooks/use-benton-arcgis';
-import { useToast } from '@/hooks/use-toast';
+import useBentonArcGIS from '../../hooks/use-benton-arcgis';
+import { useToast } from '../../hooks/use-toast';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 

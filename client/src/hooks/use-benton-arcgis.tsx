@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import bentonArcGISClient, { ArcGISError, ArcGISErrorType } from '@/services/benton-arcgis-client';
-import { useToast } from '@/hooks/use-toast';
+import bentonArcGISClient, { ArcGISError, ArcGISErrorType } from '../services/benton-arcgis-client';
+import { useToast } from './use-toast';
 
 /**
  * Custom hook for using the Benton County ArcGIS client in React components

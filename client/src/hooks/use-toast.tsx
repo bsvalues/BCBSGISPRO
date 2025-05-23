@@ -1,7 +1,8 @@
-import { Toast, ToastActionElement, ToastProps } from "@/components/ui/toast"
+import { Toast, ToastActionElement, ToastProps } from "../components/ui/toast"
 import {
-  useToast as useToastPrimitive
-} from "@/components/ui/use-toast"
+  useToast as useToastPrimitive,
+  type Toast as ToastType
+} from "../components/ui/use-toast"
 
 type ToastActionProps = React.ComponentPropsWithoutRef<typeof Toast> & {
   altText: string;
@@ -21,6 +22,9 @@ export const useToast = () => {
   return {
     toast,
     dismiss: (toastId?: string) => toast({
+      // Fixed: use an object that matches expected Toast type
+      title: "",
+      description: "",
       id: toastId,
     }),
   }
