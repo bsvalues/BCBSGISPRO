@@ -1,250 +1,159 @@
 {% extends "base.html" %}
 
-{% block title %}Documents - Benton County GIS{% endblock %}
+{% block title %}Documents - TerraFusion Platform{% endblock %}
 
-{% block styles %}
-<style>
-    .document-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-    
-    .document-card {
-        background-color: white;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
-    
-    .document-card-header {
-        padding: 0.75rem;
-        background-color: #f9fafb;
-        border-bottom: 1px solid var(--border-color);
-    }
-    
-    .document-card-title {
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .document-card-body {
-        padding: 0.75rem;
-    }
-    
-    .document-card-footer {
-        padding: 0.75rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 1px solid var(--border-color);
-        background-color: #f9fafb;
-    }
-    
-    .document-type-badge {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-        font-weight: 500;
-        border-radius: 9999px;
-        margin-right: 0.5rem;
-    }
-    
-    .document-type-deed {
-        background-color: #e0f2fe;
-        color: #0369a1;
-    }
-    
-    .document-type-survey {
-        background-color: #dcfce7;
-        color: #166534;
-    }
-    
-    .document-type-plat {
-        background-color: #fef3c7;
-        color: #92400e;
-    }
-    
-    .document-type-unknown {
-        background-color: #f3f4f6;
-        color: #6b7280;
-    }
-    
-    .document-filter {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1rem;
-        flex-wrap: wrap;
-    }
-    
-    .document-search {
-        flex-grow: 1;
-        min-width: 200px;
-    }
-    
-    .document-filter-dropdown {
-        min-width: 150px;
-    }
-    
-    .upload-form {
-        margin-top: 1rem;
-    }
-    
-    .upload-drop-area {
-        border: 2px dashed var(--border-color);
-        border-radius: 4px;
-        padding: 2rem;
-        text-align: center;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    
-    .upload-drop-area:hover {
-        background-color: #f9fafb;
-    }
-    
-    .upload-drop-area.active {
-        background-color: #e0f2fe;
-        border-color: var(--primary-color);
-    }
-    
-    .document-pagination {
-        margin-top: 1rem;
-        display: flex;
-        justify-content: center;
-        gap: 0.5rem;
-    }
-    
-    .pagination-btn {
-        width: 2.5rem;
-        height: 2.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        cursor: pointer;
-        background-color: white;
-        font-weight: 500;
-    }
-    
-    .pagination-btn:hover {
-        background-color: #f9fafb;
-    }
-    
-    .pagination-btn.active {
-        background-color: var(--primary-color);
-        color: white;
-        border-color: var(--primary-color);
-    }
-    
-    .pagination-btn.disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-</style>
+{% block head %}
+<link rel="stylesheet" href="/css/documents.css">
 {% endblock %}
 
 {% block content %}
-<div class="content">
-    <h1>Document Management</h1>
-    
-    <div class="card">
-        <h2>Upload New Document</h2>
-        <p>Upload and classify documents related to property assessments.</p>
+<section class="documents-container">
+    <div class="documents-header">
+        <h1>Benton County Documents</h1>
         
-        <form class="upload-form" id="document-upload-form">
-            <div class="upload-drop-area" id="upload-drop-area">
-                <p>Drag and drop files here, or click to select files</p>
-                <p style="font-size: 0.875rem; color: #6b7280;">Supported formats: PDF, TIFF, PNG, JPG</p>
-                <input type="file" id="file-input" style="display: none;" multiple>
+        <div class="search-controls">
+            <form id="document-search-form" class="search-form">
+                <div class="search-field">
+                    <input type="text" id="search-query" name="q" placeholder="Search documents...">
+                    <button type="submit" class="btn search-btn">Search</button>
+                </div>
+                
+                <div class="filter-controls">
+                    <label>
+                        Document Type:
+                        <select id="document-type" name="type">
+                            <option value="">All Types</option>
+                            <option value="deed">Deeds</option>
+                            <option value="survey">Surveys</option>
+                            <option value="plat">Plats</option>
+                            <option value="permit">Permits</option>
+                        </select>
+                    </label>
+                    
+                    <label>
+                        Parcel ID:
+                        <input type="text" id="parcel-id" name="parcel" placeholder="Enter parcel number">
+                    </label>
+                </div>
+            </form>
+            
+            <div class="upload-container">
+                <button id="upload-document-btn" class="btn btn-primary">Upload New Document</button>
             </div>
-            
-            <div id="file-list" style="margin-top: 1rem;"></div>
-            
-            <button type="submit" style="margin-top: 1rem; width: 100%;">Upload Documents</button>
-        </form>
+        </div>
     </div>
     
-    <div class="card" style="margin-top: 1rem;">
-        <h2>Document Library</h2>
-        
-        <div class="document-filter">
-            <input type="text" placeholder="Search documents..." class="document-search" id="document-search">
-            
-            <select class="document-filter-dropdown" id="document-type-filter">
-                <option value="">All Document Types</option>
-                <option value="deed">Deeds</option>
-                <option value="survey">Surveys</option>
-                <option value="plat">Plats</option>
-                <option value="other">Other</option>
-            </select>
-            
-            <select class="document-filter-dropdown" id="document-date-filter">
-                <option value="">All Dates</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="year">This Year</option>
-            </select>
-        </div>
-        
-        <div class="document-grid" id="document-grid">
-            {% for doc in documents %}
-            <div class="document-card">
-                <div class="document-card-header">
-                    <div class="document-card-title">{{ doc.filename }}</div>
-                </div>
-                <div class="document-card-body">
-                    <div>
-                        <span class="document-type-badge document-type-{{ doc.document_type }}">
-                            {{ doc.document_type }}
-                        </span>
-                        <span style="font-size: 0.875rem; color: #6b7280;">{{ doc.file_size | file_size }}</span>
-                    </div>
-                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
-                        {% if doc.metadata.title %}
-                            <div><strong>Title:</strong> {{ doc.metadata.title }}</div>
-                        {% endif %}
-                        {% if doc.metadata.recording_number %}
-                            <div><strong>Recording #:</strong> {{ doc.metadata.recording_number }}</div>
-                        {% endif %}
-                        {% if doc.metadata.recording_date %}
-                            <div><strong>Recorded:</strong> {{ doc.metadata.recording_date }}</div>
-                        {% endif %}
-                    </div>
-                    {% if doc.metadata.parcel_ids %}
-                        <div style="margin-top: 0.5rem; font-size: 0.875rem;">
-                            <strong>Related Parcels:</strong>
-                            {% for parcel in doc.metadata.parcel_ids %}
-                                <span class="document-type-badge document-type-unknown">{{ parcel }}</span>
-                            {% endfor %}
+    <div class="documents-content">
+        <div class="documents-list">
+            {% if documents.len() > 0 %}
+                {% for document in documents %}
+                    <div class="document-card" data-id="{{ document.id }}">
+                        <div class="document-icon">
+                            {% if document.content_type.starts_with("image/") %}
+                                <span class="icon icon-image">📷</span>
+                            {% elif document.content_type == "application/pdf" %}
+                                <span class="icon icon-pdf">📄</span>
+                            {% elif document.content_type.starts_with("application/vnd.openxmlformats-officedocument") or document.content_type.contains("word") %}
+                                <span class="icon icon-word">📝</span>
+                            {% else %}
+                                <span class="icon icon-document">📃</span>
+                            {% endif %}
                         </div>
-                    {% endif %}
-                </div>
-                <div class="document-card-footer">
-                    <div style="font-size: 0.75rem; color: #6b7280;">
-                        Uploaded {{ doc.uploaded_at | format_date }}
+                        
+                        <div class="document-info">
+                            <h3 class="document-title">
+                                <a href="/documents/{{ document.id }}">{{ document.metadata.title | default(value=document.filename) }}</a>
+                            </h3>
+                            
+                            <div class="document-meta">
+                                <span class="document-type">
+                                    {% if document.classification %}
+                                        {{ document.classification.document_type | capitalize }}
+                                    {% else %}
+                                        Unclassified
+                                    {% endif %}
+                                </span>
+                                
+                                <span class="document-size">{{ document.file_size | file_size }}</span>
+                                <span class="document-date">{{ document.uploaded_at | format_date }}</span>
+                            </div>
+                            
+                            {% if document.metadata.description %}
+                                <p class="document-description">{{ document.metadata.description }}</p>
+                            {% endif %}
+                            
+                            {% if document.metadata.parcel_ids and document.metadata.parcel_ids.len() > 0 %}
+                                <div class="document-parcels">
+                                    <strong>Related Parcels:</strong>
+                                    {% for parcel_id in document.metadata.parcel_ids %}
+                                        <a href="/map?parcel={{ parcel_id }}" class="parcel-link">{{ parcel_id }}</a>{% if !loop.last %}, {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="document-actions">
+                            <a href="/documents/{{ document.id }}" class="btn btn-sm">View</a>
+                            <a href="/documents/{{ document.id }}/download" class="btn btn-sm">Download</a>
+                        </div>
                     </div>
-                    <div>
-                        <button class="secondary" onclick="viewDocument('{{ doc.id }}')">View</button>
-                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <h3>No Documents Found</h3>
+                    <p>There are no documents matching your search criteria.</p>
+                    <p>Try adjusting your filters or uploading a new document.</p>
                 </div>
-            </div>
-            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Upload Document Modal -->
+<div id="upload-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Upload Document</h2>
+            <button type="button" class="close-btn">&times;</button>
         </div>
         
-        <div class="document-pagination" id="document-pagination">
-            <button class="pagination-btn" id="prev-page">←</button>
-            <button class="pagination-btn active">1</button>
-            <button class="pagination-btn">2</button>
-            <button class="pagination-btn">3</button>
-            <button class="pagination-btn">...</button>
-            <button class="pagination-btn">10</button>
-            <button class="pagination-btn" id="next-page">→</button>
+        <div class="modal-body">
+            <form id="upload-form">
+                <div class="form-group">
+                    <label for="file-input">Select File</label>
+                    <input type="file" id="file-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="document-title">Title</label>
+                    <input type="text" id="document-title" placeholder="Document title (optional)">
+                </div>
+                
+                <div class="form-group">
+                    <label for="document-description">Description</label>
+                    <textarea id="document-description" placeholder="Document description (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="document-parcels">Related Parcels</label>
+                    <input type="text" id="document-parcels" placeholder="Comma-separated parcel IDs">
+                    <small>Example: 12345-000, 12346-000</small>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-upload">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submit-upload">Upload</button>
+                </div>
+            </form>
+            
+            <div id="upload-progress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+                <p class="progress-text">Uploading document...</p>
+            </div>
+            
+            <div id="upload-result" style="display: none;"></div>
         </div>
     </div>
 </div>
@@ -252,151 +161,183 @@
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Document Management Page Loaded');
+    // Document search form handling
+    document.getElementById('document-search-form').addEventListener('submit', function(e) {
+        e.preventDefault();
         
-        // File upload handling
-        const dropArea = document.getElementById('upload-drop-area');
-        const fileInput = document.getElementById('file-input');
-        const fileList = document.getElementById('file-list');
-        const uploadForm = document.getElementById('document-upload-form');
+        const query = document.getElementById('search-query').value;
+        const type = document.getElementById('document-type').value;
+        const parcel = document.getElementById('parcel-id').value;
         
-        // Open file browser when clicking the drop area
-        dropArea.addEventListener('click', function() {
-            fileInput.click();
-        });
-        
-        // Handle drag and drop events
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        // Build query string
+        let queryString = '';
+        if (query) {
+            queryString += `q=${encodeURIComponent(query)}`;
+        }
+        if (type) {
+            queryString += queryString ? `&type=${encodeURIComponent(type)}` : `type=${encodeURIComponent(type)}`;
+        }
+        if (parcel) {
+            queryString += queryString ? `&parcel=${encodeURIComponent(parcel)}` : `parcel=${encodeURIComponent(parcel)}`;
         }
         
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, function() {
-                dropArea.classList.add('active');
-            }, false);
-        });
+        // Redirect to the search URL
+        window.location.href = `/documents?${queryString}`;
+    });
+    
+    // Upload modal handling
+    const modal = document.getElementById('upload-modal');
+    const openModalBtn = document.getElementById('upload-document-btn');
+    const closeModalBtn = document.querySelector('#upload-modal .close-btn');
+    const cancelUploadBtn = document.getElementById('cancel-upload');
+    
+    openModalBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+    
+    closeModalBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    cancelUploadBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Handle document upload
+    document.getElementById('upload-form').addEventListener('submit', function(e) {
+        e.preventDefault();
         
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, function() {
-                dropArea.classList.remove('active');
-            }, false);
-        });
+        const fileInput = document.getElementById('file-input');
+        const title = document.getElementById('document-title').value;
+        const description = document.getElementById('document-description').value;
+        const parcelsInput = document.getElementById('document-parcels').value;
         
-        // Handle dropped files
-        dropArea.addEventListener('drop', function(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(files);
-        });
+        // Validate file
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a file to upload.');
+            return;
+        }
         
-        // Handle selected files from file browser
-        fileInput.addEventListener('change', function() {
-            handleFiles(this.files);
-        });
+        const file = fileInput.files[0];
         
-        function handleFiles(files) {
-            fileList.innerHTML = '';
+        // Show progress
+        document.getElementById('upload-form').style.display = 'none';
+        document.getElementById('upload-progress').style.display = 'block';
+        
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Get base64 data from reader result
+            const base64Data = e.target.result.split(',')[1];
             
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                fileItem.style.padding = '0.5rem';
-                fileItem.style.borderBottom = '1px solid var(--border-color)';
+            // Parse parcels
+            let parcelIds = [];
+            if (parcelsInput) {
+                parcelIds = parcelsInput.split(',').map(p => p.trim()).filter(p => p);
+            }
+            
+            // Create metadata
+            const metadata = {
+                title: title || null,
+                description: description || null,
+                parcel_ids: parcelIds.length > 0 ? parcelIds : null
+            };
+            
+            // Create upload request
+            const uploadData = {
+                filename: file.name,
+                content_type: file.type,
+                file_content: base64Data,
+                metadata: metadata
+            };
+            
+            // Send upload request
+            fetch('/api/documents/upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(uploadData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('upload-progress').style.display = 'none';
+                document.getElementById('upload-result').style.display = 'block';
                 
-                fileItem.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: 500;">${file.name}</div>
-                            <div style="font-size: 0.75rem; color: #6b7280;">${formatFileSize(file.size)}</div>
+                if (data.success) {
+                    document.getElementById('upload-result').innerHTML = `
+                        <div class="success-message">
+                            <h3>Upload Successful</h3>
+                            <p>Document has been uploaded successfully.</p>
+                            <button class="btn btn-primary" onclick="window.location.reload()">View Documents</button>
                         </div>
-                        <button type="button" class="secondary remove-file" data-index="${i}">Remove</button>
+                    `;
+                } else {
+                    document.getElementById('upload-result').innerHTML = `
+                        <div class="error-message">
+                            <h3>Upload Failed</h3>
+                            <p>${data.error || 'An unknown error occurred during upload.'}</p>
+                            <button class="btn btn-primary" onclick="resetUploadForm()">Try Again</button>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                document.getElementById('upload-progress').style.display = 'none';
+                document.getElementById('upload-result').style.display = 'block';
+                document.getElementById('upload-result').innerHTML = `
+                    <div class="error-message">
+                        <h3>Upload Failed</h3>
+                        <p>${error.message || 'An unknown error occurred during upload.'}</p>
+                        <button class="btn btn-primary" onclick="resetUploadForm()">Try Again</button>
                     </div>
                 `;
-                
-                fileList.appendChild(fileItem);
-            }
-            
-            // Add event listeners to remove buttons
-            document.querySelectorAll('.remove-file').forEach(button => {
-                button.addEventListener('click', function() {
-                    this.closest('.file-item').remove();
-                });
             });
-        }
-        
-        // Handle form submission
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const files = fileInput.files;
-            if (files.length === 0) {
-                alert('Please select at least one file to upload.');
-                return;
-            }
-            
-            // In a real implementation, you would upload the files using AJAX
-            console.log('Uploading files:', files);
-            
-            // Mock successful upload
-            alert(`Successfully uploaded ${files.length} files.`);
-            
-            // Reset form
-            fileInput.value = '';
-            fileList.innerHTML = '';
-        });
-        
-        // Document search and filtering
-        const searchInput = document.getElementById('document-search');
-        const typeFilter = document.getElementById('document-type-filter');
-        const dateFilter = document.getElementById('document-date-filter');
-        
-        searchInput.addEventListener('input', filterDocuments);
-        typeFilter.addEventListener('change', filterDocuments);
-        dateFilter.addEventListener('change', filterDocuments);
-        
-        function filterDocuments() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const typeValue = typeFilter.value;
-            const dateValue = dateFilter.value;
-            
-            console.log(`Filtering documents: search="${searchTerm}", type=${typeValue}, date=${dateValue}`);
-            
-            // In a real implementation, you would fetch filtered results from the server
-            // For now, we'll just log the filter parameters
-        }
-        
-        // Pagination
-        const prevBtn = document.getElementById('prev-page');
-        const nextBtn = document.getElementById('next-page');
-        
-        prevBtn.addEventListener('click', function() {
-            console.log('Go to previous page');
-        });
-        
-        nextBtn.addEventListener('click', function() {
-            console.log('Go to next page');
-        });
-        
-        // Helper functions
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-        
-        window.viewDocument = function(docId) {
-            console.log(`Viewing document with ID: ${docId}`);
-            // In a real implementation, you would open the document viewer
         };
+        
+        reader.onerror = function(error) {
+            document.getElementById('upload-progress').style.display = 'none';
+            document.getElementById('upload-result').style.display = 'block';
+            document.getElementById('upload-result').innerHTML = `
+                <div class="error-message">
+                    <h3>File Reading Failed</h3>
+                    <p>Failed to read the selected file. Please try again.</p>
+                    <button class="btn btn-primary" onclick="resetUploadForm()">Try Again</button>
+                </div>
+            `;
+        };
+        
+        // Start reading the file
+        reader.readAsDataURL(file);
+    });
+    
+    function resetUploadForm() {
+        document.getElementById('upload-result').style.display = 'none';
+        document.getElementById('upload-form').style.display = 'block';
+    }
+    
+    // Apply search params from URL on page load
+    window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        if (urlParams.has('q')) {
+            document.getElementById('search-query').value = urlParams.get('q');
+        }
+        
+        if (urlParams.has('type')) {
+            document.getElementById('document-type').value = urlParams.get('type');
+        }
+        
+        if (urlParams.has('parcel')) {
+            document.getElementById('parcel-id').value = urlParams.get('parcel');
+        }
     });
 </script>
 {% endblock %}
