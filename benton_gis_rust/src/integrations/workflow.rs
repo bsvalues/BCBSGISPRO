@@ -1,526 +1,743 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::error::Error;
-use std::fs;
-use std::path::Path;
-use log::{info, error};
+use std::sync::Mutex;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use rusqlite::{Connection, Result, params, NO_PARAMS};
+use log::{info, error};
 
-// Workflow storage path
-const WORKFLOW_DATA_PATH: &str = "data/workflows";
-const WORKFLOW_INDEX_PATH: &str = "data/workflow_index.json";
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowItem {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: WorkflowStatus,
+    pub workflow_type: String,
+    pub assigned_to: Option<String>,
+    pub parcel_ids: Option<Vec<String>>,
+    pub document_ids: Option<Vec<String>>,
+    pub metadata: HashMap<String, serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
 
-/// Workflow statuses
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum WorkflowStatus {
     #[serde(rename = "pending")]
     Pending,
     #[serde(rename = "in_progress")]
     InProgress,
-    #[serde(rename = "review")]
-    Review,
-    #[serde(rename = "completed")]
-    Completed,
-    #[serde(rename = "rejected")]
-    Rejected,
     #[serde(rename = "on_hold")]
     OnHold,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
 }
 
-impl Default for WorkflowStatus {
-    fn default() -> Self {
-        WorkflowStatus::Pending
-    }
-}
-
-/// Workflow types for Benton County
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum WorkflowType {
-    #[serde(rename = "deed_processing")]
-    DeedProcessing,
-    #[serde(rename = "boundary_line_adjustment")]
-    BoundaryLineAdjustment,
-    #[serde(rename = "plat_review")]
-    PlatReview,
-    #[serde(rename = "property_split")]
-    PropertySplit,
-    #[serde(rename = "address_assignment")]
-    AddressAssignment,
-    #[serde(rename = "property_assessment")]
-    PropertyAssessment,
-    #[serde(rename = "record_update")]
-    RecordUpdate,
-    #[serde(rename = "exemption_request")]
-    ExemptionRequest,
-}
-
-/// Workflow item representing a single task in the workflow process
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkflowStep {
+pub struct WorkflowEvent {
     pub id: String,
-    pub title: String,
-    pub description: Option<String>,
-    pub status: WorkflowStatus,
-    pub assigned_to: Option<String>,
-    pub due_date: Option<DateTime<Utc>>,
-    pub completed_date: Option<DateTime<Utc>>,
-    pub notes: Option<String>,
-    pub documents: Vec<String>, // Document IDs
-}
-
-impl WorkflowStep {
-    pub fn new(title: &str, description: Option<&str>) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            title: title.to_string(),
-            description: description.map(String::from),
-            status: WorkflowStatus::Pending,
-            assigned_to: None,
-            due_date: None,
-            completed_date: None,
-            notes: None,
-            documents: Vec::new(),
-        }
-    }
-}
-
-/// Workflow containing multiple steps
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workflow {
-    pub id: String,
-    pub title: String,
-    pub workflow_type: WorkflowType,
-    pub description: Option<String>,
-    pub status: WorkflowStatus,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub created_by: Option<String>,
-    pub assigned_to: Option<String>,
-    pub due_date: Option<DateTime<Utc>>,
-    pub completed_date: Option<DateTime<Utc>>,
-    pub steps: Vec<WorkflowStep>,
-    pub parcel_ids: Vec<String>,
-    pub documents: Vec<String>, // Document IDs
+    pub workflow_id: String,
+    pub event_type: String,
+    pub description: String,
+    pub previous_status: Option<WorkflowStatus>,
+    pub new_status: Option<WorkflowStatus>,
+    pub user_id: Option<String>,
     pub metadata: HashMap<String, serde_json::Value>,
+    pub created_at: DateTime<Utc>,
 }
 
-impl Workflow {
-    pub fn new(title: &str, workflow_type: WorkflowType, description: Option<&str>) -> Self {
+pub struct WorkflowManager {
+    conn: Mutex<Connection>,
+}
+
+impl WorkflowItem {
+    pub fn new(title: &str, workflow_type: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             title: title.to_string(),
-            workflow_type,
-            description: description.map(String::from),
+            description: None,
             status: WorkflowStatus::Pending,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            created_by: None,
+            workflow_type: workflow_type.to_string(),
             assigned_to: None,
-            due_date: None,
-            completed_date: None,
-            steps: Vec::new(),
-            parcel_ids: Vec::new(),
-            documents: Vec::new(),
+            parcel_ids: None,
+            document_ids: None,
             metadata: HashMap::new(),
-        }
-    }
-    
-    pub fn add_step(&mut self, step: WorkflowStep) {
-        self.steps.push(step);
-        self.updated_at = Utc::now();
-    }
-    
-    pub fn add_document(&mut self, document_id: &str) {
-        if !self.documents.contains(&document_id.to_string()) {
-            self.documents.push(document_id.to_string());
-            self.updated_at = Utc::now();
-        }
-    }
-    
-    pub fn add_parcel(&mut self, parcel_id: &str) {
-        if !self.parcel_ids.contains(&parcel_id.to_string()) {
-            self.parcel_ids.push(parcel_id.to_string());
-            self.updated_at = Utc::now();
-        }
-    }
-    
-    pub fn update_status(&mut self, status: WorkflowStatus) {
-        self.status = status;
-        self.updated_at = Utc::now();
-        
-        if status == WorkflowStatus::Completed {
-            self.completed_date = Some(Utc::now());
+            created_at: Utc::now(),
+            updated_at: None,
+            completed_at: None,
         }
     }
 }
 
-/// Workflow index for tracking all workflows
-#[derive(Debug, Serialize, Deserialize)]
-pub struct WorkflowIndex {
-    pub workflows: HashMap<String, WorkflowIndexEntry>,
-    pub last_updated: DateTime<Utc>,
-}
-
-/// Entry in the workflow index
-#[derive(Debug, Serialize, Deserialize)]
-pub struct WorkflowIndexEntry {
-    pub id: String,
-    pub title: String,
-    pub workflow_type: WorkflowType,
-    pub status: WorkflowStatus,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub assigned_to: Option<String>,
-    pub due_date: Option<DateTime<Utc>>,
-    pub parcel_ids: Vec<String>,
-}
-
-impl WorkflowIndex {
-    /// Create a new empty workflow index
-    pub fn new() -> Self {
+impl WorkflowEvent {
+    pub fn new(workflow_id: &str, event_type: &str, description: &str) -> Self {
         Self {
-            workflows: HashMap::new(),
-            last_updated: Utc::now(),
+            id: Uuid::new_v4().to_string(),
+            workflow_id: workflow_id.to_string(),
+            event_type: event_type.to_string(),
+            description: description.to_string(),
+            previous_status: None,
+            new_status: None,
+            user_id: None,
+            metadata: HashMap::new(),
+            created_at: Utc::now(),
         }
     }
-    
-    /// Load workflow index from file
-    pub fn load() -> Result<Self, Box<dyn Error>> {
-        let path = Path::new(WORKFLOW_INDEX_PATH);
+}
+
+impl WorkflowManager {
+    pub fn new(conn: Connection) -> Result<Self> {
+        // Initialize database schema
+        Self::initialize_schema(&conn)?;
         
-        // Create empty index if file doesn't exist
-        if !path.exists() {
-            let empty_index = Self::new();
-            empty_index.save()?;
-            return Ok(empty_index);
-        }
-        
-        // Read and parse the index file
-        let index_content = fs::read_to_string(path)?;
-        let index: WorkflowIndex = serde_json::from_str(&index_content)?;
-        
-        Ok(index)
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
     
-    /// Save workflow index to file
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        // Create directory if it doesn't exist
-        let path = Path::new(WORKFLOW_INDEX_PATH);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+    fn initialize_schema(conn: &Connection) -> Result<()> {
+        info!("Initializing workflow schema");
         
-        // Serialize and save the index
-        let index_content = serde_json::to_string_pretty(self)?;
-        fs::write(path, index_content)?;
+        // Create workflows table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS workflows (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT NOT NULL,
+                workflow_type TEXT NOT NULL,
+                assigned_to TEXT,
+                parcel_ids TEXT,
+                document_ids TEXT,
+                metadata TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                completed_at TEXT
+            )",
+            NO_PARAMS,
+        )?;
+        
+        // Create workflow events table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS workflow_events (
+                id TEXT PRIMARY KEY,
+                workflow_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                previous_status TEXT,
+                new_status TEXT,
+                user_id TEXT,
+                metadata TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id)
+            )",
+            NO_PARAMS,
+        )?;
         
         Ok(())
     }
     
-    /// Add workflow to the index
-    pub fn add_workflow(&mut self, workflow: &Workflow) -> Result<(), Box<dyn Error>> {
-        // Create index entry
-        let entry = WorkflowIndexEntry {
-            id: workflow.id.clone(),
-            title: workflow.title.clone(),
-            workflow_type: workflow.workflow_type.clone(),
-            status: workflow.status.clone(),
-            created_at: workflow.created_at,
-            updated_at: workflow.updated_at,
-            assigned_to: workflow.assigned_to.clone(),
-            due_date: workflow.due_date,
-            parcel_ids: workflow.parcel_ids.clone(),
-        };
+    pub async fn create_workflow(&self, workflow: &WorkflowItem) -> Result<String, String> {
+        info!("Creating workflow: {}", workflow.title);
         
-        // Add to index
-        self.workflows.insert(workflow.id.clone(), entry);
-        self.last_updated = Utc::now();
+        // Serialize metadata, parcel_ids, and document_ids to JSON
+        let metadata_json = serde_json::to_string(&workflow.metadata)
+            .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
         
-        // Save updated index
-        self.save()?;
-        
-        Ok(())
-    }
-    
-    /// Update workflow in the index
-    pub fn update_workflow(&mut self, workflow: &Workflow) -> Result<(), Box<dyn Error>> {
-        // Check if workflow exists
-        if !self.workflows.contains_key(&workflow.id) {
-            return Err(format!("Workflow not found: {}", workflow.id).into());
-        }
-        
-        // Update index entry
-        let entry = WorkflowIndexEntry {
-            id: workflow.id.clone(),
-            title: workflow.title.clone(),
-            workflow_type: workflow.workflow_type.clone(),
-            status: workflow.status.clone(),
-            created_at: workflow.created_at,
-            updated_at: workflow.updated_at,
-            assigned_to: workflow.assigned_to.clone(),
-            due_date: workflow.due_date,
-            parcel_ids: workflow.parcel_ids.clone(),
-        };
-        
-        // Update index
-        self.workflows.insert(workflow.id.clone(), entry);
-        self.last_updated = Utc::now();
-        
-        // Save updated index
-        self.save()?;
-        
-        Ok(())
-    }
-    
-    /// Get all workflows in the index
-    pub fn get_all_workflows(&self) -> Vec<WorkflowIndexEntry> {
-        self.workflows.values().cloned().collect()
-    }
-    
-    /// Get workflows by parcel ID
-    pub fn get_workflows_by_parcel(&self, parcel_id: &str) -> Vec<WorkflowIndexEntry> {
-        self.workflows.values()
-            .filter(|entry| entry.parcel_ids.contains(&parcel_id.to_string()))
-            .cloned()
-            .collect()
-    }
-    
-    /// Get workflows by status
-    pub fn get_workflows_by_status(&self, status: WorkflowStatus) -> Vec<WorkflowIndexEntry> {
-        self.workflows.values()
-            .filter(|entry| entry.status == status)
-            .cloned()
-            .collect()
-    }
-    
-    /// Get workflows by type
-    pub fn get_workflows_by_type(&self, workflow_type: WorkflowType) -> Vec<WorkflowIndexEntry> {
-        self.workflows.values()
-            .filter(|entry| entry.workflow_type == workflow_type)
-            .cloned()
-            .collect()
-    }
-    
-    /// Get workflows by assigned user
-    pub fn get_workflows_by_user(&self, user_id: &str) -> Vec<WorkflowIndexEntry> {
-        self.workflows.values()
-            .filter(|entry| match &entry.assigned_to {
-                Some(assigned) => assigned == user_id,
-                None => false,
-            })
-            .cloned()
-            .collect()
-    }
-}
-
-/// Load a workflow by ID
-pub fn load_workflow(workflow_id: &str) -> Result<Workflow, Box<dyn Error>> {
-    // Construct file path
-    let file_path = Path::new(WORKFLOW_DATA_PATH).join(format!("{}.json", workflow_id));
-    
-    // Check if file exists
-    if !file_path.exists() {
-        return Err(format!("Workflow not found: {}", workflow_id).into());
-    }
-    
-    // Read and parse workflow file
-    let workflow_content = fs::read_to_string(file_path)?;
-    let workflow: Workflow = serde_json::from_str(&workflow_content)?;
-    
-    Ok(workflow)
-}
-
-/// Save a workflow to storage
-pub fn save_workflow(workflow: &Workflow) -> Result<(), Box<dyn Error>> {
-    // Create workflow directory if it doesn't exist
-    let workflow_dir = Path::new(WORKFLOW_DATA_PATH);
-    fs::create_dir_all(workflow_dir)?;
-    
-    // Serialize workflow to JSON
-    let workflow_content = serde_json::to_string_pretty(workflow)?;
-    
-    // Save workflow file
-    let file_path = workflow_dir.join(format!("{}.json", workflow.id));
-    fs::write(file_path, workflow_content)?;
-    
-    // Update workflow index
-    let mut index = WorkflowIndex::load()?;
-    
-    if index.workflows.contains_key(&workflow.id) {
-        index.update_workflow(workflow)?;
-    } else {
-        index.add_workflow(workflow)?;
-    }
-    
-    Ok(())
-}
-
-/// Create a template workflow of the specified type
-pub fn create_workflow_template(title: &str, workflow_type: WorkflowType, description: Option<&str>) -> Result<Workflow, Box<dyn Error>> {
-    let mut workflow = Workflow::new(title, workflow_type.clone(), description);
-    
-    // Add steps based on workflow type
-    match workflow_type {
-        WorkflowType::DeedProcessing => {
-            workflow.add_step(WorkflowStep::new("Document Intake", Some("Receive and log the deed document")));
-            workflow.add_step(WorkflowStep::new("Document Validation", Some("Verify document completeness and signatures")));
-            workflow.add_step(WorkflowStep::new("Property Identification", Some("Identify affected properties")));
-            workflow.add_step(WorkflowStep::new("Update Property Records", Some("Update ownership records in the system")));
-            workflow.add_step(WorkflowStep::new("Quality Control", Some("Review changes for accuracy")));
-            workflow.add_step(WorkflowStep::new("Final Approval", Some("Approve and finalize changes")));
-        },
-        WorkflowType::BoundaryLineAdjustment => {
-            workflow.add_step(WorkflowStep::new("Application Intake", Some("Receive and log BLA application")));
-            workflow.add_step(WorkflowStep::new("Initial Review", Some("Verify application completeness")));
-            workflow.add_step(WorkflowStep::new("Property Identification", Some("Identify affected properties")));
-            workflow.add_step(WorkflowStep::new("Survey Review", Some("Review provided survey documents")));
-            workflow.add_step(WorkflowStep::new("GIS Update Preparation", Some("Prepare GIS updates")));
-            workflow.add_step(WorkflowStep::new("Record Updates", Some("Update property records")));
-            workflow.add_step(WorkflowStep::new("Final Review", Some("Final review of all changes")));
-            workflow.add_step(WorkflowStep::new("Notification", Some("Notify property owners of completion")));
-        },
-        WorkflowType::PlatReview => {
-            workflow.add_step(WorkflowStep::new("Plat Submission", Some("Receive and log plat submission")));
-            workflow.add_step(WorkflowStep::new("Completeness Check", Some("Verify all required elements are present")));
-            workflow.add_step(WorkflowStep::new("Technical Review", Some("Review technical aspects of the plat")));
-            workflow.add_step(WorkflowStep::new("Standards Compliance", Some("Verify compliance with standards")));
-            workflow.add_step(WorkflowStep::new("GIS Integration Planning", Some("Plan GIS database updates")));
-            workflow.add_step(WorkflowStep::new("Revision Request", Some("Request revisions if needed")));
-            workflow.add_step(WorkflowStep::new("Final Approval", Some("Final approval of plat")));
-            workflow.add_step(WorkflowStep::new("Record Integration", Some("Integrate into county records")));
-        },
-        WorkflowType::PropertySplit => {
-            workflow.add_step(WorkflowStep::new("Application Receipt", Some("Receive property split application")));
-            workflow.add_step(WorkflowStep::new("Document Verification", Some("Verify application documents")));
-            workflow.add_step(WorkflowStep::new("Parcel Identification", Some("Identify parent parcel")));
-            workflow.add_step(WorkflowStep::new("Split Validation", Some("Validate split requirements")));
-            workflow.add_step(WorkflowStep::new("New Parcel Creation", Some("Create new parcel records")));
-            workflow.add_step(WorkflowStep::new("Map Update", Some("Update GIS maps with new parcels")));
-            workflow.add_step(WorkflowStep::new("Legal Description Review", Some("Review legal descriptions")));
-            workflow.add_step(WorkflowStep::new("Final Approval", Some("Final approval of split")));
-            workflow.add_step(WorkflowStep::new("Record Update", Some("Update official records")));
-        },
-        WorkflowType::AddressAssignment => {
-            workflow.add_step(WorkflowStep::new("Request Intake", Some("Receive address assignment request")));
-            workflow.add_step(WorkflowStep::new("Property Verification", Some("Verify property information")));
-            workflow.add_step(WorkflowStep::new("Address Determination", Some("Determine appropriate address")));
-            workflow.add_step(WorkflowStep::new("GIS Update", Some("Update GIS with new address")));
-            workflow.add_step(WorkflowStep::new("Notification Preparation", Some("Prepare notification documents")));
-            workflow.add_step(WorkflowStep::new("Record Update", Some("Update official records")));
-            workflow.add_step(WorkflowStep::new("Notification", Some("Notify requestor and agencies")));
-        },
-        WorkflowType::PropertyAssessment => {
-            workflow.add_step(WorkflowStep::new("Assessment Initiation", Some("Initiate assessment process")));
-            workflow.add_step(WorkflowStep::new("Property Identification", Some("Identify properties for assessment")));
-            workflow.add_step(WorkflowStep::new("Data Collection", Some("Collect property data")));
-            workflow.add_step(WorkflowStep::new("Property Inspection", Some("Conduct physical inspection")));
-            workflow.add_step(WorkflowStep::new("Value Analysis", Some("Analyze property value")));
-            workflow.add_step(WorkflowStep::new("Initial Valuation", Some("Determine initial property value")));
-            workflow.add_step(WorkflowStep::new("Quality Review", Some("Review assessment for accuracy")));
-            workflow.add_step(WorkflowStep::new("Value Finalization", Some("Finalize property value")));
-            workflow.add_step(WorkflowStep::new("Notice Preparation", Some("Prepare value notice")));
-            workflow.add_step(WorkflowStep::new("Record Update", Some("Update assessment records")));
-        },
-        WorkflowType::RecordUpdate => {
-            workflow.add_step(WorkflowStep::new("Update Request", Some("Receive record update request")));
-            workflow.add_step(WorkflowStep::new("Request Validation", Some("Validate update request")));
-            workflow.add_step(WorkflowStep::new("Record Identification", Some("Identify records to update")));
-            workflow.add_step(WorkflowStep::new("Update Processing", Some("Process the record update")));
-            workflow.add_step(WorkflowStep::new("Quality Control", Some("Verify update accuracy")));
-            workflow.add_step(WorkflowStep::new("Finalization", Some("Finalize the update")));
-            workflow.add_step(WorkflowStep::new("Notification", Some("Notify relevant parties")));
-        },
-        WorkflowType::ExemptionRequest => {
-            workflow.add_step(WorkflowStep::new("Application Receipt", Some("Receive exemption application")));
-            workflow.add_step(WorkflowStep::new("Application Review", Some("Review application for completeness")));
-            workflow.add_step(WorkflowStep::new("Property Verification", Some("Verify property information")));
-            workflow.add_step(WorkflowStep::new("Eligibility Assessment", Some("Assess exemption eligibility")));
-            workflow.add_step(WorkflowStep::new("Documentation Review", Some("Review supporting documentation")));
-            workflow.add_step(WorkflowStep::new("Determination", Some("Make exemption determination")));
-            workflow.add_step(WorkflowStep::new("Record Update", Some("Update records with exemption")));
-            workflow.add_step(WorkflowStep::new("Notification", Some("Notify applicant of decision")));
-        },
-    }
-    
-    Ok(workflow)
-}
-
-/// Get active workflows (excluding completed and rejected)
-pub fn get_active_workflows() -> Result<Vec<Workflow>, Box<dyn Error>> {
-    let index = WorkflowIndex::load()?;
-    
-    let active_entries = index.workflows.values().filter(|entry| {
-        entry.status != WorkflowStatus::Completed && entry.status != WorkflowStatus::Rejected
-    });
-    
-    let mut workflows = Vec::new();
-    for entry in active_entries {
-        match load_workflow(&entry.id) {
-            Ok(workflow) => workflows.push(workflow),
-            Err(e) => error!("Failed to load workflow {}: {}", entry.id, e),
-        }
-    }
-    
-    Ok(workflows)
-}
-
-/// Get workflows due in the next N days
-pub fn get_upcoming_workflows(days: u32) -> Result<Vec<Workflow>, Box<dyn Error>> {
-    let index = WorkflowIndex::load()?;
-    let now = Utc::now();
-    let deadline = now + chrono::Duration::days(days as i64);
-    
-    let upcoming_entries = index.workflows.values().filter(|entry| {
-        if let Some(due_date) = entry.due_date {
-            due_date <= deadline && 
-            entry.status != WorkflowStatus::Completed && 
-            entry.status != WorkflowStatus::Rejected
+        let parcel_ids_json = if let Some(ref parcel_ids) = workflow.parcel_ids {
+            Some(serde_json::to_string(parcel_ids)
+                .map_err(|e| format!("Failed to serialize parcel_ids: {}", e))?)
         } else {
-            false
-        }
-    });
+            None
+        };
+        
+        let document_ids_json = if let Some(ref document_ids) = workflow.document_ids {
+            Some(serde_json::to_string(document_ids)
+                .map_err(|e| format!("Failed to serialize document_ids: {}", e))?)
+        } else {
+            None
+        };
+        
+        // Convert status to string
+        let status_str = match workflow.status {
+            WorkflowStatus::Pending => "pending",
+            WorkflowStatus::InProgress => "in_progress",
+            WorkflowStatus::OnHold => "on_hold",
+            WorkflowStatus::Completed => "completed",
+            WorkflowStatus::Cancelled => "cancelled",
+        };
+        
+        // Insert workflow into the database
+        self.conn.lock().unwrap().execute(
+            "INSERT INTO workflows (
+                id, title, description, status, workflow_type, assigned_to, 
+                parcel_ids, document_ids, metadata, created_at, updated_at, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![
+                workflow.id,
+                workflow.title,
+                workflow.description,
+                status_str,
+                workflow.workflow_type,
+                workflow.assigned_to,
+                parcel_ids_json,
+                document_ids_json,
+                metadata_json,
+                workflow.created_at.to_rfc3339(),
+                workflow.updated_at.map(|dt| dt.to_rfc3339()),
+                workflow.completed_at.map(|dt| dt.to_rfc3339()),
+            ],
+        ).map_err(|e| format!("Failed to insert workflow: {}", e))?;
+        
+        // Create initial workflow event
+        let event = WorkflowEvent::new(
+            &workflow.id,
+            "create",
+            &format!("Workflow \"{}\" created", workflow.title),
+        );
+        
+        self.add_workflow_event(&event)
+            .await
+            .map_err(|e| format!("Failed to add workflow creation event: {}", e))?;
+        
+        Ok(workflow.id.clone())
+    }
     
-    let mut workflows = Vec::new();
-    for entry in upcoming_entries {
-        match load_workflow(&entry.id) {
-            Ok(workflow) => workflows.push(workflow),
-            Err(e) => error!("Failed to load workflow {}: {}", entry.id, e),
+    pub async fn update_workflow(&self, workflow: &WorkflowItem) -> Result<(), String> {
+        info!("Updating workflow: {}", workflow.id);
+        
+        // Get the current workflow to track changes
+        let current_workflow = self.get_workflow(&workflow.id)
+            .await
+            .map_err(|e| format!("Failed to get current workflow: {}", e))?;
+        
+        if let Some(current) = current_workflow {
+            // Serialize metadata, parcel_ids, and document_ids to JSON
+            let metadata_json = serde_json::to_string(&workflow.metadata)
+                .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
+            
+            let parcel_ids_json = if let Some(ref parcel_ids) = workflow.parcel_ids {
+                Some(serde_json::to_string(parcel_ids)
+                    .map_err(|e| format!("Failed to serialize parcel_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            let document_ids_json = if let Some(ref document_ids) = workflow.document_ids {
+                Some(serde_json::to_string(document_ids)
+                    .map_err(|e| format!("Failed to serialize document_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            // Convert status to string
+            let status_str = match workflow.status {
+                WorkflowStatus::Pending => "pending",
+                WorkflowStatus::InProgress => "in_progress",
+                WorkflowStatus::OnHold => "on_hold",
+                WorkflowStatus::Completed => "completed",
+                WorkflowStatus::Cancelled => "cancelled",
+            };
+            
+            // Update the workflow in the database
+            self.conn.lock().unwrap().execute(
+                "UPDATE workflows SET 
+                    title = ?, description = ?, status = ?, workflow_type = ?, assigned_to = ?, 
+                    parcel_ids = ?, document_ids = ?, metadata = ?, updated_at = ?, completed_at = ?
+                WHERE id = ?",
+                params![
+                    workflow.title,
+                    workflow.description,
+                    status_str,
+                    workflow.workflow_type,
+                    workflow.assigned_to,
+                    parcel_ids_json,
+                    document_ids_json,
+                    metadata_json,
+                    Utc::now().to_rfc3339(),
+                    workflow.completed_at.map(|dt| dt.to_rfc3339()),
+                    workflow.id,
+                ],
+            ).map_err(|e| format!("Failed to update workflow: {}", e))?;
+            
+            // Check if status has changed
+            if current.status != workflow.status {
+                // Create status change event
+                let mut event = WorkflowEvent::new(
+                    &workflow.id,
+                    "status_change",
+                    &format!("Status changed from {:?} to {:?}", current.status, workflow.status),
+                );
+                
+                event.previous_status = Some(current.status);
+                event.new_status = Some(workflow.status.clone());
+                
+                self.add_workflow_event(&event)
+                    .await
+                    .map_err(|e| format!("Failed to add status change event: {}", e))?;
+            }
+            
+            // Check if assignment has changed
+            if current.assigned_to != workflow.assigned_to {
+                let description = match (&current.assigned_to, &workflow.assigned_to) {
+                    (None, Some(new_assignee)) => format!("Assigned to {}", new_assignee),
+                    (Some(old_assignee), Some(new_assignee)) => format!("Reassigned from {} to {}", old_assignee, new_assignee),
+                    (Some(old_assignee), None) => format!("Unassigned from {}", old_assignee),
+                    (None, None) => "Assignment updated".to_string(),
+                };
+                
+                let event = WorkflowEvent::new(
+                    &workflow.id,
+                    "assignment_change",
+                    &description,
+                );
+                
+                self.add_workflow_event(&event)
+                    .await
+                    .map_err(|e| format!("Failed to add assignment change event: {}", e))?;
+            }
+            
+            Ok(())
+        } else {
+            Err(format!("Workflow not found: {}", workflow.id))
         }
     }
     
-    Ok(workflows)
-}
-
-/// Get workflows by parcel ID
-pub fn get_workflows_for_parcel(parcel_id: &str) -> Result<Vec<Workflow>, Box<dyn Error>> {
-    let index = WorkflowIndex::load()?;
-    
-    let parcel_entries = index.get_workflows_by_parcel(parcel_id);
-    
-    let mut workflows = Vec::new();
-    for entry in parcel_entries {
-        match load_workflow(&entry.id) {
-            Ok(workflow) => workflows.push(workflow),
-            Err(e) => error!("Failed to load workflow {}: {}", entry.id, e),
+    pub async fn get_workflow(&self, id: &str) -> Result<Option<WorkflowItem>, String> {
+        info!("Getting workflow: {}", id);
+        
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, description, status, workflow_type, assigned_to, 
+                   parcel_ids, document_ids, metadata, created_at, updated_at, completed_at 
+            FROM workflows 
+            WHERE id = ?"
+        ).map_err(|e| format!("Failed to prepare statement: {}", e))?;
+        
+        let workflow_result = stmt.query_row(params![id], |row| {
+            let id: String = row.get(0)?;
+            let title: String = row.get(1)?;
+            let description: Option<String> = row.get(2)?;
+            let status_str: String = row.get(3)?;
+            let workflow_type: String = row.get(4)?;
+            let assigned_to: Option<String> = row.get(5)?;
+            let parcel_ids_json: Option<String> = row.get(6)?;
+            let document_ids_json: Option<String> = row.get(7)?;
+            let metadata_json: String = row.get(8)?;
+            let created_at: String = row.get(9)?;
+            let updated_at: Option<String> = row.get(10)?;
+            let completed_at: Option<String> = row.get(11)?;
+            
+            // Parse status
+            let status = match status_str.as_str() {
+                "pending" => WorkflowStatus::Pending,
+                "in_progress" => WorkflowStatus::InProgress,
+                "on_hold" => WorkflowStatus::OnHold,
+                "completed" => WorkflowStatus::Completed,
+                "cancelled" => WorkflowStatus::Cancelled,
+                _ => WorkflowStatus::Pending,
+            };
+            
+            // Deserialize JSON fields
+            let metadata: HashMap<String, serde_json::Value> = serde_json::from_str(&metadata_json)
+                .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to deserialize metadata: {}", e)))?;
+            
+            let parcel_ids: Option<Vec<String>> = if let Some(json) = parcel_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to deserialize parcel_ids: {}", e)))?)
+            } else {
+                None
+            };
+            
+            let document_ids: Option<Vec<String>> = if let Some(json) = document_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to deserialize document_ids: {}", e)))?)
+            } else {
+                None
+            };
+            
+            // Parse timestamps
+            let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
+                .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to parse created_at: {}", e)))?
+                .with_timezone(&chrono::Utc);
+            
+            let updated_at = if let Some(dt) = updated_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to parse updated_at: {}", e)))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            let completed_at = if let Some(dt) = completed_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Failed to parse completed_at: {}", e)))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            Ok(WorkflowItem {
+                id,
+                title,
+                description,
+                status,
+                workflow_type,
+                assigned_to,
+                parcel_ids,
+                document_ids,
+                metadata,
+                created_at,
+                updated_at,
+                completed_at,
+            })
+        });
+        
+        match workflow_result {
+            Ok(workflow) => Ok(Some(workflow)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(format!("Failed to get workflow: {}", e)),
         }
     }
     
-    Ok(workflows)
-}
-
-/// Initialize the workflow system
-pub fn initialize_workflow_system() -> Result<(), Box<dyn Error>> {
-    info!("Initializing workflow management system");
+    pub async fn get_workflows_by_type(&self, workflow_type: &str) -> Result<Vec<WorkflowItem>, String> {
+        info!("Getting workflows by type: {}", workflow_type);
+        
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, description, status, workflow_type, assigned_to, 
+                   parcel_ids, document_ids, metadata, created_at, updated_at, completed_at 
+            FROM workflows 
+            WHERE workflow_type = ?"
+        ).map_err(|e| format!("Failed to prepare statement: {}", e))?;
+        
+        let mut workflows = Vec::new();
+        let mut rows = stmt.query(params![workflow_type])
+            .map_err(|e| format!("Failed to execute query: {}", e))?;
+        
+        while let Some(row) = rows.next().map_err(|e| format!("Failed to iterate rows: {}", e))? {
+            let id: String = row.get(0).map_err(|e| format!("Failed to get id: {}", e))?;
+            let title: String = row.get(1).map_err(|e| format!("Failed to get title: {}", e))?;
+            let description: Option<String> = row.get(2).map_err(|e| format!("Failed to get description: {}", e))?;
+            let status_str: String = row.get(3).map_err(|e| format!("Failed to get status: {}", e))?;
+            let workflow_type: String = row.get(4).map_err(|e| format!("Failed to get workflow_type: {}", e))?;
+            let assigned_to: Option<String> = row.get(5).map_err(|e| format!("Failed to get assigned_to: {}", e))?;
+            let parcel_ids_json: Option<String> = row.get(6).map_err(|e| format!("Failed to get parcel_ids: {}", e))?;
+            let document_ids_json: Option<String> = row.get(7).map_err(|e| format!("Failed to get document_ids: {}", e))?;
+            let metadata_json: String = row.get(8).map_err(|e| format!("Failed to get metadata: {}", e))?;
+            let created_at: String = row.get(9).map_err(|e| format!("Failed to get created_at: {}", e))?;
+            let updated_at: Option<String> = row.get(10).map_err(|e| format!("Failed to get updated_at: {}", e))?;
+            let completed_at: Option<String> = row.get(11).map_err(|e| format!("Failed to get completed_at: {}", e))?;
+            
+            // Parse status
+            let status = match status_str.as_str() {
+                "pending" => WorkflowStatus::Pending,
+                "in_progress" => WorkflowStatus::InProgress,
+                "on_hold" => WorkflowStatus::OnHold,
+                "completed" => WorkflowStatus::Completed,
+                "cancelled" => WorkflowStatus::Cancelled,
+                _ => WorkflowStatus::Pending,
+            };
+            
+            // Deserialize JSON fields
+            let metadata: HashMap<String, serde_json::Value> = serde_json::from_str(&metadata_json)
+                .map_err(|e| format!("Failed to deserialize metadata: {}", e))?;
+            
+            let parcel_ids: Option<Vec<String>> = if let Some(json) = parcel_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| format!("Failed to deserialize parcel_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            let document_ids: Option<Vec<String>> = if let Some(json) = document_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| format!("Failed to deserialize document_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            // Parse timestamps
+            let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
+                .map_err(|e| format!("Failed to parse created_at: {}", e))?
+                .with_timezone(&chrono::Utc);
+            
+            let updated_at = if let Some(dt) = updated_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| format!("Failed to parse updated_at: {}", e))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            let completed_at = if let Some(dt) = completed_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| format!("Failed to parse completed_at: {}", e))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            workflows.push(WorkflowItem {
+                id,
+                title,
+                description,
+                status,
+                workflow_type,
+                assigned_to,
+                parcel_ids,
+                document_ids,
+                metadata,
+                created_at,
+                updated_at,
+                completed_at,
+            });
+        }
+        
+        Ok(workflows)
+    }
     
-    // Create workflow directory if it doesn't exist
-    let workflow_dir = Path::new(WORKFLOW_DATA_PATH);
-    fs::create_dir_all(workflow_dir)?;
+    pub async fn get_workflows_by_parcel(&self, parcel_id: &str) -> Result<Vec<WorkflowItem>, String> {
+        info!("Getting workflows for parcel: {}", parcel_id);
+        
+        let parcel_id_pattern = format!("%\"{}\",%", parcel_id);
+        
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, description, status, workflow_type, assigned_to, 
+                   parcel_ids, document_ids, metadata, created_at, updated_at, completed_at 
+            FROM workflows 
+            WHERE parcel_ids LIKE ? OR parcel_ids LIKE ? OR parcel_ids LIKE ?"
+        ).map_err(|e| format!("Failed to prepare statement: {}", e))?;
+        
+        let mut workflows = Vec::new();
+        let mut rows = stmt.query(params![
+            format!("[\"{}\",%", parcel_id),
+            parcel_id_pattern,
+            format!("%,\"{}\"]", parcel_id)
+        ]).map_err(|e| format!("Failed to execute query: {}", e))?;
+        
+        while let Some(row) = rows.next().map_err(|e| format!("Failed to iterate rows: {}", e))? {
+            // Extract and parse row data (same as in get_workflows_by_type)
+            let id: String = row.get(0).map_err(|e| format!("Failed to get id: {}", e))?;
+            let title: String = row.get(1).map_err(|e| format!("Failed to get title: {}", e))?;
+            let description: Option<String> = row.get(2).map_err(|e| format!("Failed to get description: {}", e))?;
+            let status_str: String = row.get(3).map_err(|e| format!("Failed to get status: {}", e))?;
+            let workflow_type: String = row.get(4).map_err(|e| format!("Failed to get workflow_type: {}", e))?;
+            let assigned_to: Option<String> = row.get(5).map_err(|e| format!("Failed to get assigned_to: {}", e))?;
+            let parcel_ids_json: Option<String> = row.get(6).map_err(|e| format!("Failed to get parcel_ids: {}", e))?;
+            let document_ids_json: Option<String> = row.get(7).map_err(|e| format!("Failed to get document_ids: {}", e))?;
+            let metadata_json: String = row.get(8).map_err(|e| format!("Failed to get metadata: {}", e))?;
+            let created_at: String = row.get(9).map_err(|e| format!("Failed to get created_at: {}", e))?;
+            let updated_at: Option<String> = row.get(10).map_err(|e| format!("Failed to get updated_at: {}", e))?;
+            let completed_at: Option<String> = row.get(11).map_err(|e| format!("Failed to get completed_at: {}", e))?;
+            
+            // Parse status
+            let status = match status_str.as_str() {
+                "pending" => WorkflowStatus::Pending,
+                "in_progress" => WorkflowStatus::InProgress,
+                "on_hold" => WorkflowStatus::OnHold,
+                "completed" => WorkflowStatus::Completed,
+                "cancelled" => WorkflowStatus::Cancelled,
+                _ => WorkflowStatus::Pending,
+            };
+            
+            // Deserialize JSON fields
+            let metadata: HashMap<String, serde_json::Value> = serde_json::from_str(&metadata_json)
+                .map_err(|e| format!("Failed to deserialize metadata: {}", e))?;
+            
+            let parcel_ids: Option<Vec<String>> = if let Some(json) = parcel_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| format!("Failed to deserialize parcel_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            let document_ids: Option<Vec<String>> = if let Some(json) = document_ids_json {
+                Some(serde_json::from_str(&json)
+                    .map_err(|e| format!("Failed to deserialize document_ids: {}", e))?)
+            } else {
+                None
+            };
+            
+            // Parse timestamps
+            let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
+                .map_err(|e| format!("Failed to parse created_at: {}", e))?
+                .with_timezone(&chrono::Utc);
+            
+            let updated_at = if let Some(dt) = updated_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| format!("Failed to parse updated_at: {}", e))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            let completed_at = if let Some(dt) = completed_at {
+                Some(chrono::DateTime::parse_from_rfc3339(&dt)
+                    .map_err(|e| format!("Failed to parse completed_at: {}", e))?
+                    .with_timezone(&chrono::Utc))
+            } else {
+                None
+            };
+            
+            // Check if parcel_id is actually in the parcel_ids list
+            if let Some(ref ids) = parcel_ids {
+                if ids.contains(&parcel_id.to_string()) {
+                    workflows.push(WorkflowItem {
+                        id,
+                        title,
+                        description,
+                        status,
+                        workflow_type,
+                        assigned_to,
+                        parcel_ids,
+                        document_ids,
+                        metadata,
+                        created_at,
+                        updated_at,
+                        completed_at,
+                    });
+                }
+            }
+        }
+        
+        Ok(workflows)
+    }
     
-    // Create or load workflow index
-    let index = WorkflowIndex::load()?;
+    pub async fn add_workflow_event(&self, event: &WorkflowEvent) -> Result<String, String> {
+        info!("Adding workflow event: {} for workflow {}", event.event_type, event.workflow_id);
+        
+        // Serialize metadata to JSON
+        let metadata_json = serde_json::to_string(&event.metadata)
+            .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
+        
+        // Convert status to string if present
+        let previous_status_str = if let Some(ref status) = event.previous_status {
+            match status {
+                WorkflowStatus::Pending => Some("pending".to_string()),
+                WorkflowStatus::InProgress => Some("in_progress".to_string()),
+                WorkflowStatus::OnHold => Some("on_hold".to_string()),
+                WorkflowStatus::Completed => Some("completed".to_string()),
+                WorkflowStatus::Cancelled => Some("cancelled".to_string()),
+            }
+        } else {
+            None
+        };
+        
+        let new_status_str = if let Some(ref status) = event.new_status {
+            match status {
+                WorkflowStatus::Pending => Some("pending".to_string()),
+                WorkflowStatus::InProgress => Some("in_progress".to_string()),
+                WorkflowStatus::OnHold => Some("on_hold".to_string()),
+                WorkflowStatus::Completed => Some("completed".to_string()),
+                WorkflowStatus::Cancelled => Some("cancelled".to_string()),
+            }
+        } else {
+            None
+        };
+        
+        // Insert event into the database
+        self.conn.lock().unwrap().execute(
+            "INSERT INTO workflow_events (
+                id, workflow_id, event_type, description, previous_status, 
+                new_status, user_id, metadata, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![
+                event.id,
+                event.workflow_id,
+                event.event_type,
+                event.description,
+                previous_status_str,
+                new_status_str,
+                event.user_id,
+                metadata_json,
+                event.created_at.to_rfc3339(),
+            ],
+        ).map_err(|e| format!("Failed to insert workflow event: {}", e))?;
+        
+        Ok(event.id.clone())
+    }
     
-    info!("Workflow system initialized with {} workflows", index.workflows.len());
-    
-    Ok(())
+    pub async fn get_workflow_events(&self, workflow_id: &str) -> Result<Vec<WorkflowEvent>, String> {
+        info!("Getting events for workflow: {}", workflow_id);
+        
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, workflow_id, event_type, description, previous_status, 
+                   new_status, user_id, metadata, created_at 
+            FROM workflow_events 
+            WHERE workflow_id = ?
+            ORDER BY created_at ASC"
+        ).map_err(|e| format!("Failed to prepare statement: {}", e))?;
+        
+        let mut events = Vec::new();
+        let mut rows = stmt.query(params![workflow_id])
+            .map_err(|e| format!("Failed to execute query: {}", e))?;
+        
+        while let Some(row) = rows.next().map_err(|e| format!("Failed to iterate rows: {}", e))? {
+            let id: String = row.get(0).map_err(|e| format!("Failed to get id: {}", e))?;
+            let workflow_id: String = row.get(1).map_err(|e| format!("Failed to get workflow_id: {}", e))?;
+            let event_type: String = row.get(2).map_err(|e| format!("Failed to get event_type: {}", e))?;
+            let description: String = row.get(3).map_err(|e| format!("Failed to get description: {}", e))?;
+            let previous_status_str: Option<String> = row.get(4).map_err(|e| format!("Failed to get previous_status: {}", e))?;
+            let new_status_str: Option<String> = row.get(5).map_err(|e| format!("Failed to get new_status: {}", e))?;
+            let user_id: Option<String> = row.get(6).map_err(|e| format!("Failed to get user_id: {}", e))?;
+            let metadata_json: String = row.get(7).map_err(|e| format!("Failed to get metadata: {}", e))?;
+            let created_at: String = row.get(8).map_err(|e| format!("Failed to get created_at: {}", e))?;
+            
+            // Parse status
+            let previous_status = if let Some(status_str) = previous_status_str {
+                match status_str.as_str() {
+                    "pending" => Some(WorkflowStatus::Pending),
+                    "in_progress" => Some(WorkflowStatus::InProgress),
+                    "on_hold" => Some(WorkflowStatus::OnHold),
+                    "completed" => Some(WorkflowStatus::Completed),
+                    "cancelled" => Some(WorkflowStatus::Cancelled),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            
+            let new_status = if let Some(status_str) = new_status_str {
+                match status_str.as_str() {
+                    "pending" => Some(WorkflowStatus::Pending),
+                    "in_progress" => Some(WorkflowStatus::InProgress),
+                    "on_hold" => Some(WorkflowStatus::OnHold),
+                    "completed" => Some(WorkflowStatus::Completed),
+                    "cancelled" => Some(WorkflowStatus::Cancelled),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            
+            // Deserialize metadata
+            let metadata: HashMap<String, serde_json::Value> = serde_json::from_str(&metadata_json)
+                .map_err(|e| format!("Failed to deserialize metadata: {}", e))?;
+            
+            // Parse timestamp
+            let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
+                .map_err(|e| format!("Failed to parse created_at: {}", e))?
+                .with_timezone(&chrono::Utc);
+            
+            events.push(WorkflowEvent {
+                id,
+                workflow_id,
+                event_type,
+                description,
+                previous_status,
+                new_status,
+                user_id,
+                metadata,
+                created_at,
+            });
+        }
+        
+        Ok(events)
+    }
 }

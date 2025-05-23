@@ -1,129 +1,101 @@
-use std::path::Path;
+use actix_web::{web, App, HttpServer, middleware, HttpResponse};
+use actix_files as fs;
+use std::io;
+use rusqlite::Connection;
 use std::sync::Arc;
-use std::fs;
-use std::env;
-use tiny_http::Server;
-use simple_logger::SimpleLogger;
-use log::{info, warn, error, LevelFilter};
+use log::{info, error};
 
-// Import our modules
-mod models;
-mod db;
-mod web;
-mod integrations;
+use benton_gis::db::DatabaseManager;
+use benton_gis::integrations::document_manager::DocumentManager;
+use benton_gis::integrations::workflow::WorkflowManager;
+use benton_gis::integrations::arcgis::ArcGisClient;
+use benton_gis::web::routes;
+use benton_gis::{initialize, get_db_path, get_document_storage_path};
 
-/// Main entry point for the Benton County GIS application
-fn main() {
-    // Initialize logger
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .init()
-        .expect("Failed to initialize logger");
-
-    info!("Starting TerraFusion Platform for Benton County...");
-
-    // Set up data directories for real county data
-    let data_dir = Path::new("data");
-    if !data_dir.exists() {
-        if let Err(e) = fs::create_dir_all(data_dir) {
-            error!("Failed to create data directory: {}", e);
-            return;
-        }
-    }
+#[actix_web::main]
+async fn main() -> io::Result<()> {
+    // Initialize application
+    initialize();
     
-    // Set up directories for document storage
-    let uploads_dir = Path::new("uploads");
-    if !uploads_dir.exists() {
-        if let Err(e) = fs::create_dir_all(uploads_dir) {
-            error!("Failed to create uploads directory: {}", e);
-            return;
-        }
-    }
+    // Get database and document paths
+    let db_path = get_db_path();
+    let document_path = get_document_storage_path();
     
-    // Set up directory for web assets
-    let public_dir = Path::new("benton_gis_rust/public");
-    if !public_dir.exists() {
-        if let Err(e) = fs::create_dir_all(public_dir) {
-            error!("Failed to create public directory: {}", e);
-            return;
-        }
-    }
-
-    // Initialize database for local storage
-    let db_path = Path::new("data/database.sqlite");
-    let db_dir = db_path.parent().unwrap();
-    if !db_dir.exists() {
-        if let Err(e) = fs::create_dir_all(db_dir) {
-            error!("Failed to create database directory: {}", e);
-            return;
-        }
-    }
-    
-    let database = match db::DatabaseManager::new(db_path) {
-        Ok(db) => Arc::new(db),
+    // Initialize database connection
+    let db_conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
         Err(e) => {
-            error!("Failed to initialize database: {}", e);
-            return;
+            error!("Failed to open database: {}", e);
+            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open database: {}", e)));
         }
     };
     
-    // Initialize document management system
-    match integrations::document_manager::initialize_document_system() {
-        Ok(_) => info!("Document system initialized successfully"),
-        Err(e) => error!("Failed to initialize document system: {}", e),
-    }
-    
-    // Initialize workflow management system
-    match integrations::workflow::initialize_workflow_system() {
-        Ok(_) => info!("Workflow system initialized successfully"),
-        Err(e) => error!("Failed to initialize workflow system: {}", e),
-    }
-    
-    // Get MapBox token from environment
-    let mapbox_token = env::var("MAPBOX_TOKEN").unwrap_or_else(|_| {
-        warn!("MAPBOX_TOKEN not found in environment. For live map data, please provide a valid MapBox API token.");
-        // We don't use a placeholder - we want to show a proper error to encourage real data usage
-        "".to_string()
-    });
-    
-    // Get ArcGIS token for accessing real Benton County GIS data
-    let arcgis_token = env::var("ARCGIS_TOKEN").unwrap_or_else(|_| {
-        warn!("ARCGIS_TOKEN not found in environment. For real Benton County data, please provide a valid ArcGIS API token.");
-        // We don't use a placeholder - we want to show a proper error to encourage real data usage
-        "".to_string()
-    });
-    
-    // Set up HTTP server
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port);
-    
-    info!("Starting TerraFusion web server on http://{}", addr);
-    
-    // Create server
-    let server = match Server::http(&addr) {
-        Ok(server) => server,
+    // Initialize database manager
+    let db_manager = match DatabaseManager::new(&db_path) {
+        Ok(manager) => Arc::new(manager),
         Err(e) => {
-            error!("Failed to start server: {}", e);
-            return;
+            error!("Failed to initialize database manager: {}", e);
+            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to initialize database manager: {}", e)));
         }
     };
     
-    // Create web server configuration
-    let web_config = web::WebServerConfig {
-        database: database.clone(),
-        public_dir: public_dir.to_str().unwrap().to_string(),
-        mapbox_token: mapbox_token.clone(),
-        arcgis_token: arcgis_token.clone(),
-        use_real_data: true,  // Always use real data, never fallback to mock data
+    // Initialize document manager
+    let document_manager = Arc::new(DocumentManager::new(&document_path, db_conn.clone()));
+    
+    // Initialize workflow manager
+    let workflow_manager = match WorkflowManager::new(db_conn.clone()) {
+        Ok(manager) => Arc::new(manager),
+        Err(e) => {
+            error!("Failed to initialize workflow manager: {}", e);
+            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to initialize workflow manager: {}", e)));
+        }
     };
     
-    // Create web server and start handling requests
-    let web_server = web::WebServer::new(server, web_config);
+    // Initialize ArcGIS client
+    let arcgis_client = Arc::new(ArcGisClient::new());
     
-    info!("TerraFusion Platform started successfully!");
-    info!("Using real Benton County GIS data sources");
-    info!("Listening for requests on http://{}", addr);
+    // Create data object to be shared with all routes
+    let app_data = web::Data::new(AppState {
+        db_manager: db_manager.clone(),
+        document_manager: document_manager.clone(),
+        workflow_manager: workflow_manager.clone(),
+        arcgis_client: arcgis_client.clone(),
+    });
+
+    // Start HTTP server
+    let bind_address = "0.0.0.0:8080";
+    info!("Starting server at {}", bind_address);
     
-    // Start handling requests (this will block the main thread)
-    web_server.start();
+    HttpServer::new(move || {
+        App::new()
+            .wrap(middleware::Logger::default())
+            .wrap(middleware::Compress::default())
+            .app_data(app_data.clone())
+            // API routes
+            .service(web::scope("/api")
+                .configure(routes::api::configure))
+            // Static files and templated pages
+            .service(fs::Files::new("/static", "./static").show_files_listing(false))
+            .service(web::resource("/").to(routes::pages::index))
+            .service(web::resource("/map").to(routes::pages::map))
+            .service(web::resource("/parcels/{id}").to(routes::pages::parcel_detail))
+            .service(web::resource("/documents").to(routes::pages::documents))
+            .service(web::resource("/workflows").to(routes::pages::workflows))
+            .service(web::resource("/dashboard").to(routes::pages::dashboard))
+            // 404 handler
+            .default_service(web::route().to(|| async {
+                HttpResponse::NotFound().body("Not Found")
+            }))
+    })
+    .bind(bind_address)?
+    .run()
+    .await
+}
+
+/// Shared application state to be passed to route handlers
+pub struct AppState {
+    pub db_manager: Arc<DatabaseManager>,
+    pub document_manager: Arc<DocumentManager>,
+    pub workflow_manager: Arc<WorkflowManager>,
+    pub arcgis_client: Arc<ArcGisClient>,
 }
