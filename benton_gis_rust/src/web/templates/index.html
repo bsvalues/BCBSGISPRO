@@ -1,90 +1,376 @@
-{% extends "base.html" %}
-
-{% block title %}Home - TerraFusion Platform{% endblock %}
-
-{% block content %}
-<section class="hero">
-    <h1>Welcome to the TerraFusion Platform</h1>
-    <p>Advanced GIS and document management for Benton County</p>
-    <div class="hero-actions">
-        <a href="/map" class="btn btn-primary">Explore Maps</a>
-        <a href="/documents" class="btn btn-secondary">View Documents</a>
-    </div>
-</section>
-
-<section class="dashboard-overview">
-    <div class="row">
-        <div class="column">
-            <div class="card">
-                <h2>Recent Activity</h2>
-                <div class="activity-list">
-                    {% if recent_updates.len() > 0 %}
-                        {% for update in recent_updates %}
-                            <div class="activity-item">
-                                <h3>{{ update.title }}</h3>
-                                <p>{{ update.description }}</p>
-                                <span class="date">{{ update.date }}</span>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-state">
-                            <p>No recent activity to display</p>
-                        </div>
-                    {% endif %}
-                </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background-color: #1a3b5d;
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .main-nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            gap: 20px;
+        }
+        
+        .main-nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .main-nav a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .hero {
+            text-align: center;
+            padding: 80px 20px;
+            background-color: #2c5282;
+            color: white;
+            background-image: linear-gradient(135deg, #1a3b5d 0%, #2c5282 100%);
+        }
+        
+        .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            line-height: 1.6;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4299e1;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .button:hover {
+            background-color: #3182ce;
+        }
+        
+        .button.secondary {
+            background-color: transparent;
+            border: 2px solid white;
+        }
+        
+        .button.secondary:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .features {
+            padding: 80px 0;
+        }
+        
+        .features-heading {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background-color: white;
+            padding: 30px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .feature-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            background-color: #ebf8ff;
+            color: #3182ce;
+            border-radius: 50%;
+            margin-bottom: 20px;
+        }
+        
+        .feature-icon svg {
+            width: 30px;
+            height: 30px;
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
+        
+        .footer {
+            background-color: #1a3b5d;
+            color: rgba(255,255,255,0.8);
+            padding: 40px 0;
+            margin-top: 60px;
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+        }
+        
+        .footer-column h3 {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+        
+        .footer-column ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .footer-column li {
+            margin-bottom: 10px;
+        }
+        
+        .footer-column a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-column a:hover {
+            color: white;
+        }
+        
+        .footer-bottom {
+            margin-top: 40px;
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container header-content">
+            <div class="logo">TerraFusion Platform</div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/map">Map</a></li>
+                    <li><a href="/documents">Documents</a></li>
+                    <li><a href="/workflows">Workflows</a></li>
+                    <li><a href="/dashboard">Dashboard</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+    <section class="hero">
+        <div class="container">
+            <h1>Benton County GIS Platform</h1>
+            <p>A comprehensive geospatial information system for managing and analyzing geographic data within Benton County. Access parcel information, document management, and workflow tracking in one integrated platform.</p>
+            <div class="hero-buttons">
+                <a href="/map" class="button">Explore Map</a>
+                <a href="/dashboard" class="button secondary">View Dashboard</a>
             </div>
         </div>
-
-        <div class="column">
-            <div class="card">
-                <h2>Quick Links</h2>
-                <ul class="quick-links">
-                    <li><a href="/workflows?status=in_progress">Active Workflows</a></li>
-                    <li><a href="/documents?type=deed">Property Deeds</a></li>
-                    <li><a href="/documents?type=plat">Plat Maps</a></li>
-                    <li><a href="/map?layer=parcels">Parcel Data</a></li>
-                    <li><a href="/map?layer=zoning">Zoning Information</a></li>
-                </ul>
+    </section>
+    
+    <section class="features">
+        <div class="container">
+            <div class="features-heading">
+                <h2>Key Features</h2>
+                <p>Discover powerful tools to streamline your GIS workflows</p>
             </div>
             
-            <div class="card">
-                <h2>System Status</h2>
-                <div class="status-items">
-                    <div class="status-item">
-                        <span class="status-label">GIS Connection:</span>
-                        <span class="status-value status-good">Connected</span>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
                     </div>
-                    <div class="status-item">
-                        <span class="status-label">Document System:</span>
-                        <span class="status-value status-good">Online</span>
+                    <h3 class="feature-title">Interactive Mapping</h3>
+                    <p>Explore Benton County parcels and zoning with our interactive map interface. View property details, toggle layers, and analyze spatial relationships.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                     </div>
-                    <div class="status-item">
-                        <span class="status-label">Workflow Engine:</span>
-                        <span class="status-value status-good">Active</span>
+                    <h3 class="feature-title">Document Management</h3>
+                    <p>Organize, search, and retrieve parcel-related documents with intelligent classification. Link documents to parcels for easy reference.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
                     </div>
+                    <h3 class="feature-title">Workflow Tracking</h3>
+                    <p>Monitor and manage county processes with customizable workflows. Assign tasks, track progress, and maintain a complete audit trail.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Analytics Dashboard</h3>
+                    <p>Visualize key metrics and performance indicators through interactive dashboards. Make data-driven decisions with real-time insights.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Integration with County Systems</h3>
+                    <p>Seamlessly connect with existing Benton County systems through secure API integrations. Access real-time data across departments.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Secure Access</h3>
+                    <p>Role-based access control ensures that users can only access the data and functions appropriate for their responsibilities.</p>
                 </div>
             </div>
         </div>
-    </div>
-</section>
-
-<section class="feature-highlight">
-    <h2>Working with Real Benton County Data</h2>
-    <p>The TerraFusion Platform integrates directly with Benton County's ArcGIS services to provide real-time access to parcel information, zoning data, and other critical GIS layers.</p>
+    </section>
     
-    <div class="feature-cards">
-        <div class="feature-card">
-            <h3>Parcel Mapping</h3>
-            <p>View and interact with the latest parcel data from Benton County's official records.</p>
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>TerraFusion Platform</h3>
+                    <p>A comprehensive GIS solution for Benton County Assessor's Office.</p>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Quick Links</h3>
+                    <ul>
+                        <li><a href="/map">Interactive Map</a></li>
+                        <li><a href="/documents">Document Management</a></li>
+                        <li><a href="/workflows">Workflow Tracking</a></li>
+                        <li><a href="/dashboard">Analytics Dashboard</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Resources</h3>
+                    <ul>
+                        <li><a href="#">Documentation</a></li>
+                        <li><a href="#">API Reference</a></li>
+                        <li><a href="#">Support</a></li>
+                        <li><a href="#">Training Materials</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Contact</h3>
+                    <ul>
+                        <li>Benton County Assessor's Office</li>
+                        <li>5600 W Canal Dr</li>
+                        <li>Kennewick, WA 99336</li>
+                        <li>info@bentoncounty.gov</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2025 Benton County TerraFusion Platform. All rights reserved.</p>
+            </div>
         </div>
-        <div class="feature-card">
-            <h3>Document Management</h3>
-            <p>Access and organize county documents with intelligent classification and searching.</p>
-        </div>
-        <div class="feature-card">
-            <h3>Workflow Automation</h3>
-            <p>Streamline county processes from deed processing to boundary line adjustments.</p>
-        </div>
-    </div>
-</section>
-{% endblock %}
+    </footer>
+</body>
+</html>

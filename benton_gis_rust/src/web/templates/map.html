@@ -1,282 +1,404 @@
-{% extends "base.html" %}
-
-{% block title %}Interactive Map - TerraFusion Platform{% endblock %}
-
-{% block head %}
-<!-- MapBox and related mapping libraries -->
-<link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
-<link rel="stylesheet" href="/css/map.css">
-{% endblock %}
-
-{% block content %}
-<section class="map-container">
-    <div class="map-header">
-        <h1>Benton County GIS</h1>
-        <div class="map-controls">
-            <div class="layer-toggle">
-                <label>
-                    <input type="checkbox" id="parcels-layer" checked>
-                    Parcels
-                </label>
-                <label>
-                    <input type="checkbox" id="zoning-layer" checked>
-                    Zoning
-                </label>
-                <label>
-                    <input type="checkbox" id="roads-layer" checked>
-                    Roads
-                </label>
-            </div>
-        </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #map {
+            position: absolute;
+            top: 60px;
+            bottom: 0;
+            width: 100%;
+        }
+        #header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: #1a3b5d;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1;
+        }
+        #header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 500;
+        }
+        #sidebar {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            width: 300px;
+            bottom: 0;
+            background-color: white;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            z-index: 1;
+            overflow-y: auto;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        #sidebar.active {
+            transform: translateX(0);
+        }
+        #sidebar-header {
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+        }
+        #sidebar-content {
+            padding: 15px;
+        }
+        #toggle-sidebar {
+            position: absolute;
+            top: 70px;
+            right: 10px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            z-index: 1;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+        .feature-property {
+            margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        .feature-property strong {
+            display: inline-block;
+            width: 100px;
+            font-weight: 600;
+        }
+        .layer-control {
+            position: absolute;
+            top: 70px;
+            left: 10px;
+            background-color: white;
+            border-radius: 4px;
+            padding: 10px;
+            z-index: 1;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+        .layer-item {
+            margin-bottom: 8px;
+        }
+        .layer-item label {
+            margin-left: 5px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255,255,255,0.8);
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 2;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Benton County GIS - TerraFusion Platform</h1>
     </div>
     
     <div id="map"></div>
     
-    <div class="feature-info-panel" id="feature-info">
-        <div class="panel-header">
-            <h3>Feature Information</h3>
-            <button class="close-btn" id="close-feature-info">&times;</button>
+    <div id="toggle-sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+    </div>
+    
+    <div id="sidebar">
+        <div id="sidebar-header">
+            <h2>Parcel Information</h2>
         </div>
-        <div class="panel-content">
-            <p class="empty-message">Click on a feature to see details</p>
-            <div class="feature-details" style="display: none;">
-                <h4 id="feature-title">Parcel #12345</h4>
-                <div class="property-grid" id="feature-properties">
-                    <!-- Properties will be populated dynamically -->
-                </div>
-                <div class="feature-actions">
-                    <button class="btn btn-sm" id="view-documents">Related Documents</button>
-                    <button class="btn btn-sm" id="view-workflows">Related Workflows</button>
-                </div>
-            </div>
+        <div id="sidebar-content">
+            <p>Click on a parcel to view its details.</p>
         </div>
     </div>
-</section>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
-<script>
-    // Initialize MapBox with the provided token
-    mapboxgl.accessToken = '{{ mapbox_token }}';
     
-    // Create the map
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/light-v11',
-        center: [-119.2290, 46.2503], // Benton County, WA
-        zoom: 10
-    });
+    <div class="layer-control">
+        <h3>Layers</h3>
+        <div class="layer-item">
+            <input type="checkbox" id="parcels-layer" checked>
+            <label for="parcels-layer">Parcels</label>
+        </div>
+        <div class="layer-item">
+            <input type="checkbox" id="zoning-layer" checked>
+            <label for="zoning-layer">Zoning</label>
+        </div>
+    </div>
     
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl());
+    <div class="loading" id="loading">Loading data...</div>
     
-    // When the map loads, add the data sources and layers
-    map.on('load', function() {
-        // Load parcel data from our API (real Benton County data)
-        fetch('/api/arcgis/parcels')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load parcel data. Please ensure your ArcGIS token is valid.');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Add the data source
-                map.addSource('parcels', {
-                    type: 'geojson',
-                    data: data
-                });
-                
-                // Add the parcel layer
-                map.addLayer({
-                    id: 'parcels-fill',
-                    type: 'fill',
-                    source: 'parcels',
-                    paint: {
-                        'fill-color': 'rgba(0, 128, 255, 0.2)',
-                        'fill-outline-color': 'rgba(0, 128, 255, 1)'
-                    }
-                });
-                
-                // Add parcel outlines
-                map.addLayer({
-                    id: 'parcels-outline',
-                    type: 'line',
-                    source: 'parcels',
-                    paint: {
-                        'line-color': 'rgba(0, 128, 255, 1)',
-                        'line-width': 1
-                    }
-                });
-            })
-            .catch(error => {
-                console.error('Error loading parcel data:', error);
-                // Show error message in the map
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'map-error';
-                errorDiv.textContent = 'Unable to load real Benton County parcel data. Please check your ArcGIS token.';
-                document.getElementById('map').appendChild(errorDiv);
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script>
+        // Initialize map
+        mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // Replace with your Mapbox token or get from environment
+        
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [-119.2, 46.2], // Benton County approximate center
+            zoom: 10
+        });
+        
+        let parcelsData = null;
+        let zoningData = null;
+        
+        map.on('load', function() {
+            // Load parcel data
+            loadParcels();
+            
+            // Load zoning data
+            loadZoning();
+            
+            // Set up layer toggles
+            document.getElementById('parcels-layer').addEventListener('change', function(e) {
+                map.setLayoutProperty('parcels-fill', 'visibility', 
+                    e.target.checked ? 'visible' : 'none');
+                map.setLayoutProperty('parcels-line', 'visibility', 
+                    e.target.checked ? 'visible' : 'none');
             });
             
-        // Load zoning data
-        fetch('/api/arcgis/zoning')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load zoning data');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Add the data source
-                map.addSource('zoning', {
-                    type: 'geojson',
-                    data: data
-                });
-                
-                // Add the zoning layer
-                map.addLayer({
-                    id: 'zoning-fill',
-                    type: 'fill',
-                    source: 'zoning',
-                    paint: {
-                        'fill-color': [
-                            'match',
-                            ['get', 'ZONE_TYPE'],
-                            'Residential', 'rgba(255, 128, 0, 0.2)',
-                            'Commercial', 'rgba(255, 0, 0, 0.2)',
-                            'Industrial', 'rgba(128, 0, 128, 0.2)',
-                            'Agricultural', 'rgba(0, 128, 0, 0.2)',
-                            'rgba(100, 100, 100, 0.2)' // Default
-                        ],
-                        'fill-outline-color': 'rgba(0, 0, 0, 0.5)'
-                    },
-                    layout: {
-                        'visibility': 'visible'
-                    }
-                });
-            })
-            .catch(error => {
-                console.error('Error loading zoning data:', error);
+            document.getElementById('zoning-layer').addEventListener('change', function(e) {
+                map.setLayoutProperty('zoning-fill', 'visibility', 
+                    e.target.checked ? 'visible' : 'none');
+                map.setLayoutProperty('zoning-line', 'visibility', 
+                    e.target.checked ? 'visible' : 'none');
             });
             
-        // Load roads data
-        fetch('/api/arcgis/roads')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load roads data');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Add the data source
-                map.addSource('roads', {
-                    type: 'geojson',
-                    data: data
-                });
-                
-                // Add the roads layer
-                map.addLayer({
-                    id: 'roads-line',
-                    type: 'line',
-                    source: 'roads',
-                    paint: {
-                        'line-color': 'rgba(128, 128, 128, 0.8)',
-                        'line-width': [
-                            'match',
-                            ['get', 'ROAD_TYPE'],
-                            'Highway', 4,
-                            'Major', 3,
-                            'Minor', 2,
-                            1.5 // Default
-                        ]
-                    },
-                    layout: {
-                        'visibility': 'visible'
-                    }
-                });
-            })
-            .catch(error => {
-                console.error('Error loading roads data:', error);
+            // Set up sidebar toggle
+            document.getElementById('toggle-sidebar').addEventListener('click', function() {
+                document.getElementById('sidebar').classList.toggle('active');
             });
-    });
-    
-    // Handle layer toggling
-    document.getElementById('parcels-layer').addEventListener('change', function(e) {
-        const visibility = e.target.checked ? 'visible' : 'none';
-        map.setLayoutProperty('parcels-fill', 'visibility', visibility);
-        map.setLayoutProperty('parcels-outline', 'visibility', visibility);
-    });
-    
-    document.getElementById('zoning-layer').addEventListener('change', function(e) {
-        const visibility = e.target.checked ? 'visible' : 'none';
-        map.setLayoutProperty('zoning-fill', 'visibility', visibility);
-    });
-    
-    document.getElementById('roads-layer').addEventListener('change', function(e) {
-        const visibility = e.target.checked ? 'visible' : 'none';
-        map.setLayoutProperty('roads-line', 'visibility', visibility);
-    });
-    
-    // Handle feature selection
-    map.on('click', 'parcels-fill', function(e) {
-        if (!e.features || e.features.length === 0) return;
+            
+            // Set up click event for parcel selection
+            map.on('click', 'parcels-fill', function(e) {
+                if (e.features.length > 0) {
+                    const feature = e.features[0];
+                    showParcelInfo(feature.properties);
+                    
+                    // Center the map on the clicked feature
+                    map.flyTo({
+                        center: e.lngLat,
+                        zoom: 15
+                    });
+                }
+            });
+            
+            // Change cursor when hovering over parcels
+            map.on('mouseenter', 'parcels-fill', function() {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            map.on('mouseleave', 'parcels-fill', function() {
+                map.getCanvas().style.cursor = '';
+            });
+        });
         
-        const feature = e.features[0];
-        const properties = feature.properties;
-        
-        // Display feature information in the panel
-        document.querySelector('#feature-info .empty-message').style.display = 'none';
-        document.querySelector('#feature-info .feature-details').style.display = 'block';
-        
-        // Set the title (parcel number if available)
-        document.getElementById('feature-title').textContent = 
-            properties.PARCEL_NUM ? `Parcel #${properties.PARCEL_NUM}` : 'Selected Parcel';
-        
-        // Clear existing properties
-        const propertiesContainer = document.getElementById('feature-properties');
-        propertiesContainer.innerHTML = '';
-        
-        // Add each property to the grid
-        for (const [key, value] of Object.entries(properties)) {
-            if (value !== null && value !== undefined && value !== '') {
-                const propertyRow = document.createElement('div');
-                propertyRow.className = 'property-row';
-                
-                const keyElem = document.createElement('span');
-                keyElem.className = 'property-key';
-                keyElem.textContent = key.replace(/_/g, ' ');
-                
-                const valueElem = document.createElement('span');
-                valueElem.className = 'property-value';
-                valueElem.textContent = value;
-                
-                propertyRow.appendChild(keyElem);
-                propertyRow.appendChild(valueElem);
-                propertiesContainer.appendChild(propertyRow);
-            }
+        function loadParcels() {
+            document.getElementById('loading').style.display = 'block';
+            
+            // Get the visible map bounds for querying only visible parcels
+            const bounds = map.getBounds();
+            const boundsArray = [
+                bounds.getWest(),
+                bounds.getSouth(),
+                bounds.getEast(),
+                bounds.getNorth()
+            ].join(',');
+            
+            fetch(`/api/gis/parcels?bounds=${boundsArray}`)
+                .then(response => response.json())
+                .then(data => {
+                    parcelsData = data;
+                    
+                    // Add source if it doesn't exist
+                    if (!map.getSource('parcels')) {
+                        map.addSource('parcels', {
+                            type: 'geojson',
+                            data: parcelsData
+                        });
+                        
+                        // Add fill layer for parcels
+                        map.addLayer({
+                            'id': 'parcels-fill',
+                            'type': 'fill',
+                            'source': 'parcels',
+                            'paint': {
+                                'fill-color': 'rgba(0, 123, 255, 0.1)',
+                                'fill-outline-color': 'rgba(0, 123, 255, 1)'
+                            }
+                        });
+                        
+                        // Add line layer for parcels
+                        map.addLayer({
+                            'id': 'parcels-line',
+                            'type': 'line',
+                            'source': 'parcels',
+                            'paint': {
+                                'line-color': 'rgba(0, 123, 255, 1)',
+                                'line-width': 1
+                            }
+                        });
+                    } else {
+                        // Update the source data
+                        map.getSource('parcels').setData(parcelsData);
+                    }
+                    
+                    document.getElementById('loading').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error loading parcels:', error);
+                    document.getElementById('loading').style.display = 'none';
+                });
         }
         
-        // Setup action buttons
-        document.getElementById('view-documents').onclick = function() {
-            if (properties.PARCEL_NUM) {
-                window.location.href = `/documents?parcel=${properties.PARCEL_NUM}`;
-            }
-        };
+        function loadZoning() {
+            document.getElementById('loading').style.display = 'block';
+            
+            // Get the visible map bounds
+            const bounds = map.getBounds();
+            const boundsArray = [
+                bounds.getWest(),
+                bounds.getSouth(),
+                bounds.getEast(),
+                bounds.getNorth()
+            ].join(',');
+            
+            fetch(`/api/gis/zoning?bounds=${boundsArray}`)
+                .then(response => response.json())
+                .then(data => {
+                    zoningData = data;
+                    
+                    // Add source if it doesn't exist
+                    if (!map.getSource('zoning')) {
+                        map.addSource('zoning', {
+                            type: 'geojson',
+                            data: zoningData
+                        });
+                        
+                        // Add fill layer for zoning
+                        map.addLayer({
+                            'id': 'zoning-fill',
+                            'type': 'fill',
+                            'source': 'zoning',
+                            'paint': {
+                                'fill-color': [
+                                    'match',
+                                    ['get', 'ZONE_TYPE'],
+                                    'RESIDENTIAL', 'rgba(255, 160, 0, 0.2)',
+                                    'COMMERCIAL', 'rgba(255, 0, 0, 0.2)',
+                                    'INDUSTRIAL', 'rgba(128, 0, 128, 0.2)',
+                                    'AGRICULTURAL', 'rgba(0, 128, 0, 0.2)',
+                                    'rgba(180, 180, 180, 0.2)' // default
+                                ],
+                                'fill-opacity': 0.5
+                            }
+                        });
+                        
+                        // Add line layer for zoning
+                        map.addLayer({
+                            'id': 'zoning-line',
+                            'type': 'line',
+                            'source': 'zoning',
+                            'paint': {
+                                'line-color': [
+                                    'match',
+                                    ['get', 'ZONE_TYPE'],
+                                    'RESIDENTIAL', 'rgba(255, 160, 0, 1)',
+                                    'COMMERCIAL', 'rgba(255, 0, 0, 1)',
+                                    'INDUSTRIAL', 'rgba(128, 0, 128, 1)',
+                                    'AGRICULTURAL', 'rgba(0, 128, 0, 1)',
+                                    'rgba(180, 180, 180, 1)' // default
+                                ],
+                                'line-width': 1,
+                                'line-dasharray': [2, 2]
+                            }
+                        }, 'parcels-fill'); // Add below parcels to ensure parcels are on top
+                    } else {
+                        // Update the source data
+                        map.getSource('zoning').setData(zoningData);
+                    }
+                    
+                    document.getElementById('loading').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error loading zoning:', error);
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
         
-        document.getElementById('view-workflows').onclick = function() {
+        function showParcelInfo(properties) {
+            // Open the sidebar
+            document.getElementById('sidebar').classList.add('active');
+            
+            // Update sidebar content with parcel information
+            let content = '<div class="feature-properties">';
+            
+            // Add key parcel information
             if (properties.PARCEL_NUM) {
-                window.location.href = `/workflows?parcel=${properties.PARCEL_NUM}`;
+                content += `<div class="feature-property"><strong>Parcel:</strong> ${properties.PARCEL_NUM}</div>`;
             }
-        };
+            
+            if (properties.OWNER) {
+                content += `<div class="feature-property"><strong>Owner:</strong> ${properties.OWNER}</div>`;
+            }
+            
+            if (properties.SITUS) {
+                content += `<div class="feature-property"><strong>Address:</strong> ${properties.SITUS}</div>`;
+            }
+            
+            if (properties.ACRES) {
+                content += `<div class="feature-property"><strong>Acres:</strong> ${parseFloat(properties.ACRES).toFixed(2)}</div>`;
+            }
+            
+            // Add zoning if available
+            if (properties.ZONE_CODE) {
+                content += `<div class="feature-property"><strong>Zone:</strong> ${properties.ZONE_CODE}</div>`;
+            }
+            
+            // Add links to related resources
+            if (properties.PARCEL_NUM) {
+                content += `<div class="feature-property">
+                    <a href="/parcels/${properties.PARCEL_NUM}" target="_blank">View Details</a>
+                </div>`;
+                
+                content += `<div class="feature-property">
+                    <a href="/api/documents/parcel/${properties.PARCEL_NUM}" target="_blank">Related Documents</a>
+                </div>`;
+            }
+            
+            content += '</div>';
+            
+            document.getElementById('sidebar-content').innerHTML = content;
+        }
         
-        // Show the info panel if it's not already visible
-        document.getElementById('feature-info').classList.add('active');
-    });
-    
-    // Close the feature info panel when the close button is clicked
-    document.getElementById('close-feature-info').addEventListener('click', function() {
-        document.getElementById('feature-info').classList.remove('active');
-    });
-</script>
-{% endblock %}
+        // Update data when the map moves
+        map.on('moveend', function() {
+            loadParcels();
+            loadZoning();
+        });
+    </script>
+</body>
+</html>
