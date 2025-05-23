@@ -1,522 +1,823 @@
-{% extends "base.html" %}
-
-{% block title %}Workflows - TerraFusion Platform{% endblock %}
-
-{% block head %}
-<link rel="stylesheet" href="/css/workflows.css">
-{% endblock %}
-
-{% block content %}
-<section class="workflows-container">
-    <div class="workflows-header">
-        <h1>Benton County Workflows</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
         
-        <div class="filter-controls">
-            <form id="workflow-filter-form" class="filter-form">
+        .header {
+            background-color: #1a3b5d;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .page-title {
+            margin: 0;
+            color: #1a3b5d;
+            font-size: 2rem;
+        }
+        
+        .create-btn {
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .create-btn:hover {
+            background-color: #3182ce;
+        }
+        
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-group label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #4b5563;
+        }
+        
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .filter-input:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        
+        .workflows-list {
+            margin-bottom: 40px;
+        }
+        
+        .workflow-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: box-shadow 0.3s;
+        }
+        
+        .workflow-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .workflow-header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .workflow-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a3b5d;
+            margin-bottom: 8px;
+        }
+        
+        .workflow-description {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+        
+        .workflow-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+        
+        .workflow-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #4b5563;
+        }
+        
+        .workflow-meta-item svg {
+            flex-shrink: 0;
+        }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        
+        .status-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-in-progress {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-on-hold {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        
+        .status-completed {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-cancelled {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        
+        .workflow-body {
+            padding: 20px;
+        }
+        
+        .workflow-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .detail-label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        
+        .detail-value {
+            font-size: 0.95rem;
+            color: #374151;
+        }
+        
+        .workflow-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .workflow-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        
+        .workflow-btn:hover {
+            background-color: #f9fafb;
+            border-color: #9ca3af;
+        }
+        
+        .workflow-btn.primary {
+            background-color: #4299e1;
+            color: white;
+            border-color: #4299e1;
+        }
+        
+        .workflow-btn.primary:hover {
+            background-color: #3182ce;
+        }
+        
+        .create-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            margin: 0;
+            color: #1a3b5d;
+            font-size: 1.5rem;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-grid .form-group:nth-child(odd):last-child {
+            grid-column: span 2;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        
+        .btn-primary {
+            background-color: #4299e1;
+            color: white;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            color: #6b7280;
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            
+            .filter-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-grid .form-group:nth-child(odd):last-child {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">TerraFusion Platform</div>
+            <nav class="nav-links">
+                <a href="/">Home</a>
+                <a href="/map">Map</a>
+                <a href="/documents">Documents</a>
+                <a href="/workflows" style="background-color: rgba(255,255,255,0.1);">Workflows</a>
+                <a href="/dashboard">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Workflow Management</h1>
+            <button class="create-btn" onclick="openCreateModal()">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                </svg>
+                Create Workflow
+            </button>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-row">
                 <div class="filter-group">
-                    <label for="workflow-status">Status:</label>
-                    <select id="workflow-status" name="status">
+                    <label for="search">Search</label>
+                    <input type="text" id="search" class="filter-input" placeholder="Search workflows..." onkeyup="filterWorkflows()">
+                </div>
+                <div class="filter-group">
+                    <label for="status-filter">Status</label>
+                    <select id="status-filter" class="filter-input" onchange="filterWorkflows()">
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
                         <option value="in_progress">In Progress</option>
-                        <option value="review">Under Review</option>
-                        <option value="completed">Completed</option>
-                        <option value="rejected">Rejected</option>
                         <option value="on_hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
-                
                 <div class="filter-group">
-                    <label for="workflow-type">Type:</label>
-                    <select id="workflow-type" name="type">
+                    <label for="type-filter">Type</label>
+                    <select id="type-filter" class="filter-input" onchange="filterWorkflows()">
                         <option value="">All Types</option>
-                        <option value="deed_processing">Deed Processing</option>
-                        <option value="boundary_line_adjustment">Boundary Line Adjustment</option>
-                        <option value="plat_review">Plat Review</option>
-                        <option value="property_split">Property Split</option>
-                        <option value="address_assignment">Address Assignment</option>
-                        <option value="property_assessment">Property Assessment</option>
-                        <option value="record_update">Record Update</option>
-                        <option value="exemption_request">Exemption Request</option>
+                        <option value="boundary_adjustment">Boundary Adjustment</option>
+                        <option value="permit_review">Permit Review</option>
+                        <option value="subdivision">Subdivision</option>
+                        <option value="zoning_change">Zoning Change</option>
+                        <option value="custom">Custom</option>
                     </select>
                 </div>
-                
                 <div class="filter-group">
-                    <label for="workflow-parcel">Parcel ID:</label>
-                    <input type="text" id="workflow-parcel" name="parcel" placeholder="Enter parcel number">
-                </div>
-                
-                <button type="submit" class="btn">Apply Filters</button>
-            </form>
-            
-            <div class="action-buttons">
-                <button id="create-workflow-btn" class="btn btn-primary">Create New Workflow</button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="workflows-content">
-        <div class="workflows-list">
-            {% if workflows.len() > 0 %}
-                {% for workflow in workflows %}
-                    <div class="workflow-card" data-id="{{ workflow.id }}">
-                        <div class="workflow-status status-{{ workflow.status | lower }}">
-                            <span class="status-indicator"></span>
-                            <span class="status-text">
-                                {% match workflow.status %}
-                                    {% when WorkflowStatus::Pending %}Pending
-                                    {% when WorkflowStatus::InProgress %}In Progress
-                                    {% when WorkflowStatus::Review %}Under Review
-                                    {% when WorkflowStatus::Completed %}Completed
-                                    {% when WorkflowStatus::Rejected %}Rejected
-                                    {% when WorkflowStatus::OnHold %}On Hold
-                                {% endmatch %}
-                            </span>
-                        </div>
-                        
-                        <div class="workflow-info">
-                            <h3 class="workflow-title">
-                                <a href="/workflows/{{ workflow.id }}">{{ workflow.title }}</a>
-                            </h3>
-                            
-                            <div class="workflow-meta">
-                                <span class="workflow-type">
-                                    {% match workflow.workflow_type %}
-                                        {% when WorkflowType::DeedProcessing %}Deed Processing
-                                        {% when WorkflowType::BoundaryLineAdjustment %}Boundary Line Adjustment
-                                        {% when WorkflowType::PlatReview %}Plat Review
-                                        {% when WorkflowType::PropertySplit %}Property Split
-                                        {% when WorkflowType::AddressAssignment %}Address Assignment
-                                        {% when WorkflowType::PropertyAssessment %}Property Assessment
-                                        {% when WorkflowType::RecordUpdate %}Record Update
-                                        {% when WorkflowType::ExemptionRequest %}Exemption Request
-                                    {% endmatch %}
-                                </span>
-                                
-                                <span class="workflow-date">Created: {{ workflow.created_at | format_date }}</span>
-                                
-                                {% if workflow.due_date %}
-                                    <span class="workflow-due-date">Due: {{ workflow.due_date | format_date }}</span>
-                                {% endif %}
-                            </div>
-                            
-                            {% if workflow.description %}
-                                <p class="workflow-description">{{ workflow.description }}</p>
-                            {% endif %}
-                            
-                            <div class="workflow-progress">
-                                <div class="progress-label">
-                                    <span>Progress:</span>
-                                    {% 
-                                        let completed_steps = workflow.steps 
-                                            | filter(|s| s.status == WorkflowStatus::Completed) 
-                                            | count;
-                                        let total_steps = workflow.steps | count;
-                                        let progress_percent = if total_steps > 0 { 
-                                            (completed_steps as f32 / total_steps as f32 * 100.0) as i32 
-                                        } else { 
-                                            0 
-                                        };
-                                    %}
-                                    <span class="progress-text">{{ completed_steps }}/{{ total_steps }} steps ({{ progress_percent }}%)</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: {{ progress_percent }}%;"></div>
-                                </div>
-                            </div>
-                            
-                            {% if workflow.parcel_ids and workflow.parcel_ids.len() > 0 %}
-                                <div class="workflow-parcels">
-                                    <strong>Related Parcels:</strong>
-                                    {% for parcel_id in workflow.parcel_ids %}
-                                        <a href="/map?parcel={{ parcel_id }}" class="parcel-link">{{ parcel_id }}</a>{% if !loop.last %}, {% endif %}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="workflow-actions">
-                            <a href="/workflows/{{ workflow.id }}" class="btn btn-sm">View Details</a>
-                            
-                            {% if workflow.status != WorkflowStatus::Completed and workflow.status != WorkflowStatus::Rejected %}
-                                <button class="btn btn-sm update-workflow-btn" data-id="{{ workflow.id }}">Update Status</button>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <h3>No Workflows Found</h3>
-                    <p>There are no workflows matching your search criteria.</p>
-                    <p>Try adjusting your filters or creating a new workflow.</p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</section>
-
-<!-- Create Workflow Modal -->
-<div id="create-workflow-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Create New Workflow</h2>
-            <button type="button" class="close-btn">&times;</button>
-        </div>
-        
-        <div class="modal-body">
-            <form id="create-workflow-form">
-                <div class="form-group">
-                    <label for="workflow-title">Title</label>
-                    <input type="text" id="workflow-title" name="title" required placeholder="Enter workflow title">
-                </div>
-                
-                <div class="form-group">
-                    <label for="workflow-type-select">Workflow Type</label>
-                    <select id="workflow-type-select" name="workflow_type" required>
-                        <option value="">Select a type</option>
-                        <option value="deed_processing">Deed Processing</option>
-                        <option value="boundary_line_adjustment">Boundary Line Adjustment</option>
-                        <option value="plat_review">Plat Review</option>
-                        <option value="property_split">Property Split</option>
-                        <option value="address_assignment">Address Assignment</option>
-                        <option value="property_assessment">Property Assessment</option>
-                        <option value="record_update">Record Update</option>
-                        <option value="exemption_request">Exemption Request</option>
+                    <label for="assignee-filter">Assignee</label>
+                    <select id="assignee-filter" class="filter-input" onchange="filterWorkflows()">
+                        <option value="">All Assignees</option>
+                        <option value="john.doe">John Doe</option>
+                        <option value="jane.doe">Jane Doe</option>
+                        <option value="unassigned">Unassigned</option>
                     </select>
                 </div>
-                
-                <div class="form-group">
-                    <label for="workflow-description">Description</label>
-                    <textarea id="workflow-description" name="description" placeholder="Enter workflow description (optional)"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label for="workflow-parcels">Related Parcels</label>
-                    <input type="text" id="workflow-parcels" name="parcels" placeholder="Comma-separated parcel IDs">
-                    <small>Example: 12345-000, 12346-000</small>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-create">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Workflow</button>
-                </div>
-            </form>
-            
-            <div id="create-progress" style="display: none;">
-                <div class="progress-bar">
-                    <div class="progress-fill"></div>
-                </div>
-                <p class="progress-text">Creating workflow...</p>
             </div>
-            
-            <div id="create-result" style="display: none;"></div>
+        </div>
+        
+        <div class="loading" id="loading">Loading workflows...</div>
+        
+        <div class="workflows-list" id="workflows-list">
+            <!-- Workflows will be loaded here -->
+        </div>
+        
+        <div class="empty-state" id="empty-state" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <h3>No workflows found</h3>
+            <p>Create your first workflow to get started</p>
         </div>
     </div>
-</div>
-
-<!-- Update Workflow Modal -->
-<div id="update-workflow-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Update Workflow Status</h2>
-            <button type="button" class="close-btn">&times;</button>
-        </div>
-        
-        <div class="modal-body">
-            <form id="update-workflow-form">
-                <input type="hidden" id="update-workflow-id" name="workflow_id">
-                
-                <div class="form-group">
-                    <label for="update-workflow-status">New Status</label>
-                    <select id="update-workflow-status" name="status" required>
-                        <option value="">Select a status</option>
-                        <option value="pending">Pending</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="review">Under Review</option>
-                        <option value="completed">Completed</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="on_hold">On Hold</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="update-assigned-to">Assigned To</label>
-                    <input type="text" id="update-assigned-to" name="assigned_to" placeholder="Enter user ID or name">
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-update">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
-                </div>
-            </form>
-            
-            <div id="update-progress" style="display: none;">
-                <div class="progress-bar">
-                    <div class="progress-fill"></div>
-                </div>
-                <p class="progress-text">Updating workflow...</p>
+    
+    <!-- Create Workflow Modal -->
+    <div class="create-modal" id="create-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Workflow</h2>
             </div>
             
-            <div id="update-result" style="display: none;"></div>
+            <form id="create-form" onsubmit="createWorkflow(event)">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="workflow-title" class="form-label">Title</label>
+                        <input type="text" id="workflow-title" class="form-input" placeholder="Workflow title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="workflow-type" class="form-label">Type</label>
+                        <select id="workflow-type" class="form-input" required>
+                            <option value="boundary_adjustment">Boundary Adjustment</option>
+                            <option value="permit_review">Permit Review</option>
+                            <option value="subdivision">Subdivision</option>
+                            <option value="zoning_change">Zoning Change</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="workflow-status" class="form-label">Status</label>
+                        <select id="workflow-status" class="form-input" required>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="on_hold">On Hold</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="workflow-assignee" class="form-label">Assignee</label>
+                        <select id="workflow-assignee" class="form-input">
+                            <option value="">Unassigned</option>
+                            <option value="john.doe">John Doe</option>
+                            <option value="jane.doe">Jane Doe</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="workflow-description" class="form-label">Description</label>
+                        <textarea id="workflow-description" class="form-input" rows="4" placeholder="Workflow description"></textarea>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="parcel-ids" class="form-label">Related Parcel IDs (Optional)</label>
+                    <input type="text" id="parcel-ids" class="form-input" placeholder="e.g., 123456789, 987654321">
+                    <small style="color: #6b7280;">Separate multiple parcel IDs with commas</small>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
         </div>
     </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Filter form handling
-    document.getElementById('workflow-filter-form').addEventListener('submit', function(e) {
-        e.preventDefault();
+    
+    <script>
+        let allWorkflows = [];
+        let filteredWorkflows = [];
         
-        const status = document.getElementById('workflow-status').value;
-        const type = document.getElementById('workflow-type').value;
-        const parcel = document.getElementById('workflow-parcel').value;
-        
-        // Build query string
-        let queryString = '';
-        if (status) {
-            queryString += `status=${encodeURIComponent(status)}`;
-        }
-        if (type) {
-            queryString += queryString ? `&type=${encodeURIComponent(type)}` : `type=${encodeURIComponent(type)}`;
-        }
-        if (parcel) {
-            queryString += queryString ? `&parcel=${encodeURIComponent(parcel)}` : `parcel=${encodeURIComponent(parcel)}`;
-        }
-        
-        // Redirect to the filtered URL
-        window.location.href = `/workflows?${queryString}`;
-    });
-    
-    // Create workflow modal handling
-    const createModal = document.getElementById('create-workflow-modal');
-    const openCreateModalBtn = document.getElementById('create-workflow-btn');
-    const closeCreateModalBtn = document.querySelector('#create-workflow-modal .close-btn');
-    const cancelCreateBtn = document.getElementById('cancel-create');
-    
-    openCreateModalBtn.addEventListener('click', function() {
-        createModal.style.display = 'block';
-    });
-    
-    closeCreateModalBtn.addEventListener('click', function() {
-        createModal.style.display = 'none';
-    });
-    
-    cancelCreateBtn.addEventListener('click', function() {
-        createModal.style.display = 'none';
-    });
-    
-    // Update workflow modal handling
-    const updateModal = document.getElementById('update-workflow-modal');
-    const closeUpdateModalBtn = document.querySelector('#update-workflow-modal .close-btn');
-    const cancelUpdateBtn = document.getElementById('cancel-update');
-    
-    // Attach event listeners to all update buttons
-    document.querySelectorAll('.update-workflow-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const workflowId = this.getAttribute('data-id');
-            document.getElementById('update-workflow-id').value = workflowId;
-            updateModal.style.display = 'block';
+        // Load workflows on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadWorkflows();
         });
-    });
-    
-    closeUpdateModalBtn.addEventListener('click', function() {
-        updateModal.style.display = 'none';
-    });
-    
-    cancelUpdateBtn.addEventListener('click', function() {
-        updateModal.style.display = 'none';
-    });
-    
-    // Close modals when clicking outside
-    window.addEventListener('click', function(event) {
-        if (event.target == createModal) {
-            createModal.style.display = 'none';
-        }
-        if (event.target == updateModal) {
-            updateModal.style.display = 'none';
-        }
-    });
-    
-    // Handle create workflow form submission
-    document.getElementById('create-workflow-form').addEventListener('submit', function(e) {
-        e.preventDefault();
         
-        const title = document.getElementById('workflow-title').value;
-        const workflowType = document.getElementById('workflow-type-select').value;
-        const description = document.getElementById('workflow-description').value;
-        const parcelsInput = document.getElementById('workflow-parcels').value;
-        
-        // Validate required fields
-        if (!title || !workflowType) {
-            alert('Please fill in all required fields.');
-            return;
+        async function loadWorkflows() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                
+                const response = await fetch('/api/workflows');
+                const workflows = await response.json();
+                
+                allWorkflows = workflows;
+                filteredWorkflows = workflows;
+                renderWorkflows(workflows);
+                
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error loading workflows:', error);
+                document.getElementById('loading').innerHTML = 'Error loading workflows. Please try again.';
+            }
         }
         
-        // Show progress
-        document.getElementById('create-workflow-form').style.display = 'none';
-        document.getElementById('create-progress').style.display = 'block';
-        
-        // Parse parcels
-        let parcelIds = [];
-        if (parcelsInput) {
-            parcelIds = parcelsInput.split(',').map(p => p.trim()).filter(p => p);
-        }
-        
-        // Create workflow data
-        const workflowData = {
-            title: title,
-            workflow_type: workflowType,
-            description: description || null,
-            parcel_ids: parcelIds.length > 0 ? parcelIds : []
-        };
-        
-        // Send create request
-        fetch('/api/workflows', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(workflowData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('create-progress').style.display = 'none';
-            document.getElementById('create-result').style.display = 'block';
+        function renderWorkflows(workflows) {
+            const container = document.getElementById('workflows-list');
+            const emptyState = document.getElementById('empty-state');
             
-            if (data.id) {
-                document.getElementById('create-result').innerHTML = `
-                    <div class="success-message">
-                        <h3>Workflow Created</h3>
-                        <p>Workflow has been created successfully.</p>
-                        <div class="result-actions">
-                            <button class="btn" onclick="window.location.href='/workflows/${data.id}'">View Workflow</button>
-                            <button class="btn" onclick="window.location.reload()">View All Workflows</button>
+            if (workflows.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            container.innerHTML = workflows.map(workflow => {
+                const createdDate = new Date(workflow.created_at).toLocaleDateString();
+                const updatedDate = workflow.updated_at ? new Date(workflow.updated_at).toLocaleDateString() : 'Never';
+                const statusClass = `status-${workflow.status.replace('_', '-')}`;
+                const statusText = workflow.status.replace('_', ' ');
+                
+                return `
+                    <div class="workflow-card">
+                        <div class="workflow-header">
+                            <div>
+                                <div class="workflow-title">${workflow.title}</div>
+                                <div class="workflow-description">${workflow.description || 'No description'}</div>
+                                <div class="workflow-meta">
+                                    <div class="workflow-meta-item">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857V3.857z"/>
+                                            <path d="M6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+                                        </svg>
+                                        Created ${createdDate}
+                                    </div>
+                                    <div class="workflow-meta-item">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+                                        </svg>
+                                        ${workflow.assigned_to || 'Unassigned'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="status-badge ${statusClass}">${statusText}</div>
+                        </div>
+                        <div class="workflow-body">
+                            <div class="workflow-details">
+                                <div class="detail-item">
+                                    <div class="detail-label">Type</div>
+                                    <div class="detail-value">${workflow.workflow_type.replace('_', ' ')}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Last Updated</div>
+                                    <div class="detail-value">${updatedDate}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Parcels</div>
+                                    <div class="detail-value">${workflow.parcel_ids?.join(', ') || 'None'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Documents</div>
+                                    <div class="detail-value">${workflow.document_ids?.length || 0} document(s)</div>
+                                </div>
+                            </div>
+                            <div class="workflow-actions">
+                                <button class="workflow-btn primary" onclick="viewWorkflowEvents('${workflow.id}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                    </svg>
+                                    View History
+                                </button>
+                                <button class="workflow-btn" onclick="updateWorkflowStatus('${workflow.id}', 'in_progress')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                        <path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/>
+                                    </svg>
+                                    Start Processing
+                                </button>
+                                <button class="workflow-btn" onclick="updateWorkflowStatus('${workflow.id}', 'completed')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                                    </svg>
+                                    Mark Complete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
-            } else {
-                document.getElementById('create-result').innerHTML = `
-                    <div class="error-message">
-                        <h3>Creation Failed</h3>
-                        <p>${data.error || 'An unknown error occurred while creating the workflow.'}</p>
-                        <button class="btn" onclick="resetCreateForm()">Try Again</button>
-                    </div>
-                `;
-            }
-        })
-        .catch(error => {
-            document.getElementById('create-progress').style.display = 'none';
-            document.getElementById('create-result').style.display = 'block';
-            document.getElementById('create-result').innerHTML = `
-                <div class="error-message">
-                    <h3>Creation Failed</h3>
-                    <p>${error.message || 'An unknown error occurred while creating the workflow.'}</p>
-                    <button class="btn" onclick="resetCreateForm()">Try Again</button>
-                </div>
-            `;
-        });
-    });
-    
-    // Handle update workflow form submission
-    document.getElementById('update-workflow-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const workflowId = document.getElementById('update-workflow-id').value;
-        const status = document.getElementById('update-workflow-status').value;
-        const assignedTo = document.getElementById('update-assigned-to').value;
-        
-        // Validate required fields
-        if (!workflowId || !status) {
-            alert('Please select a status.');
-            return;
+            }).join('');
         }
         
-        // Show progress
-        document.getElementById('update-workflow-form').style.display = 'none';
-        document.getElementById('update-progress').style.display = 'block';
-        
-        // Create update data
-        const updateData = {
-            status: status
-        };
-        
-        if (assignedTo) {
-            updateData.assigned_to = assignedTo;
-        }
-        
-        // Send update request
-        fetch(`/api/workflows/${workflowId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(updateData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('update-progress').style.display = 'none';
-            document.getElementById('update-result').style.display = 'block';
+        function filterWorkflows() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+            const typeFilter = document.getElementById('type-filter').value;
+            const assigneeFilter = document.getElementById('assignee-filter').value;
             
-            if (data.id) {
-                document.getElementById('update-result').innerHTML = `
-                    <div class="success-message">
-                        <h3>Workflow Updated</h3>
-                        <p>Workflow status has been updated successfully.</p>
-                        <div class="result-actions">
-                            <button class="btn" onclick="window.location.reload()">Refresh Page</button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                document.getElementById('update-result').innerHTML = `
-                    <div class="error-message">
-                        <h3>Update Failed</h3>
-                        <p>${data.error || 'An unknown error occurred while updating the workflow.'}</p>
-                        <button class="btn" onclick="resetUpdateForm()">Try Again</button>
-                    </div>
-                `;
+            filteredWorkflows = allWorkflows.filter(workflow => {
+                const matchesSearch = !searchTerm || 
+                    workflow.title.toLowerCase().includes(searchTerm) ||
+                    (workflow.description && workflow.description.toLowerCase().includes(searchTerm));
+                
+                const matchesStatus = !statusFilter || workflow.status === statusFilter;
+                
+                const matchesType = !typeFilter || workflow.workflow_type === typeFilter;
+                
+                const matchesAssignee = !assigneeFilter || 
+                    (assigneeFilter === 'unassigned' ? !workflow.assigned_to : workflow.assigned_to === assigneeFilter);
+                
+                return matchesSearch && matchesStatus && matchesType && matchesAssignee;
+            });
+            
+            renderWorkflows(filteredWorkflows);
+        }
+        
+        function openCreateModal() {
+            document.getElementById('create-modal').style.display = 'block';
+        }
+        
+        function closeCreateModal() {
+            document.getElementById('create-modal').style.display = 'none';
+            document.getElementById('create-form').reset();
+        }
+        
+        async function createWorkflow(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('workflow-title').value;
+            const workflow_type = document.getElementById('workflow-type').value;
+            const status = document.getElementById('workflow-status').value;
+            const assigned_to = document.getElementById('workflow-assignee').value || null;
+            const description = document.getElementById('workflow-description').value || null;
+            const parcel_ids = document.getElementById('parcel-ids').value ? 
+                document.getElementById('parcel-ids').value.split(',').map(id => id.trim()) : null;
+            
+            try {
+                const response = await fetch('/api/workflows', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        title,
+                        workflow_type,
+                        status,
+                        assigned_to,
+                        description,
+                        parcel_ids
+                    })
+                });
+                
+                if (response.ok) {
+                    closeCreateModal();
+                    loadWorkflows(); // Reload workflows
+                    alert('Workflow created successfully!');
+                } else {
+                    const error = await response.text();
+                    alert('Error creating workflow: ' + error);
+                }
+                
+            } catch (error) {
+                console.error('Error creating workflow:', error);
+                alert('Error creating workflow. Please try again.');
             }
-        })
-        .catch(error => {
-            document.getElementById('update-progress').style.display = 'none';
-            document.getElementById('update-result').style.display = 'block';
-            document.getElementById('update-result').innerHTML = `
-                <div class="error-message">
-                    <h3>Update Failed</h3>
-                    <p>${error.message || 'An unknown error occurred while updating the workflow.'}</p>
-                    <button class="btn" onclick="resetUpdateForm()">Try Again</button>
-                </div>
-            `;
-        });
-    });
-    
-    function resetCreateForm() {
-        document.getElementById('create-result').style.display = 'none';
-        document.getElementById('create-workflow-form').style.display = 'block';
-    }
-    
-    function resetUpdateForm() {
-        document.getElementById('update-result').style.display = 'none';
-        document.getElementById('update-workflow-form').style.display = 'block';
-    }
-    
-    // Apply search params from URL on page load
-    window.addEventListener('DOMContentLoaded', function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        if (urlParams.has('status')) {
-            document.getElementById('workflow-status').value = urlParams.get('status');
         }
         
-        if (urlParams.has('type')) {
-            document.getElementById('workflow-type').value = urlParams.get('type');
+        async function updateWorkflowStatus(workflowId, newStatus) {
+            try {
+                // Get the current workflow first
+                const response = await fetch(`/api/workflows/${workflowId}`);
+                const workflow = await response.json();
+                
+                // Update the status
+                workflow.status = newStatus;
+                
+                // Save the updated workflow
+                const updateResponse = await fetch(`/api/workflows/${workflowId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(workflow)
+                });
+                
+                if (updateResponse.ok) {
+                    loadWorkflows(); // Reload workflows
+                    alert(`Workflow status updated to ${newStatus.replace('_', ' ')}!`);
+                } else {
+                    const error = await updateResponse.text();
+                    alert('Error updating workflow status: ' + error);
+                }
+                
+            } catch (error) {
+                console.error('Error updating workflow status:', error);
+                alert('Error updating workflow status. Please try again.');
+            }
         }
         
-        if (urlParams.has('parcel')) {
-            document.getElementById('workflow-parcel').value = urlParams.get('parcel');
+        async function viewWorkflowEvents(workflowId) {
+            try {
+                const response = await fetch(`/api/workflows/${workflowId}/events`);
+                const events = await response.json();
+                
+                let eventsHtml = events.map(event => {
+                    const eventDate = new Date(event.created_at).toLocaleString();
+                    return `
+                        <div style="margin-bottom: 10px; padding: 10px; border-bottom: 1px solid #eee;">
+                            <strong>${event.event_type.replace('_', ' ')}</strong> - ${eventDate}<br>
+                            ${event.description}
+                        </div>
+                    `;
+                }).join('');
+                
+                alert(`Workflow History:\n\n${eventsHtml}`);
+                
+            } catch (error) {
+                console.error('Error loading workflow events:', error);
+                alert('Error loading workflow history. Please try again.');
+            }
         }
-    });
-</script>
-{% endblock %}
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('create-modal');
+            if (event.target === modal) {
+                closeCreateModal();
+            }
+        }
+    </script>
+</body>
+</html>

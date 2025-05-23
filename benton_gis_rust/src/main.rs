@@ -1,101 +1,78 @@
-use actix_web::{web, App, HttpServer, middleware, HttpResponse};
+use actix_web::{web, App, HttpServer, middleware, http};
 use actix_files as fs;
-use std::io;
-use rusqlite::Connection;
-use std::sync::Arc;
-use log::{info, error};
+use std::env;
+use std::path::Path;
 
-use benton_gis::db::DatabaseManager;
-use benton_gis::integrations::document_manager::DocumentManager;
-use benton_gis::integrations::workflow::WorkflowManager;
-use benton_gis::integrations::arcgis::ArcGisClient;
-use benton_gis::web::routes;
-use benton_gis::{initialize, get_db_path, get_document_storage_path};
+mod web {
+    pub mod routes {
+        pub mod api;
+        pub mod pages;
+    }
+}
 
 #[actix_web::main]
-async fn main() -> io::Result<()> {
-    // Initialize application
-    initialize();
+async fn main() -> std::io::Result<()> {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
     
-    // Get database and document paths
-    let db_path = get_db_path();
-    let document_path = get_document_storage_path();
+    // Initialize logging
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
-    // Initialize database connection
-    let db_conn = match Connection::open(&db_path) {
-        Ok(conn) => conn,
-        Err(e) => {
-            error!("Failed to open database: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open database: {}", e)));
-        }
-    };
+    // Get configuration from environment variables
+    let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
     
-    // Initialize database manager
-    let db_manager = match DatabaseManager::new(&db_path) {
-        Ok(manager) => Arc::new(manager),
-        Err(e) => {
-            error!("Failed to initialize database manager: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to initialize database manager: {}", e)));
-        }
-    };
+    // Print startup information
+    println!("🚀 Starting TerraFusion Platform (Rust)");
+    println!("=======================================");
+    println!("📝 Server listening on: http://{}", bind_address);
+    println!("🌐 Map Portal: http://localhost:8080/map");
+    println!("📊 Dashboard: http://localhost:8080/dashboard");
+    println!("📄 Documents: http://localhost:8080/documents");
+    println!("⚙️ Workflows: http://localhost:8080/workflows");
+    println!("=======================================");
     
-    // Initialize document manager
-    let document_manager = Arc::new(DocumentManager::new(&document_path, db_conn.clone()));
+    // Create data directory if it doesn't exist
+    let data_dir = env::var("DATA_DIR").unwrap_or_else(|_| "./data".to_string());
+    let documents_dir = Path::new(&data_dir).join("documents");
+    if !documents_dir.exists() {
+        println!("📂 Creating documents directory at: {:?}", documents_dir);
+        std::fs::create_dir_all(&documents_dir)?;
+    }
     
-    // Initialize workflow manager
-    let workflow_manager = match WorkflowManager::new(db_conn.clone()) {
-        Ok(manager) => Arc::new(manager),
-        Err(e) => {
-            error!("Failed to initialize workflow manager: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to initialize workflow manager: {}", e)));
-        }
-    };
-    
-    // Initialize ArcGIS client
-    let arcgis_client = Arc::new(ArcGisClient::new());
-    
-    // Create data object to be shared with all routes
-    let app_data = web::Data::new(AppState {
-        db_manager: db_manager.clone(),
-        document_manager: document_manager.clone(),
-        workflow_manager: workflow_manager.clone(),
-        arcgis_client: arcgis_client.clone(),
-    });
-
     // Start HTTP server
-    let bind_address = "0.0.0.0:8080";
-    info!("Starting server at {}", bind_address);
-    
-    HttpServer::new(move || {
+    HttpServer::new(|| {
         App::new()
+            // Middleware
             .wrap(middleware::Logger::default())
-            .wrap(middleware::Compress::default())
-            .app_data(app_data.clone())
-            // API routes
-            .service(web::scope("/api")
-                .configure(routes::api::configure))
-            // Static files and templated pages
-            .service(fs::Files::new("/static", "./static").show_files_listing(false))
-            .service(web::resource("/").to(routes::pages::index))
-            .service(web::resource("/map").to(routes::pages::map))
-            .service(web::resource("/parcels/{id}").to(routes::pages::parcel_detail))
-            .service(web::resource("/documents").to(routes::pages::documents))
-            .service(web::resource("/workflows").to(routes::pages::workflows))
-            .service(web::resource("/dashboard").to(routes::pages::dashboard))
-            // 404 handler
-            .default_service(web::route().to(|| async {
-                HttpResponse::NotFound().body("Not Found")
-            }))
+            
+            // API Routes
+            .service(
+                web::scope("/api")
+                    .configure(web::routes::api::configure)
+            )
+            
+            // Static files
+            .service(fs::Files::new("/static", "./static"))
+            
+            // Page routes
+            .route("/", web::get().to(web::routes::pages::index))
+            .route("/map", web::get().to(web::routes::pages::map))
+            .route("/parcel/{id}", web::get().to(web::routes::pages::parcel_detail))
+            .route("/documents", web::get().to(web::routes::pages::documents))
+            .route("/workflows", web::get().to(web::routes::pages::workflows))
+            .route("/dashboard", web::get().to(web::routes::pages::dashboard))
+            
+            // Default 404 handler
+            .default_service(
+                web::route()
+                    .to(|| async {
+                        actix_web::HttpResponse::NotFound()
+                            .content_type("text/html")
+                            .body("<h1>404 - Page Not Found</h1><p>The requested resource was not found on the server.</p><p><a href=\"/\">Return to Home</a></p>")
+                    })
+            )
     })
     .bind(bind_address)?
     .run()
     .await
-}
-
-/// Shared application state to be passed to route handlers
-pub struct AppState {
-    pub db_manager: Arc<DatabaseManager>,
-    pub document_manager: Arc<DocumentManager>,
-    pub workflow_manager: Arc<WorkflowManager>,
-    pub arcgis_client: Arc<ArcGisClient>,
 }

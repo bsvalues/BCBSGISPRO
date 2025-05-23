@@ -1,16 +1,29 @@
 #!/bin/bash
 
-# Build script for Benton County GIS Rust application
+# TerraFusion Platform Build & Run Script
 
-echo "Building Benton County GIS Rust application..."
+echo "🚀 TerraFusion Platform - Build & Run Script"
+echo "==========================================="
 
-# Make sure directories exist
-mkdir -p benton_gis_rust/public
-mkdir -p benton_gis_rust/data
-mkdir -p uploads
+# Create necessary directories
+mkdir -p benton_gis_rust/templates
+mkdir -p static/css
+mkdir -p data/documents
 
-# Build the Rust application
-cd benton_gis_rust && cargo build
+# Copy templates to the proper location
+echo "📂 Setting up template directories..."
+cp -r benton_gis_rust/src/web/templates/* benton_gis_rust/templates/
 
-# Run the application (blocking call)
-cd benton_gis_rust && cargo run
+# Run the demo script to serve HTML templates
+echo "🌐 Starting web server for TerraFusion Platform..."
+echo "Open your browser at http://localhost:8000 to view the application"
+echo ""
+echo "Available pages:"
+echo "  • Home:       http://localhost:8000/benton_gis_rust/src/web/templates/index.html"
+echo "  • Workflows:  http://localhost:8000/benton_gis_rust/src/web/templates/workflows.html"
+echo ""
+echo "Press Ctrl+C to stop the server"
+echo "==========================================="
+
+# Start a simple HTTP server
+python3 -m http.server 8000

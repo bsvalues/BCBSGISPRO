@@ -1,40 +1,20 @@
 [package]
-name = "benton_gis"
+name = "benton_gis_rust"
 version = "0.1.0"
 edition = "2021"
-description = "Benton County GIS Platform"
-authors = ["Benton County"]
 
 [dependencies]
-# Web server
-actix-web = "4.4"
-actix-files = "0.6"
-actix-cors = "0.6"
-
-# Database
-sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono", "json", "macros"] }
-rusqlite = { version = "0.29", features = ["bundled"] }
-
-# Templating
-askama = "0.12"
-askama_actix = "0.14"
-
-# Serialization
+actix-web = "4.3.1"
+actix-files = "0.6.2"
+askama = "0.12.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# HTTP client for external APIs
-reqwest = { version = "0.11", features = ["json"] }
-
-# Async runtime
-tokio = { version = "1", features = ["full"] }
-
-# Utilities
-log = "0.4"
 env_logger = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.4", features = ["v4", "serde"] }
+log = "0.4"
 dotenv = "0.15"
-
-[build-dependencies]
-askama = "0.12"
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.29", features = ["bundled"] }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.3", features = ["v4", "serde"] }
+reqwest = { version = "0.11", features = ["json"] }
+futures = "0.3"

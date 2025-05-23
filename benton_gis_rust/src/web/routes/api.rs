@@ -1,14 +1,7 @@
-use actix_web::{web, HttpResponse, Responder, Error};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use log::{info, error};
-
-use crate::models::gis_feature::GisFeatureCollection;
-use crate::models::document::{Document, DocumentMetadata};
-use crate::integrations::workflow::{WorkflowItem, WorkflowStatus};
-use crate::AppState;
+use actix_web::{web, HttpResponse, Responder};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
+    // Configure GIS routes
     cfg.service(
         web::scope("/gis")
             .route("/parcels", web::get().to(get_parcels))
@@ -16,6 +9,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/zoning", web::get().to(get_zoning))
     );
     
+    // Configure document routes
     cfg.service(
         web::scope("/documents")
             .route("", web::get().to(get_documents))
@@ -26,6 +20,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/parcel/{parcel_id}", web::get().to(get_documents_by_parcel))
     );
     
+    // Configure workflow routes
     cfg.service(
         web::scope("/workflows")
             .route("", web::get().to(get_workflows))
@@ -39,468 +34,489 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
-// GIS routes
-async fn get_parcels(
-    state: web::Data<AppState>,
-    query: web::Query<BoundsQuery>,
-) -> Result<impl Responder, Error> {
-    info!("API: Getting parcels");
-    
-    let bounds = if query.bounds.is_empty() {
-        None
-    } else {
-        // Parse bounds format: "minLng,minLat,maxLng,maxLat"
-        let parts: Vec<f64> = query.bounds
-            .split(',')
-            .filter_map(|s| s.parse::<f64>().ok())
-            .collect();
-        
-        if parts.len() == 4 {
-            Some([parts[0], parts[1], parts[2], parts[3]])
-        } else {
-            None
-        }
-    };
-    
-    match state.arcgis_client.get_parcels(bounds).await {
-        Ok(parcels) => Ok(HttpResponse::Ok().json(parcels)),
-        Err(e) => {
-            error!("Error getting parcels: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
+// Placeholder API handlers for demo purposes
+// In a production system, these would connect to real data sources
 
-async fn get_parcel_by_id(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
-    let parcel_id = path.into_inner();
-    info!("API: Getting parcel by ID: {}", parcel_id);
-    
-    match state.arcgis_client.get_feature_by_parcel_id(&parcel_id).await {
-        Ok(Some(parcel)) => Ok(HttpResponse::Ok().json(parcel)),
-        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Parcel not found: {}", parcel_id))),
-        Err(e) => {
-            error!("Error getting parcel {}: {}", parcel_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-async fn get_zoning(
-    state: web::Data<AppState>,
-    query: web::Query<BoundsQuery>,
-) -> Result<impl Responder, Error> {
-    info!("API: Getting zoning");
-    
-    let bounds = if query.bounds.is_empty() {
-        None
-    } else {
-        // Parse bounds format: "minLng,minLat,maxLng,maxLat"
-        let parts: Vec<f64> = query.bounds
-            .split(',')
-            .filter_map(|s| s.parse::<f64>().ok())
-            .collect();
-        
-        if parts.len() == 4 {
-            Some([parts[0], parts[1], parts[2], parts[3]])
-        } else {
-            None
-        }
-    };
-    
-    match state.arcgis_client.get_zoning(bounds).await {
-        Ok(zoning) => Ok(HttpResponse::Ok().json(zoning)),
-        Err(e) => {
-            error!("Error getting zoning: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-// Document routes
-async fn get_documents(
-    state: web::Data<AppState>,
-) -> Result<impl Responder, Error> {
-    info!("API: Getting all documents");
-    
-    match state.document_manager.get_documents().await {
-        Ok(documents) => Ok(HttpResponse::Ok().json(documents)),
-        Err(e) => {
-            error!("Error getting documents: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-async fn get_document(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
-    let document_id = path.into_inner();
-    info!("API: Getting document: {}", document_id);
-    
-    match state.document_manager.get_document(&document_id).await {
-        Ok(Some(document)) => Ok(HttpResponse::Ok().json(document)),
-        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Document not found: {}", document_id))),
-        Err(e) => {
-            error!("Error getting document {}: {}", document_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-async fn get_document_content(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
-    let document_id = path.into_inner();
-    info!("API: Getting document content: {}", document_id);
-    
-    match state.document_manager.get_document(&document_id).await {
-        Ok(Some(document)) => {
-            match state.document_manager.get_document_content(&document_id).await {
-                Ok(Some(content)) => {
-                    Ok(HttpResponse::Ok()
-                        .content_type(document.content_type)
-                        .body(content))
+// GIS handlers
+async fn get_parcels(_query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    let sample_data = r#"{
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "parcel_number": "1-2345-001",
+                    "address": "123 Main St, Kennewick, WA",
+                    "zoning": "R1",
+                    "additional_properties": {
+                        "OWNER": "Smith, John",
+                        "ACRES": 1.25,
+                        "SITUS": "123 Main St, Kennewick, WA",
+                        "TAX_CODE": "RES01"
+                    }
                 },
-                Ok(None) => Ok(HttpResponse::NotFound().body(format!("Document content not found: {}", document_id))),
-                Err(e) => {
-                    error!("Error getting document content {}: {}", document_id, e);
-                    Ok(HttpResponse::InternalServerError().body(e))
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-119.2, 46.2], [-119.19, 46.2], [-119.19, 46.21], [-119.2, 46.21], [-119.2, 46.2]]]
+                }
+            },
+            {
+                "type": "Feature",
+                "properties": {
+                    "parcel_number": "1-2345-002",
+                    "address": "125 Main St, Kennewick, WA",
+                    "zoning": "R1",
+                    "additional_properties": {
+                        "OWNER": "Johnson, Sarah",
+                        "ACRES": 0.75,
+                        "SITUS": "125 Main St, Kennewick, WA",
+                        "TAX_CODE": "RES01"
+                    }
+                },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-119.19, 46.2], [-119.18, 46.2], [-119.18, 46.21], [-119.19, 46.21], [-119.19, 46.2]]]
                 }
             }
+        ]
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
+}
+
+async fn get_parcel_by_id(path: web::Path<String>) -> impl Responder {
+    let parcel_id = path.into_inner();
+    
+    let sample_data = format!(r#"{{
+        "type": "Feature",
+        "properties": {{
+            "parcel_number": "{}",
+            "address": "123 Main St, Kennewick, WA",
+            "zoning": "R1",
+            "additional_properties": {{
+                "OWNER": "Smith, John",
+                "ACRES": 1.25,
+                "SITUS": "123 Main St, Kennewick, WA",
+                "TAX_CODE": "RES01",
+                "LAND_VALUE": 125000,
+                "IMP_VALUE": 275000
+            }}
+        }},
+        "geometry": {{
+            "type": "Polygon",
+            "coordinates": [[[-119.2, 46.2], [-119.19, 46.2], [-119.19, 46.21], [-119.2, 46.21], [-119.2, 46.2]]]
+        }}
+    }}"#, parcel_id);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
+}
+
+async fn get_zoning(_query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    let sample_data = r#"{
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "name": "R1",
+                    "description": "Single-Family Residential",
+                    "additional_properties": {
+                        "ZONE_CODE": "R1",
+                        "ZONE_TYPE": "RESIDENTIAL",
+                        "DESCRIPTION": "Single-Family Residential"
+                    }
+                },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-119.21, 46.19], [-119.18, 46.19], [-119.18, 46.22], [-119.21, 46.22], [-119.21, 46.19]]]
+                }
+            },
+            {
+                "type": "Feature",
+                "properties": {
+                    "name": "C1",
+                    "description": "Commercial",
+                    "additional_properties": {
+                        "ZONE_CODE": "C1",
+                        "ZONE_TYPE": "COMMERCIAL",
+                        "DESCRIPTION": "Neighborhood Commercial"
+                    }
+                },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-119.18, 46.19], [-119.16, 46.19], [-119.16, 46.21], [-119.18, 46.21], [-119.18, 46.19]]]
+                }
+            }
+        ]
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
+}
+
+// Document handlers
+async fn get_documents() -> impl Responder {
+    let sample_data = r#"[
+        {
+            "id": "doc-001",
+            "filename": "deed-123-main.pdf",
+            "content_type": "application/pdf",
+            "file_size": 125436,
+            "file_path": "/data/documents/doc-001/deed-123-main.pdf",
+            "classification": {
+                "document_type": "deed",
+                "confidence": 0.95,
+                "is_verified": true,
+                "classified_at": "2023-10-15T09:45:00Z"
+            },
+            "metadata": {
+                "title": "Deed for 123 Main St",
+                "description": "Property transfer deed",
+                "parcel_ids": ["1-2345-001"],
+                "recording_date": "2023-10-14T00:00:00Z",
+                "recording_number": "2023-45678",
+                "additional_properties": {}
+            },
+            "uploaded_at": "2023-10-15T09:30:00Z",
+            "uploaded_by": "admin"
         },
-        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Document not found: {}", document_id))),
-        Err(e) => {
-            error!("Error getting document {}: {}", document_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
+        {
+            "id": "doc-002",
+            "filename": "survey-123-main.pdf",
+            "content_type": "application/pdf",
+            "file_size": 3245298,
+            "file_path": "/data/documents/doc-002/survey-123-main.pdf",
+            "classification": {
+                "document_type": "survey",
+                "confidence": 0.92,
+                "is_verified": true,
+                "classified_at": "2023-10-15T10:15:00Z"
+            },
+            "metadata": {
+                "title": "Survey for 123 Main St",
+                "description": "Property boundary survey",
+                "parcel_ids": ["1-2345-001"],
+                "recording_date": "2023-09-20T00:00:00Z",
+                "recording_number": "2023-45123",
+                "additional_properties": {}
+            },
+            "uploaded_at": "2023-10-15T10:00:00Z",
+            "uploaded_by": "admin"
         }
-    }
-}
-
-#[derive(Deserialize)]
-struct DocumentUploadRequest {
-    filename: String,
-    content_type: String,
-    content: String, // Base64 encoded
-    metadata: Option<DocumentMetadata>,
-}
-
-async fn upload_document(
-    state: web::Data<AppState>,
-    data: web::Json<DocumentUploadRequest>,
-) -> Result<impl Responder, Error> {
-    info!("API: Uploading document: {}", data.filename);
+    ]"#;
     
-    // Decode base64 content
-    let content = match base64::decode(&data.content) {
-        Ok(content) => content,
-        Err(e) => {
-            error!("Error decoding document content: {}", e);
-            return Ok(HttpResponse::BadRequest().body(format!("Invalid base64 content: {}", e)));
-        }
-    };
-    
-    // Create metadata if not provided
-    let metadata = data.metadata.clone().unwrap_or_else(|| {
-        DocumentMetadata {
-            title: None,
-            description: None,
-            parcel_ids: None,
-            recording_date: None,
-            recording_number: None,
-            additional_properties: std::collections::HashMap::new(),
-        }
-    });
-    
-    match state.document_manager.upload_document(&data.filename, &data.content_type, &content, metadata).await {
-        Ok(document) => Ok(HttpResponse::Ok().json(document)),
-        Err(e) => {
-            error!("Error uploading document: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-#[derive(Deserialize)]
-struct DocumentClassificationRequest {
-    document_type: String,
-    confidence: f64,
-}
-
-async fn classify_document(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-    data: web::Json<DocumentClassificationRequest>,
-) -> Result<impl Responder, Error> {
+async fn get_document(path: web::Path<String>) -> impl Responder {
     let document_id = path.into_inner();
-    info!("API: Classifying document {} as {}", document_id, data.document_type);
     
-    match state.document_manager.classify_document(&document_id, &data.document_type, data.confidence).await {
-        Ok(document) => Ok(HttpResponse::Ok().json(document)),
-        Err(e) => {
-            error!("Error classifying document {}: {}", document_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    let sample_data = format!(r#"{{
+        "id": "{}",
+        "filename": "deed-123-main.pdf",
+        "content_type": "application/pdf",
+        "file_size": 125436,
+        "file_path": "/data/documents/{}/deed-123-main.pdf",
+        "classification": {{
+            "document_type": "deed",
+            "confidence": 0.95,
+            "is_verified": true,
+            "classified_at": "2023-10-15T09:45:00Z"
+        }},
+        "metadata": {{
+            "title": "Deed for 123 Main St",
+            "description": "Property transfer deed",
+            "parcel_ids": ["1-2345-001"],
+            "recording_date": "2023-10-14T00:00:00Z",
+            "recording_number": "2023-45678",
+            "additional_properties": {{}}
+        }},
+        "uploaded_at": "2023-10-15T09:30:00Z",
+        "uploaded_by": "admin"
+    }}"#, document_id, document_id);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-async fn get_documents_by_parcel(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
+async fn get_document_content(_path: web::Path<String>) -> impl Responder {
+    // For demo purposes, return a placeholder content
+    HttpResponse::Ok().content_type("text/plain").body("This is a placeholder for document content.")
+}
+
+async fn upload_document(_payload: web::Json<serde_json::Value>) -> impl Responder {
+    let sample_response = r#"{
+        "success": true,
+        "document_id": "doc-003",
+        "error": null
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_response)
+}
+
+async fn classify_document(_path: web::Path<String>, _payload: web::Json<serde_json::Value>) -> impl Responder {
+    let sample_response = r#"{
+        "success": true,
+        "classification": {
+            "document_type": "deed",
+            "confidence": 0.95,
+            "is_verified": false,
+            "classified_at": "2023-10-15T10:30:00Z"
+        },
+        "error": null
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_response)
+}
+
+async fn get_documents_by_parcel(path: web::Path<String>) -> impl Responder {
     let parcel_id = path.into_inner();
-    info!("API: Getting documents for parcel: {}", parcel_id);
     
-    match state.document_manager.get_documents_by_parcel(&parcel_id).await {
-        Ok(documents) => Ok(HttpResponse::Ok().json(documents)),
-        Err(e) => {
-            error!("Error getting documents for parcel {}: {}", parcel_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    let sample_data = format!(r#"[
+        {{
+            "id": "doc-001",
+            "filename": "deed-123-main.pdf",
+            "content_type": "application/pdf",
+            "file_size": 125436,
+            "file_path": "/data/documents/doc-001/deed-123-main.pdf",
+            "classification": {{
+                "document_type": "deed",
+                "confidence": 0.95,
+                "is_verified": true,
+                "classified_at": "2023-10-15T09:45:00Z"
+            }},
+            "metadata": {{
+                "title": "Deed for Parcel {}",
+                "description": "Property transfer deed",
+                "parcel_ids": ["{}"],
+                "recording_date": "2023-10-14T00:00:00Z",
+                "recording_number": "2023-45678",
+                "additional_properties": {{}}
+            }},
+            "uploaded_at": "2023-10-15T09:30:00Z",
+            "uploaded_by": "admin"
+        }},
+        {{
+            "id": "doc-002",
+            "filename": "survey-123-main.pdf",
+            "content_type": "application/pdf",
+            "file_size": 3245298,
+            "file_path": "/data/documents/doc-002/survey-123-main.pdf",
+            "classification": {{
+                "document_type": "survey",
+                "confidence": 0.92,
+                "is_verified": true,
+                "classified_at": "2023-10-15T10:15:00Z"
+            }},
+            "metadata": {{
+                "title": "Survey for Parcel {}",
+                "description": "Property boundary survey",
+                "parcel_ids": ["{}"],
+                "recording_date": "2023-09-20T00:00:00Z",
+                "recording_number": "2023-45123",
+                "additional_properties": {{}}
+            }},
+            "uploaded_at": "2023-10-15T10:00:00Z",
+            "uploaded_by": "admin"
+        }}
+    ]"#, parcel_id, parcel_id, parcel_id, parcel_id);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-// Workflow routes
-async fn get_workflows(
-    state: web::Data<AppState>,
-) -> Result<impl Responder, Error> {
-    info!("API: Getting all workflows");
-    
-    // For simplicity, we'll just get workflows by a generic type
-    match state.workflow_manager.get_workflows_by_type("").await {
-        Ok(workflows) => Ok(HttpResponse::Ok().json(workflows)),
-        Err(e) => {
-            error!("Error getting workflows: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-async fn get_workflow(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
-    let workflow_id = path.into_inner();
-    info!("API: Getting workflow: {}", workflow_id);
-    
-    match state.workflow_manager.get_workflow(&workflow_id).await {
-        Ok(Some(workflow)) => Ok(HttpResponse::Ok().json(workflow)),
-        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Workflow not found: {}", workflow_id))),
-        Err(e) => {
-            error!("Error getting workflow {}: {}", workflow_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct WorkflowCreateRequest {
-    title: String,
-    description: Option<String>,
-    workflow_type: String,
-    assigned_to: Option<String>,
-    parcel_ids: Option<Vec<String>>,
-    document_ids: Option<Vec<String>>,
-    #[serde(default)]
-    metadata: std::collections::HashMap<String, serde_json::Value>,
-}
-
-async fn create_workflow(
-    state: web::Data<AppState>,
-    data: web::Json<WorkflowCreateRequest>,
-) -> Result<impl Responder, Error> {
-    info!("API: Creating workflow: {}", data.title);
-    
-    // Create new workflow
-    let mut workflow = WorkflowItem::new(&data.title, &data.workflow_type);
-    workflow.description = data.description.clone();
-    workflow.assigned_to = data.assigned_to.clone();
-    workflow.parcel_ids = data.parcel_ids.clone();
-    workflow.document_ids = data.document_ids.clone();
-    workflow.metadata = data.metadata.clone();
-    
-    match state.workflow_manager.create_workflow(&workflow).await {
-        Ok(workflow_id) => {
-            match state.workflow_manager.get_workflow(&workflow_id).await {
-                Ok(Some(created_workflow)) => Ok(HttpResponse::Ok().json(created_workflow)),
-                _ => Ok(HttpResponse::Ok().json(workflow_id)),
-            }
+// Workflow handlers
+async fn get_workflows() -> impl Responder {
+    let sample_data = r#"[
+        {
+            "id": "wf-001",
+            "title": "Boundary Line Adjustment - 123 Main St",
+            "description": "Processing boundary line adjustment for parcels 1-2345-001 and 1-2345-002",
+            "status": "in_progress",
+            "workflow_type": "boundary_adjustment",
+            "assigned_to": "jane.doe",
+            "parcel_ids": ["1-2345-001", "1-2345-002"],
+            "document_ids": ["doc-001", "doc-002"],
+            "metadata": {},
+            "created_at": "2023-10-10T08:30:00Z",
+            "updated_at": "2023-10-15T14:20:00Z",
+            "completed_at": null
         },
-        Err(e) => {
-            error!("Error creating workflow: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
+        {
+            "id": "wf-002",
+            "title": "Building Permit Review - 456 Oak St",
+            "description": "Reviewing building permit application",
+            "status": "pending",
+            "workflow_type": "permit_review",
+            "assigned_to": null,
+            "parcel_ids": ["1-2346-005"],
+            "document_ids": ["doc-003"],
+            "metadata": {},
+            "created_at": "2023-10-14T09:45:00Z",
+            "updated_at": null,
+            "completed_at": null
         }
-    }
+    ]"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-#[derive(Deserialize)]
-struct WorkflowUpdateRequest {
-    title: Option<String>,
-    description: Option<String>,
-    status: Option<String>,
-    assigned_to: Option<String>,
-    parcel_ids: Option<Vec<String>>,
-    document_ids: Option<Vec<String>>,
-    metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
-}
-
-async fn update_workflow(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-    data: web::Json<WorkflowUpdateRequest>,
-) -> Result<impl Responder, Error> {
+async fn get_workflow(path: web::Path<String>) -> impl Responder {
     let workflow_id = path.into_inner();
-    info!("API: Updating workflow: {}", workflow_id);
     
-    // Get current workflow
-    let result = state.workflow_manager.get_workflow(&workflow_id).await;
+    let sample_data = format!(r#"{{
+        "id": "{}",
+        "title": "Boundary Line Adjustment - 123 Main St",
+        "description": "Processing boundary line adjustment for parcels 1-2345-001 and 1-2345-002",
+        "status": "in_progress",
+        "workflow_type": "boundary_adjustment",
+        "assigned_to": "jane.doe",
+        "parcel_ids": ["1-2345-001", "1-2345-002"],
+        "document_ids": ["doc-001", "doc-002"],
+        "metadata": {{}},
+        "created_at": "2023-10-10T08:30:00Z",
+        "updated_at": "2023-10-15T14:20:00Z",
+        "completed_at": null
+    }}"#, workflow_id);
     
-    match result {
-        Ok(Some(mut workflow)) => {
-            // Update workflow fields
-            if let Some(title) = &data.title {
-                workflow.title = title.clone();
-            }
-            
-            if let Some(description) = &data.description {
-                workflow.description = Some(description.clone());
-            }
-            
-            if let Some(status_str) = &data.status {
-                workflow.status = match status_str.as_str() {
-                    "pending" => WorkflowStatus::Pending,
-                    "in_progress" => WorkflowStatus::InProgress,
-                    "on_hold" => WorkflowStatus::OnHold,
-                    "completed" => WorkflowStatus::Completed,
-                    "cancelled" => WorkflowStatus::Cancelled,
-                    _ => workflow.status,
-                };
-            }
-            
-            if data.assigned_to.is_some() {
-                workflow.assigned_to = data.assigned_to.clone();
-            }
-            
-            if data.parcel_ids.is_some() {
-                workflow.parcel_ids = data.parcel_ids.clone();
-            }
-            
-            if data.document_ids.is_some() {
-                workflow.document_ids = data.document_ids.clone();
-            }
-            
-            if let Some(metadata) = &data.metadata {
-                workflow.metadata = metadata.clone();
-            }
-            
-            // Update workflow in database
-            match state.workflow_manager.update_workflow(&workflow).await {
-                Ok(_) => Ok(HttpResponse::Ok().json(workflow)),
-                Err(e) => {
-                    error!("Error updating workflow {}: {}", workflow_id, e);
-                    Ok(HttpResponse::InternalServerError().body(e))
-                }
-            }
-        },
-        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Workflow not found: {}", workflow_id))),
-        Err(e) => {
-            error!("Error getting workflow {}: {}", workflow_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-async fn get_workflow_events(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
+async fn create_workflow(_payload: web::Json<serde_json::Value>) -> impl Responder {
+    let sample_response = r#"{
+        "id": "wf-003",
+        "title": "New Workflow",
+        "description": "New workflow description",
+        "status": "pending",
+        "workflow_type": "custom",
+        "assigned_to": null,
+        "parcel_ids": [],
+        "document_ids": [],
+        "metadata": {},
+        "created_at": "2023-10-15T15:30:00Z",
+        "updated_at": null,
+        "completed_at": null
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_response)
+}
+
+async fn update_workflow(_path: web::Path<String>, _payload: web::Json<serde_json::Value>) -> impl Responder {
+    let sample_response = r#"{
+        "id": "wf-001",
+        "title": "Updated Workflow",
+        "description": "Updated workflow description",
+        "status": "in_progress",
+        "workflow_type": "boundary_adjustment",
+        "assigned_to": "jane.doe",
+        "parcel_ids": ["1-2345-001", "1-2345-002"],
+        "document_ids": ["doc-001", "doc-002"],
+        "metadata": {},
+        "created_at": "2023-10-10T08:30:00Z",
+        "updated_at": "2023-10-15T15:45:00Z",
+        "completed_at": null
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_response)
+}
+
+async fn get_workflow_events(path: web::Path<String>) -> impl Responder {
     let workflow_id = path.into_inner();
-    info!("API: Getting events for workflow: {}", workflow_id);
     
-    match state.workflow_manager.get_workflow_events(&workflow_id).await {
-        Ok(events) => Ok(HttpResponse::Ok().json(events)),
-        Err(e) => {
-            error!("Error getting workflow events {}: {}", workflow_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    let sample_data = format!(r#"[
+        {{
+            "id": "evt-001",
+            "workflow_id": "{}",
+            "event_type": "create",
+            "description": "Workflow created",
+            "previous_status": null,
+            "new_status": "pending",
+            "user_id": "john.doe",
+            "metadata": {{}},
+            "created_at": "2023-10-10T08:30:00Z"
+        }},
+        {{
+            "id": "evt-002",
+            "workflow_id": "{}",
+            "event_type": "status_change",
+            "description": "Status changed from pending to in_progress",
+            "previous_status": "pending",
+            "new_status": "in_progress",
+            "user_id": "jane.doe",
+            "metadata": {{}},
+            "created_at": "2023-10-12T10:15:00Z"
+        }},
+        {{
+            "id": "evt-003",
+            "workflow_id": "{}",
+            "event_type": "assignment_change",
+            "description": "Assigned to jane.doe",
+            "previous_status": null,
+            "new_status": null,
+            "user_id": "john.doe",
+            "metadata": {{}},
+            "created_at": "2023-10-12T10:20:00Z"
+        }}
+    ]"#, workflow_id, workflow_id, workflow_id);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-#[derive(Deserialize)]
-struct WorkflowEventRequest {
-    event_type: String,
-    description: String,
-    user_id: Option<String>,
-    #[serde(default)]
-    metadata: std::collections::HashMap<String, serde_json::Value>,
+async fn add_workflow_event(_path: web::Path<String>, _payload: web::Json<serde_json::Value>) -> impl Responder {
+    let sample_response = r#"{
+        "id": "evt-004",
+        "workflow_id": "wf-001",
+        "event_type": "comment",
+        "description": "Added new comment",
+        "previous_status": null,
+        "new_status": null,
+        "user_id": "john.doe",
+        "metadata": {},
+        "created_at": "2023-10-15T16:00:00Z"
+    }"#;
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_response)
 }
 
-async fn add_workflow_event(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-    data: web::Json<WorkflowEventRequest>,
-) -> Result<impl Responder, Error> {
-    let workflow_id = path.into_inner();
-    info!("API: Adding event to workflow {}: {}", workflow_id, data.event_type);
-    
-    // Create new event
-    let mut event = crate::integrations::workflow::WorkflowEvent::new(
-        &workflow_id,
-        &data.event_type,
-        &data.description,
-    );
-    
-    event.user_id = data.user_id.clone();
-    event.metadata = data.metadata.clone();
-    
-    match state.workflow_manager.add_workflow_event(&event).await {
-        Ok(event_id) => Ok(HttpResponse::Ok().json(event_id)),
-        Err(e) => {
-            error!("Error adding workflow event: {}", e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-async fn get_workflows_by_type(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
+async fn get_workflows_by_type(path: web::Path<String>) -> impl Responder {
     let workflow_type = path.into_inner();
-    info!("API: Getting workflows by type: {}", workflow_type);
     
-    match state.workflow_manager.get_workflows_by_type(&workflow_type).await {
-        Ok(workflows) => Ok(HttpResponse::Ok().json(workflows)),
-        Err(e) => {
-            error!("Error getting workflows by type {}: {}", workflow_type, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
+    let sample_data = format!(r#"[
+        {{
+            "id": "wf-001",
+            "title": "Boundary Line Adjustment - 123 Main St",
+            "description": "Processing boundary line adjustment for parcels 1-2345-001 and 1-2345-002",
+            "status": "in_progress",
+            "workflow_type": "{}",
+            "assigned_to": "jane.doe",
+            "parcel_ids": ["1-2345-001", "1-2345-002"],
+            "document_ids": ["doc-001", "doc-002"],
+            "metadata": {{}},
+            "created_at": "2023-10-10T08:30:00Z",
+            "updated_at": "2023-10-15T14:20:00Z",
+            "completed_at": null
+        }}
+    ]"#, workflow_type);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }
 
-async fn get_workflows_by_parcel(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
+async fn get_workflows_by_parcel(path: web::Path<String>) -> impl Responder {
     let parcel_id = path.into_inner();
-    info!("API: Getting workflows for parcel: {}", parcel_id);
     
-    match state.workflow_manager.get_workflows_by_parcel(&parcel_id).await {
-        Ok(workflows) => Ok(HttpResponse::Ok().json(workflows)),
-        Err(e) => {
-            error!("Error getting workflows for parcel {}: {}", parcel_id, e);
-            Ok(HttpResponse::InternalServerError().body(e))
-        }
-    }
-}
-
-// Query parameters
-#[derive(Deserialize)]
-struct BoundsQuery {
-    #[serde(default)]
-    bounds: String,
+    let sample_data = format!(r#"[
+        {{
+            "id": "wf-001",
+            "title": "Boundary Line Adjustment - Parcel {}",
+            "description": "Processing boundary line adjustment",
+            "status": "in_progress",
+            "workflow_type": "boundary_adjustment",
+            "assigned_to": "jane.doe",
+            "parcel_ids": ["{}"],
+            "document_ids": ["doc-001", "doc-002"],
+            "metadata": {{}},
+            "created_at": "2023-10-10T08:30:00Z",
+            "updated_at": "2023-10-15T14:20:00Z",
+            "completed_at": null
+        }}
+    ]"#, parcel_id, parcel_id);
+    
+    HttpResponse::Ok().content_type("application/json").body(sample_data)
 }

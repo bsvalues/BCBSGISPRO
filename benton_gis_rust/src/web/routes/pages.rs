@@ -1,10 +1,6 @@
-use actix_web::{web, HttpResponse, Responder, Error};
-use askama_actix::Template;
-use log::info;
+use actix_web::{web, HttpResponse, Responder};
+use askama::Template;
 
-use crate::AppState;
-
-// Template structs - these will be rendered with Askama
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
@@ -42,67 +38,77 @@ struct DashboardTemplate {
     title: String,
 }
 
-// Page route handlers
-pub async fn index() -> Result<impl Responder, Error> {
-    info!("Rendering index page");
-    
+pub async fn index() -> impl Responder {
     let template = IndexTemplate {
         title: "TerraFusion Platform - Benton County GIS".to_string(),
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
 
-pub async fn map() -> Result<impl Responder, Error> {
-    info!("Rendering map page");
-    
+pub async fn map() -> impl Responder {
     let template = MapTemplate {
         title: "Map - TerraFusion Platform".to_string(),
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
 
-pub async fn parcel_detail(
-    path: web::Path<String>,
-) -> Result<impl Responder, Error> {
+pub async fn parcel_detail(path: web::Path<String>) -> impl Responder {
     let parcel_id = path.into_inner();
-    info!("Rendering parcel detail page for: {}", parcel_id);
     
     let template = ParcelDetailTemplate {
         title: format!("Parcel {} - TerraFusion Platform", parcel_id),
         parcel_id,
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
 
-pub async fn documents() -> Result<impl Responder, Error> {
-    info!("Rendering documents page");
-    
+pub async fn documents() -> impl Responder {
     let template = DocumentsTemplate {
         title: "Documents - TerraFusion Platform".to_string(),
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
 
-pub async fn workflows() -> Result<impl Responder, Error> {
-    info!("Rendering workflows page");
-    
+pub async fn workflows() -> impl Responder {
     let template = WorkflowsTemplate {
         title: "Workflows - TerraFusion Platform".to_string(),
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
 
-pub async fn dashboard() -> Result<impl Responder, Error> {
-    info!("Rendering dashboard page");
-    
+pub async fn dashboard() -> impl Responder {
     let template = DashboardTemplate {
         title: "Dashboard - TerraFusion Platform".to_string(),
     };
     
-    Ok(template)
+    template.render().map(|body| {
+        HttpResponse::Ok().content_type("text/html").body(body)
+    }).unwrap_or_else(|err| {
+        HttpResponse::InternalServerError().body(format!("Template error: {}", err))
+    })
 }
