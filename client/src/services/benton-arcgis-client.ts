@@ -432,7 +432,7 @@ export class BentonArcGISClient extends ArcGISRestClient {
     try {
       const queryParams: QueryParams = {
         geometry: JSON.stringify(parcelGeometry),
-        geometryType: 'esriGeometryPolygon',
+        geometryType: 'esriGeometryPolygon' as 'esriGeometryPolygon',
         spatialRel: 'esriSpatialRelIntersects',
         outFields: '*',
         returnGeometry: true,
