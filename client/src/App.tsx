@@ -120,7 +120,7 @@ const App: React.FC = () => {
                     
                     <Route path="/benton-map">
                       {(params) => (
-                        <BentonGISMap {...params} />
+                        <BentonCountyMap {...params} />
                       )}
                     </Route>
                     
