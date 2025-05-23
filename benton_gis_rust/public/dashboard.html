@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraFusion Dashboard - Benton County</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .dashboard-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        .dashboard-section h2 {
+            margin-top: 0;
+            color: #2563eb;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .section-content {
+            max-height: 500px;
+            overflow: auto;
+        }
+        
+        .map-container {
+            height: 400px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+        
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom-color: #2563eb;
+            color: #2563eb;
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .api-token-section {
+            background-color: #fffbeb;
+            border: 1px solid #fef3c7;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .api-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .api-form input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+        
+        .document-list, .workflow-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .document-item, .workflow-item {
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .document-icon, .workflow-icon {
+            font-size: 24px;
+            color: #2563eb;
+        }
+        
+        .item-info {
+            flex: 1;
+        }
+        
+        .item-title {
+            font-weight: 500;
+            margin: 0 0 5px 0;
+        }
+        
+        .item-meta {
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .feature-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .feature-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .feature-card h3 {
+            color: #2563eb;
+            margin-top: 0;
+        }
+        
+        /* Status indicators */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        
+        .status-badge.success {
+            background-color: #ecfdf5;
+            color: #10b981;
+        }
+        
+        .status-badge.warning {
+            background-color: #fffbeb;
+            color: #f59e0b;
+        }
+        
+        .status-badge.error {
+            background-color: #fef2f2;
+            color: #ef4444;
+        }
+        
+        .status-badge.info {
+            background-color: #eff6ff;
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <h1>TerraFusion Platform</h1>
+                <p>Benton County GIS & Document Management</p>
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="container dashboard-container">
+            <div class="api-token-section">
+                <h2>Connect to Real Benton County Data</h2>
+                <p>To access real GIS data from Benton County, please provide your API credentials:</p>
+                
+                <div>
+                    <h3>MapBox API Token</h3>
+                    <p>Required for displaying interactive maps</p>
+                    <div class="api-form">
+                        <input type="text" id="mapbox-token" placeholder="Enter your MapBox API token">
+                        <button class="btn btn-primary" onclick="saveToken('mapbox')">Save</button>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <h3>ArcGIS API Token</h3>
+                    <p>Required for accessing real Benton County GIS data</p>
+                    <div class="api-form">
+                        <input type="text" id="arcgis-token" placeholder="Enter your ArcGIS API token">
+                        <button class="btn btn-primary" onclick="saveToken('arcgis')">Save</button>
+                    </div>
+                </div>
+            </div>
+        
+            <div class="dashboard-section">
+                <h2>Interactive Map <span class="status-badge warning">Waiting for API Token</span></h2>
+                <div class="map-container" id="map">
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column; color: #64748b;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🗺️</div>
+                        <p>Enter your MapBox and ArcGIS tokens above to load the interactive map</p>
+                        <p>This will display real Benton County parcel data</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-section">
+                <div class="tab-container">
+                    <div class="tabs">
+                        <div class="tab active" onclick="switchTab('documents')">Documents</div>
+                        <div class="tab" onclick="switchTab('workflows')">Workflows</div>
+                        <div class="tab" onclick="switchTab('activity')">Recent Activity</div>
+                    </div>
+                    
+                    <div id="documents-tab" class="tab-content active">
+                        <h3>Document Management <span class="status-badge success">Available</span></h3>
+                        <p>Access and manage Benton County property documents</p>
+                        
+                        <div class="document-list">
+                            <div class="document-item">
+                                <div class="document-icon">📄</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Smith Property Deed</h4>
+                                    <div class="item-meta">
+                                        <span>Deed</span> • <span>Added May 15, 2025</span> • <span>Parcel #12345-000</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                            
+                            <div class="document-item">
+                                <div class="document-icon">📄</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Johnson Subdivision Plat</h4>
+                                    <div class="item-meta">
+                                        <span>Plat</span> • <span>Added May 10, 2025</span> • <span>Parcel #23456-000</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                            
+                            <div class="document-item">
+                                <div class="document-icon">📄</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Wilson Property Survey</h4>
+                                    <div class="item-meta">
+                                        <span>Survey</span> • <span>Added May 5, 2025</span> • <span>Parcel #34567-000</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary">Upload New Document</button>
+                        </div>
+                    </div>
+                    
+                    <div id="workflows-tab" class="tab-content">
+                        <h3>Workflow Management <span class="status-badge success">Available</span></h3>
+                        <p>Track and manage county workflows from deed processing to boundary adjustments</p>
+                        
+                        <div class="workflow-list">
+                            <div class="workflow-item">
+                                <div class="workflow-icon">⏳</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Davis Property Deed Processing</h4>
+                                    <div class="item-meta">
+                                        <span>In Progress</span> • <span>Started May 18, 2025</span> • <span>3/6 steps completed</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                            
+                            <div class="workflow-item">
+                                <div class="workflow-icon">🔄</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Clearwater Heights BLA</h4>
+                                    <div class="item-meta">
+                                        <span>Under Review</span> • <span>Started May 12, 2025</span> • <span>4/8 steps completed</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                            
+                            <div class="workflow-item">
+                                <div class="workflow-icon">✅</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Thompson Property Split</h4>
+                                    <div class="item-meta">
+                                        <span>Completed</span> • <span>May 3, 2025</span> • <span>9/9 steps completed</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm">View</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary">Create New Workflow</button>
+                        </div>
+                    </div>
+                    
+                    <div id="activity-tab" class="tab-content">
+                        <h3>Recent System Activity</h3>
+                        <p>Track recent changes and updates in the system</p>
+                        
+                        <div class="activity-list">
+                            <div class="document-item">
+                                <div class="document-icon">🔔</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">New Subdivision Map Added</h4>
+                                    <p>The Clearwater Heights subdivision map has been added to the system.</p>
+                                    <div class="item-meta">
+                                        <span>May 18, 2025</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="document-item">
+                                <div class="document-icon">🔔</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">Document Classification Improved</h4>
+                                    <p>The AI document classification system has been upgraded for better accuracy.</p>
+                                    <div class="item-meta">
+                                        <span>May 15, 2025</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="document-item">
+                                <div class="document-icon">🔔</div>
+                                <div class="item-info">
+                                    <h4 class="item-title">System Maintenance</h4>
+                                    <p>Scheduled maintenance completed with performance improvements.</p>
+                                    <div class="item-meta">
+                                        <span>May 10, 2025</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-section">
+                <h2>Platform Features</h2>
+                <div class="feature-cards">
+                    <div class="feature-card">
+                        <h3>Parcel Mapping</h3>
+                        <p>View and interact with the latest parcel data from Benton County's official records. Includes parcel boundaries, ownership information, and zoning details.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>Document Management</h3>
+                        <p>Access and organize county documents with intelligent classification and searching. Support for deeds, plats, surveys, and other property documents.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>Workflow Automation</h3>
+                        <p>Streamline county processes from deed processing to boundary line adjustments with automated workflow management and tracking.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>Real Data Integration</h3>
+                        <p>Direct connections to Benton County GIS services and document repositories ensure you're always working with the most current data.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Benton County Assessor's Office. All rights reserved.</p>
+            <p>TerraFusion Platform - Connecting real GIS data with intelligent document workflows</p>
+        </div>
+    </footer>
+    
+    <script>
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Activate the selected tab and content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+        }
+        
+        // Token saving functionality
+        function saveToken(tokenType) {
+            const inputId = tokenType + '-token';
+            const token = document.getElementById(inputId).value.trim();
+            
+            if (!token) {
+                alert(`Please enter a valid ${tokenType.toUpperCase()} API token`);
+                return;
+            }
+            
+            // In a real application, this would be saved securely
+            localStorage.setItem(tokenType + 'Token', token);
+            
+            alert(`${tokenType.toUpperCase()} token saved successfully!`);
+            
+            // Update UI to show token is set
+            if (tokenType === 'mapbox') {
+                document.querySelector('.dashboard-section h2 .status-badge').classList.remove('warning');
+                document.querySelector('.dashboard-section h2 .status-badge').classList.add('info');
+                document.querySelector('.dashboard-section h2 .status-badge').textContent = 'Token Set - Ready';
+            }
+            
+            // Check if both tokens are set
+            if (localStorage.getItem('mapboxToken') && localStorage.getItem('arcgisToken')) {
+                initializeMap();
+            }
+        }
+        
+        // Initialize map if tokens are available
+        function initializeMap() {
+            const mapContainer = document.getElementById('map');
+            mapContainer.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column; color: #15803d;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+                    <p>API tokens set successfully!</p>
+                    <p>Map would now display real Benton County GIS data</p>
+                    <p>In the full implementation, this would show the interactive Benton County parcel map</p>
+                </div>
+            `;
+        }
+        
+        // Check for existing tokens on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const mapboxToken = localStorage.getItem('mapboxToken');
+            const arcgisToken = localStorage.getItem('arcgisToken');
+            
+            if (mapboxToken) {
+                document.getElementById('mapbox-token').value = mapboxToken;
+                document.querySelector('.dashboard-section h2 .status-badge').classList.remove('warning');
+                document.querySelector('.dashboard-section h2 .status-badge').classList.add('info');
+                document.querySelector('.dashboard-section h2 .status-badge').textContent = 'Token Set - Ready';
+            }
+            
+            if (arcgisToken) {
+                document.getElementById('arcgis-token').value = arcgisToken;
+            }
+            
+            if (mapboxToken && arcgisToken) {
+                initializeMap();
+            }
+        });
+    </script>
+</body>
+</html>

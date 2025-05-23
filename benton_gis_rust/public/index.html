@@ -3,171 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benton County GIS System - Rust Edition</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: #f8fafc;
-            color: #1a202c;
-        }
-        
-        header {
-            background-color: #2b6cb0;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-        }
-        
-        h1 {
-            margin: 0;
-        }
-        
-        main {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        .card {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .card h2 {
-            color: #2b6cb0;
-            margin-top: 0;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid #e2e8f0;
-            padding-bottom: 0.5rem;
-        }
-        
-        .button {
-            display: inline-block;
-            background-color: #2b6cb0;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-right: 0.5rem;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-        
-        .button:hover {
-            background-color: #4299e1;
-        }
-        
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-        
-        .feature-card {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-        }
-        
-        .feature-card h3 {
-            color: #2b6cb0;
-            margin-top: 0;
-        }
-        
-        footer {
-            background-color: #2b6cb0;
-            color: white;
-            text-align: center;
-            padding: 1rem;
-            margin-top: 2rem;
-        }
-    </style>
+    <title>TerraFusion Platform - Benton County</title>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <header>
-        <h1>Benton County GIS System</h1>
-        <p>Rust-Powered Geographic Information System</p>
+        <div class="container">
+            <div class="logo">
+                <h1>TerraFusion Platform</h1>
+                <p>Benton County GIS & Document Management</p>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="/" class="active">Home</a></li>
+                    <li><a href="/map">Map</a></li>
+                    <li><a href="/documents">Documents</a></li>
+                    <li><a href="/workflows">Workflows</a></li>
+                </ul>
+            </nav>
+        </div>
     </header>
     
     <main>
-        <div class="card">
-            <h2>Welcome to the Benton County GIS Platform</h2>
-            <p>
-                This cutting-edge Geographic Information System (GIS) workflow solution for the Benton County Assessor's Office
-                delivers advanced geospatial data processing with intelligent document management and robust collaborative features.
-            </p>
-            <p>
-                The entire system has been rewritten in Rust for superior performance, reliability, and security.
-            </p>
-            <div>
-                <a href="/map" class="button">Explore Maps</a>
-                <a href="/documents" class="button">Manage Documents</a>
-                <a href="/api/health" class="button">API Status</a>
-            </div>
-        </div>
-        
-        <h2>Key Features</h2>
-        <div class="feature-grid">
-            <div class="feature-card">
-                <h3>Interactive Mapping</h3>
-                <p>
-                    Explore property boundaries, zoning information, and other geospatial data
-                    with intuitive mapping tools built with Rust's high-performance capabilities.
-                </p>
-            </div>
-            
-            <div class="feature-card">
-                <h3>Document Management</h3>
-                <p>
-                    Organize and classify documents related to property assessments with our
-                    intelligent document system powered by Rust's reliable processing engine.
-                </p>
-            </div>
-            
-            <div class="feature-card">
-                <h3>Data Analysis</h3>
-                <p>
-                    Analyze property data and generate reports to support assessment decisions
-                    with blazing-fast data processing capabilities provided by Rust.
-                </p>
-            </div>
-            
-            <div class="feature-card">
-                <h3>API Integration</h3>
-                <p>
-                    Connect to other systems and services through our comprehensive API
-                    built with Rust's secure and efficient networking stack.
-                </p>
-            </div>
-            
-            <div class="feature-card">
-                <h3>Collaboration Tools</h3>
-                <p>
-                    Work together with colleagues on mapping projects and document reviews
-                    with real-time communication powered by Rust's reliable concurrency model.
-                </p>
-            </div>
-            
-            <div class="feature-card">
-                <h3>Security Focus</h3>
-                <p>
-                    Rest easy knowing that your data is protected by Rust's memory-safe
-                    design and robust security features built from the ground up.
-                </p>
-            </div>
+        <div class="container">
+            <section class="hero">
+                <h1>Welcome to the TerraFusion Platform</h1>
+                <p>Advanced GIS and document management for Benton County</p>
+                <div class="hero-actions">
+                    <a href="/map" class="btn btn-primary">Explore Maps</a>
+                    <a href="/documents" class="btn btn-secondary">View Documents</a>
+                </div>
+            </section>
+
+            <section class="dashboard-overview">
+                <div class="row">
+                    <div class="column">
+                        <div class="card">
+                            <h2>Recent Activity</h2>
+                            <div class="activity-list">
+                                <div class="empty-state">
+                                    <p>Loading recent activity...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="card">
+                            <h2>Quick Links</h2>
+                            <ul class="quick-links">
+                                <li><a href="/workflows?status=in_progress">Active Workflows</a></li>
+                                <li><a href="/documents?type=deed">Property Deeds</a></li>
+                                <li><a href="/documents?type=plat">Plat Maps</a></li>
+                                <li><a href="/map?layer=parcels">Parcel Data</a></li>
+                                <li><a href="/map?layer=zoning">Zoning Information</a></li>
+                            </ul>
+                        </div>
+                        
+                        <div class="card">
+                            <h2>System Status</h2>
+                            <div class="status-items">
+                                <div class="status-item">
+                                    <span class="status-label">GIS Connection:</span>
+                                    <span class="status-value status-warning">Waiting for API Token</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Document System:</span>
+                                    <span class="status-value status-good">Online</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Workflow Engine:</span>
+                                    <span class="status-value status-good">Active</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="feature-highlight">
+                <h2>Working with Real Benton County Data</h2>
+                <p>The TerraFusion Platform integrates directly with Benton County's ArcGIS services to provide real-time access to parcel information, zoning data, and other critical GIS layers.</p>
+                
+                <div class="feature-cards row">
+                    <div class="column">
+                        <div class="card">
+                            <h3>Parcel Mapping</h3>
+                            <p>View and interact with the latest parcel data from Benton County's official records.</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="card">
+                            <h3>Document Management</h3>
+                            <p>Access and organize county documents with intelligent classification and searching.</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="card">
+                            <h3>Workflow Automation</h3>
+                            <p>Streamline county processes from deed processing to boundary line adjustments.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
     </main>
     
     <footer>
-        <p>&copy; 2023 Benton County Assessor's Office. All rights reserved.</p>
+        <div class="container">
+            <p>&copy; 2025 Benton County Assessor's Office. All rights reserved.</p>
+            <p>TerraFusion Platform - Connecting real GIS data with intelligent document workflows</p>
+        </div>
     </footer>
+    
+    <script src="/js/main.js"></script>
 </body>
 </html>
