@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aci-dev = { version = "1.0.0", features = ["full"] }
-# Both actix-web and actix-files functionality is now provided by ACI.dev
+actix-web = "4.3.1"
+actix-files = "0.6.2"
+actix-web-actors = "4.2.0"
+actix = "0.13.0"
 askama = "0.12.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
