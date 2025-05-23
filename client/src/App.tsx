@@ -17,6 +17,7 @@ import MapPage from './pages/MapPage';
 import DemoDocumentClassification from './pages/demo-document-classification';
 import MapElementsAdvisorPage from './pages/map-elements-advisor-page';
 import BentonCountyMapPage from './pages/BentonCountyMapPage';
+import BentonCountyGISDashboard from './pages/BentonCountyGISDashboard';
 import LegalDescriptionPage from './pages/LegalDescriptionPage';
 import DocumentScannerPage from './pages/DocumentScannerPage';
 import AgentToolsPage from './pages/agent-tools-page';
@@ -94,6 +95,12 @@ const App: React.FC = () => {
                     <Route path="/map">
                       {(params) => (
                         <ProtectedRoute component={MapPage} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/benton-gis">
+                      {(params) => (
+                        <ProtectedRoute component={BentonCountyGISDashboard} {...params} />
                       )}
                     </Route>
                     
