@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import { json } from "express";
-import { registerRoutes } from "./routes";
+import { setupRoutes } from "./routes";
 import { setupVite } from "./vite";
 import path from "path";
 import './db'; // Initialize database connection
+import { storage } from "./storage";
 
 async function main() {
   const app = express();
@@ -14,7 +15,7 @@ async function main() {
   app.use(json());
   
   // Register all application routes
-  const server = await registerRoutes(app);
+  const server = setupRoutes(app, storage);
   
   // Setup Vite for serving the frontend
   await setupVite(app, server);
