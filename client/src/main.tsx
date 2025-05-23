@@ -2,13 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { ToastProvider } from './hooks/use-toast.tsx';
+import { Toaster } from './components/ui/toaster';
 
-// Render the App to the DOM with Toast Provider
+// Render the App to the DOM with Toaster
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <App />
+    <Toaster />
   </React.StrictMode>,
 );

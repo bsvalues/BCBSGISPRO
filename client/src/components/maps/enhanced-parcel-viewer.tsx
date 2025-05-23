@@ -9,7 +9,7 @@ import {
   Database, 
   Search, 
   Layers, 
-  SquareSelect, 
+  Square, // Replaced SquareSelect with Square icon
   Ruler, 
   Move, 
   Download,
@@ -602,7 +602,7 @@ export function EnhancedParcelViewer({
                 size="sm"
                 onClick={() => selectTool(MapToolType.SELECT)}
               >
-                <SquareSelect className="h-4 w-4 mr-1" /> Select
+                <Square className="h-4 w-4 mr-1" /> Select
               </Button>
               <Button
                 variant={activeTool === MapToolType.MEASURE ? 'default' : 'outline'}
