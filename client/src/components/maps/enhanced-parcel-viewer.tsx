@@ -306,7 +306,7 @@ export function EnhancedParcelViewer({
       }
       
       setHoveredParcel(null);
-      map.current?.getCanvas().style.cursor = '';
+      if (map.current) map.current.getCanvas().style.cursor = '';
     });
     
     // Load initial data

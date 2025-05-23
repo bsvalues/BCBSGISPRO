@@ -34,6 +34,8 @@ import MuskDemoDashboard from './pages/musk-demo-dashboard-simplified';
 import MuskDemoNew from './pages/musk-demo-new';
 import MuskDemoDashboardSimple from './pages/musk-demo-dashboard-simple';
 import MuskDashboardRealData from './pages/musk-dashboard-real-data';
+import SimpleMapDemo from './pages/SimpleMapDemo';
+import BentonGISMap from './pages/BentonGISMap';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';
@@ -107,6 +109,18 @@ const App: React.FC = () => {
                     <Route path="/documents">
                       {(params) => (
                         <ProtectedRoute component={DocumentScannerPage} {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/simple-map">
+                      {(params) => (
+                        <SimpleMapDemo {...params} />
+                      )}
+                    </Route>
+                    
+                    <Route path="/benton-map">
+                      {(params) => (
+                        <BentonGISMap {...params} />
                       )}
                     </Route>
                     
