@@ -1,6 +1,5 @@
 import express, { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
 import auditLogRoutes from "./routes/audit-logs";
