@@ -6,7 +6,7 @@ import { setupVite } from "./vite";
 import path from "path";
 import { db } from "./db"; // Initialize database connection
 import { storage } from "./storage";
-import { setupAuth } from "./replitAuth"; // Import auth setup
+import { setupSimpleAuth } from "./simple-auth"; // Import auth setup
 
 async function main() {
   const app = express();
@@ -15,8 +15,8 @@ async function main() {
   app.use(cors());
   app.use(json());
   
-  // Setup Authentication
-  await setupAuth(app);
+  // Setup Simple Authentication
+  setupSimpleAuth(app);
   
   // Register all application routes
   const server = setupRoutes(app, storage);
