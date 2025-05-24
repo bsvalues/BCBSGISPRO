@@ -29,9 +29,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    // Store the current path to redirect back after login
-    const currentPath = window.location.pathname;
-    setLocation(`/login?returnTo=${encodeURIComponent(currentPath)}`);
+    // For Replit Auth, we redirect to the root which will show the landing page
+    // with a login button that triggers the auth flow
+    window.location.href = '/';
     return null;
   }
 
