@@ -4,8 +4,9 @@ import { json } from "express";
 import { setupRoutes } from "./routes";
 import { setupVite } from "./vite";
 import path from "path";
-import './db'; // Initialize database connection
+import { db } from "./db"; // Initialize database connection
 import { storage } from "./storage";
+import { setupAuth } from "./replitAuth"; // Import auth setup
 
 async function main() {
   const app = express();
@@ -13,6 +14,9 @@ async function main() {
   // Middleware
   app.use(cors());
   app.use(json());
+  
+  // Setup Authentication
+  await setupAuth(app);
   
   // Register all application routes
   const server = setupRoutes(app, storage);
