@@ -117,39 +117,63 @@ export async function setupAuth(app: Express) {
   };
 
   // Get all domains including development localhost
-  const domains = process.env.REPLIT_DOMAINS!.split(",");
+  // Setup a single strategy with dynamic callback URL handling
+  const strategyName = 'replitauth';
+  console.log(`Setting up auth strategy with name: ${strategyName}`);
   
-  for (const domain of domains) {
-    const protocol = domain.includes('localhost') ? 'http' : 'https';
-    console.log(`Setting up auth strategy for domain: ${domain}`);
-    
-    const strategy = new Strategy(
-      {
-        name: `replitauth:${domain}`,
-        config,
-        scope: "openid email profile offline_access",
-        callbackURL: `${protocol}://${domain}/api/callback`,
-      },
-      verify,
-    );
-    passport.use(strategy);
-  }
+  const strategy = new Strategy(
+    {
+      name: strategyName,
+      config,
+      scope: "openid email profile offline_access",
+      // Callback URL will be constructed dynamically at login time
+      callbackURL: "",
+    },
+    verify,
+  );
+  passport.use(strategy);
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    console.log("Login request initiated for hostname:", req.hostname);
+    
+    // Get the current protocol
+    const protocol = req.protocol;
+    const hostname = req.hostname;
+    
+    // Set proper callback URL before authentication
+    const callbackURL = `${protocol}://${hostname}/api/callback`;
+    
+    const options = {
+      callbackURL,
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+    };
+    
+    console.log(`Using callbackURL: ${callbackURL}`);
+    
+    passport.authenticate('replitauth', options)(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    console.log("Callback received from auth provider for hostname:", req.hostname);
+    
+    // Get the current protocol
+    const protocol = req.protocol;
+    const hostname = req.hostname;
+    
+    // Set proper callback URL before authentication
+    const callbackURL = `${protocol}://${hostname}/api/callback`;
+    
+    const options = {
+      callbackURL,
       successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
-    })(req, res, next);
+      failureRedirect: "/"
+    };
+    
+    passport.authenticate('replitauth', options)(req, res, next);
   });
 
   app.get("/api/logout", (req, res) => {
