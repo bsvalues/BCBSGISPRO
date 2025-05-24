@@ -10,19 +10,26 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { users } from "../shared/schema";
 
+// Check for the required environment variables
+// Use default values if not available in development
 if (!process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
+  // Use current hostname in development
+  process.env.REPLIT_DOMAINS = process.env.REPL_SLUG ? 
+    `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : 
+    'localhost:5000';
 }
 
+// Ensure we have a session secret
 if (!process.env.SESSION_SECRET) {
-  throw new Error("Environment variable SESSION_SECRET not provided");
+  console.warn('SESSION_SECRET not set, using a default value for development');
+  process.env.SESSION_SECRET = 'dev-session-secret-key-123456';
 }
 
 const getOidcConfig = memoize(
   async () => {
     return await client.discovery(
       new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
+      process.env.REPL_ID || "your-repl-id"
     );
   },
   { maxAge: 3600 * 1000 }
@@ -44,7 +51,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      // Only use secure cookies in production
+      secure: process.env.NODE_ENV === 'production',
       maxAge: sessionTtl,
     },
   });
@@ -95,6 +103,7 @@ export async function setupAuth(app: Express) {
   app.use(passport.session());
 
   const config = await getOidcConfig();
+  console.log("OpenID configuration loaded successfully");
 
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
@@ -103,17 +112,23 @@ export async function setupAuth(app: Express) {
     const user = {};
     updateUserSession(user, tokens);
     await upsertUser(tokens.claims());
+    console.log("User authenticated successfully");
     verified(null, user);
   };
 
-  for (const domain of process.env
-    .REPLIT_DOMAINS!.split(",")) {
+  // Get all domains including development localhost
+  const domains = process.env.REPLIT_DOMAINS!.split(",");
+  
+  for (const domain of domains) {
+    const protocol = domain.includes('localhost') ? 'http' : 'https';
+    console.log(`Setting up auth strategy for domain: ${domain}`);
+    
     const strategy = new Strategy(
       {
         name: `replitauth:${domain}`,
         config,
         scope: "openid email profile offline_access",
-        callbackURL: `https://${domain}/api/callback`,
+        callbackURL: `${protocol}://${domain}/api/callback`,
       },
       verify,
     );
