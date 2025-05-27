@@ -40,11 +40,13 @@ export function setupSimpleAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Only use secure in production
+      httpOnly: false, // Allow frontend to access cookie for debugging
+      secure: false, // Disable secure for development
       maxAge: sessionTtl,
-      sameSite: 'lax'
+      sameSite: 'lax',
+      path: '/'
     },
+    name: 'sessionId'
   }));
 
   // Simple login route

@@ -29,6 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode | ((context: Au
   const { data: user, isLoading: isFetchingUser } = useQuery<User | null>({
     queryKey: ['/api/auth/user'],
     retry: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
   
   // Login function - redirect to login endpoint
