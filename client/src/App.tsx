@@ -37,6 +37,7 @@ import MuskDemoDashboardSimple from './pages/musk-demo-dashboard-simple';
 import MuskDashboardRealData from './pages/musk-dashboard-real-data';
 import SimpleMapDemo from './pages/SimpleMapDemo';
 import BentonGISMap from './pages/BentonGISMap';
+import ProfessionalDashboard from './pages/professional-dashboard';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';
@@ -115,6 +116,12 @@ const AppRouter = () => {
         <Route path="/documents">
           {(params) => (
             <ProtectedRoute component={DocumentScannerPage} {...params} />
+          )}
+        </Route>
+        
+        <Route path="/professional">
+          {(params) => (
+            <ProtectedRoute component={ProfessionalDashboard} {...params} />
           )}
         </Route>
         
