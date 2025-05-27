@@ -5,6 +5,47 @@ import WebSocket from 'ws';
 import { IStorage } from './storage';
 
 export function setupRoutes(app: express.Express, storage: IStorage) {
+  // Simple authentication endpoints
+  app.post('/api/login', (req, res) => {
+    // Simple demo login - set a session cookie
+    const user = {
+      id: 'demo-user-001',
+      email: 'demo@bentoncounty.gov',
+      firstName: 'Demo',
+      lastName: 'User',
+      roles: ['assessor', 'user']
+    };
+    
+    // Set session cookie
+    res.cookie('session', JSON.stringify(user), { 
+      httpOnly: true, 
+      secure: false, // Set to true in production
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+    
+    res.json(user);
+  });
+
+  app.get('/api/auth/user', (req, res) => {
+    // Check if user has session cookie
+    const sessionCookie = req.cookies.session;
+    if (sessionCookie) {
+      try {
+        const user = JSON.parse(sessionCookie);
+        res.json(user);
+      } catch (error) {
+        res.status(401).json({ error: 'Invalid session' });
+      }
+    } else {
+      res.status(401).json({ error: 'Not authenticated' });
+    }
+  });
+
+  app.post('/api/logout', (req, res) => {
+    res.clearCookie('session');
+    res.json({ message: 'Logged out successfully' });
+  });
+
   const httpServer = createServer(app);
   
   // Setup WebSocket server on /ws path

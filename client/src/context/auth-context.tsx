@@ -31,9 +31,30 @@ export function AuthProvider({ children }: { children: ReactNode | ((context: Au
     retry: false,
   });
   
-  // Login function - redirects to Replit Auth login page
-  const login = () => {
-    window.location.href = '/api/login';
+  // Login function - make POST request to login endpoint
+  const login = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        // Invalidate the user query to refetch user data
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+        window.location.href = '/professional-demo'; // Redirect to dashboard after login
+      } else {
+        console.error('Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Logout function - redirects to Replit Auth logout endpoint
