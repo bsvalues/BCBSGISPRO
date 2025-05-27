@@ -1,6 +1,21 @@
 import { QueryClient } from '@tanstack/react-query';
 
 /**
+ * Default fetch function that includes credentials
+ */
+const defaultQueryFn = async ({ queryKey }: { queryKey: any[] }) => {
+  const response = await fetch(queryKey[0], {
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Network response was not ok: ${response.statusText}`);
+  }
+  
+  return response.json();
+};
+
+/**
  * Default options for the query client
  */
 const defaultQueryOptions = {
@@ -8,6 +23,7 @@ const defaultQueryOptions = {
     retry: 1,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: defaultQueryFn,
   },
 };
 
