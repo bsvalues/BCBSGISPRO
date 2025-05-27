@@ -430,15 +430,126 @@ const ProfessionalDashboard: React.FC = () => {
               </p>
             </div>
             
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4" />
-                  <p>Decision history will appear here as workflows progress.</p>
-                  <p className="text-sm mt-2">Every decision includes full reasoning, data sources, and override capabilities.</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              {/* Property Assessment Decision */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Property Assessment - 4521 W Canal Dr</CardTitle>
+                      <p className="text-sm text-muted-foreground">Decision made 2 hours ago</p>
+                    </div>
+                    <Badge variant="outline">Assessment</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <h4 className="font-medium mb-2">System Recommendation: $485,000</h4>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Basis:</strong> Comparable sales analysis (3 properties within 0.5mi)</p>
+                        <p><strong>Key Factors:</strong> 2,140 sq ft, Built 1987, Corner lot (+$15k)</p>
+                        <p><strong>Market Adjustment:</strong> +12% (Q4 2024 trend)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button size="sm" variant="outline">
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Full Analysis
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Settings className="h-4 w-4 mr-1" />
+                        Override Decision
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Download className="h-4 w-4 mr-1" />
+                        Export Report
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* BLA Processing Decision */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Boundary Line Adjustment - BSP 6142</CardTitle>
+                      <p className="text-sm text-muted-foreground">Decision made 4 hours ago</p>
+                    </div>
+                    <Badge variant="outline">BLA</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <h4 className="font-medium mb-2">System Recommendation: Approve with Conditions</h4>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Legal Description:</strong> Verified against RCW 58.17.040</p>
+                        <p><strong>Setback Compliance:</strong> Meets 20ft minimum (22.5ft actual)</p>
+                        <p><strong>Area Transfer:</strong> 0.15 acres from Parcel A to Parcel B</p>
+                        <p><strong>Condition:</strong> Updated survey required for final approval</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button size="sm" variant="outline">
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Legal Analysis
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Settings className="h-4 w-4 mr-1" />
+                        Modify Conditions
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Download className="h-4 w-4 mr-1" />
+                        Generate Documents
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Document Classification Decision */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Document Classification - Deed Analysis</CardTitle>
+                      <p className="text-sm text-muted-foreground">Decision made 1 day ago</p>
+                    </div>
+                    <Badge variant="outline">Document</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <h4 className="font-medium mb-2">System Classification: Warranty Deed (98.5% confidence)</h4>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Key Indicators:</strong> "Warranty" in title, grantor/grantee identified</p>
+                        <p><strong>Legal Elements:</strong> Consideration stated, property description complete</p>
+                        <p><strong>Recording Status:</strong> Ready for recording (all requirements met)</p>
+                        <p><strong>Flag:</strong> Review grantor signature for consistency</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button size="sm" variant="outline">
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Document
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Settings className="h-4 w-4 mr-1" />
+                        Reclassify
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        <Download className="h-4 w-4 mr-1" />
+                        Processing Report
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="compliance" className="space-y-4">
