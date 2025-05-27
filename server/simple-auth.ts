@@ -50,30 +50,32 @@ export function setupSimpleAuth(app: Express) {
   // Simple login route
   app.get('/api/login', async (req, res) => {
     try {
-      // Upsert the demo user
-      const [user] = await db
-        .insert(users)
-        .values(DEMO_USER)
-        .onConflictDoUpdate({
-          target: users.id,
-          set: {
-            ...DEMO_USER,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
+      // Set user in session directly without database
+      req.session.userId = DEMO_USER.id;
       
-      // Set user in session
-      req.session.userId = user.id;
-      req.session.save();
+      console.log('User logged in:', DEMO_USER.id);
       
-      console.log('User logged in:', user.id);
-      
-      // Redirect to home page
-      res.redirect('/');
+      // Redirect to professional dashboard
+      res.redirect('/professional-demo');
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).send('An error occurred during login');
+    }
+  });
+
+  // Also add POST route for login
+  app.post('/api/login', async (req, res) => {
+    try {
+      // Set user in session directly
+      req.session.userId = DEMO_USER.id;
+      
+      console.log('User logged in:', DEMO_USER.id);
+      
+      // Return user data
+      res.json(DEMO_USER);
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'An error occurred during login' });
     }
   });
 
@@ -93,6 +95,13 @@ export function setupSimpleAuth(app: Express) {
       return res.json(null);
     }
 
+    // Return demo user directly if session exists
+    if (req.session.userId === DEMO_USER.id) {
+      res.json(DEMO_USER);
+      return;
+    }
+
+    // Fallback to database lookup
     try {
       const [user] = await db
         .select()
@@ -102,7 +111,12 @@ export function setupSimpleAuth(app: Express) {
       res.json(user || null);
     } catch (error) {
       console.error('Error fetching user:', error);
-      res.status(500).json({ message: 'Failed to fetch user' });
+      // If database fails, still return demo user if session is valid
+      if (req.session.userId === DEMO_USER.id) {
+        res.json(DEMO_USER);
+      } else {
+        res.status(500).json({ message: 'Failed to fetch user' });
+      }
     }
   });
 
