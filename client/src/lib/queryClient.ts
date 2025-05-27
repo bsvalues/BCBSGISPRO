@@ -3,7 +3,7 @@ import { QueryClient } from '@tanstack/react-query';
 /**
  * Default fetch function that includes credentials
  */
-const defaultQueryFn = async ({ queryKey }: { queryKey: any[] }) => {
+const defaultQueryFn = async ({ queryKey }: { queryKey: readonly any[] }) => {
   const response = await fetch(queryKey[0], {
     credentials: 'include',
   });

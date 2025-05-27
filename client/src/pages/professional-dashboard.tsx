@@ -415,7 +415,11 @@ const ProfessionalDashboard: React.FC = () => {
               </p>
             </div>
             
-            {dataSources.map((source) => renderDataSourceStatus(source))}
+            {dataSources.map((source) => (
+              <div key={source.id}>
+                {renderDataSourceStatus(source)}
+              </div>
+            ))}
           </TabsContent>
 
           <TabsContent value="decisions" className="space-y-4">
