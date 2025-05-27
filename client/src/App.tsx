@@ -125,6 +125,12 @@ const AppRouter = () => {
           )}
         </Route>
         
+        <Route path="/professional-demo">
+          {(params) => (
+            <ProfessionalDashboard {...params} />
+          )}
+        </Route>
+        
         <Route path="/simple-map">
           {(params) => (
             <SimpleMapDemo {...params} />
