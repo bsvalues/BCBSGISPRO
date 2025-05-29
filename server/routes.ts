@@ -102,6 +102,17 @@ export function setupRoutes(app: express.Express, storage: IStorage) {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });
+
+  // Check if a secret exists (for client-side validation)
+  app.get('/api/check-secret', (req, res) => {
+    const { key } = req.query;
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({ error: 'Secret key is required' });
+    }
+    
+    const exists = !!process.env[key];
+    res.json({ exists });
+  });
   
   // Return the HTTP server so it can be used in the main application
   return httpServer;

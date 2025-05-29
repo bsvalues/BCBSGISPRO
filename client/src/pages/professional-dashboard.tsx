@@ -24,6 +24,7 @@ import {
   BookOpen,
   CheckCircle2,
   Clock,
+  Download,
   Eye,
   FileSearch,
   Filter,
@@ -379,9 +380,11 @@ const ProfessionalDashboard: React.FC = () => {
                         <TrendingUp className="h-4 w-4 mr-2" />
                         Decisions Made ({workflow.decisions.length})
                       </h4>
-                      {workflow.decisions.map((decision) => 
-                        renderDecisionPoint(decision, workflow.id)
-                      )}
+                      {workflow.decisions.map((decision) => (
+                        <div key={decision.id}>
+                          {renderDecisionPoint(decision, workflow.id)}
+                        </div>
+                      ))}
                     </div>
 
                     <div className="flex space-x-2">
