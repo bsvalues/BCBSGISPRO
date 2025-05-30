@@ -38,6 +38,7 @@ import MuskDashboardRealData from './pages/musk-dashboard-real-data';
 import SimpleMapDemo from './pages/SimpleMapDemo';
 import BentonGISMap from './pages/BentonGISMap';
 import ProfessionalDashboard from './pages/professional-dashboard';
+import TerraFusionDashboard from './pages/TerraFusionDashboard';
 // Admin pages
 import UserManagementPage from './pages/admin/user-management';
 import AuditLogsPage from './pages/admin/audit-logs';
@@ -66,7 +67,7 @@ const AppRouter = () => {
     <div className="app">
       <Switch>
         {/* Public routes */}
-        <Route path="/" component={isAuthenticated ? Dashboard : Landing} />
+        <Route path="/" component={isAuthenticated ? TerraFusionDashboard : Landing} />
         <Route path="/unauthorized" component={UnauthorizedPage} />
         
         {/* Dashboard */}
@@ -122,6 +123,12 @@ const AppRouter = () => {
         <Route path="/professional">
           {(params) => (
             <ProtectedRoute component={ProfessionalDashboard} {...params} />
+          )}
+        </Route>
+        
+        <Route path="/terrafusion">
+          {(params) => (
+            <ProtectedRoute component={TerraFusionDashboard} {...params} />
           )}
         </Route>
         
