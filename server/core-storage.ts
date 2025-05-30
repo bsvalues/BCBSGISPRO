@@ -158,8 +158,12 @@ export class PostgresStorage implements ICoreStorage {
     },
 
     async delete(id: string): Promise<boolean> {
-      const result = await db.delete(mapLayers).where(eq(mapLayers.id, id))
-      return result.rowCount > 0
+      try {
+        await db.delete(mapLayers).where(eq(mapLayers.id, id))
+        return true
+      } catch {
+        return false
+      }
     }
   }
 
