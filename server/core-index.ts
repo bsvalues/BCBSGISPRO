@@ -1,7 +1,12 @@
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 import coreRoutes from './core-routes'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const app = express()
 const PORT = parseInt(process.env.PORT || '5000')
