@@ -4,7 +4,7 @@ import path from 'path'
 import coreRoutes from './core-routes'
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = parseInt(process.env.PORT || '5000')
 
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
@@ -22,7 +22,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'))
 })
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`TerraFusion Civil Infrastructure Server running on port ${PORT}`)
   console.log(`Visit http://localhost:${PORT} to access the application`)
 })
