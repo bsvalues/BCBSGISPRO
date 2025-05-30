@@ -1,76 +1,52 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, type QueryFunction } from '@tanstack/react-query'
 
-/**
- * Default fetch function that includes credentials
- */
-const defaultQueryFn = async ({ queryKey }: { queryKey: readonly any[] }) => {
-  const response = await fetch(queryKey[0], {
-    credentials: 'include',
-  });
+const defaultQueryFn: QueryFunction = async ({ queryKey }) => {
+  const url = queryKey[0] as string
+  const params = queryKey[1] as Record<string, unknown> | undefined
   
-  if (!response.ok) {
-    throw new Error(`Network response was not ok: ${response.statusText}`);
+  let fullUrl = url
+  if (params) {
+    const searchParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value))
+      }
+    })
+    const queryString = searchParams.toString()
+    if (queryString) {
+      fullUrl += `?${queryString}`
+    }
   }
   
-  return response.json();
-};
+  const response = await fetch(fullUrl)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  return response.json()
+}
 
-/**
- * Default options for the query client
- */
-const defaultQueryOptions = {
-  queries: {
-    retry: 1,
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    queryFn: defaultQueryFn,
-  },
-};
-
-/**
- * Create a new query client instance
- */
 export const queryClient = new QueryClient({
-  defaultOptions: defaultQueryOptions,
-});
+  defaultOptions: {
+    queries: {
+      queryFn: defaultQueryFn,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
-/**
- * API request function for mutations
- * 
- * @param input Request URL or object
- * @param init Request options
- * @returns Fetch promise
- */
-export const apiRequest = async <T = any>(
-  input: RequestInfo,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await fetch(input, {
-    ...init,
+export const apiRequest = async (url: string, options: RequestInit = {}) => {
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      ...init?.headers,
+      ...options.headers,
     },
-    credentials: 'include',
-  });
-
+    ...options,
+  })
+  
   if (!response.ok) {
-    const error = new Error(
-      `API request failed: ${response.status} ${response.statusText}`
-    );
-    try {
-      const errorData = await response.json();
-      Object.assign(error, { data: errorData });
-    } catch {
-      // If response is not JSON, ignore
-    }
-    throw error;
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
-
-  // For 204 No Content responses
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return response.json();
-};
+  
+  return response.json()
+}
