@@ -1,186 +1,361 @@
-# TerraFusion Platform
+# TerraFusion Civil Infrastructure Intelligence Platform
 
-A cutting-edge Geographic Information System (GIS) workflow solution for county assessor's offices, delivering advanced geospatial data processing with intelligent document management and robust collaborative features.
+A cutting-edge Geographic Information System (GIS) workflow solution for county assessor offices, delivering advanced geospatial data processing with intelligent document management and robust collaborative features.
 
-## Overview
+## Architecture Overview
 
-TerraFusion is a modular monorepo architecture designed to support cartography and mass appraisal workflows for county assessors. The platform provides advanced mapping capabilities, AI-powered analysis, data import/export tools, and comprehensive administrative interfaces.
+TerraFusion combines modern web technologies with advanced AI capabilities to create a comprehensive civil infrastructure management platform:
 
-![TerraFusion Platform](/public/terrafusion-screenshot.png)
+- **Frontend**: React 18 + TypeScript with Mapbox/Leaflet integration
+- **Backend**: Node.js + Express with WebSocket support
+- **Database**: PostgreSQL with PostGIS for spatial data
+- **AI Engine**: Anthropic Claude for document intelligence
+- **Real-time**: WebSocket-based collaborative features
 
 ## Key Features
 
-- **Advanced Mapping**: Interactive maps with measurement tools, layer management, and data visualization
-- **AI-Powered Analysis**: Legal description parsing and property valuation using OpenAI
-- **Data Import/Export**: Comprehensive ETL tools for importing and validating data
-- **Administrative Dashboard**: System health monitoring and county management
-- **Workflow Management**: Step-by-step county onboarding and configuration
+### Advanced Mapping & GIS
+- Interactive mapping with multiple provider support (Mapbox, Leaflet, ArcGIS)
+- Dynamic layer management with opacity controls
+- Professional measurement tools (area, distance, perimeter)
+- Spatial analysis capabilities (buffers, intersections, proximity)
+- Real-time collaborative map editing
 
-## Monorepo Structure
+### Document Intelligence
+- AI-powered document classification and processing
+- Legal description parsing with coordinate extraction
+- OCR capabilities for scanned documents
+- Automated metadata extraction
+- Version control and audit trails
 
-The TerraFusion platform is organized into a modular monorepo architecture for improved code maintainability, separation of concerns, and scalability:
+### Property Management
+- Comprehensive parcel database management
+- Automated assessment workflows
+- Compliance monitoring and reporting
+- Complete change history tracking
+- Integration with state property databases
 
+### Collaborative Workflows
+- Real-time multi-user editing
+- Contextual annotations and comments
+- Task assignment and progress tracking
+- WebSocket-based live updates
+- Role-based access control
+
+## Technical Stack
+
+### Frontend Dependencies
+```json
+{
+  "react": "^18.0.0",
+  "typescript": "^5.0.0",
+  "@mapbox/mapbox-gl-draw": "^1.4.0",
+  "leaflet": "^1.9.0",
+  "wouter": "^3.0.0",
+  "@tanstack/react-query": "^5.0.0",
+  "@radix-ui/react-*": "Latest",
+  "tailwindcss": "^3.0.0",
+  "framer-motion": "^11.0.0"
+}
 ```
-/
-├── apps/                    # Application modules
-│   ├── CartographyModule/   # Mapping and visualization components
-│   └── GAMAValuation/       # Property valuation and AI analysis
-├── libs/                    # Shared libraries
-│   ├── ETL/                 # Data import, cleaning, transformation
-│   ├── WorkflowUI/          # Admin dashboards and workflow components
-│   └── DevOps/              # Monitoring, logging, automation
-├── data/                    # County data files (CSV, shapefiles, GDBs)
-├── public/                  # Static assets
-└── src/                     # Main application
-    ├── App.tsx              # Application entry point
-    └── mockData.ts          # Demo data (replace in production)
+
+### Backend Dependencies
+```json
+{
+  "express": "^4.18.0",
+  "ws": "^8.0.0",
+  "drizzle-orm": "^0.29.0",
+  "postgres": "^3.4.0",
+  "@anthropic-ai/sdk": "^0.17.0",
+  "jsonwebtoken": "^9.0.0",
+  "bcryptjs": "^2.4.0",
+  "multer": "^1.4.0"
+}
 ```
 
-### Module Descriptions
+## Environment Configuration
 
-#### CartographyModule
+Create a `.env` file with the following required variables:
 
-The CartographyModule handles all mapping and geographical visualization aspects of the platform:
+```env
+# Database Configuration
+DATABASE_URL="postgresql://username:password@localhost:5432/terrafusion"
 
-- `CountyMapViewer`: Main map interface supporting multiple providers (Mapbox, Leaflet, ArcGIS)
-- `MapControls`: Tools for map navigation and interaction
-- `MeasurementTools`: Distance, area, and angle measurement with conversion
-- `LayerManager`: Layer configuration and styling
-- `PrintExportPanel`: Map printing and exporting to various formats
+# API Keys
+ANTHROPIC_API_KEY="your_anthropic_api_key"
+MAPBOX_ACCESS_TOKEN="your_mapbox_token"
+ARCGIS_API_KEY="your_arcgis_key"
 
-#### GAMAValuation
+# Security
+JWT_SECRET="your_jwt_secret_key"
+SESSION_SECRET="your_session_secret"
 
-The GAMAValuation module provides AI-powered property valuation and analysis:
+# Application
+NODE_ENV="development"
+PORT=5000
+```
 
-- `LegalDescriptionAnalyzer`: AI model for parsing legal descriptions using OpenAI
-- `LegalDescriptionAnalyzerPanel`: User interface for the analyzer
-- `ValuationEngine`: Property valuation using sales comparison, cost, and income approaches
-
-#### ETL (Extract, Transform, Load)
-
-The ETL library handles data import, validation, and transformation:
-
-- `CSVImporter`: Import data from CSV files with validation and transformation rules
-- Data validation and cleaning utilities
-- Data mapping and transformation tools
-
-#### WorkflowUI
-
-The WorkflowUI library provides administrative interfaces and workflow components:
-
-- `AdminDashboard`: Comprehensive admin interface with user and county management
-- `SystemHealthPanel`: System monitoring and alerting
-- `CountyOnboardingWorkflow`: Step-by-step wizard for onboarding new counties
-
-#### DevOps
-
-The DevOps library contains utilities for monitoring, logging, and automation:
-
-- `Logger`: Centralized logging system with tags and filtering
-- Monitoring and alerting tools
-- CI/CD automation scripts
-
-## Getting Started
+## Installation & Setup
 
 ### Prerequisites
+- Node.js 18+ 
+- PostgreSQL 14+ with PostGIS extension
+- Git
 
-- Node.js 18+ and npm
-- PostgreSQL database
-- OpenAI API key (for AI-powered features)
+### Installation Steps
 
-### Installation
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/terrafusion.git
-   cd terrafusion
-   ```
-
-2. Install dependencies:
-   ```
-   npm install
-   ```
-
-3. Set up environment variables:
-   ```
-   cp .env.example .env.local
-   # Edit .env.local to add your API keys and database connection
-   ```
-
-4. Initialize the database:
-   ```
-   npm run db:push
-   ```
-
-5. Start the development server:
-   ```
-   npm run dev
-   ```
-
-The application will be available at http://localhost:3000.
-
-## Usage Guide
-
-### County Onboarding
-
-1. Navigate to County Management in the sidebar
-2. Click "Add New County"
-3. Follow the step-by-step wizard to configure:
-   - Basic county information
-   - County contacts
-   - GIS data sources
-   - Valuation and tax system integration
-   - Data access settings
-4. Review and resolve any validation issues
-5. Activate the county when ready
-
-### Map Viewing and Analysis
-
-1. Select a county from the dropdown in the header
-2. Navigate to the Map Viewer to explore parcel data
-3. Use the measurement tools for distance and area calculations
-4. Configure layers using the Layer Manager
-5. Navigate to Property Analysis to analyze legal descriptions or valuations
-
-### Data Import
-
-1. Navigate to Data Import in the sidebar
-2. Select the appropriate import method (CSV, Shapefile, GeoJSON)
-3. Upload your data file
-4. Review validation results and fix any errors
-5. Commit the import when ready
-
-### System Monitoring
-
-1. Navigate to System Health in the sidebar
-2. View the status of all system components
-3. Acknowledge and resolve any alerts
-4. Monitor metrics for performance issues
-
-## Development
-
-### Adding a New Feature
-
-1. Identify the appropriate module for your feature
-2. Create the necessary components and tests
-3. Update the main application to integrate your feature
-4. Document the feature in the module's README
-
-### Running Tests
-
-```
-npm run test
+1. **Clone the repository**
+```bash
+git clone https://github.com/your-org/terrafusion-gis.git
+cd terrafusion-gis
 ```
 
-### Building for Production
+2. **Install dependencies**
+```bash
+npm install
+```
+
+3. **Database setup**
+```bash
+# Install PostgreSQL and PostGIS
+sudo apt-get install postgresql postgresql-contrib postgis
+
+# Create database
+createdb terrafusion
+psql terrafusion -c "CREATE EXTENSION postgis;"
+
+# Run migrations
+npm run db:push
+```
+
+4. **Environment configuration**
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+5. **Start development server**
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:5000`
+
+## Development Workflow
+
+### Available Scripts
+
+```bash
+# Development
+npm run dev          # Start development server with hot reload
+npm run build        # Build for production
+npm run preview      # Preview production build
+
+# Database
+npm run db:push      # Push schema changes to database
+npm run db:studio    # Open Drizzle Studio for database management
+npm run db:seed      # Seed database with sample data
+
+# Testing
+npm test             # Run unit tests
+npm run test:e2e     # Run end-to-end tests
+npm run test:api     # Test API endpoints
+
+# Code Quality
+npm run lint         # Run ESLint
+npm run type-check   # TypeScript type checking
+npm run format       # Format code with Prettier
+```
+
+### Project Structure
 
 ```
+terrafusion-gis/
+├── client/src/
+│   ├── components/          # Reusable UI components
+│   │   ├── ui/             # Base UI components (shadcn)
+│   │   ├── maps/           # Map-specific components
+│   │   ├── documents/      # Document processing components
+│   │   └── collaborative/  # Real-time collaboration features
+│   ├── pages/              # Application pages/routes
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utility functions and configurations
+│   ├── services/           # API service functions
+│   └── types/              # TypeScript type definitions
+├── server/
+│   ├── routes/             # API route handlers
+│   ├── services/           # Business logic services
+│   ├── middleware/         # Express middleware
+│   ├── storage.ts          # Database interface
+│   └── index.ts           # Server entry point
+├── shared/
+│   └── schema.ts          # Shared database schema
+├── __tests__/             # Test files
+└── docs/                  # Additional documentation
+```
+
+## API Documentation
+
+### Authentication Endpoints
+```
+POST /api/login          # User authentication
+GET  /api/auth/user      # Get current user
+POST /api/logout         # User logout
+```
+
+### GIS Data Endpoints
+```
+GET    /api/parcels      # Retrieve parcel data
+POST   /api/parcels      # Create new parcel
+PUT    /api/parcels/:id  # Update parcel
+DELETE /api/parcels/:id  # Delete parcel
+```
+
+### Document Processing
+```
+POST /api/documents/upload    # Upload document for processing
+POST /api/documents/classify  # AI-powered classification
+GET  /api/documents/:id       # Retrieve document data
+```
+
+### Real-time WebSocket Events
+```
+map_update              # Broadcast map changes
+annotation_created      # New annotation added
+user_presence          # User online/offline status
+document_processed     # Document processing complete
+```
+
+## Deployment
+
+### Production Build
+```bash
 npm run build
+npm run preview  # Test production build locally
+```
+
+### Docker Deployment
+```bash
+# Build container
+docker build -t terrafusion-gis .
+
+# Run with docker-compose
+docker-compose up -d
+```
+
+### Environment Variables for Production
+```env
+NODE_ENV=production
+DATABASE_URL="postgresql://prod_user:prod_pass@db_host:5432/terrafusion"
+REDIS_URL="redis://redis_host:6379"
+SESSION_SECRET="complex_production_secret"
+JWT_SECRET="complex_jwt_secret"
+```
+
+## Security Considerations
+
+### Data Protection
+- All sensitive data encrypted at rest (AES-256)
+- TLS 1.3 enforced for all connections
+- Regular automated backups with encryption
+- GDPR/CCPA compliance measures
+
+### Access Control
+- JWT-based authentication with refresh tokens
+- Role-based permissions (Admin, Assessor, Viewer)
+- API rate limiting and DDoS protection
+- Session management with automatic expiration
+
+### Audit & Compliance
+- Complete audit trail for all system actions
+- Immutable change history for legal compliance
+- Regular security assessments
+- SOC 2 compliance framework
+
+## Performance Optimization
+
+### Frontend Optimization
+- Code splitting with lazy loading
+- Image optimization and compression
+- Service worker for offline capabilities
+- Memory-efficient map rendering
+
+### Backend Optimization
+- Database query optimization with indexes
+- Redis caching for frequent queries
+- Connection pooling for database
+- Horizontal scaling with load balancers
+
+## Testing Strategy
+
+### Unit Testing
+```bash
+npm test                    # Run all unit tests
+npm run test:coverage      # Generate coverage report
+```
+
+### Integration Testing
+```bash
+npm run test:api           # Test API endpoints
+npm run test:db            # Test database operations
+```
+
+### End-to-End Testing
+```bash
+npm run test:e2e           # Full application testing
+npm run test:visual        # Visual regression testing
 ```
 
 ## Contributing
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+### Development Guidelines
+1. Follow TypeScript strict mode
+2. Use ESLint and Prettier for code formatting
+3. Write comprehensive tests for new features
+4. Document API changes in OpenAPI format
+5. Follow semantic versioning for releases
+
+### Code Review Process
+1. Create feature branch from `main`
+2. Implement changes with tests
+3. Submit pull request with detailed description
+4. Address review feedback
+5. Merge after approval and CI passing
+
+## Troubleshooting
+
+### Common Issues
+
+**Database Connection Errors**
+```bash
+# Check PostgreSQL service
+sudo systemctl status postgresql
+# Verify PostGIS extension
+psql -d terrafusion -c "SELECT PostGIS_version();"
+```
+
+**WebSocket Connection Issues**
+```bash
+# Check firewall settings
+sudo ufw status
+# Verify port availability
+netstat -tulpn | grep :5000
+```
+
+**API Key Configuration**
+```bash
+# Verify environment variables
+printenv | grep API_KEY
+# Test API connectivity
+curl -H "Authorization: Bearer $ANTHROPIC_API_KEY" https://api.anthropic.com/v1/messages
+```
+
+## Support & Documentation
+
+- **Technical Documentation**: [docs/technical/](docs/technical/)
+- **User Guides**: [docs/user-guides/](docs/user-guides/)
+- **API Reference**: [docs/api/](docs/api/)
+- **Contributing Guide**: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
@@ -188,6 +363,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Benton County Assessor's Office for their domain expertise
-- OpenAI for providing the AI capabilities
-- Mapbox, Leaflet, and ArcGIS for mapping technologies
+- Benton County Assessor's Office for requirements and testing
+- Open source GIS community for mapping libraries
+- Anthropic for AI capabilities
+- Contributors and maintainers

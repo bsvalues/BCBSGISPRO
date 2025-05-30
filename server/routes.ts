@@ -84,6 +84,24 @@ export function setupRoutes(app: express.Express, storage: IStorage) {
             }));
             break;
             
+          case 'agent_system_status':
+            // Handle agent system status messages
+            ws.send(JSON.stringify({
+              type: 'agent_system_status_response',
+              id: data.id,
+              content: { available: true, activeAgents: ['gis-assistant', 'document-classifier'] }
+            }));
+            break;
+            
+          case 'agent_system_status_request':
+            // Respond to agent system status requests
+            ws.send(JSON.stringify({
+              type: 'agent_system_status',
+              id: data.id,
+              content: { available: true, activeAgents: ['gis-assistant', 'document-classifier'] }
+            }));
+            break;
+            
           default:
             console.log(`Unknown message type: ${data.type}`);
         }

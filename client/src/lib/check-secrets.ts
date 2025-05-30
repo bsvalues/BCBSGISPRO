@@ -27,8 +27,13 @@ export async function check_secrets(secrets: string[]): Promise<Record<string, b
       // For server-side secrets, we need to make an API call
       try {
         const response = await fetch(`/api/check-secret?key=${secret}`);
-        const data = await response.json();
-        result[secret] = data.exists;
+        if (response.ok) {
+          const data = await response.json();
+          result[secret] = data.exists;
+        } else {
+          console.warn(`Failed to check secret ${secret}: ${response.status}`);
+          result[secret] = false;
+        }
       } catch (error) {
         console.error(`Error checking secret ${secret}:`, error);
         result[secret] = false;
