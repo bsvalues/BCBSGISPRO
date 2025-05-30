@@ -17,7 +17,7 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
   const [mapLayers, setMapLayers] = useState([])
 
   useEffect(() => {
-    const mapboxToken = (import.meta as any).env?.VITE_MAPBOX_TOKEN
+    const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
     
     if (!mapboxToken) {
       console.warn('Mapbox token not configured')

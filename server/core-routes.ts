@@ -1,6 +1,8 @@
 import express from 'express'
+import multer from 'multer'
 import { storage } from './core-storage'
 import { insertUserSchema, insertParcelSchema, insertDocumentSchema, insertMapLayerSchema } from '../shared/core-schema'
+import { analyzeDocument } from './ai-service'
 import { z } from 'zod'
 
 const router = express.Router()
