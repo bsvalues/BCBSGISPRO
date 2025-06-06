@@ -27,14 +27,14 @@ import {
   Server
 } from 'lucide-react';
 
-// Import CartographyModule components
-import { CountyMapViewer } from '../apps/CartographyModule/components/map/CountyMapViewer';
-import { LayerManager } from '../apps/CartographyModule/components/map/LayerManager';
-import { MeasurementTools } from '../apps/CartographyModule/components/map/MeasurementTools';
-import { PrintExportPanel } from '../apps/CartographyModule/components/map/PrintExportPanel';
-
-// Import GAMAValuation components
-import { LegalDescriptionAnalyzerPanel } from '../apps/GAMAValuation/components/LegalDescriptionAnalyzerPanel';
+// Import placeholder components
+import { 
+  CountyMapViewer, 
+  LayerManager, 
+  MeasurementTools, 
+  PrintExportPanel, 
+  LegalDescriptionAnalyzerPanel 
+} from './components/placeholder-components';
 
 // Import WorkflowUI components
 import { AdminDashboard } from '../libs/WorkflowUI/components/dashboard/AdminDashboard';
