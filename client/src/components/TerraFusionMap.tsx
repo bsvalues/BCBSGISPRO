@@ -3,7 +3,8 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Layers, Search, FileText, Settings } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Layers, Search, FileText, Settings, AlertTriangle } from 'lucide-react'
 
 interface TerraFusionMapProps {
   onParcelSelect?: (parcel: any) => void
@@ -15,74 +16,95 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
   const map = useRef<mapboxgl.Map | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [mapLayers, setMapLayers] = useState([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
     
     if (!mapboxToken) {
-      console.warn('Mapbox token not configured')
+      setError('Mapbox access token is required for map functionality. Please configure VITE_MAPBOX_ACCESS_TOKEN.')
+      setIsLoading(false)
       return
     }
 
     if (map.current) return
 
-    mapboxgl.accessToken = mapboxToken
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current!,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
-      center: [-119.2687, 46.2619],
-      zoom: 11,
-      projection: 'mercator'
-    })
+    try {
+      mapboxgl.accessToken = mapboxToken
+      
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current!,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [-119.2687, 46.2619],
+        zoom: 11,
+        projection: 'mercator'
+      })
 
-    map.current.on('load', () => {
-      setIsLoaded(true)
-      loadBentonCountyBoundary()
-      loadParcelData()
-    })
+      map.current.on('load', () => {
+        setIsLoaded(true)
+        setIsLoading(false)
+        loadCountyBoundary()
+        loadParcelData()
+      })
 
-    map.current.on('click', 'parcels', (e) => {
-      if (e.features && e.features[0] && onParcelSelect) {
-        onParcelSelect(e.features[0].properties)
+      map.current.on('error', (e) => {
+        setError(`Map error: ${e.error?.message || 'Unknown error'}`)
+        setIsLoading(false)
+      })
+
+      map.current.on('click', 'parcels', (e) => {
+        if (e.features && e.features[0] && onParcelSelect) {
+          onParcelSelect(e.features[0].properties)
+        }
+      })
+
+      return () => {
+        if (map.current) {
+          map.current.remove()
+          map.current = null
+        }
       }
-    })
-
-    return () => {
-      if (map.current) {
-        map.current.remove()
-        map.current = null
-      }
+    } catch (err) {
+      setError(`Failed to initialize map: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      setIsLoading(false)
     }
   }, [])
 
-  const loadBentonCountyBoundary = () => {
+  const loadCountyBoundary = async () => {
     if (!map.current) return
 
-    map.current.addSource('benton-boundary', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [-119.8, 45.9], [-119.8, 46.6], [-119.0, 46.6], [-119.0, 45.9], [-119.8, 45.9]
-          ]]
+    try {
+      const response = await fetch('/api/counties')
+      const counties = await response.json()
+      
+      if (counties.length > 0) {
+        const county = counties[0]
+        if (county.geometry) {
+          map.current.addSource('county-boundary', {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: county,
+              geometry: county.geometry
+            }
+          })
+
+          map.current.addLayer({
+            id: 'county-boundary',
+            type: 'line',
+            source: 'county-boundary',
+            paint: {
+              'line-color': '#0891b2',
+              'line-width': 3,
+              'line-opacity': 0.8
+            }
+          })
         }
       }
-    })
-
-    map.current.addLayer({
-      id: 'benton-boundary',
-      type: 'line',
-      source: 'benton-boundary',
-      paint: {
-        'line-color': '#FF6B35',
-        'line-width': 3,
-        'line-opacity': 0.8
-      }
-    })
+    } catch (error) {
+      console.warn('Failed to load county boundary:', error)
+    }
   }
 
   const loadParcelData = async () => {
@@ -177,7 +199,7 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
             variant="outline"
             size="sm"
             className="w-full justify-start"
-            onClick={() => toggleLayer('benton-boundary')}
+            onClick={() => toggleLayer('county-boundary')}
           >
             <Search size={14} className="mr-2" />
             County Boundary
@@ -185,12 +207,27 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
         </CardContent>
       </Card>
 
-      {!isLoaded && (
+      {error && (
+        <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center p-4">
+          <Card className="max-w-md">
+            <CardContent className="p-6">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="mt-2">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {isLoading && !error && (
         <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center">
           <Card>
             <CardContent className="p-6">
               <div className="text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <div className="animate-spin w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p className="text-sm text-gray-600">Loading TerraFusion Map...</p>
               </div>
             </CardContent>

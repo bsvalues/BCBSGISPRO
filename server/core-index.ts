@@ -17,14 +17,14 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 app.use('/api', coreRoutes)
 
-app.use(express.static(path.join(__dirname, '../client/dist')))
+app.use(express.static(path.join(__dirname, '../dist/public')))
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() })
 })
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'))
+  res.sendFile(path.join(__dirname, '../dist/public/index.html'))
 })
 
 app.listen(PORT, () => {
