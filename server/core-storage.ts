@@ -16,13 +16,23 @@ export interface ICoreStorage {
     update(id: string, data: Partial<InsertUser>): Promise<User | undefined>
     list(): Promise<User[]>
   }
+  counties: {
+    create(data: InsertCounty): Promise<County>
+    getById(id: string): Promise<County | undefined>
+    getByFipsCode(fipsCode: string): Promise<County | undefined>
+    update(id: string, data: Partial<InsertCounty>): Promise<County | undefined>
+    list(): Promise<County[]>
+    updateParcelCount(id: string, count: number): Promise<void>
+  }
   parcels: {
     create(data: InsertParcel): Promise<Parcel>
     getById(id: string): Promise<Parcel | undefined>
     getByParcelNumber(parcelNumber: string): Promise<Parcel | undefined>
+    getByCounty(countyId: string, limit?: number): Promise<Parcel[]>
     update(id: string, data: Partial<InsertParcel>): Promise<Parcel | undefined>
-    search(query: string): Promise<Parcel[]>
+    search(query: string, countyId?: string): Promise<Parcel[]>
     list(limit?: number): Promise<Parcel[]>
+    bulkImport(parcels: InsertParcel[]): Promise<Parcel[]>
   }
   documents: {
     create(data: InsertDocument): Promise<Document>
@@ -30,6 +40,22 @@ export interface ICoreStorage {
     getByParcelId(parcelId: string): Promise<Document[]>
     update(id: string, data: Partial<InsertDocument>): Promise<Document | undefined>
     list(limit?: number): Promise<Document[]>
+    processAI(id: string): Promise<Document | undefined>
+  }
+  gisLayers: {
+    create(data: InsertGisLayer): Promise<GisLayer>
+    getById(id: string): Promise<GisLayer | undefined>
+    getByCounty(countyId: string): Promise<GisLayer[]>
+    update(id: string, data: Partial<InsertGisLayer>): Promise<GisLayer | undefined>
+    list(): Promise<GisLayer[]>
+    delete(id: string): Promise<boolean>
+  }
+  workflows: {
+    create(data: InsertWorkflow): Promise<Workflow>
+    getById(id: string): Promise<Workflow | undefined>
+    update(id: string, data: Partial<InsertWorkflow>): Promise<Workflow | undefined>
+    list(): Promise<Workflow[]>
+    execute(id: string): Promise<any>
   }
   mapLayers: {
     create(data: InsertMapLayer): Promise<MapLayer>
@@ -46,6 +72,37 @@ export interface ICoreStorage {
 }
 
 export class PostgresStorage implements ICoreStorage {
+  counties = {
+    async create(data: InsertCounty): Promise<County> {
+      const id = crypto.randomUUID()
+      const [county] = await db.insert(counties).values({ ...data, id }).returning()
+      return county
+    },
+
+    async getById(id: string): Promise<County | undefined> {
+      const [county] = await db.select().from(counties).where(eq(counties.id, id))
+      return county
+    },
+
+    async getByFipsCode(fipsCode: string): Promise<County | undefined> {
+      const [county] = await db.select().from(counties).where(eq(counties.fipsCode, fipsCode))
+      return county
+    },
+
+    async update(id: string, data: Partial<InsertCounty>): Promise<County | undefined> {
+      const [county] = await db.update(counties).set(data).where(eq(counties.id, id)).returning()
+      return county
+    },
+
+    async list(): Promise<County[]> {
+      return await db.select().from(counties).orderBy(counties.name)
+    },
+
+    async updateParcelCount(id: string, count: number): Promise<void> {
+      await db.update(counties).set({ totalParcels: count }).where(eq(counties.id, id))
+    }
+  }
+
   users = {
     async create(data: InsertUser): Promise<User> {
       const id = uuidv4()

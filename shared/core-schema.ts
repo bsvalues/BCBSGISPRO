@@ -20,10 +20,15 @@ export const parcels = pgTable('parcels', {
   address: text('address'),
   ownerName: text('owner_name'),
   assessedValue: decimal('assessed_value', { precision: 12, scale: 2 }),
+  marketValue: decimal('market_value', { precision: 12, scale: 2 }),
   acreage: decimal('acreage', { precision: 10, scale: 4 }),
   geometry: jsonb('geometry'),
   zoning: text('zoning'),
   taxYear: integer('tax_year'),
+  status: text('status').default('active').notNull(),
+  countyId: text('county_id').notNull(),
+  latitude: decimal('latitude', { precision: 10, scale: 8 }),
+  longitude: decimal('longitude', { precision: 11, scale: 8 }),
   lastModified: timestamp('last_modified').defaultNow().notNull(),
   modifiedBy: text('modified_by').references(() => users.id)
 })
@@ -53,6 +58,41 @@ export const mapLayers = pgTable('map_layers', {
   createdAt: timestamp('created_at').defaultNow().notNull()
 })
 
+export const counties = pgTable('counties', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  state: text('state').notNull(),
+  fipsCode: text('fips_code').notNull().unique(),
+  status: text('status').default('active').notNull(),
+  totalParcels: integer('total_parcels').default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  configData: jsonb('config_data')
+})
+
+export const workflows = pgTable('workflows', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  status: text('status').default('draft').notNull(),
+  config: jsonb('config').notNull(),
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastRun: timestamp('last_run'),
+  isActive: boolean('is_active').default(true)
+})
+
+export const gisLayers = pgTable('gis_layers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  layerType: text('layer_type').notNull(),
+  dataSource: text('data_source'),
+  styleConfig: jsonb('style_config'),
+  countyId: text('county_id').references(() => counties.id),
+  isPublic: boolean('is_public').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+})
+
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
   action: text('action').notNull(),
@@ -68,14 +108,23 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertParcelSchema = createInsertSchema(parcels).omit({ id: true, lastModified: true })
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, uploadedAt: true })
 export const insertMapLayerSchema = createInsertSchema(mapLayers).omit({ id: true, createdAt: true })
+export const insertCountySchema = createInsertSchema(counties).omit({ id: true, createdAt: true })
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({ id: true, createdAt: true, lastRun: true })
+export const insertGisLayerSchema = createInsertSchema(gisLayers).omit({ id: true, createdAt: true, updatedAt: true })
 
 export type User = typeof users.$inferSelect
 export type Parcel = typeof parcels.$inferSelect
 export type Document = typeof documents.$inferSelect
 export type MapLayer = typeof mapLayers.$inferSelect
+export type County = typeof counties.$inferSelect
+export type Workflow = typeof workflows.$inferSelect
+export type GisLayer = typeof gisLayers.$inferSelect
 export type AuditLog = typeof auditLogs.$inferSelect
 
 export type InsertUser = z.infer<typeof insertUserSchema>
 export type InsertParcel = z.infer<typeof insertParcelSchema>
 export type InsertDocument = z.infer<typeof insertDocumentSchema>
 export type InsertMapLayer = z.infer<typeof insertMapLayerSchema>
+export type InsertCounty = z.infer<typeof insertCountySchema>
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>
+export type InsertGisLayer = z.infer<typeof insertGisLayerSchema>
