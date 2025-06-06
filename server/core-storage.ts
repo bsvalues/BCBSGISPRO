@@ -1,8 +1,13 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { users, parcels, documents, mapLayers, auditLogs, type User, type Parcel, type Document, type MapLayer, type AuditLog, type InsertUser, type InsertParcel, type InsertDocument, type InsertMapLayer } from '../shared/core-schema'
+import { 
+  users, parcels, documents, mapLayers, auditLogs, counties, workflows, gisLayers,
+  type User, type Parcel, type Document, type MapLayer, type AuditLog, type County, type Workflow, type GisLayer,
+  type InsertUser, type InsertParcel, type InsertDocument, type InsertMapLayer, type InsertCounty, type InsertWorkflow, type InsertGisLayer
+} from '../shared/core-schema'
 import { eq, desc, and, or, like } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import crypto from 'crypto'
 
 const connectionString = process.env.DATABASE_URL!
 const client = postgres(connectionString)
@@ -152,18 +157,40 @@ export class PostgresStorage implements ICoreStorage {
       return parcel
     },
 
-    async search(query: string): Promise<Parcel[]> {
-      return await db.select().from(parcels).where(
-        or(
-          like(parcels.parcelNumber, `%${query}%`),
-          like(parcels.address, `%${query}%`),
-          like(parcels.ownerName, `%${query}%`)
-        )
+    async getByCounty(countyId: string, limit = 100): Promise<Parcel[]> {
+      return await db.select().from(parcels)
+        .where(eq(parcels.countyId, countyId))
+        .limit(limit)
+        .orderBy(desc(parcels.lastModified))
+    },
+
+    async search(query: string, countyId?: string): Promise<Parcel[]> {
+      const conditions = or(
+        like(parcels.parcelNumber, `%${query}%`),
+        like(parcels.address, `%${query}%`),
+        like(parcels.ownerName, `%${query}%`)
       )
+      
+      if (countyId) {
+        return await db.select().from(parcels).where(
+          and(eq(parcels.countyId, countyId), conditions)
+        )
+      }
+      
+      return await db.select().from(parcels).where(conditions)
     },
 
     async list(limit = 100): Promise<Parcel[]> {
       return await db.select().from(parcels).limit(limit).orderBy(desc(parcels.lastModified))
+    },
+
+    async bulkImport(parcelData: InsertParcel[]): Promise<Parcel[]> {
+      const parcelsWithIds = parcelData.map(parcel => ({
+        ...parcel,
+        id: uuidv4()
+      }))
+      
+      return await db.insert(parcels).values(parcelsWithIds).returning()
     }
   }
 
@@ -190,6 +217,19 @@ export class PostgresStorage implements ICoreStorage {
 
     async list(limit = 50): Promise<Document[]> {
       return await db.select().from(documents).limit(limit).orderBy(desc(documents.uploadedAt))
+    },
+
+    async processAI(id: string): Promise<Document | undefined> {
+      // AI processing will be implemented with actual service integration
+      const [document] = await db.update(documents)
+        .set({ 
+          isProcessed: true,
+          classification: 'processed',
+          confidenceScore: '0.95'
+        })
+        .where(eq(documents.id, id))
+        .returning()
+      return document
     }
   }
 
@@ -248,6 +288,84 @@ export class PostgresStorage implements ICoreStorage {
       return await db.select().from(auditLogs)
         .where(eq(auditLogs.userId, userId))
         .orderBy(desc(auditLogs.timestamp))
+    }
+  }
+
+  gisLayers = {
+    async create(data: InsertGisLayer): Promise<GisLayer> {
+      const id = uuidv4()
+      const [layer] = await db.insert(gisLayers).values({ ...data, id }).returning()
+      return layer
+    },
+
+    async getById(id: string): Promise<GisLayer | undefined> {
+      const [layer] = await db.select().from(gisLayers).where(eq(gisLayers.id, id))
+      return layer
+    },
+
+    async getByCounty(countyId: string): Promise<GisLayer[]> {
+      return await db.select().from(gisLayers)
+        .where(eq(gisLayers.countyId, countyId))
+        .orderBy(gisLayers.name)
+    },
+
+    async update(id: string, data: Partial<InsertGisLayer>): Promise<GisLayer | undefined> {
+      const [layer] = await db.update(gisLayers)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(gisLayers.id, id))
+        .returning()
+      return layer
+    },
+
+    async list(): Promise<GisLayer[]> {
+      return await db.select().from(gisLayers)
+        .where(eq(gisLayers.isPublic, true))
+        .orderBy(gisLayers.name)
+    },
+
+    async delete(id: string): Promise<boolean> {
+      try {
+        await db.delete(gisLayers).where(eq(gisLayers.id, id))
+        return true
+      } catch {
+        return false
+      }
+    }
+  }
+
+  workflows = {
+    async create(data: InsertWorkflow): Promise<Workflow> {
+      const id = uuidv4()
+      const [workflow] = await db.insert(workflows).values({ ...data, id }).returning()
+      return workflow
+    },
+
+    async getById(id: string): Promise<Workflow | undefined> {
+      const [workflow] = await db.select().from(workflows).where(eq(workflows.id, id))
+      return workflow
+    },
+
+    async update(id: string, data: Partial<InsertWorkflow>): Promise<Workflow | undefined> {
+      const [workflow] = await db.update(workflows)
+        .set(data)
+        .where(eq(workflows.id, id))
+        .returning()
+      return workflow
+    },
+
+    async list(): Promise<Workflow[]> {
+      return await db.select().from(workflows)
+        .where(eq(workflows.isActive, true))
+        .orderBy(workflows.name)
+    },
+
+    async execute(id: string): Promise<any> {
+      // Workflow execution logic will be implemented based on workflow type
+      await db.update(workflows)
+        .set({ lastRun: new Date() })
+        .where(eq(workflows.id, id))
+      
+      return { status: 'executed', timestamp: new Date() }
     }
   }
 }

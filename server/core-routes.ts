@@ -1,7 +1,10 @@
 import express from 'express'
 import multer from 'multer'
 import { storage } from './core-storage'
-import { insertUserSchema, insertParcelSchema, insertDocumentSchema, insertMapLayerSchema } from '../shared/core-schema'
+import { 
+  insertUserSchema, insertParcelSchema, insertDocumentSchema, insertMapLayerSchema,
+  insertCountySchema, insertGisLayerSchema, insertWorkflowSchema 
+} from '../shared/core-schema'
 import { analyzeDocument } from './ai-service'
 import { z } from 'zod'
 
@@ -189,6 +192,162 @@ router.put('/map-layers/:id', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to update map layer' })
     }
+  }
+})
+
+// County management endpoints
+router.get('/counties', async (req, res) => {
+  try {
+    const counties = await storage.counties.list()
+    res.json(counties)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch counties' })
+  }
+})
+
+router.post('/counties', async (req, res) => {
+  try {
+    const data = insertCountySchema.parse(req.body)
+    const county = await storage.counties.create(data)
+    res.status(201).json(county)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: 'Invalid data', details: error.errors })
+    } else {
+      res.status(500).json({ error: 'Failed to create county' })
+    }
+  }
+})
+
+router.get('/counties/:id/parcels', async (req, res) => {
+  try {
+    const { limit } = req.query
+    const parcels = await storage.parcels.getByCounty(
+      req.params.id, 
+      limit ? parseInt(limit as string) : undefined
+    )
+    res.json(parcels)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch county parcels' })
+  }
+})
+
+// GIS Layers endpoints
+router.get('/gis-layers', async (req, res) => {
+  try {
+    const { countyId } = req.query
+    let layers
+    
+    if (countyId) {
+      layers = await storage.gisLayers.getByCounty(countyId as string)
+    } else {
+      layers = await storage.gisLayers.list()
+    }
+    
+    res.json(layers)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch GIS layers' })
+  }
+})
+
+router.post('/gis-layers', async (req, res) => {
+  try {
+    const data = insertGisLayerSchema.parse(req.body)
+    const layer = await storage.gisLayers.create(data)
+    res.status(201).json(layer)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: 'Invalid data', details: error.errors })
+    } else {
+      res.status(500).json({ error: 'Failed to create GIS layer' })
+    }
+  }
+})
+
+// Workflow management endpoints
+router.get('/workflows', async (req, res) => {
+  try {
+    const workflows = await storage.workflows.list()
+    res.json(workflows)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch workflows' })
+  }
+})
+
+router.post('/workflows', async (req, res) => {
+  try {
+    const data = insertWorkflowSchema.parse(req.body)
+    const workflow = await storage.workflows.create(data)
+    res.status(201).json(workflow)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: 'Invalid data', details: error.errors })
+    } else {
+      res.status(500).json({ error: 'Failed to create workflow' })
+    }
+  }
+})
+
+router.post('/workflows/:id/execute', async (req, res) => {
+  try {
+    const result = await storage.workflows.execute(req.params.id)
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to execute workflow' })
+  }
+})
+
+// Bulk import endpoint for parcels
+router.post('/parcels/bulk-import', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' })
+    }
+
+    // Parse CSV data (simplified - real implementation would use csv-parse)
+    const csvText = req.file.buffer.toString()
+    const rows = csvText.split('\n').slice(1) // Skip header
+    
+    const parcels = rows.filter(row => row.trim()).map(row => {
+      const [parcelNumber, legalDescription, address, ownerName, countyId] = row.split(',')
+      return {
+        parcelNumber: parcelNumber?.trim(),
+        legalDescription: legalDescription?.trim(),
+        address: address?.trim(),
+        ownerName: ownerName?.trim(),
+        countyId: countyId?.trim() || req.body.countyId
+      }
+    }).filter(p => p.parcelNumber && p.legalDescription && p.countyId)
+
+    const imported = await storage.parcels.bulkImport(parcels)
+    
+    // Update county parcel count
+    if (parcels.length > 0) {
+      const countyId = parcels[0].countyId
+      const totalParcels = await storage.parcels.getByCounty(countyId)
+      await storage.counties.updateParcelCount(countyId, totalParcels.length)
+    }
+
+    res.json({ 
+      imported: imported.length, 
+      total: parcels.length,
+      parcels: imported 
+    })
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to import parcels' })
+  }
+})
+
+// AI document processing endpoint
+router.post('/documents/:id/process', async (req, res) => {
+  try {
+    const document = await storage.documents.processAI(req.params.id)
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' })
+    }
+    res.json(document)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to process document' })
   }
 })
 
