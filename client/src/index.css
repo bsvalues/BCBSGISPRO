@@ -54,23 +54,39 @@
     border-color: hsl(var(--border));
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-medium tracking-tight;
+    font-weight: 500;
+    letter-spacing: -0.025em;
   }
   
   h1 {
-    @apply text-3xl sm:text-4xl;
+    font-size: 1.875rem;
   }
   
   h2 {
-    @apply text-2xl sm:text-3xl;
+    font-size: 1.5rem;
   }
   
   h3 {
-    @apply text-xl sm:text-2xl;
+    font-size: 1.25rem;
+  }
+  
+  @media (min-width: 640px) {
+    h1 {
+      font-size: 2.25rem;
+    }
+    
+    h2 {
+      font-size: 1.875rem;
+    }
+    
+    h3 {
+      font-size: 1.5rem;
+    }
   }
 }
