@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Route, Switch, Link, useLocation } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
+import CountyManagement from './pages/CountyManagement';
+import DataImport from './pages/DataImport';
 import { 
   Map,
   Home,
@@ -15,7 +17,9 @@ import {
   X,
   HelpCircle,
   AlertCircle,
-  Server
+  Server,
+  Building2,
+  Workflow
 } from 'lucide-react';
 
 // Simple placeholder components
@@ -73,9 +77,11 @@ const App: React.FC = () => {
   const sidebarItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
     { path: '/map', icon: Map, label: 'Map Viewer' },
+    { path: '/counties', icon: Building2, label: 'County Management' },
     { path: '/analysis', icon: BarChart2, label: 'Property Analysis' },
     { path: '/data', icon: Database, label: 'Data Management' },
     { path: '/import', icon: Upload, label: 'Import Data' },
+    { path: '/workflows', icon: Workflow, label: 'Workflows' },
     { path: '/admin', icon: Settings, label: 'Administration' },
     { path: '/system', icon: Server, label: 'System Health' }
   ];
@@ -165,6 +171,14 @@ const App: React.FC = () => {
                     <p className="text-sm text-gray-500">All systems operational</p>
                   </PlaceholderCard>
                 </div>
+              </Route>
+              
+              <Route path="/counties">
+                <CountyManagement />
+              </Route>
+              
+              <Route path="/import">
+                <DataImport />
               </Route>
               
               <Route path="/map">
