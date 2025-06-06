@@ -59,14 +59,15 @@ export const mapLayers = pgTable('map_layers', {
 })
 
 export const counties = pgTable('counties', {
-  id: text('id').primaryKey(),
+  id: integer('id').primaryKey(),
   name: text('name').notNull(),
   state: text('state').notNull(),
-  fipsCode: text('fips_code').notNull().unique(),
-  status: text('status').default('active').notNull(),
-  totalParcels: integer('total_parcels').default(0),
+  fips: text('fips').notNull().unique(),
+  population: integer('population'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  configData: jsonb('config_data')
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  metadata: jsonb('metadata')
 })
 
 export const workflows = pgTable('workflows', {

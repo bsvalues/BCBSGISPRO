@@ -198,9 +198,15 @@ router.put('/map-layers/:id', async (req, res) => {
 // County management endpoints
 router.get('/counties', async (req, res) => {
   try {
-    const counties = await storage.counties.list()
-    res.json(counties)
+    const { rows } = await import('postgres').then(async postgres => {
+      const sql = postgres(process.env.DATABASE_URL!)
+      const result = await sql`SELECT * FROM counties WHERE is_active = true ORDER BY name`
+      await sql.end()
+      return { rows: result }
+    })
+    res.json(rows)
   } catch (error) {
+    console.error('Counties fetch error:', error)
     res.status(500).json({ error: 'Failed to fetch counties' })
   }
 })

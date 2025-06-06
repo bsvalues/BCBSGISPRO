@@ -79,32 +79,35 @@ export interface ICoreStorage {
 export class PostgresStorage implements ICoreStorage {
   counties = {
     async create(data: InsertCounty): Promise<County> {
-      const id = crypto.randomUUID()
-      const [county] = await db.insert(counties).values({ ...data, id }).returning()
+      const [county] = await db.insert(counties).values(data).returning()
       return county
     },
 
     async getById(id: string): Promise<County | undefined> {
-      const [county] = await db.select().from(counties).where(eq(counties.id, id))
+      const idNum = parseInt(id)
+      const [county] = await db.select().from(counties).where(eq(counties.id, idNum))
       return county
     },
 
     async getByFipsCode(fipsCode: string): Promise<County | undefined> {
-      const [county] = await db.select().from(counties).where(eq(counties.fipsCode, fipsCode))
+      const [county] = await db.select().from(counties).where(eq(counties.fips, fipsCode))
       return county
     },
 
     async update(id: string, data: Partial<InsertCounty>): Promise<County | undefined> {
-      const [county] = await db.update(counties).set(data).where(eq(counties.id, id)).returning()
+      const idNum = parseInt(id)
+      const [county] = await db.update(counties).set(data).where(eq(counties.id, idNum)).returning()
       return county
     },
 
     async list(): Promise<County[]> {
-      return await db.select().from(counties).orderBy(counties.name)
+      return await db.select().from(counties).where(eq(counties.isActive, true)).orderBy(counties.name)
     },
 
     async updateParcelCount(id: string, count: number): Promise<void> {
-      await db.update(counties).set({ totalParcels: count }).where(eq(counties.id, id))
+      const idNum = parseInt(id)
+      const metadata = { totalParcels: count }
+      await db.update(counties).set({ metadata }).where(eq(counties.id, idNum))
     }
   }
 
