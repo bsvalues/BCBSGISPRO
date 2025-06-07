@@ -487,4 +487,211 @@ router.get('/benton-county/cities', (req, res) => {
   res.json(BENTON_COUNTY_CONFIG.cities)
 })
 
+// TerraFusion Agent Mesh Integration
+router.post('/terrafusion/workflow', async (req, res) => {
+  try {
+    const { task, parcelData, workflowType } = req.body;
+    
+    // Call local agent mesh if available
+    const agentResponse = await fetch('http://localhost:3001/agent-mesh/workflow', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ task, parcelData, workflowType })
+    });
+
+    if (agentResponse.ok) {
+      const agentResult = await agentResponse.json();
+      res.json({
+        source: 'terrafusion_agent_mesh',
+        workflow: agentResult.workflow,
+        validation: agentResult.validation,
+        summary: agentResult.summary,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      // Fallback to integrated Benton County processing
+      const result = await processBentonCountyWorkflow(task, parcelData, workflowType);
+      res.json(result);
+    }
+  } catch (error) {
+    console.error('TerraFusion workflow error:', error);
+    res.status(500).json({ error: 'Workflow processing failed' });
+  }
+});
+
+router.post('/terrafusion/sm00', async (req, res) => {
+  try {
+    const { parcelNumber, ownerName, legalDescription } = req.body;
+    
+    const agentResponse = await fetch('http://localhost:3001/parcel/sm00-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ parcelNumber, ownerName, legalDescription })
+    });
+
+    if (agentResponse.ok) {
+      const sm00Result = await agentResponse.json();
+      res.json({
+        source: 'terrafusion_agent',
+        sm00Report: sm00Result.sm00Report,
+        validation: sm00Result.validation,
+        county: 'Benton County, Washington',
+        generated: sm00Result.generated
+      });
+    } else {
+      // Generate basic SM00 structure using Benton County data
+      const parcel = await bentonCountyService.fetchParcelByNumber(parcelNumber);
+      if (parcel) {
+        const sm00 = generateBentonCountySM00(parcel, ownerName, legalDescription);
+        res.json(sm00);
+      } else {
+        res.status(404).json({ error: 'Parcel not found in Benton County records' });
+      }
+    }
+  } catch (error) {
+    console.error('SM00 generation error:', error);
+    res.status(500).json({ error: 'SM00 report generation failed' });
+  }
+});
+
+router.post('/terrafusion/bla', async (req, res) => {
+  try {
+    const { operation, sourceParcels, targetConfiguration } = req.body;
+    
+    const agentResponse = await fetch('http://localhost:3001/parcel/bla-merge-split', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ operation, sourceParcels, targetConfiguration })
+    });
+
+    if (agentResponse.ok) {
+      const blaResult = await agentResponse.json();
+      res.json({
+        source: 'terrafusion_agent',
+        blaResult: blaResult.blaResult,
+        validation: blaResult.validation,
+        county: 'Benton County, Washington',
+        processed: blaResult.processed
+      });
+    } else {
+      // Basic BLA validation using Benton County rules
+      const validation = validateBentonCountyBLA(operation, sourceParcels, targetConfiguration);
+      res.json({
+        source: 'benton_county_validation',
+        operation,
+        validation,
+        recommendations: generateBLARecommendations(operation, validation)
+      });
+    }
+  } catch (error) {
+    console.error('BLA processing error:', error);
+    res.status(500).json({ error: 'BLA operation failed' });
+  }
+});
+
+// Helper functions for Benton County processing
+async function processBentonCountyWorkflow(task: string, parcelData: any, workflowType: string) {
+  return {
+    source: 'benton_county_integrated',
+    task,
+    workflowType,
+    parcelData,
+    analysis: `Benton County workflow processing for ${workflowType}`,
+    recommendations: [
+      {
+        priority: 'high',
+        action: 'Verify with Benton County records',
+        description: 'Cross-reference all data with official county database'
+      }
+    ],
+    status: 'processed',
+    timestamp: new Date().toISOString()
+  };
+}
+
+function generateBentonCountySM00(parcel: any, ownerName: string, legalDescription: string) {
+  return {
+    source: 'benton_county_data',
+    reportId: `SM00-BC-${Date.now()}`,
+    parcelNumber: parcel.parcelNumber,
+    ownerName: ownerName || parcel.ownerName,
+    legalDescription: legalDescription || parcel.legalDescription,
+    county: 'Benton County, Washington',
+    assessmentData: {
+      assessedValue: parcel.assessedValue,
+      landValue: parcel.landValue,
+      improvementValue: parcel.improvementValue,
+      taxableValue: parcel.taxableValue,
+      propertyType: parcel.propertyType,
+      acreage: parcel.acreage
+    },
+    taxingDistricts: parcel.taxingDistricts,
+    sections: {
+      parcelIdentification: `Parcel Number: ${parcel.parcelNumber}`,
+      ownershipInformation: `Owner: ${ownerName || parcel.ownerName}`,
+      assessmentData: `Assessed Value: $${parcel.assessedValue?.toLocaleString()}`,
+      taxingDistricts: `Districts: ${parcel.taxingDistricts?.join(', ')}`
+    },
+    generated: new Date().toISOString()
+  };
+}
+
+function validateBentonCountyBLA(operation: string, sourceParcels: any[], targetConfiguration: any) {
+  const issues = [];
+  const sourceCount = sourceParcels.length;
+  const targetCount = targetConfiguration.parcels?.length || sourceCount;
+
+  if (targetCount > sourceCount) {
+    issues.push({
+      severity: 'high',
+      category: 'parcel_count',
+      description: 'BLA cannot result in net increase of parcels',
+      requirement: 'RCW 58.17.040'
+    });
+  }
+
+  return {
+    isValid: issues.length === 0,
+    issues,
+    complianceScore: issues.length === 0 ? 100 : 75,
+    requirements: [
+      'Licensed surveyor boundary survey required',
+      'Zoning compliance verification needed',
+      'Minimum lot size requirements must be met'
+    ]
+  };
+}
+
+function generateBLARecommendations(operation: string, validation: any) {
+  const recommendations = [];
+
+  if (!validation.isValid) {
+    recommendations.push({
+      priority: 'high',
+      action: 'Address Compliance Issues',
+      description: 'Resolve all identified compliance violations before proceeding'
+    });
+  }
+
+  recommendations.push({
+    priority: 'medium',
+    action: 'Engage Licensed Surveyor',
+    description: 'Obtain boundary survey from Washington State licensed surveyor'
+  });
+
+  recommendations.push({
+    priority: 'medium',
+    action: 'Verify Zoning Compliance',
+    description: 'Confirm all resulting parcels meet Benton County zoning requirements'
+  });
+
+  return recommendations;
+}
+
 export default router
