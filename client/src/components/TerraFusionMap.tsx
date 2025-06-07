@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Layers, Search, FileText, Settings, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 
 interface TerraFusionMapProps {
   onParcelSelect?: (parcel: any) => void
@@ -173,33 +170,80 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
     )
   }
 
+  const controlsStyle = {
+    position: 'absolute' as const,
+    top: '1rem',
+    left: '1rem',
+    width: '16rem',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(8px)',
+    borderRadius: '0.5rem',
+    padding: '1rem',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    border: '1px solid rgba(229, 231, 235, 0.8)'
+  }
+
+  const buttonStyle = {
+    width: '100%',
+    padding: '0.5rem 1rem',
+    marginBottom: '0.5rem',
+    backgroundColor: 'white',
+    border: '1px solid #d1d5db',
+    borderRadius: '0.375rem',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 0.2s'
+  }
+
   return (
-    <div className="relative w-full h-full">
-      <div ref={mapContainer} className="w-full h-full" />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
       
-      <Card className="absolute top-4 left-4 w-64 bg-white/95 backdrop-blur-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Layers size={16} />
+      {error ? (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: '#fef2f2',
+          color: '#dc2626',
+          padding: '1rem',
+          borderRadius: '0.5rem',
+          border: '1px solid #fecaca',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <AlertTriangle size={20} />
+          <span>{error}</span>
+        </div>
+      ) : (
+        <div style={controlsStyle}>
+          <div style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: '600', 
+            marginBottom: '0.75rem',
+            color: '#374151'
+          }}>
             TerraFusion Controls
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => toggleLayer('parcels')}
-          >
-            <FileText size={14} className="mr-2" />
-            Toggle Parcels
-          </Button>
+          </div>
           
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
+          <button
+            style={buttonStyle}
+            onClick={() => toggleLayer('parcels')}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+          >
+            Toggle Parcels
+          </button>
+          
+          <button
+            style={buttonStyle}
             onClick={() => toggleLayer('county-boundary')}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
           >
             <Search size={14} className="mr-2" />
             County Boundary
