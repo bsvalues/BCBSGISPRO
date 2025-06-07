@@ -30,22 +30,39 @@ export default function SimpleGISDashboard() {
 
   const fetchData = async () => {
     try {
-      const [countiesRes, parcelsRes] = await Promise.all([
-        fetch('/api/counties'),
-        fetch('/api/parcels?limit=20')
+      const [bentonConfigRes, bentonParcelsRes, bentonStatsRes] = await Promise.all([
+        fetch('/api/benton-county/config'),
+        fetch('/api/benton-county/parcels?limit=20'),
+        fetch('/api/benton-county/statistics')
       ]);
 
-      if (countiesRes.ok) {
-        const countiesData = await countiesRes.json();
-        setCounties(countiesData);
-        if (countiesData.length > 0) {
-          setSelectedCounty(countiesData[0]);
-        }
+      // Set Benton County as the default county
+      if (bentonConfigRes.ok) {
+        const bentonConfig = await bentonConfigRes.json();
+        const bentonCounty = {
+          id: 1,
+          name: bentonConfig.county.name,
+          state: bentonConfig.county.state,
+          fips: bentonConfig.county.fipsCode,
+          population: bentonConfig.county.population,
+          is_active: true
+        };
+        setCounties([bentonCounty]);
+        setSelectedCounty(bentonCounty);
       }
 
-      if (parcelsRes.ok) {
-        const parcelsData = await parcelsRes.json();
-        setParcels(parcelsData);
+      if (bentonParcelsRes.ok) {
+        const bentonParcels = await bentonParcelsRes.json();
+        // Transform Benton County parcel data to match our interface
+        const transformedParcels = bentonParcels.map((parcel: any) => ({
+          id: parcel.objectId?.toString() || Math.random().toString(),
+          parcelNumber: parcel.parcelNumber,
+          legalDescription: parcel.legalDescription,
+          ownerName: parcel.ownerName,
+          address: parcel.situsAddress,
+          assessedValue: parcel.assessedValue?.toString()
+        }));
+        setParcels(transformedParcels);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -188,8 +205,8 @@ export default function SimpleGISDashboard() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>BentonGeoPro GIS Platform</h1>
-        <p style={styles.subtitle}>Geographic Information System for Benton County Assessor's Office</p>
+        <h1 style={styles.title}>TerraFusion Benton County</h1>
+        <p style={styles.subtitle}>Advanced GIS Platform for Benton County Washington Assessor's Office</p>
       </div>
 
       <div style={styles.main}>

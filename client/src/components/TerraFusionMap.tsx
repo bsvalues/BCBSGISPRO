@@ -127,17 +127,25 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
     if (!map.current) return
 
     try {
-      const response = await fetch('/api/parcels?limit=100')
-      const parcels = await response.json()
+      const response = await fetch('/api/benton-county/parcels?limit=500')
+      const bentonParcels = await response.json()
 
       const geojsonData = {
         type: 'FeatureCollection' as const,
-        features: parcels.map((parcel: any) => ({
+        features: bentonParcels.map((parcel: any) => ({
           type: 'Feature' as const,
-          properties: parcel,
+          properties: {
+            parcelNumber: parcel.parcelNumber,
+            ownerName: parcel.ownerName,
+            situsAddress: parcel.situsAddress,
+            assessedValue: parcel.assessedValue,
+            propertyType: parcel.propertyType,
+            acreage: parcel.acreage,
+            taxableValue: parcel.taxableValue
+          },
           geometry: parcel.geometry || {
             type: 'Point',
-            coordinates: [-119.2687 + (Math.random() - 0.5) * 0.1, 46.2619 + (Math.random() - 0.5) * 0.1]
+            coordinates: [-119.2787 + (Math.random() - 0.5) * 0.3, 46.2619 + (Math.random() - 0.5) * 0.3]
           }
         }))
       }
