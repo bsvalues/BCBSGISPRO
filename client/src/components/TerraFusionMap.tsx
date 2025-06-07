@@ -33,7 +33,7 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
       map.current = new mapboxgl.Map({
         container: mapContainer.current!,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [-119.2787, 46.2619],
+        center: [-119.2687, 46.2619], // Benton County, Washington center
         zoom: 10,
         projection: 'mercator'
       })

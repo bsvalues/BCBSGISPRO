@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Route, Switch, Link, useLocation } from 'wouter';
-import SimpleGISDashboard from './pages/SimpleGISDashboard';
+import BentonCountyDashboard from './pages/BentonCountyDashboard';
 import TerraFusionWorkflow from './pages/TerraFusionWorkflow';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MapPin, Bot, BarChart3 } from 'lucide-react';
+import { MapPin, Bot, BarChart3, Building } from 'lucide-react';
 
 const Navigation = () => {
   const [location] = useLocation();
   
   const navItems = [
-    { path: '/', label: 'GIS Dashboard', icon: BarChart3 },
+    { path: '/', label: 'Benton County Dashboard', icon: Building },
     { path: '/workflow', label: 'AI Workflow Assistant', icon: Bot },
   ];
 
@@ -20,7 +20,7 @@ const Navigation = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold">TerraFusion Benton County</h1>
+            <h1 className="text-xl font-bold">TerraFusion Benton County, Washington</h1>
           </div>
           <nav className="flex gap-2">
             {navItems.map(({ path, label, icon: Icon }) => (
@@ -48,13 +48,13 @@ const App: React.FC = () => {
         <Navigation />
         
         <Switch>
-          <Route path="/" component={SimpleGISDashboard} />
+          <Route path="/" component={BentonCountyDashboard} />
           <Route path="/workflow" component={TerraFusionWorkflow} />
           <Route>
             <div className="text-center py-12">
               <h2 className="text-2xl font-bold mb-4">Page Not Found</h2>
               <Link href="/">
-                <Button>Return to Dashboard</Button>
+                <Button>Return to Benton County Dashboard</Button>
               </Link>
             </div>
           </Route>
