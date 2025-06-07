@@ -1,9 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Upload, FileText, CheckCircle, AlertCircle, Download, 
-  Database, MapPin, Calendar, User
-} from 'lucide-react';
+
 
 interface ImportResult {
   imported: number;
