@@ -1,6 +1,8 @@
 import express from 'express'
 import multer from 'multer'
 import { storage } from './core-storage'
+import { bentonCountyService } from './benton-county-service'
+import { BENTON_COUNTY_CONFIG } from './benton-county-config'
 import { 
   insertUserSchema, insertParcelSchema, insertDocumentSchema, insertMapLayerSchema,
   insertCountySchema, insertGisLayerSchema, insertWorkflowSchema 
@@ -379,6 +381,110 @@ router.get('/audit-logs/:entityType/:entityId', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch audit logs' })
   }
+})
+
+// Benton County specific endpoints
+router.get('/benton-county/config', (req, res) => {
+  res.json(BENTON_COUNTY_CONFIG)
+})
+
+router.get('/benton-county/parcels', async (req, res) => {
+  try {
+    const { extent, where, limit, search } = req.query
+    
+    let whereClause = where as string || '1=1'
+    if (search) {
+      whereClause = `PARCEL_NUMBER LIKE '%${search}%' OR OWNER_NAME LIKE '%${search}%' OR SITUS_ADDRESS LIKE '%${search}%'`
+    }
+    
+    const extentArray = extent ? (extent as string).split(',').map(Number) : undefined
+    
+    const result = await bentonCountyService.fetchParcels({
+      extent: extentArray,
+      where: whereClause,
+      limit: limit ? parseInt(limit as string) : 100
+    })
+    
+    res.json(result.features)
+  } catch (error) {
+    console.error('Benton County parcels error:', error)
+    res.status(500).json({ error: 'Failed to fetch Benton County parcels' })
+  }
+})
+
+router.get('/benton-county/parcels/:parcelNumber', async (req, res) => {
+  try {
+    const { parcelNumber } = req.params
+    const parcel = await bentonCountyService.fetchParcelByNumber(parcelNumber)
+    
+    if (!parcel) {
+      return res.status(404).json({ error: 'Parcel not found' })
+    }
+    
+    res.json(parcel)
+  } catch (error) {
+    console.error('Benton County parcel lookup error:', error)
+    res.status(500).json({ error: 'Failed to fetch parcel details' })
+  }
+})
+
+router.get('/benton-county/owner/:ownerName', async (req, res) => {
+  try {
+    const { ownerName } = req.params
+    const parcels = await bentonCountyService.fetchParcelsByOwner(ownerName)
+    res.json(parcels)
+  } catch (error) {
+    console.error('Benton County owner search error:', error)
+    res.status(500).json({ error: 'Failed to search by owner' })
+  }
+})
+
+router.get('/benton-county/address/:address', async (req, res) => {
+  try {
+    const { address } = req.params
+    const parcels = await bentonCountyService.fetchParcelsByAddress(address)
+    res.json(parcels)
+  } catch (error) {
+    console.error('Benton County address search error:', error)
+    res.status(500).json({ error: 'Failed to search by address' })
+  }
+})
+
+router.get('/benton-county/taxing-districts', async (req, res) => {
+  try {
+    const districts = await bentonCountyService.fetchTaxingDistricts()
+    res.json(districts)
+  } catch (error) {
+    console.error('Benton County taxing districts error:', error)
+    res.status(500).json({ error: 'Failed to fetch taxing districts' })
+  }
+})
+
+router.get('/benton-county/zoning', async (req, res) => {
+  try {
+    const { extent } = req.query
+    const extentArray = extent ? (extent as string).split(',').map(Number) : undefined
+    
+    const zoning = await bentonCountyService.fetchZoningData(extentArray)
+    res.json(zoning)
+  } catch (error) {
+    console.error('Benton County zoning error:', error)
+    res.status(500).json({ error: 'Failed to fetch zoning data' })
+  }
+})
+
+router.get('/benton-county/statistics', async (req, res) => {
+  try {
+    const stats = await bentonCountyService.getPropertyStatistics()
+    res.json(stats)
+  } catch (error) {
+    console.error('Benton County statistics error:', error)
+    res.status(500).json({ error: 'Failed to fetch property statistics' })
+  }
+})
+
+router.get('/benton-county/cities', (req, res) => {
+  res.json(BENTON_COUNTY_CONFIG.cities)
 })
 
 export default router

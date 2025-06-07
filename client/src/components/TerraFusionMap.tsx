@@ -33,8 +33,8 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
       map.current = new mapboxgl.Map({
         container: mapContainer.current!,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [-119.2687, 46.2619],
-        zoom: 11,
+        center: [-119.2787, 46.2619],
+        zoom: 10,
         projection: 'mercator'
       })
 
@@ -84,11 +84,16 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
         type: 'FeatureCollection' as const,
         features: [{
           type: 'Feature' as const,
-          properties: { name: 'Benton County' },
+          properties: { 
+            name: 'Benton County, Washington',
+            FIPS: '53005',
+            county_seat: 'Prosser',
+            established: '1905'
+          },
           geometry: {
             type: 'Polygon' as const,
             coordinates: [[
-              [-119.5, 46.1], [-119.0, 46.1], [-119.0, 46.4], [-119.5, 46.4], [-119.5, 46.1]
+              [-119.7, 45.8], [-119.0, 45.8], [-119.0, 46.5], [-119.7, 46.5], [-119.7, 45.8]
             ]]
           }
         }]
