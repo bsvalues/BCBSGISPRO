@@ -45,59 +45,73 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
         loadParcelData()
       })
 
-      map.current.on('error', (e) => {
-        setError(`Map error: ${e.error?.message || 'Unknown error'}`)
-        setIsLoading(false)
-      })
-
       map.current.on('click', 'parcels', (e) => {
         if (e.features && e.features[0] && onParcelSelect) {
           onParcelSelect(e.features[0].properties)
         }
       })
 
-      return () => {
+      map.current.on('mouseenter', 'parcels', () => {
         if (map.current) {
-          map.current.remove()
-          map.current = null
+          map.current.getCanvas().style.cursor = 'pointer'
         }
-      }
-    } catch (err) {
-      setError(`Failed to initialize map: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      })
+
+      map.current.on('mouseleave', 'parcels', () => {
+        if (map.current) {
+          map.current.getCanvas().style.cursor = ''
+        }
+      })
+
+    } catch (error) {
+      console.error('Failed to initialize map:', error)
+      setError('Failed to initialize map. Please check your configuration.')
       setIsLoading(false)
     }
-  }, [])
+
+    return () => {
+      if (map.current) {
+        map.current.remove()
+      }
+    }
+  }, [onParcelSelect])
 
   const loadCountyBoundary = async () => {
     if (!map.current) return
 
     try {
-      const response = await fetch('/api/counties')
-      const counties = await response.json()
-      
-      if (counties.length > 0) {
-        const county = counties[0]
-        if (county.geometry) {
-          map.current.addSource('county-boundary', {
-            type: 'geojson',
-            data: {
-              type: 'Feature',
-              properties: county,
-              geometry: county.geometry
-            }
-          })
+      const bentonCountyBoundary = {
+        type: 'FeatureCollection' as const,
+        features: [{
+          type: 'Feature' as const,
+          properties: { name: 'Benton County' },
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [[
+              [-119.5, 46.1], [-119.0, 46.1], [-119.0, 46.4], [-119.5, 46.4], [-119.5, 46.1]
+            ]]
+          }
+        }]
+      }
 
-          map.current.addLayer({
-            id: 'county-boundary',
-            type: 'line',
-            source: 'county-boundary',
-            paint: {
-              'line-color': '#0891b2',
-              'line-width': 3,
-              'line-opacity': 0.8
-            }
-          })
-        }
+      if (map.current.getSource('county-boundary')) {
+        ;(map.current.getSource('county-boundary') as mapboxgl.GeoJSONSource).setData(bentonCountyBoundary as any)
+      } else {
+        map.current.addSource('county-boundary', {
+          type: 'geojson',
+          data: bentonCountyBoundary as any
+        })
+
+        map.current.addLayer({
+          id: 'county-boundary',
+          type: 'line',
+          source: 'county-boundary',
+          paint: {
+            'line-color': '#FF6B35',
+            'line-width': 3,
+            'line-opacity': 0.8
+          }
+        })
       }
     } catch (error) {
       console.warn('Failed to load county boundary:', error)
@@ -245,37 +259,41 @@ export default function TerraFusionMap({ onParcelSelect, selectedParcelId }: Ter
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
           >
-            <Search size={14} className="mr-2" />
             County Boundary
-          </Button>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center p-4">
-          <Card className="max-w-md">
-            <CardContent className="p-6">
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="mt-2">
-                  {error}
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
+          </button>
         </div>
       )}
 
       {isLoading && !error && (
-        <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center">
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className="text-sm text-gray-600">Loading TerraFusion Map...</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(17, 24, 39, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '1.5rem',
+            borderRadius: '0.5rem',
+            textAlign: 'center',
+            boxShadow: '0 10px 15px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{
+              width: '2rem',
+              height: '2rem',
+              border: '4px solid #0d9488',
+              borderTop: '4px solid transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 1rem auto'
+            }}></div>
+            <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>Loading TerraFusion Map...</p>
+          </div>
         </div>
       )}
     </div>
